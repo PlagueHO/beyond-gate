@@ -1,0 +1,20 @@
+[package]
+name = "beyond-gate-cli"
+description = "Local-first command-line access to authorized D&D Beyond data"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "beyond-gate"
+path = "src/main.rs"
+
+[dependencies]
+beyond-gate-core.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true

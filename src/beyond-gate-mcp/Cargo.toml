@@ -1,0 +1,20 @@
+[package]
+name = "beyond-gate-mcp"
+description = "Local stdio MCP server entry point for Beyond Gate"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "beyond-gate-mcp"
+path = "src/main.rs"
+
+[dependencies]
+beyond-gate-core.workspace = true
+clap.workspace = true
+
+[lints]
+workspace = true
