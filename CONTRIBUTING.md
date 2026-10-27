@@ -9,10 +9,32 @@ Install rustup. Windows needs Visual Studio Build Tools with the C++ workload an
 Windows SDK. Use the toolchain in `rust-toolchain.toml`; do not depend on a
 machine-specific path. Cargo manages all Rust dependencies.
 
-If Windows reports a missing `msvcrt.lib`, open the Developer Command Prompt or
-Developer PowerShell for a complete Visual Studio Build Tools installation.
+If Windows reports a missing `msvcrt.lib`, `vcruntime.h`, or `stdint.h`, initialize
+the Developer Command Prompt or Developer PowerShell for a complete Visual Studio
+Build Tools installation. The probe's TLS dependency also compiles C code.
 Run Cargo in that same terminal. A second, incomplete Visual Studio installation
-can otherwise be selected automatically. Do not commit local linker paths.
+can otherwise be selected automatically. Do not commit local compiler or linker
+paths.
+
+To initialize an existing PowerShell terminal, select a registered installation
+with C++ tools. This changes only the current shell environment and keeps the
+current directory:
+
+```powershell
+$vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+$vs = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+if (-not $vs) {
+    throw 'No complete Visual Studio C++ Build Tools installation was found.'
+}
+& (Join-Path $vs 'Common7\Tools\Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+```
+
+See Microsoft's [developer shell guidance](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell).
+Check probe compilation without requesting a cookie or sending a live request:
+
+```shell
+cargo test -p beyond-gate-core --test auth_probe --locked --no-run
+```
 
 Run from the workspace root:
 
@@ -59,6 +81,12 @@ Tests must run offline without a real account. Use synthetic examples, not copie
 of character responses or book text. Mock network boundaries when they exist.
 Do not execute a live login or content read without explicit approval and the
 feasibility gate in the roadmap.
+
+The [session-exchange probe](docs/authentication.md#opt-in-session-exchange-probe)
+is an ignored developer test, not product login. Its ordinary tests use synthetic
+data and local mocks. Run its live case only from an unrecorded interactive
+terminal with the required permission. Never pass a cookie through agent tools,
+command arguments, environment variables, or files.
 
 ## Pull requests
 

@@ -10,5 +10,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Three-crate Rust foundation with help, version output, and offline process tests.
 - Development and agent guidance, architecture, authentication design, and roadmap.
 - CI checks, issue and PR templates, and native binary packaging.
+- Dated access feasibility assessment with official sources, per-read permission
+  questions, browser-login limits, and a blocked live integration gate.
+- Personal interactive lookup scope and a browser-handoff comparison based on
+  native OAuth and cookie documentation.
+- Ignored, authentication-only developer probe for a manual Cobalt session
+  exchange, with hidden input, bounded requests, redacted errors, and synthetic
+  offline tests. One successful live exchange was reported by the user on
+  2026-10-27; data reads, expiry, and automatic login remain untested.
 
 No account login, D&D Beyond reads, or MCP serving is available yet.

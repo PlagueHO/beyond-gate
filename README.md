@@ -8,7 +8,10 @@ purchased or shared books.
 
 **Status: foundation only.** Both binaries provide `--help` and `--version`.
 Account login, data access, and MCP serving are not implemented. No account
-credentials or network access are needed to build or test this foundation.
+credentials or live D&D Beyond access are needed to build or test this foundation.
+An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
+can test a manually supplied session separately. The user reported one successful
+exchange on 2026-10-27. It is not product login and does not verify data reads.
 
 ## Goals and limits
 
@@ -18,6 +21,11 @@ credentials or network access are needed to build or test this foundation.
 - Preserve character data from the source instead of building a rules engine.
 - Read accessible book sections in bounded requests with source URLs.
 
+The intended workflow is personal, user-triggered lookup of data already
+accessible to the user in the browser, not background collection or bulk
+extraction. Browser access and native-client session access remain separate
+technical questions.
+
 The installed browser can provide the future login experience. No cloud service,
 remote MCP hosting, account sharing, content redistribution, or write operations
 are in the v1 scope. Local execution still needs an internet connection for future
@@ -26,10 +34,13 @@ D&D Beyond requests.
 This project is unofficial. D&D Beyond endpoints may change without notice.
 Content ownership or sharing access does **not** establish permission to automate
 access. The [Wizards terms](https://company.wizards.com/en/legal/terms) restrict
-unauthorized automated access. The first roadmap item must establish a permitted
-and technically viable path before account integration proceeds. Do not bypass
-paywalls, access controls, or bot protection. This repository contains no
-proprietary content or real account fixtures.
+unauthorized automated access. The
+[2026-10-27 feasibility assessment](docs/architecture.md#feasibility-assessment)
+did not establish a permitted integration path. Account integration remains
+blocked pending upstream permission and a supported technical contract. Simple
+browser login remains unproven. Do not bypass paywalls, access controls, or bot
+protection. This repository contains no proprietary content or real account
+fixtures.
 
 ## Build and try the foundation
 
