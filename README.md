@@ -6,9 +6,11 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns, and
 purchased or shared books.
 
-**Status: foundation only.** Both binaries provide `--help` and `--version`.
-Account login, data access, and MCP serving are not implemented. No account
-credentials or live D&D Beyond access are needed to build or test this foundation.
+**Status: local session management only.** Both binaries provide `--help` and
+`--version`. The CLI also provides local `auth status` and `auth logout`.
+`auth login` reports the browser-handoff blocker and fails without collecting
+credentials. Account login, data access, and MCP serving are not implemented.
+No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful
 exchange on 2026-10-27. It is not product login and does not verify data reads.
@@ -75,11 +77,37 @@ The binaries are `beyond-gate` and `beyond-gate-mcp` in the Cargo release output
 directory. Windows adds `.exe`. See [Contributing](CONTRIBUTING.md) for checks and
 the packaging process.
 
+## Local session commands
+
+```shell
+beyond-gate auth login
+beyond-gate auth status
+beyond-gate auth logout
+```
+
+Login exits with code 1 and reports the missing permitted browser handoff.
+It does not open a browser, prompt for a secret, access storage, or send a request.
+There is no product command to create or import a credential. Do not manually
+create a credential as a substitute for browser login.
+
+Status inspects only Beyond Gate's protected credential entry. It reports `absent`
+or `stored-unverified`; a stored value does not prove upstream usability, and its
+expiry is unknown. Logout removes only that entry. It does not revoke the
+upstream session or log the browser out. Successful local status and logout exit
+with code 0. Storage failures exit with code 1 and use stderr, not fake results
+on stdout. Invalid command usage exits with code 2.
+
+Storage uses Windows Credential Manager, macOS login Keychain, or Linux Secret
+Service. There is no plaintext fallback. These two local commands can access your
+OS credential service and can trigger its access or unlock dialog. Automated
+tests use synthetic stores only. See the [authentication guide](docs/authentication.md#local-session-commands)
+for backend requirements and recovery steps.
+
 ## Structure
 
 | Path | Purpose |
 |------|---------|
-| `src/beyond-gate-core` | Shared status message and offline-tested HTTP boundary |
+| `src/beyond-gate-core` | Shared local session operations and offline-tested HTTP boundary |
 | `src/beyond-gate-cli` | The `beyond-gate` CLI |
 | `src/beyond-gate-mcp` | The `beyond-gate-mcp` binary; server work is pending |
 | `docs` | Architecture, authentication design, and implementation roadmap |
@@ -88,12 +116,13 @@ the packaging process.
 This structure adapts [ArcadeJanitor](https://github.com/PlagueHO/arcade-janitor).
 It does not copy that project's ROM operations or HTTP MCP transport.
 
-## Planned interface, not working commands
+## Remaining planned interfaces
 
-The intended CLI uses resource-first commands: `auth`, `character`, `campaign`,
-`book`, `mcp`, and `completions`. List commands will support table, JSON, and TSV
+Local `auth` commands are available as described above. The remaining intended
+CLI resources are `character`, `campaign`, `book`, `mcp`, and `completions`.
+List commands will support table, JSON, and TSV
 output. Result data goes to stdout. Diagnostics go to stderr. MCP stdout will
-contain protocol messages only. These interfaces are proposed, not available.
+contain protocol messages only. These remaining interfaces are proposed, not available.
 
 See the [roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and
 [authentication design](docs/authentication.md). See [AGENTS.md](AGENTS.md) for

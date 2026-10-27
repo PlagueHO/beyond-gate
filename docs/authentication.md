@@ -1,6 +1,6 @@
 # Authentication design
 
-**Planned, not implemented.** Simple local login is a core requirement.
+**Local storage implemented; browser login blocked.** Simple local login is a core requirement.
 The [2026-10-27 feasibility assessment](architecture.md#feasibility-assessment)
 did not establish a permitted path. Live login and session experiments remain
 subject to that gate. An ignored, developer-only
@@ -8,15 +8,96 @@ subject to that gate. An ignored, developer-only
 The user reported a successful manual exchange on 2026-10-27. The probe does not
 implement product login.
 
+## Local session commands
+
+The CLI now exposes `auth login`, `auth status`, and `auth logout`. This is partial
+offline work for [#3](https://github.com/PlagueHO/beyond-gate/issues/3), not a
+completed browser-login flow.
+
+| Command | Current result |
+|---------|----------------|
+| `beyond-gate auth login` | Exits with code 1. Reports the missing permitted browser handoff on stderr. No browser, secret input, credential-store access, or request occurs. |
+| `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. Stored material has not been validated upstream; expiry is unknown. |
+| `beyond-gate auth logout` | Exits with code 0 after local deletion or when the entry is already absent. States that upstream revocation is not implemented. |
+
+Storage errors exit with code 1 and use stderr. Invalid command usage exits with
+code 2. A locked store or a failed service is not an absent session. Status does
+not modify a credential. Logout deletes its entry without first reading its
+secret, so it can also remove invalid stored data.
+
+There is no product command to create or import a credential. Do not create one
+manually to work around blocked login. The core write boundary exists for a future
+approved flow and uses synthetic values in tests. No credential argument,
+environment input, password prompt, or MCP input is added. Neither adapter uses
+stored material for an upstream request. MCP serving remains unavailable.
+
+### Protected-store selection and recovery
+
+The core selects the backend explicitly through
+[`keyring-core`](https://docs.rs/keyring-core/latest/keyring_core/).
+It does not install a global default store, enumerate credentials, or select a
+mock, sample, file, kernel-keyring fallback, or plaintext backend.
+
+| Platform | Selected backend | Requirements and recovery |
+|----------|------------------|---------------------------|
+| Windows | [windows-native-keyring-store](https://docs.rs/windows-native-keyring-store/latest/windows_native_keyring_store/) | Uses Windows Credential Manager. Writes request `Local` persistence, not roaming `Enterprise` persistence. Use the same Windows account and an available credential service. Resolve access errors in the OS. |
+| macOS | [apple-native-keyring-store](https://docs.rs/apple-native-keyring-store/latest/apple_native_keyring_store/) with `keychain` | Uses the user's login Keychain, not the sandbox-only protected-data backend. Unlock the login keychain and review OS access prompts. |
+| Linux | [zbus-secret-service-keyring-store](https://docs.rs/zbus-secret-service-keyring-store/latest/zbus_secret_service_keyring_store/) with `crypto-rust` | Requires a user session D-Bus service and a Secret Service provider with an available default collection, such as GNOME Keyring or a compatible KDE Wallet. Start or unlock it through the desktop's normal tools, then run the command in that user session. No OpenSSL or libdbus build dependency is added. |
+
+The service identity is `beyond-gate`; the account identity is `local-session`.
+Both adapters must use these same core operations. No actual username is part of
+the entry identity. On Windows the default target name is
+`local-session.beyond-gate`. Only this entry can be read, written, or removed.
+An ambiguous match is an error; no duplicate is selected or deleted automatically.
+
+Headless Linux and WSL do not always provide a session bus or default collection.
+If protected storage cannot work in that environment, the command fails. Do not
+use a file or environment variable as a replacement. No password collection or
+headless unlock script is supplied. Other operating systems fail explicitly.
+
+Backends do not expose identical errors. Access denied and locked storage share
+one category when they cannot be distinguished. A service connection failure can
+be a general storage failure. Diagnostics omit raw native error messages and
+credential values, but retain a typed cause behind a redacted error wrapper.
+
+Opaque session values must be nonempty and at most 8 KiB. Native stores can impose
+a smaller limit; such failures are explicit. This bound is a local storage rule,
+not an upstream cookie or token contract. Core-owned secret allocations are cleared
+on drop. This does not guarantee removal of copies held by OS APIs or callers.
+
+There is no token cache in this implementation. Logout does not revoke an
+upstream session, log the browser out, or clear credentials held by another
+process. No upstream revocation contract has been established.
+
+### Offline checks and remaining work
+
+Unit tests use isolated in-memory credentials. They check shared entry identity,
+write/read/delete, exact size bounds, invalid stored material, denied or locked
+storage, missing backends, native failures, ambiguous entries, repeated logout,
+and redacted error chains. CLI tests check local output and failures with injected
+operations. Process tests exercise blocked login, help, and rejected input without
+accessing real credentials. MCP process tests keep its non-serving boundary.
+
+No native credential-store round trip or live account test is part of these
+checks. Platform CI checks build compatibility, not real credential-service access.
+A native-store smoke test requires separate explicit credential-access approval.
+
+Usable, expired, and rejected upstream session states remain deferred. So do
+browser cancellation, cookie exchange failures, timed expiry, bounded refresh,
+and actual CLI/MCP authenticated-session parity. They need a permitted browser
+handoff and supported exchange, expiry, refresh, and host contracts first.
+The manual developer probe below remains separate and unchanged.
+
 ## Required user experience
 
-1. The user starts the proposed `beyond-gate auth login` command.
+1. The user starts `beyond-gate auth login` after the browser handoff is implemented.
 2. Beyond Gate opens the user's installed browser for human-controlled login.
 3. Beyond Gate obtains only the session material needed for authorized reads.
 4. It stores persistent session material in protected OS credential storage.
 5. The CLI and MCP server use that same local session without repeated setup.
 
-These steps describe the desired experience, not a verified capture mechanism.
+These steps describe the desired future experience, not the current blocked command
+or a verified capture mechanism.
 D&D Beyond is not assumed to expose an OAuth callback for this project.
 Do not promise one. Evaluate a permitted browser-mediated handoff before choosing
 a browser integration. Do not read unrelated browser profiles or cookies.
@@ -181,16 +262,17 @@ exchange, the future session design must support it. Determine actual cookie
 names, hosts, token fields, expiry, and refresh behavior in the feasibility work.
 Do not hard-code guessed endpoints or assume that cookies never expire.
 
-Store persistent secrets in the native credential store: Windows Credential
-Manager, macOS Keychain, or a supported Linux secret service. Keep short-lived
+The local storage boundary above uses Windows Credential Manager, macOS Keychain,
+or Linux Secret Service. A future approved login must use that boundary. Keep short-lived
 tokens in memory when possible. Store non-secret settings separately in the
 user's OS configuration directory. Do not silently fall back to plaintext when a
 credential store is locked or missing.
 
-Proposed `auth status` output reports only whether login is usable and when it
-expires. It must not display secrets. Proposed `auth logout` removes local
-credentials and memory caches. It must state whether upstream revocation is
-available; local removal alone is not upstream revocation.
+Future `auth status` output must report usability and expiry only when supported
+evidence exists. Current status reports local presence only. It never displays
+secrets. Current `auth logout` removes the local entry and states that upstream
+revocation is unavailable. Future token caches must also participate in logout.
+Local removal alone is not upstream revocation.
 
 Handle expiry explicitly. Bound token refresh and do not repeatedly retry a
 rejected session. Give the user a clear login action. MCP tools must report that
@@ -214,7 +296,7 @@ Do not commit account snapshots, HAR files, browser profiles, or content samples
 - Can a simple browser handoff work without an extension or credential scraping?
 - What minimal session material and host allowlist does the flow require?
 - What expiry and token-exchange rules does upstream actually support?
-- How should Linux users recover when a protected credential service is unavailable?
+- Which Linux environments provide the protected session service needed at runtime?
 
 These remain open after the assessment. Resolve them through the
 [permission questions](architecture.md#permission-questions-and-next-gate) and

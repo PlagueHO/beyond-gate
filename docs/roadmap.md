@@ -1,7 +1,9 @@
 # Implementation roadmap
 
-The binaries provide help and version output only. The core HTTP boundary has
-offline policy tests, but no live endpoints or adapter wiring. Product operations
+Both binaries provide help and version output. The CLI also has blocked login
+and local auth status/logout. Protected-store operations have synthetic offline
+tests; no product credential-creation flow exists. The core HTTP boundary has
+offline policy tests, but no live endpoints or adapter wiring. Authenticated operations
 below remain pending. The first feasibility assessment is documented, but it does not
 open the live integration gate. Each issue includes acceptance criteria,
 dependencies, tests, and documentation requirements.
@@ -12,7 +14,7 @@ dependencies, tests, and documentation requirements.
 |-------|-------|---------------|
 | [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Permitted access and technical feasibility | None; assessment recorded; live gate remains blocked |
 | [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy; offline boundary implemented | #1; approved hosts and endpoint contracts still unresolved |
-| [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions | #1, #2 |
+| [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions; local storage/status/logout implemented, browser login blocked | #1, #2 |
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Accessible book library discovery | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
 | [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Book outlines and bounded section reads | #4 |
@@ -67,6 +69,13 @@ change instead of an access bypass. Offline-only work or a separately assessed
 local-data import are proposals, not approved replacements for the current goals.
 
 ## Release boundary
+
+Issue #3 remains partial. `auth login` fails with the browser-handoff blocker.
+`auth status` can establish only `absent` or `stored-unverified`, not upstream
+usability or expiry. `auth logout` removes the local entry but cannot revoke
+upstream sessions. Native-store runtime checks need separate approval; automated
+tests use synthetic stores. Exchange, expiry, bounded refresh, browser cancellation,
+and real CLI/MCP session parity remain deferred.
 
 v1 is local-only and read-only. It needs simple authentication, consistent CLI/MCP
 results, source URLs, bounded book reads, and clear errors before a usable release.

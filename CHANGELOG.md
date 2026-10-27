@@ -7,6 +7,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Shared protected local session operations with explicit Windows Credential
+  Manager, macOS login Keychain, and Linux Secret Service backends, bounded opaque
+  secrets, redacted typed failures, and synthetic store tests. No plaintext fallback
+  or product credential import is available.
+- Resource-first `auth status` and `auth logout` commands for local presence and
+  removal only. `auth login` reports the browser-handoff blocker without collecting
+  secrets or starting a browser. Stored sessions remain unverified; upstream
+  exchange, expiry, refresh, revocation, and MCP session use remain unavailable.
 - Offline-tested async core HTTP boundary with explicit HTTPS origins, GET-only
   typed JSON reads, bounded time, size, concurrency, retries, Retry-After handling,
   redirect rejection, sensitive session headers, and redacted typed error causes.
