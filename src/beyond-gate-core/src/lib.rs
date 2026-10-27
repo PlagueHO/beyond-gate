@@ -3,10 +3,11 @@
 //! Account access is not implemented. The offline-tested HTTP boundary has no
 //! built-in upstream hosts or endpoints. Local auth operations use one protected
 //! credential entry. Browser login, session exchange, and MCP serving remain
-//! blocked; future read operations belong here.
+//! blocked. Library metadata assembly accepts supplied offline pages only.
 
 pub mod auth;
 pub mod http;
+pub mod library;
 
 /// Describes the current boundary of the runnable foundation.
 ///

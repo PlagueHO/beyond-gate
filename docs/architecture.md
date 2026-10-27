@@ -5,7 +5,8 @@
 The workspace contains three crates. The core exports one shared foundation status
 message. Both adapters use clap for help and version output. The core also
 provides an offline-tested async HTTP boundary and protected local session
-operations. The CLI exposes blocked login plus local status and logout.
+operations. It can assemble library metadata from explicitly supplied offline
+pages. The CLI exposes blocked login plus local status and logout.
 There is no built-in runtime host list, resource endpoint, account model,
 browser handoff, or MCP implementation. Neither adapter constructs an HTTP client
 or sends upstream requests.
@@ -170,6 +171,109 @@ Synthetic loopback tests check typed output, exact byte limits, terminal failure
 redirect non-forwarding, timeout and retry budgets, Retry-After, shared concurrency,
 queue waiting, cancellation, session validation, and error-chain redaction.
 These tests establish policy behavior only, not a D&D Beyond data contract.
+
+## Offline library boundary
+
+The core `library` module implements partial offline work for
+[#4](https://github.com/PlagueHO/beyond-gate/issues/4).
+`assemble_library` validates explicitly supplied normalized pages and returns a
+`LibrarySnapshot` only when the complete sequence succeeds. `discover_library`
+always returns `LibraryError::UnsupportedDiscovery` before any HTTP client
+construction, network request, or credential access. Neither adapter exposes a
+book command or tool.
+
+These are Beyond Gate's internal types, not an upstream response schema or an
+import-file format. They do not establish that the caller's observations are
+fresh, truthful, or authorized. No runtime host, discovery endpoint, JSON parser,
+credential input, automatic page fetch, or persistent library is added.
+
+### Metadata and access evidence
+
+Each `BookRecord` contains an opaque identifier, a title, an HTTPS source URL,
+and one explicit `AccessEvidence` observation. Identifiers, titles, and sharing
+context identifiers must be nonempty, unpadded, and free of control characters.
+Source URLs must have a host and cannot contain credentials, fragments, padding,
+or control characters. A source URL is metadata, not permission to request its
+origin. The normalized result returns the parsed URL with each book.
+
+| Observation | Meaning |
+|-------------|---------|
+| `CatalogOnly` | The book is visible; entitlement is unknown. |
+| `Purchased { state }` | Evidence about purchase access for this account. |
+| `Shared { context_id, state }` | Evidence about one opaque sharing context. No campaign schema is assumed. |
+
+`AccessState` is `Granted`, `Unavailable`, or `Unknown`. A grant must come from
+explicit access evidence, never from a catalog record, title, URL, or stored
+session. `Unavailable` records explicit denial or revocation for that context.
+Unknown evidence is not a grant. The types have no default positive state.
+
+Books retain distinct observations in their first-seen order. `Book::access`
+derives a summary rather than storing a permanent usable-access flag:
+
+- A purchase grant gives `Purchased`; a sharing grant gives `Shared`.
+- Both give `PurchasedAndShared`.
+- Without a grant, all observations must be explicitly unavailable to give
+  `Unavailable`. Otherwise the result is `Unknown`.
+
+Removal of one sharing grant cannot cancel an independent purchase or another
+sharing grant. Two different states for the same purchase or sharing context
+are a conflict, including an unknown state paired with a definite state.
+The entire discovery fails instead of selecting the last observation.
+
+Each call starts with an empty result. It does not merge an earlier snapshot,
+cache a grant, or prove that pages were observed atomically. An older returned
+snapshot remains a historical value, not authority for a later read. Future
+book reads must check current access again. This offline boundary cannot detect
+an upstream revocation that the caller does not report.
+
+### Pagination and failure semantics
+
+These are fixed local limits, not verified D&D Beyond limits.
+
+| Concern | Limit or rule |
+|---------|---------------|
+| Raw entries per page | 100 |
+| Pages per discovery | 10, including empty pages |
+| Total raw entries | 1,000, including duplicates and unavailable or unknown records |
+| First page | `cursor` must be `None` |
+| Following page | `cursor` must match the preceding `next_cursor` |
+| Completion | A terminal page must have `next_cursor: None` |
+| Continuation | Opaque nonempty, unpadded text without control characters; never a fetch URL |
+
+Pages must form one complete chain. Empty intermediate pages are allowed.
+Repeated or cyclic continuation markers, missing or out-of-order pages, input
+after a terminal page, and limits are explicit failures. Even an empty library
+needs a terminal page. Assembly stops on its first failure and never returns a
+successful partial library. Iteration consumes at most one page beyond the page
+cap to detect overflow; that page is not processed or retained. The caller
+supplies already-materialized pages, so the caps do not bound caller allocations.
+
+Duplicate detection uses book identifiers and preserves first-seen book order.
+Exact observations are collapsed. Independent access contexts are combined.
+Different titles or parsed source URLs for the same identifier fail with
+`ConflictingMetadata`. Entries count toward limits before duplicate removal.
+Input data never chooses a source URL or access state by last-write-wins.
+
+`LibraryError` distinguishes invalid metadata or evidence, conflicting metadata
+or evidence, invalid pagination, incomplete discovery, exceeded limits, and
+unsupported live discovery. A supplied failed page produces `PageRead(HttpError)`
+and retains the original typed, redacted HTTP cause. Rejected sessions remain
+distinct from denied access; a 401 is not reclassified as proven expiry.
+Failures contain no partial snapshot. Error formatting and metadata Debug
+implementations omit raw records, private identifiers, continuation values,
+source URLs, and credentials.
+
+Synthetic tests cover the access matrix, revocation and fresh assemblies,
+duplicate conflicts, normalized-input validation, complete and incomplete
+pagination, exact limits, duplicate-heavy overflow, and safe diagnostics.
+Tests reuse the HTTP module's loopback mock to confirm that real 401, 403, 429,
+and malformed-JSON failures keep their types through page assembly. They do not
+pretend that this mock is a library response contract.
+
+Live schema-change tests, current entitlement checks, and discovery integration
+remain blocked pending a permitted endpoint, actual response and pagination
+contracts, and usable session handling. No upstream book response or real
+account has been read for this offline work.
 
 ## Data and output contracts
 

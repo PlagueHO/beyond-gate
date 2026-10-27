@@ -4,7 +4,9 @@ Both binaries provide help and version output. The CLI also has blocked login
 and local auth status/logout. Protected-store operations have synthetic offline
 tests; no product credential-creation flow exists. The core HTTP boundary has
 offline policy tests, but no live endpoints or adapter wiring. Authenticated operations
-below remain pending. The first feasibility assessment is documented, but it does not
+below remain pending. The core can also assemble explicitly supplied offline
+library metadata with context-specific evidence and bounded pagination. This is
+not live discovery. The first feasibility assessment is documented, but it does not
 open the live integration gate. Each issue includes acceptance criteria,
 dependencies, tests, and documentation requirements.
 
@@ -15,7 +17,7 @@ dependencies, tests, and documentation requirements.
 | [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Permitted access and technical feasibility | None; assessment recorded; live gate remains blocked |
 | [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy; offline boundary implemented | #1; approved hosts and endpoint contracts still unresolved |
 | [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions; local storage/status/logout implemented, browser login blocked | #1, #2 |
-| [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Accessible book library discovery | #1, #2, #3 |
+| [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library metadata, evidence, and page assembly implemented; live discovery blocked | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
 | [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Book outlines and bounded section reads | #4 |
 | [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | Resource-first CLI, output formats, completions | #5, #6 |
@@ -69,6 +71,15 @@ change instead of an access bypass. Offline-only work or a separately assessed
 local-data import are proposals, not approved replacements for the current goals.
 
 ## Release boundary
+
+Issue #4 remains partial. The [offline library boundary](architecture.md#offline-library-boundary)
+validates supplied metadata, access evidence, duplicate handling, and bounded
+complete pagination. It retains no prior grants or persistent cache.
+`discover_library` explicitly reports unsupported discovery; neither adapter
+lists books. Library permission, runtime endpoints, actual metadata and entitlement
+schemas, source-URL rules, upstream pagination, usable sessions, and approved live
+validation remain unresolved. Offline tests cannot prove upstream freshness,
+detect unreported revocation, or establish schema-change compatibility.
 
 Issue #3 remains partial. `auth login` fails with the browser-handoff blocker.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream
