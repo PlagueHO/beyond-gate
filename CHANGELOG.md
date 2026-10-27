@@ -7,6 +7,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Offline-tested async core HTTP boundary with explicit HTTPS origins, GET-only
+  typed JSON reads, bounded time, size, concurrency, retries, Retry-After handling,
+  redirect rejection, sensitive session headers, and redacted typed error causes.
+  No D&D Beyond hosts or endpoints are enabled, and neither binary sends requests.
 - Three-crate Rust foundation with help, version output, and offline process tests.
 - Development and agent guidance, architecture, authentication design, and roadmap.
 - CI checks, issue and PR templates, and native binary packaging.
@@ -18,5 +22,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exchange, with hidden input, bounded requests, redacted errors, and synthetic
   offline tests. One successful live exchange was reported by the user on
   2026-10-27; data reads, expiry, and automatic login remain untested.
+
+### Fixed
+
+- Stop before starting an HTTP attempt when a queued permit becomes available
+  after the total deadline. Accept case-insensitive identity content encoding.
 
 No account login, D&D Beyond reads, or MCP serving is available yet.
