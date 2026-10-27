@@ -3,17 +3,21 @@
 ## Current boundary
 
 The workspace contains three crates. The core exports one shared foundation status
-message. Both adapters use clap for help and version output. There is no product
-network client, account model, credential store, or MCP protocol implementation.
+message. Both adapters use clap for help and version output. The core also
+provides an offline-tested async HTTP boundary. There is no built-in runtime host
+list, resource endpoint, account model, credential store, or MCP implementation.
+Neither adapter constructs an HTTP client or sends requests.
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
 recommends this resolver for Rust 2024. The pinned toolchain is
 [Rust 1.99.1](https://github.com/rust-lang/rust/releases/tag/1.99.1).
-The only direct external product dependency is
-[clap 4.6.7](https://docs.rs/clap/4.6.7/clap/). The core's developer-only
-[session probe](authentication.md#opt-in-session-exchange-probe) uses reqwest,
-rpassword, and serde_json as development dependencies.
+[clap 4.6.7](https://docs.rs/clap/4.6.7/clap/) handles the adapters.
+The core HTTP boundary uses async
+[reqwest 0.13.5](https://docs.rs/reqwest/0.13.5/reqwest/), Tokio, serde,
+serde_json, and httpdate. The developer-only
+[session probe](authentication.md#opt-in-session-exchange-probe) additionally uses
+blocking reqwest and rpassword through development dependencies.
 `Cargo.lock` records exact resolved versions, including development dependencies.
 
 ## Intended boundaries
@@ -28,12 +32,104 @@ Prefer direct functions and concrete types. Introduce a trait only when an actua
 test boundary or multiple behaviors need it. Do not create empty model, service,
 repository, or transport layers before the first operation needs them.
 
-The planned product network stack is async reqwest with Tokio. It is not
-implemented yet. The developer probe uses reqwest's blocking interface only.
+The HTTP boundary uses async reqwest with Tokio. Its synthetic tests do not
+establish an upstream response contract. The separate developer probe uses
+reqwest's blocking interface only.
 The MCP implementation should use the
 [official Rust SDK, rmcp](https://github.com/modelcontextprotocol/rust-sdk),
 with stdio only. Select current compatible versions when those issues start.
 Do not copy ArcadeJanitor's custom HTTP/WebSocket MCP layer.
+
+## HTTP boundary
+
+The core's `http` module supplies one concrete `HttpClient` and `get_json<T>`
+operation. It accepts a caller-selected serde response type, not a resource model
+invented from an unverified endpoint. No adapter exposes this operation yet.
+
+`HttpClient::new` requires an explicit list of exact HTTPS origins. Each origin
+contains a scheme, host, and effective port. An empty list denies all requests.
+Paths, queries, fragments, and userinfo are not allowed in origin configuration.
+Request URLs cannot contain userinfo or fragments. A host suffix or different
+port does not match an allowed origin. The production client validates TLS
+certificates and has no insecure HTTP option. Only private unit tests can use
+literal loopback HTTP.
+
+This boundary ships no D&D Beyond host list or resource endpoint. Supplying an
+origin does not establish upstream permission. The [live gate](#feasibility-assessment)
+remains blocked. Approved hosts and endpoint contracts are still needed to meet
+the integration part of [#2](https://github.com/PlagueHO/beyond-gate/issues/2).
+
+### Request limits
+
+These are fixed local safety limits, not verified D&D Beyond limits.
+
+| Concern | Limit |
+|---------|-------|
+| Method | GET only |
+| Connect timeout | 5 seconds |
+| Each attempt | 15 seconds, including body reads |
+| Total operation | 30 seconds, including permit waiting and retry delays |
+| Response body | 1 MiB |
+| Concurrent operations | 4 across all clones of one client |
+| Retry budget | 2 retries after the first attempt |
+| Retry delay | 250 ms, then 500 ms; never shorter than a valid Retry-After |
+| Redirects | None, including redirects to another allowed origin |
+| Session input | At most 8 KiB for a bearer token or a cookie name plus value |
+
+The client disables reqwest's automatic retries, proxies, automatic Referer, and
+automatic decompression. It does not enable a cookie jar. It requests identity
+encoding and rejects other content encodings. It checks a known oversized length
+before reading the body, then checks each chunk against the remaining byte budget.
+Responses without Content-Length have the same limit. It does not read error
+bodies for diagnostics.
+
+Only HTTP 429/502/503/504 and conservative transient transport failures are
+retried. Transport timeouts and connection-refused/reset/aborted, broken-pipe,
+unexpected-EOF, interrupted, or timed-out I/O causes can be transient. TLS and DNS
+failures without such a cause are terminal. Other statuses, rejected sessions,
+denied access, redirects, invalid destinations, oversized bodies, and malformed
+responses are not retried. There is no POST or token-exchange retry path.
+
+Retry-After accepts delay-seconds and HTTP-date. A past date permits the local
+backoff. Missing or malformed values use the local backoff. When multiple valid
+values arrive, the longest wait wins. Numeric overflow is treated as an excessive
+wait, not as permission to retry early. A wait that cannot fit in the remaining
+total budget returns the last typed failure immediately. Exhaustion retains its
+status and attempt count; HTTP 429 remains a rate-limit failure.
+
+Each logical operation holds a shared concurrency permit through its attempts
+and retry waits. Queue waiting has the same total deadline. Cancellation drops
+the active request and releases the permit. Cloning a client does not create
+another retry worker or a separate permit pool.
+
+### Session and error boundary
+
+`SessionHeaders` accepts an in-memory bearer token or one cookie name and value.
+It validates the input, marks its header sensitive, and omits credentials from
+Debug. The caller supplies it per read, after session handling outside this
+module. There are no global credential headers, browser access, password input,
+session exchanges, refresh operations, or persistent secrets in this boundary.
+An origin is checked before any credential is attached. Redirects never forward
+credentials.
+
+`HttpError` distinguishes invalid input, unapproved origins, client setup,
+network failures, timeouts, rate limits, unusable sessions, denied access,
+redirects, oversized bodies, malformed responses, and other upstream statuses.
+HTTP 401 means the session was rejected and human login is needed. It is not
+proof of a known expiry interval. HTTP 403 means access was denied; no bypass or
+retry follows.
+
+Failures expose their category, received status when relevant, attempt count,
+and valid Retry-After delay. A `FailureCause` retains a concrete transport, JSON,
+or Tokio deadline cause. Its safe accessors report cause type, timeout/connect/DNS
+classification, and JSON line and column. Its Display, Debug, and error source
+chain do not expose raw transport URLs, headers, private body values, or serde
+messages. The boundary emits no request or response logs.
+
+Synthetic loopback tests check typed output, exact byte limits, terminal failures,
+redirect non-forwarding, timeout and retry budgets, Retry-After, shared concurrency,
+queue waiting, cancellation, session validation, and error-chain redaction.
+These tests establish policy behavior only, not a D&D Beyond data contract.
 
 ## Data and output contracts
 

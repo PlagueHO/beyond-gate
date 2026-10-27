@@ -1,7 +1,8 @@
 # Implementation roadmap
 
-The foundation provides help and version output only. All product implementation
-below is pending. The first feasibility assessment is documented, but it does not
+The binaries provide help and version output only. The core HTTP boundary has
+offline policy tests, but no live endpoints or adapter wiring. Product operations
+below remain pending. The first feasibility assessment is documented, but it does not
 open the live integration gate. Each issue includes acceptance criteria,
 dependencies, tests, and documentation requirements.
 
@@ -10,7 +11,7 @@ dependencies, tests, and documentation requirements.
 | Issue | Scope | Prerequisites |
 |-------|-------|---------------|
 | [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Permitted access and technical feasibility | None; assessment recorded; live gate remains blocked |
-| [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy | #1 |
+| [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy; offline boundary implemented | #1; approved hosts and endpoint contracts still unresolved |
 | [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions | #1, #2 |
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Accessible book library discovery | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
@@ -42,6 +43,9 @@ exchange, browser capture, and purchased or shared content reads. Dependent live
 CLI and MCP operations in #7 through #9 and a usable release in #10 cannot pass
 this gate either. Offline adapter and policy tests may proceed without an account,
 but their models must not be presented as verified upstream contracts.
+The [HTTP boundary](architecture.md#http-boundary) implements offline request
+policy with no built-in upstream hosts or resource endpoints. This does not
+complete the approved-endpoint evidence requirement in #2 or open the live gate.
 The [interactive-use evaluation](architecture.md#interactive-use-and-evaluation-assumption)
 assumes user-triggered lookups, not background collection. Technical research and
 offline checks continue under that assumption; it does not establish a native

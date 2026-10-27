@@ -13,6 +13,10 @@ An ignored [developer authentication probe](docs/authentication.md#opt-in-sessio
 can test a manually supplied session separately. The user reported one successful
 exchange on 2026-10-27. It is not product login and does not verify data reads.
 
+The core has an offline-tested [HTTP boundary](docs/architecture.md#http-boundary).
+It provides bounded async JSON reads and typed, redacted errors. It has no built-in
+D&D Beyond hosts or resource endpoints. Neither binary sends requests.
+
 ## Goals and limits
 
 - Run native local binaries without a required Python or Node.js runtime.
@@ -75,7 +79,7 @@ the packaging process.
 
 | Path | Purpose |
 |------|---------|
-| `src/beyond-gate-core` | Shared library; currently the foundation status message |
+| `src/beyond-gate-core` | Shared status message and offline-tested HTTP boundary |
 | `src/beyond-gate-cli` | The `beyond-gate` CLI |
 | `src/beyond-gate-mcp` | The `beyond-gate-mcp` binary; server work is pending |
 | `docs` | Architecture, authentication design, and implementation roadmap |

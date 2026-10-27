@@ -1,7 +1,10 @@
 //! Shared code for the Beyond Gate CLI and MCP server.
 //!
-//! Account access is not implemented. This foundation shares only a status message.
-//! Future read operations belong here so both interfaces use the same behavior.
+//! Account access is not implemented. The offline-tested HTTP boundary has no
+//! built-in upstream hosts or endpoints. Both adapters still share only a status
+//! message; future read operations belong here.
+
+pub mod http;
 
 /// Describes the current boundary of the runnable foundation.
 ///

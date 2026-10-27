@@ -99,8 +99,10 @@ The user requested implementation of live testing on 2026-10-27. The initial sco
 is authentication only: one manually initiated exchange, with no character,
 campaign, or book reads. The test is in
 `src/beyond-gate-core/tests/auth_probe.rs` and is ignored by default.
-`reqwest`, `rpassword`, and `serde_json` are development dependencies only.
-Neither product binary uses them or gains network behavior.
+Blocking reqwest and rpassword are development requirements of this probe.
+Async reqwest and serde_json are also normal dependencies of the separate
+[core HTTP boundary](architecture.md#http-boundary).
+Neither product binary invokes the probe or sends requests.
 
 ### Community evidence, not an official API contract
 
