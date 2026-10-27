@@ -966,6 +966,78 @@ async fn queued_cancellation_does_not_send_a_request() {
     assert_eq!(client.permits.available_permits(), 1);
 }
 
+/// Preserves actual HTTP failures through offline library page assembly.
+#[tokio::test]
+async fn library_page_failures_keep_typed_causes_without_partial_results() {
+    use crate::library::{AccessEvidence, BookRecord, LibraryError, LibraryPage, assemble_library};
+
+    for (reply, kind, status) in [
+        (
+            Reply::new(401, b"synthetic-private-body"),
+            ErrorKind::SessionUnusable,
+            Some(401),
+        ),
+        (
+            Reply::new(403, b"synthetic-private-body"),
+            ErrorKind::AccessDenied,
+            Some(403),
+        ),
+        (
+            Reply::new(429, b"synthetic-private-body").headers("Retry-After: 3\r\n"),
+            ErrorKind::RateLimited,
+            Some(429),
+        ),
+        (
+            Reply::new(200, br#"{"value":"synthetic-private-value"}"#),
+            ErrorKind::MalformedResponse,
+            None,
+        ),
+    ] {
+        let mock = Mock::start(vec![reply]).await;
+        let client = mock.client(RequestPolicy {
+            retries: 0,
+            ..policy()
+        });
+        let failure = client
+            .get_json::<Item>(&mock.origin, None)
+            .await
+            .expect_err("supplied failed page");
+        let first = LibraryPage {
+            cursor: None,
+            entries: vec![BookRecord {
+                id: "synthetic-private-book".to_owned(),
+                title: "Synthetic private title".to_owned(),
+                source_url: "https://example.com/synthetic-private-book".to_owned(),
+                evidence: AccessEvidence::CatalogOnly,
+            }],
+            next_cursor: Some("synthetic-private-cursor".to_owned()),
+        };
+        let error = assemble_library([Ok(first), Err(failure)])
+            .expect_err("a failed later page cannot return a snapshot");
+        assert!(!format!("{error} {error:?}").contains("synthetic-private"));
+        let source = error
+            .source()
+            .expect("typed HTTP source")
+            .downcast_ref::<HttpError>()
+            .expect("preserved HTTP type");
+        assert_eq!(source.kind(), kind);
+        assert_eq!(source.status(), status);
+        assert_eq!(source.attempts(), 1);
+        if kind == ErrorKind::RateLimited {
+            assert_eq!(source.retry_after(), Some(Duration::from_secs(3)));
+        }
+        if kind == ErrorKind::MalformedResponse {
+            assert!(matches!(
+                source.cause().expect("JSON cause").kind(),
+                CauseKind::Json(_)
+            ));
+        }
+        assert_safe_error(source);
+        assert!(matches!(error, LibraryError::PageRead(_)));
+        assert_eq!(mock.count(), 1);
+    }
+}
+
 /// Checks every printable source, including the typed redaction boundary.
 fn assert_safe_error(error: &HttpError) {
     assert!(!format!("{error} {error:?}").contains("synthetic-private"));

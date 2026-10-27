@@ -19,6 +19,12 @@ The core has an offline-tested [HTTP boundary](docs/architecture.md#http-boundar
 It provides bounded async JSON reads and typed, redacted errors. It has no built-in
 D&D Beyond hosts or resource endpoints. Neither binary sends requests.
 
+The core also has offline [library metadata assembly](docs/architecture.md#offline-library-boundary).
+It validates supplied pages, keeps purchase and sharing evidence separate, and
+rejects incomplete or conflicting results. Catalog visibility never grants
+access. This is not a data import command or live book discovery. Neither binary
+can list books, and no library cache or proprietary catalog fixture is included.
+
 ## Goals and limits
 
 - Run native local binaries without a required Python or Node.js runtime.
@@ -107,7 +113,7 @@ for backend requirements and recovery steps.
 
 | Path | Purpose |
 |------|---------|
-| `src/beyond-gate-core` | Shared local session operations and offline-tested HTTP boundary |
+| `src/beyond-gate-core` | Local session operations, offline HTTP policy, and library metadata assembly |
 | `src/beyond-gate-cli` | The `beyond-gate` CLI |
 | `src/beyond-gate-mcp` | The `beyond-gate-mcp` binary; server work is pending |
 | `docs` | Architecture, authentication design, and implementation roadmap |

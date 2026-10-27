@@ -7,6 +7,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Offline core library metadata assembly with explicit purchase and sharing
+  evidence, source URLs, duplicate conflict checks, bounded complete pagination,
+  redacted typed failures, and synthetic tests. No cached grants, live discovery,
+  account reads, or CLI/MCP book interfaces are enabled.
 - Shared protected local session operations with explicit Windows Credential
   Manager, macOS login Keychain, and Linux Secret Service backends, bounded opaque
   secrets, redacted typed failures, and synthetic store tests. No plaintext fallback
