@@ -1,0 +1,40 @@
+name: Implementation
+description: Plan one coherent part of the Beyond Gate roadmap.
+title: ""
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Outcome
+      description: State the user result and current gap.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: State included work, excluded work, and unresolved decisions.
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: Use measurable checks. Do not imply that account access permits automation.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and order
+      description: Link prerequisites. State whether a feasibility decision is needed.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Tests and documentation
+      description: Define offline tests and affected documentation. Never attach real account data.
+    validations:
+      required: true

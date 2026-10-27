@@ -1,0 +1,32 @@
+name: Bug report
+description: Report an observable failure without credentials or private content.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Expected and actual behavior
+      description: Describe the difference. Do not include credentials or proprietary content.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: Give minimal commands with synthetic data only.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Give the OS, CPU architecture, binary version, and Rust version if built locally.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Safe diagnostics
+      description: Remove secrets, private URLs, account identifiers, and book text. Write N/A if absent.
+    validations:
+      required: true
