@@ -53,3 +53,53 @@ fn missing_or_unknown_operation_fails() {
         assert!(!output.stderr.is_empty());
     }
 }
+
+/// Checks nested auth help without opening the user's protected credential store.
+#[test]
+fn auth_help_describes_local_commands() {
+    for arguments in [
+        vec!["auth", "--help"],
+        vec!["auth", "login", "--help"],
+        vec!["auth", "status", "--help"],
+        vec!["auth", "logout", "--help"],
+    ] {
+        let output = run(&arguments);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("Usage: beyond-gate auth"));
+    }
+    let output = run(&["auth", "--help"]);
+    let help = String::from_utf8_lossy(&output.stdout);
+    for name in ["login", "status", "logout"] {
+        assert!(help.contains(name));
+    }
+}
+
+/// Checks blocked login fails before terminal input, storage, or network activity.
+#[test]
+fn auth_login_reports_the_blocker_without_stdout() {
+    let output = run(&["auth", "login"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let diagnostic = String::from_utf8_lossy(&output.stderr);
+    assert!(diagnostic.contains("no permitted session handoff"));
+    assert!(diagnostic.contains("do not supply a password or cookie"));
+}
+
+/// Checks malformed auth commands cannot accept credentials or access storage.
+#[test]
+fn invalid_auth_usage_fails_before_storage() {
+    for arguments in [
+        vec!["auth"],
+        vec!["auth", "unknown"],
+        vec!["auth", "login", "--cookie", "synthetic-only"],
+        vec!["auth", "login", "synthetic-only"],
+        vec!["auth", "status", "--token", "synthetic-only"],
+        vec!["auth", "logout", "--all"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+    }
+}

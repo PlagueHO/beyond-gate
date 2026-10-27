@@ -52,9 +52,15 @@ fn serving_fails_explicitly() {
 /// Checks that unsupported transport flags are not silently accepted.
 #[test]
 fn unknown_arguments_fail() {
-    let output = run(&["--transport", "stdio"]);
-
-    assert_eq!(output.status.code(), Some(2));
-    assert!(output.stdout.is_empty());
-    assert!(!output.stderr.is_empty());
+    for arguments in [
+        vec!["--transport", "stdio"],
+        vec!["auth", "login"],
+        vec!["--cookie", "synthetic-only"],
+        vec!["--token", "synthetic-only"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+    }
 }

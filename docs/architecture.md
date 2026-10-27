@@ -4,9 +4,11 @@
 
 The workspace contains three crates. The core exports one shared foundation status
 message. Both adapters use clap for help and version output. The core also
-provides an offline-tested async HTTP boundary. There is no built-in runtime host
-list, resource endpoint, account model, credential store, or MCP implementation.
-Neither adapter constructs an HTTP client or sends requests.
+provides an offline-tested async HTTP boundary and protected local session
+operations. The CLI exposes blocked login plus local status and logout.
+There is no built-in runtime host list, resource endpoint, account model,
+browser handoff, or MCP implementation. Neither adapter constructs an HTTP client
+or sends upstream requests.
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
@@ -19,6 +21,8 @@ serde_json, and httpdate. The developer-only
 [session probe](authentication.md#opt-in-session-exchange-probe) additionally uses
 blocking reqwest and rpassword through development dependencies.
 `Cargo.lock` records exact resolved versions, including development dependencies.
+Local auth uses `keyring-core`, explicit target-specific credential-store crates,
+and `zeroize`. These operations do not use the probe or the HTTP boundary.
 
 ## Intended boundaries
 
@@ -39,6 +43,42 @@ The MCP implementation should use the
 [official Rust SDK, rmcp](https://github.com/modelcontextprotocol/rust-sdk),
 with stdio only. Select current compatible versions when those issues start.
 Do not copy ArcadeJanitor's custom HTTP/WebSocket MCP layer.
+
+## Local session boundary
+
+The core `auth` module owns one entry: service `beyond-gate`, account
+`local-session`. It selects Windows Credential Manager, macOS login Keychain, or
+Linux Secret Service explicitly. Windows writes use local-machine persistence.
+No global default, credential enumeration, browser-profile access, or plaintext
+fallback is used. See [backend requirements](authentication.md#protected-store-selection-and-recovery).
+
+`SessionStore` wraps a concrete keyring entry. The existing keyring store interface
+provides the real test boundary, so no additional storage trait is needed.
+Unit tests supply isolated in-memory entries, never native credentials.
+`SessionSecret` owns bounded opaque bytes and clears its allocation on drop.
+The format is not an upstream contract. No product command currently writes one.
+
+Status reports `Absent` or `StoredUnverified`. An entry is not proof of usable,
+expired, or rejected authentication. Only the native missing-entry result means
+absence; other errors remain failures. Invalid local values are not silently
+deleted. Logout removes the fixed entry without reading the secret and treats
+an already missing entry as success. It does not revoke an upstream session.
+There is no in-memory token cache or long-running authenticated adapter yet.
+
+Errors retain typed native causes behind a redacted wrapper. Display, Debug, and
+the standard error chain omit credential bytes and raw native messages. The safe
+classification distinguishes invalid local data, denied or locked storage,
+unavailable backends, ambiguous entries, unsupported platforms, and other native
+failures where the backend enum permits it. Unknown failures do not become absence.
+
+The CLI parses and presents these operations. Its login command returns an
+explicit blocker before any storage, browser, input, or network activity.
+Future MCP session use must call the same core operations and identity; no MCP
+tools or credential input are implemented here. Native store calls are blocking,
+so future async adapters must keep them off executor threads.
+
+This is partial offline work for #3. Browser handoff, session exchange, upstream
+expiry, refresh, rejection, and actual adapter session parity remain blocked.
 
 ## HTTP boundary
 
@@ -134,7 +174,7 @@ These tests establish policy behavior only, not a D&D Beyond data contract.
 ## Data and output contracts
 
 - v1 is read-only. Local session storage changes do not authorize upstream writes.
-- CLI resources are proposed: `auth`, `character`, `campaign`, `book`, `mcp`.
+- Local `auth` commands exist. `character`, `campaign`, `book`, and `mcp` remain proposed.
 - List operations will support table, JSON, and TSV with consistent field names.
 - Keep structured values and typed failures in the core. Format at the adapter edge.
 - Preserve unknown upstream character fields without interpreting game rules.
@@ -165,7 +205,7 @@ The implementation issues must settle these before the relevant behavior ships:
 
 - Whether each required upstream operation has a permitted, stable access path.
 - Which human-controlled browser login method can return a session safely.
-- Which OS credential-store crates work on each supported desktop.
+- Whether the selected native credential backends work in each desktop user session.
 - Which upstream fields and identifiers can be relied on without data loss.
 - Which book section and continuation limits balance usability and access terms.
 - Which MCP clients need native install support first.
