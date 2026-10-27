@@ -1,14 +1,15 @@
 # Implementation roadmap
 
-The foundation provides help and version output only. All product work below is
-pending. Each issue includes acceptance criteria, dependencies, tests, and
-documentation requirements.
+The foundation provides help and version output only. All product implementation
+below is pending. The first feasibility assessment is documented, but it does not
+open the live integration gate. Each issue includes acceptance criteria,
+dependencies, tests, and documentation requirements.
 
 ## Implementation issues
 
 | Issue | Scope | Prerequisites |
 |-------|-------|---------------|
-| [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Permitted access and technical feasibility | None; stop gate |
+| [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Permitted access and technical feasibility | None; assessment recorded; live gate remains blocked |
 | [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy | #1 |
 | [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions | #1, #2 |
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Accessible book library discovery | #1, #2, #3 |
@@ -27,6 +28,39 @@ The adapters can follow each completed core read without waiting for all reads.
 The feasibility work is a stop gate, not permission to bypass a restriction.
 If a path is not permitted or viable, record that result and revise scope before
 dependent live integration. Synthetic offline tests can still be developed.
+
+## Current gate result
+
+**Reviewed: 2026-10-27. No permitted integration path established.** The
+[operation assessment](architecture.md#required-reads-and-decisions) records
+unresolved permission for every required read. The
+[browser-login handoff](authentication.md#browser-handoff-assessment) remains
+unproven. This is not a permanent upstream refusal or approval for experiments.
+
+Live work in #2 through #6 remains blocked, including endpoint probes, session
+exchange, browser capture, and purchased or shared content reads. Dependent live
+CLI and MCP operations in #7 through #9 and a usable release in #10 cannot pass
+this gate either. Offline adapter and policy tests may proceed without an account,
+but their models must not be presented as verified upstream contracts.
+The [interactive-use evaluation](architecture.md#interactive-use-and-evaluation-assumption)
+assumes user-triggered lookups, not background collection. Technical research and
+offline checks continue under that assumption; it does not establish a native
+login handoff or change the upstream evidence.
+
+Reopen the gate only after the
+[upstream questions](architecture.md#permission-questions-and-next-gate) have
+supported answers. Use synthetic offline proofs before seeking separate explicit
+approval for a bounded live experiment. The initial official-source review found
+no API schema. A later user-requested
+[developer probe](authentication.md#opt-in-session-exchange-probe) adds synthetic
+tests and one ignored manual token-exchange test based on community evidence.
+The user reported one successful manual exchange on 2026-10-27. This narrow
+technical result does not add product operations, verify data reads or expiry,
+or approve dependent live integration.
+
+If permission cannot be obtained, the maintainer must choose a documented scope
+change instead of an access bypass. Offline-only work or a separately assessed
+local-data import are proposals, not approved replacements for the current goals.
 
 ## Release boundary
 
