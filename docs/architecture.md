@@ -5,8 +5,9 @@
 The workspace contains three crates. The core exports one shared foundation status
 message. Both adapters use clap for help and version output. The core also
 provides an offline-tested async HTTP boundary and protected local session
-operations. It can assemble library metadata from explicitly supplied offline
-pages. The CLI exposes blocked login plus local status and logout.
+operations. It can assemble library, character, and campaign metadata from
+explicitly supplied offline pages. The CLI exposes blocked login plus local
+status and logout.
 There is no built-in runtime host list, resource endpoint, account model,
 browser handoff, or MCP implementation. Neither adapter constructs an HTTP client
 or sends upstream requests.
@@ -275,6 +276,39 @@ remain blocked pending a permitted endpoint, actual response and pagination
 contracts, and usable session handling. No upstream book response or real
 account has been read for this offline work.
 
+## Offline character and campaign boundary
+
+The core `character_campaign` module validates and assembles explicitly supplied
+normalized pages. These are internal offline records, not an upstream response
+schema or import format. The module does not fetch pages, access credentials,
+retain earlier results, or interpret game rules.
+
+Character and campaign records use opaque identifiers, optional validated names,
+optional HTTPS source URLs as metadata, and the original JSON value. The original
+value preserves unknown fields. Campaign character associations remain opaque
+identifiers and are not required to appear in a separate character result.
+Duplicate identifiers collapse only when the complete normalized record matches;
+conflicting records fail rather than choosing a last value. Record and snapshot
+debug output omits account metadata.
+
+Assembly uses local limits of 100 raw records per page, 10 pages, and 1,000 raw
+records total. It requires a complete opaque cursor chain and returns no partial
+snapshot. A terminal empty result is different from missing pages or an
+unsupported live operation. A missing identifier in a completed supplied
+snapshot means only that the supplied data has no matching record. It does not
+prove that an upstream resource is missing or inaccessible. Supplied HTTP errors
+retain their typed classification, including access denial.
+These record-count limits do not bound memory already used by the caller to
+build a page or its JSON values. Future adapters must apply response-byte limits
+before parsing or constructing records.
+
+`list_characters`, `get_character`, `list_campaigns`, and `get_campaign` always
+return an explicit unsupported-operation error. They do not construct a client
+or access credentials. No CLI or MCP operation is enabled. Live reads remain
+blocked until permission and supported hosts, response schemas, pagination,
+access rules, and session handling are established. Synthetic tests validate
+internal behavior only; they do not prove an upstream contract.
+
 ## Data and output contracts
 
 - v1 is read-only. Local session storage changes do not authorize upstream writes.
@@ -282,6 +316,8 @@ account has been read for this offline work.
 - List operations will support table, JSON, and TSV with consistent field names.
 - Keep structured values and typed failures in the core. Format at the adapter edge.
 - Preserve unknown upstream character fields without interpreting game rules.
+- Keep character and campaign page assembly offline until the live feasibility
+  gate opens.
 - Report upstream changes and unsupported response shapes explicitly.
 - Distinguish inaccessible content, expired login, rate limits, and network failure.
 - Bound book section size and continuation; return a source URL with each result.

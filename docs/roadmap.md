@@ -81,6 +81,12 @@ schemas, source-URL rules, upstream pagination, usable sessions, and approved li
 validation remain unresolved. Offline tests cannot prove upstream freshness,
 detect unreported revocation, or establish schema-change compatibility.
 
+Issue #5 remains offline-only. The core validates explicitly supplied character
+and campaign records, preserves unknown JSON, and assembles bounded complete
+pages. Live list and read functions explicitly report unsupported operations.
+No adapter exposes them, and no upstream schema, access rule, or endpoint is
+assumed. This work does not open the live gate.
+
 Issue #3 remains partial. `auth login` fails with the browser-handoff blocker.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream
 usability or expiry. `auth logout` removes the local entry but cannot revoke

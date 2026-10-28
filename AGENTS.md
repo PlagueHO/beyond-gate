@@ -5,6 +5,22 @@
 Use the repository-selected Rust toolchain. Cargo installs its declared
 dependencies. Keep `Cargo.lock` committed.
 
+On Windows, load **Visual Studio 2022 Build Tools**, not the newest Visual Studio
+installation. Use PowerShell 7 and the wrapper for each Cargo invocation:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test --workspace --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 clippy --workspace --all-targets --locked -- -D warnings
+```
+
+The wrapper loads `Launch-VsDevShell.ps1` with `-Arch amd64 -HostArch amd64
+-SkipAutomaticLocation`, then runs Cargo in the same process. Replace `test`
+with any command below. Do not initialize one shell and run Cargo in another;
+tool calls do not share environment changes. Do not use unrestricted
+`vswhere -latest` or add machine-specific linker paths. See
+[Contributing](CONTRIBUTING.md#windows-build-environment) for direct setup and
+[Copilot App tasks](CONTRIBUTING.md#github-copilot-app-tasks) for manual tasks.
+
 ```shell
 cargo build --workspace --locked
 cargo fmt --all -- --check
