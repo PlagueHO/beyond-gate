@@ -399,6 +399,30 @@ async fn status_errors_are_typed_and_terminal_when_required() {
     }
 }
 
+/// Preserves a denied character page as a typed inaccessible result.
+#[tokio::test]
+async fn character_assembly_preserves_access_denied_page_errors() {
+    let mock = Mock::start(vec![Reply::new(403, b"synthetic-private-body")]).await;
+    let error = mock
+        .client(policy())
+        .get_json::<Item>(&mock.origin, None)
+        .await
+        .expect_err("denied synthetic response");
+    let failure = crate::character_campaign::assemble_characters([Err(error)])
+        .expect_err("no snapshot from an inaccessible page");
+    assert!(matches!(
+        failure,
+        crate::character_campaign::CharacterCampaignError::PageRead(_)
+    ));
+    let http_error = failure
+        .source()
+        .and_then(|source| source.downcast_ref::<HttpError>())
+        .expect("typed HTTP source");
+    assert_eq!(http_error.kind(), ErrorKind::AccessDenied);
+    assert_eq!(http_error.status(), Some(403));
+    assert!(!format!("{failure} {failure:?}").contains("synthetic-private-body"));
+}
+
 /// Checks byte thresholds for length-delimited, chunked, and close-delimited data.
 #[tokio::test]
 async fn body_limits_are_exact_for_all_framing_modes() {

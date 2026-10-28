@@ -7,6 +7,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- GitHub Copilot App tasks and a PowerShell Cargo wrapper that load Visual Studio
+  2022 Build Tools on Windows for run, build, test, lint, and documentation checks.
+- Offline core character and campaign records with unknown JSON preservation,
+  opaque identifiers, campaign associations, optional HTTPS source metadata,
+  duplicate conflict checks, bounded complete pagination, typed failures, and
+  synthetic tests. Live reads, endpoints, and CLI/MCP operations remain blocked.
 - Offline core library metadata assembly with explicit purchase and sharing
   evidence, source URLs, duplicate conflict checks, bounded complete pagination,
   redacted typed failures, and synthetic tests. No cached grants, live discovery,

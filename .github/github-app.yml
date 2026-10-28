@@ -1,0 +1,24 @@
+instructions: |
+  Follow AGENTS.md. On Windows, use Visual Studio 2022 Build Tools for every
+  Cargo run, build, test, clippy, and documentation command. Do not select the
+  newest Visual Studio installation automatically. Use scripts\cargo.ps1 in
+  PowerShell 7 so environment setup and Cargo run in the same process.
+  Separate shell calls do not retain the developer environment.
+
+scripts:
+  - name: Run CLI help
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) run --locked -p beyond-gate-cli '--' --help"
+  - name: Run MCP help
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) run --locked -p beyond-gate-mcp '--' --help"
+  - name: Build
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) build --workspace --locked"
+  - name: Test
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test --workspace --locked"
+  - name: Lint
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) clippy --workspace --all-targets --locked '--' -D warnings"
+  - name: Check formatting
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) fmt --all '--' --check"
+  - name: Test API examples
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test --workspace --doc --locked"
+  - name: Build API docs
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) doc --workspace --no-deps --document-private-items --locked"

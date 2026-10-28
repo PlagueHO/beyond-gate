@@ -25,6 +25,12 @@ rejects incomplete or conflicting results. Catalog visibility never grants
 access. This is not a data import command or live book discovery. Neither binary
 can list books, and no library cache or proprietary catalog fixture is included.
 
+The core also provides offline
+[character and campaign record assembly](docs/architecture.md#offline-character-and-campaign-boundary).
+It preserves supplied JSON fields, validates opaque identifiers, and bounds
+complete pagination. It does not interpret game rules or enable live character
+or campaign reads.
+
 ## Goals and limits
 
 - Run native local binaries without a required Python or Node.js runtime.
@@ -58,6 +64,9 @@ fixtures.
 
 Install [Rust with rustup](https://www.rust-lang.org/tools/install).
 On Windows, also install the Visual Studio Build Tools C++ workload and Windows SDK.
+Load the [Visual Studio 2022 Build Tools environment](CONTRIBUTING.md#windows-build-environment)
+before running Cargo. The [Copilot App tasks](CONTRIBUTING.md#github-copilot-app-tasks)
+load this environment for each command.
 The repository selects Rust 1.99.1 with `rustfmt` and `clippy`.
 
 ```shell
