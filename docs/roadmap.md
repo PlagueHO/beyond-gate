@@ -6,20 +6,22 @@ tests; no product credential-creation flow exists. The core HTTP boundary has
 offline policy tests, but no live endpoints or adapter wiring. Authenticated operations
 below remain pending. The core can also assemble explicitly supplied offline
 library metadata with context-specific evidence and bounded pagination. This is
-not live discovery. The first feasibility assessment is documented, but it does not
-open the live integration gate. Each issue includes acceptance criteria,
+not live discovery. The core also validates supplied book outlines and reads
+bounded sections with fresh supplied access checks. The first feasibility
+assessment remains historical evidence, not a development stop gate.
+Each issue includes acceptance criteria,
 dependencies, tests, and documentation requirements.
 
 ## Implementation issues
 
 | Issue | Scope | Prerequisites |
 |-------|-------|---------------|
-| [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Permitted access and technical feasibility | None; assessment recorded; live gate remains blocked |
+| [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Access and technical feasibility assessment | None; assessment recorded; blanket permission stop gate removed |
 | [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy; offline boundary implemented | #1; approved hosts and endpoint contracts still unresolved |
 | [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions; local storage/status/logout implemented, browser login blocked | #1, #2 |
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library metadata, evidence, and page assembly implemented; live discovery blocked | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
-| [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Book outlines and bounded section reads | #4 |
+| [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Offline outlines and bounded section reads implemented; live reads not implemented | #4 |
 | [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | Resource-first CLI, output formats, completions | #5, #6 |
 | [#8](https://github.com/PlagueHO/beyond-gate/issues/8) | Local stdio MCP and read parity | #5, #6; coordinate with #7 |
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
@@ -30,45 +32,42 @@ an early required milestone, not an optional fallback. Library discovery and
 character/campaign reads can proceed in parallel after session handling.
 The adapters can follow each completed core read without waiting for all reads.
 
-The feasibility work is a stop gate, not permission to bypass a restriction.
-If a path is not permitted or viable, record that result and revise scope before
-dependent live integration. Synthetic offline tests can still be developed.
+Use feasibility evidence to identify actual technical and access limits, not as
+a blanket development stop gate. Stop on access denial. Never bypass a
+restriction or describe synthetic offline inputs as a verified upstream contract.
 
-## Current gate result
+## Development policy and technical status
 
-**Reviewed: 2026-10-27. No permitted integration path established.** The
-[operation assessment](architecture.md#required-reads-and-decisions) records
-unresolved permission for every required read. The
-[browser-login handoff](authentication.md#browser-handoff-assessment) remains
-unproven. This is not a permanent upstream refusal or approval for experiments.
+**The blanket permission stop gate is removed at the maintainer's request.**
+The 2026-10-27 [assessment](architecture.md#feasibility-assessment) remains dated
+evidence. Its earlier project-wide stop decision is superseded. This change
+does not establish upstream approval, resolve terms questions, or grant access.
 
-Live work in #2 through #6 remains blocked, including endpoint probes, session
-exchange, browser capture, and purchased or shared content reads. Dependent live
-CLI and MCP operations in #7 through #9 and a usable release in #10 cannot pass
-this gate either. Offline adapter and policy tests may proceed without an account,
-but their models must not be presented as verified upstream contracts.
+Development can proceed within the read-only, personal, user-triggered scope.
+Keep access checks, origin restrictions, bounded requests, protected credentials,
+and the rules against crawling or bulk extraction. Live account tests and
+credential access still need separate explicit approval. Define selected hosts,
+operations, request budgets, stop conditions, and cleanup before such tests.
+
+The [browser-login handoff](authentication.md#browser-handoff-assessment) remains
+unproven. Live resource endpoints, schemas, entitlement checks, and product
+session handling are not implemented. Those technical limits still prevent
+working live reads in #4 through #6, dependent adapters, and a usable release.
+Offline work does not resolve them.
 The [HTTP boundary](architecture.md#http-boundary) implements offline request
-policy with no built-in upstream hosts or resource endpoints. This does not
-complete the approved-endpoint evidence requirement in #2 or open the live gate.
+policy with no built-in upstream hosts or resource endpoints.
 The [interactive-use evaluation](architecture.md#interactive-use-and-evaluation-assumption)
-assumes user-triggered lookups, not background collection. Technical research and
-offline checks continue under that assumption; it does not establish a native
-login handoff or change the upstream evidence.
+assumes user-triggered lookups, not background collection.
 
-Reopen the gate only after the
-[upstream questions](architecture.md#permission-questions-and-next-gate) have
-supported answers. Use synthetic offline proofs before seeking separate explicit
-approval for a bounded live experiment. The initial official-source review found
-no API schema. A later user-requested
+Track missing contracts and test approval in the
+[integration evidence and live-test guidance](architecture.md#integration-evidence-and-live-tests).
+The initial official-source review found no API schema. A later user-requested
 [developer probe](authentication.md#opt-in-session-exchange-probe) adds synthetic
 tests and one ignored manual token-exchange test based on community evidence.
 The user reported one successful manual exchange on 2026-10-27. This narrow
 technical result does not add product operations, verify data reads or expiry,
-or approve dependent live integration.
-
-If permission cannot be obtained, the maintainer must choose a documented scope
-change instead of an access bypass. Offline-only work or a separately assessed
-local-data import are proposals, not approved replacements for the current goals.
+or authorize another live account test. Offline-only work is the approved scope
+for #6 in this change, not a claim that the live-read goal has been fulfilled.
 
 ## Release boundary
 
@@ -76,7 +75,7 @@ Issue #4 remains partial. The [offline library boundary](architecture.md#offline
 validates supplied metadata, access evidence, duplicate handling, and bounded
 complete pagination. It retains no prior grants or persistent cache.
 `discover_library` explicitly reports unsupported discovery; neither adapter
-lists books. Library permission, runtime endpoints, actual metadata and entitlement
+lists books. Runtime endpoints, actual metadata and entitlement
 schemas, source-URL rules, upstream pagination, usable sessions, and approved live
 validation remain unresolved. Offline tests cannot prove upstream freshness,
 detect unreported revocation, or establish schema-change compatibility.
@@ -85,7 +84,15 @@ Issue #5 remains offline-only. The core validates explicitly supplied character
 and campaign records, preserves unknown JSON, and assembles bounded complete
 pages. Live list and read functions explicitly report unsupported operations.
 No adapter exposes them, and no upstream schema, access rule, or endpoint is
-assumed. This work does not open the live gate.
+assumed.
+
+Issue #6 remains offline-only. The [book boundary](architecture.md#offline-book-boundary)
+returns validated outlines with at most 1,000 raw entries and selected-section
+chunks with at most 4,096 UTF-8 text bytes. Every call checks fresh supplied
+access before loading. Opaque in-process cursors bind book, section, source
+revision, URL, and byte position. No CLI/MCP exposure, live book contract,
+automatic continuation, or content cache is added. Real access freshness and
+source revisions still depend on a future source implementation.
 
 Issue #3 remains partial. `auth login` fails with the browser-handoff blocker.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream

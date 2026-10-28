@@ -485,6 +485,6 @@ fn metadata_and_validation_diagnostics_are_redacted() {
 fn live_discovery_reports_its_blocker_without_inputs_or_side_effects() {
     let error = discover_library().expect_err("live discovery remains blocked");
     assert!(matches!(error, LibraryError::UnsupportedDiscovery));
-    assert!(error.to_string().contains("permitted endpoint contract"));
+    assert!(error.to_string().contains("source contract"));
     assert!(error.source().is_none());
 }

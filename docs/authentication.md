@@ -2,8 +2,11 @@
 
 **Local storage implemented; browser login blocked.** Simple local login is a core requirement.
 The [2026-10-27 feasibility assessment](architecture.md#feasibility-assessment)
-did not establish a permitted path. Live login and session experiments remain
-subject to that gate. An ignored, developer-only
+did not establish a permitted path. Its blanket development stop gate is now
+removed under the [current policy](roadmap.md#development-policy-and-technical-status).
+This is not upstream approval or a working login implementation. Live account
+tests and credential access still need separate explicit approval. An ignored,
+developer-only
 [session-exchange probe](#opt-in-session-exchange-probe) is now available.
 The user reported a successful manual exchange on 2026-10-27. The probe does not
 implement product login.
@@ -16,7 +19,7 @@ completed browser-login flow.
 
 | Command | Current result |
 |---------|----------------|
-| `beyond-gate auth login` | Exits with code 1. Reports the missing permitted browser handoff on stderr. No browser, secret input, credential-store access, or request occurs. |
+| `beyond-gate auth login` | Exits with code 1. Reports the missing working browser handoff on stderr. No browser, secret input, credential-store access, or request occurs. |
 | `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. Stored material has not been validated upstream; expiry is unknown. |
 | `beyond-gate auth logout` | Exits with code 0 after local deletion or when the entry is already absent. States that upstream revocation is not implemented. |
 
@@ -84,8 +87,8 @@ A native-store smoke test requires separate explicit credential-access approval.
 
 Usable, expired, and rejected upstream session states remain deferred. So do
 browser cancellation, cookie exchange failures, timed expiry, bounded refresh,
-and actual CLI/MCP authenticated-session parity. They need a permitted browser
-handoff and supported exchange, expiry, refresh, and host contracts first.
+and actual CLI/MCP authenticated-session parity. They need a working browser
+handoff and tested exchange, expiry, refresh, and host contracts first.
 The manual developer probe below remains separate and unchanged.
 
 ## Required user experience
@@ -99,15 +102,15 @@ The manual developer probe below remains separate and unchanged.
 These steps describe the desired future experience, not the current blocked command
 or a verified capture mechanism.
 D&D Beyond is not assumed to expose an OAuth callback for this project.
-Do not promise one. Evaluate a permitted browser-mediated handoff before choosing
+Do not promise one. Evaluate a working browser-mediated handoff before choosing
 a browser integration. Do not read unrelated browser profiles or cookies.
 Beyond Gate must never ask for the account password.
 
 ## Browser handoff assessment
 
-**Reviewed: 2026-10-27. Result: unproven; upstream clarification required.**
+**Reviewed: 2026-10-27. Result: no working product handoff established.**
 Opening the installed browser does not establish a way for this app to receive a
-session. The missing step is an upstream-supported return path after human login.
+session. The missing step is a working return path after human login.
 The [architecture evidence table](architecture.md#official-evidence) records the
 sources and their dates.
 
@@ -128,13 +131,14 @@ Gate. A supported flow for Avrae is not a transferable authorization grant.
 | Endpoint stability | No supported version or compatibility commitment established. |
 
 Do not select a callback protocol, browser extension, cookie capture method, or
-token exchange from guesses. Manual cookie import also requires upstream
-permission and does not satisfy the simple-browser-login requirement.
+token exchange from guesses. Manual cookie input does not satisfy the
+simple-browser-login requirement and is limited to the separate developer probe.
 
-To establish a viable handoff, upstream must approve this native client and
-document how it receives minimal session material after human login. It must also
-define allowed hosts, expiry, refresh, and revocation. Only then select the
-simplest supported return method. Check its success, cancellation, timeout,
+To establish a viable handoff, demonstrate how the app receives minimal session
+material after human login. Establish the selected hosts, expiry, refresh, and
+revocation behavior. Select the simplest working return method without bypassing
+access controls or reading unrelated browser data. Check success, cancellation,
+timeout,
 rejected login, and expiry behavior with synthetic offline cases first.
 
 ### Technical evaluation for interactive use
@@ -171,8 +175,9 @@ path, token expiry, or access to a data service.
 
 The initial official-source review found no session response contract. Later
 community evidence and the user's probe result support the candidate exchange,
-not a claim of an officially supported flow. Further live use remains subject to the
-[next gate](architecture.md#permission-questions-and-next-gate).
+not a claim of an officially supported flow. Further live account tests need
+separate explicit approval under the
+[live-test guidance](architecture.md#integration-evidence-and-live-tests).
 
 ## Opt-in session-exchange probe
 
@@ -210,7 +215,8 @@ On Windows, initialize the
 first. Missing C headers in `aws-lc-sys` are a build setup failure, not a rejected
 session. The linked instructions include a compile-only check.
 Do not run the command through an agent or a recorded terminal session.
-Proceed only with your own session and the required permission for the experiment.
+Proceed only with your own session and separate explicit approval for the
+experiment.
 
 ```shell
 cargo test -p beyond-gate-core --test auth_probe --locked live_authentication -- --ignored --exact --nocapture
@@ -257,7 +263,7 @@ outcomes and dates without credentials, token payloads, or raw responses.
 
 ## Session lifecycle
 
-If a permitted upstream flow requires a session cookie to short-lived token
+If the selected upstream flow requires a session cookie to short-lived token
 exchange, the future session design must support it. Determine actual cookie
 names, hosts, token fields, expiry, and refresh behavior in the feasibility work.
 Do not hard-code guessed endpoints or assume that cookies never expire.
@@ -280,7 +286,7 @@ human login is needed, not ask an agent to collect a cookie or password.
 
 ## Early proof and fallback
 
-A manually imported session cookie may prove a permitted technical path or provide
+A manually imported session cookie may test a candidate technical path or provide
 an explicit fallback. It must not become the primary login experience.
 If needed, read it from a no-echo interactive terminal prompt. Never accept a
 secret as a CLI argument, copied MCP prompt, environment example, or logged value.
@@ -299,6 +305,6 @@ Do not commit account snapshots, HAR files, browser profiles, or content samples
 - Which Linux environments provide the protected session service needed at runtime?
 
 These remain open after the assessment. Resolve them through the
-[permission questions](architecture.md#permission-questions-and-next-gate) and
+[integration questions](architecture.md#integration-evidence-and-live-tests) and
 linked [roadmap](roadmap.md). Do not weaken protected storage or bypass bot
 protection to make login appear successful.

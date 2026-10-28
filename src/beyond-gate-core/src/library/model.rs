@@ -264,6 +264,6 @@ impl fmt::Debug for Book {
 }
 
 /// Requires meaningful, unpadded metadata without terminal control characters.
-pub(super) fn valid_text(value: &str) -> bool {
+pub(crate) fn valid_text(value: &str) -> bool {
     !value.is_empty() && value.trim() == value && !value.chars().any(char::is_control)
 }

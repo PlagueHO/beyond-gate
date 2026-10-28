@@ -50,6 +50,8 @@ D&D Beyond reads. Product operations are not yet implemented.
 - Prefer the official rmcp SDK over a custom MCP protocol implementation.
 - Preserve upstream character fields rather than inventing a rules engine.
 - Use bounded book reads with source URLs; do not add bulk content extraction.
+- Follow the roadmap's development policy. The historical permission stop gate
+  is removed; technical contracts and separate live-test approval are still needed.
 
 ## Testing
 

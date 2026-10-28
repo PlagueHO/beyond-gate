@@ -246,5 +246,5 @@ fn login_has_an_explicit_blocker() {
     let error = login_blocker();
     assert_eq!(error.kind(), AuthErrorKind::LoginBlocked);
     assert!(error.source().is_none());
-    assert!(error.to_string().contains("no permitted session handoff"));
+    assert!(error.to_string().contains("no working session handoff"));
 }

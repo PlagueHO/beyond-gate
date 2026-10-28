@@ -82,7 +82,7 @@ fn auth_login_reports_the_blocker_without_stdout() {
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8_lossy(&output.stderr);
-    assert!(diagnostic.contains("no permitted session handoff"));
+    assert!(diagnostic.contains("no working session handoff"));
     assert!(diagnostic.contains("do not supply a password or cookie"));
 }
 

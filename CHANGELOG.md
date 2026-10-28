@@ -7,6 +7,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Offline core book outlines with a 1,000-entry cap and selected-section reads
+  with a 4,096-byte UTF-8 text cap, fresh supplied access checks, source URLs,
+  opaque revision-bound cursors, explicit completion, typed redacted failures,
+  synthetic tests, and a runnable navigation example. No live book reads,
+  automatic continuation, content cache, or CLI/MCP exposure is added.
 - GitHub Copilot App tasks and a PowerShell Cargo wrapper that load Visual Studio
   2022 Build Tools on Windows for run, build, test, lint, and documentation checks.
 - Offline core character and campaign records with unknown JSON preservation,
@@ -40,6 +45,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   exchange, with hidden input, bounded requests, redacted errors, and synthetic
   offline tests. One successful live exchange was reported by the user on
   2026-10-27; data reads, expiry, and automatic login remain untested.
+
+### Changed
+
+- Remove the blanket upstream-permission development stop gate at the
+  maintainer's request. Keep dated evidence, access-control protections, technical
+  contract requirements, and separate approval for live account tests and
+  credential access. Unsupported operations still fail; diagnostics now state
+  the missing technical implementation instead of the removed gate.
 
 ### Fixed
 

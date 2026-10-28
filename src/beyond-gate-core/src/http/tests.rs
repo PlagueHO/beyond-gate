@@ -1062,6 +1062,95 @@ async fn library_page_failures_keep_typed_causes_without_partial_results() {
     }
 }
 
+/// Preserves actual HTTP classifications through offline book access and loaders.
+#[tokio::test]
+async fn book_failures_keep_typed_http_causes_without_content() {
+    use crate::book::{BookError, SectionRequest, assemble_outline, read_section};
+    use crate::library::AccessState;
+
+    for (reply, kind, status) in [
+        (
+            Reply::new(401, b"synthetic-private-body"),
+            ErrorKind::SessionUnusable,
+            Some(401),
+        ),
+        (
+            Reply::new(403, b"synthetic-private-body"),
+            ErrorKind::AccessDenied,
+            Some(403),
+        ),
+        (
+            Reply::new(429, b"synthetic-private-body").headers("Retry-After: 3\r\n"),
+            ErrorKind::RateLimited,
+            Some(429),
+        ),
+        (
+            Reply::new(200, br#"{"value":"synthetic-private-value"}"#),
+            ErrorKind::MalformedResponse,
+            None,
+        ),
+    ] {
+        let mock = Mock::start(vec![reply.clone(), reply.clone(), reply.clone(), reply]).await;
+        let client = mock.client(RequestPolicy {
+            retries: 0,
+            ..policy()
+        });
+        for boundary in 0..4 {
+            let http = client
+                .get_json::<Item>(&mock.origin, None)
+                .await
+                .expect_err("synthetic HTTP failure");
+            let failure = match boundary {
+                0 => assemble_outline(
+                    "invented-book",
+                    |_| Err(BookError::SourceRead(http)),
+                    |_| panic!("failed access must not load"),
+                )
+                .expect_err("outline access failed"),
+                1 => assemble_outline(
+                    "invented-book",
+                    |_| Ok(AccessState::Granted),
+                    |_| Err(BookError::SourceRead(http)),
+                )
+                .expect_err("outline load failed"),
+                2 => read_section(
+                    SectionRequest {
+                        book_id: "invented-book",
+                        section_id: "opening",
+                        continuation: None,
+                    },
+                    |_, _| Err(BookError::SourceRead(http)),
+                    |_, _| panic!("failed access must not load"),
+                )
+                .expect_err("section access failed"),
+                _ => read_section(
+                    SectionRequest {
+                        book_id: "invented-book",
+                        section_id: "opening",
+                        continuation: None,
+                    },
+                    |_, _| Ok(AccessState::Granted),
+                    |_, _| Err(BookError::SourceRead(http)),
+                )
+                .expect_err("section load failed"),
+            };
+            let source = failure
+                .source()
+                .and_then(|source| source.downcast_ref::<HttpError>())
+                .expect("retained typed HTTP cause");
+            assert_eq!(source.kind(), kind);
+            assert_eq!(source.status(), status);
+            assert_eq!(source.attempts(), 1);
+            if kind == ErrorKind::RateLimited {
+                assert_eq!(source.retry_after(), Some(Duration::from_secs(3)));
+            }
+            assert_safe_error(source);
+            assert!(!format!("{failure} {failure:?}").contains("synthetic-private"));
+        }
+        assert_eq!(mock.count(), 4);
+    }
+}
+
 /// Checks every printable source, including the typed redaction boundary.
 fn assert_safe_error(error: &HttpError) {
     assert!(!format!("{error} {error:?}").contains("synthetic-private"));

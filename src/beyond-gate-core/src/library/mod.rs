@@ -2,7 +2,7 @@
 //!
 //! These normalized inputs are not a verified upstream schema. No operation in
 //! this module fetches a page, reads credentials, or persists a library. Live
-//! discovery is explicitly unsupported until its permission and contract exist.
+//! discovery is explicitly unsupported until source contracts and login exist.
 
 mod error;
 mod model;
@@ -13,7 +13,7 @@ pub use model::{AccessEvidence, AccessState, Book, BookAccess, BookRecord};
 use std::{collections::HashSet, fmt};
 
 use crate::http::HttpError;
-use model::valid_text;
+pub(crate) use model::valid_text;
 
 /// Maximum raw observations in one supplied page, before duplicate removal.
 pub const MAX_ENTRIES_PER_PAGE: usize = 100;
@@ -136,7 +136,7 @@ pub fn assemble_library(
 /// Reports the blocked live boundary without network or credential access.
 ///
 /// Use [`assemble_library`] for explicit offline metadata observations. That
-/// operation is not a replacement for a permitted live discovery interface.
+/// operation is not a replacement for a live discovery interface.
 ///
 /// # Errors
 ///
