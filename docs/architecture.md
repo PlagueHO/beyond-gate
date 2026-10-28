@@ -6,8 +6,9 @@ The workspace contains three crates. The core exports one shared foundation stat
 message. Both adapters use clap for help and version output. The core also
 provides an offline-tested async HTTP boundary and protected local session
 operations. It can assemble library, character, and campaign metadata from
-explicitly supplied offline pages. The CLI exposes blocked login plus local
-status and logout.
+explicitly supplied offline pages. The core also provides offline book outlines
+and bounded section chunks with request-scoped access checks. The CLI exposes
+blocked login plus local status and logout.
 There is no built-in runtime host list, resource endpoint, account model,
 browser handoff, or MCP implementation. Neither adapter constructs an HTTP client
 or sends upstream requests.
@@ -97,9 +98,10 @@ certificates and has no insecure HTTP option. Only private unit tests can use
 literal loopback HTTP.
 
 This boundary ships no D&D Beyond host list or resource endpoint. Supplying an
-origin does not establish upstream permission. The [live gate](#feasibility-assessment)
-remains blocked. Approved hosts and endpoint contracts are still needed to meet
-the integration part of [#2](https://github.com/PlagueHO/beyond-gate/issues/2).
+origin does not establish upstream permission. The blanket development stop gate
+is removed. Source contracts, explicit runtime hosts, and usable login are still
+needed for the integration part of
+[#2](https://github.com/PlagueHO/beyond-gate/issues/2).
 
 ### Request limits
 
@@ -272,7 +274,7 @@ and malformed-JSON failures keep their types through page assembly. They do not
 pretend that this mock is a library response contract.
 
 Live schema-change tests, current entitlement checks, and discovery integration
-remain blocked pending a permitted endpoint, actual response and pagination
+remain unimplemented pending actual endpoint, response, and pagination
 contracts, and usable session handling. No upstream book response or real
 account has been read for this offline work.
 
@@ -305,9 +307,88 @@ before parsing or constructing records.
 `list_characters`, `get_character`, `list_campaigns`, and `get_campaign` always
 return an explicit unsupported-operation error. They do not construct a client
 or access credentials. No CLI or MCP operation is enabled. Live reads remain
-blocked until permission and supported hosts, response schemas, pagination,
+unimplemented until runtime hosts, response schemas, pagination,
 access rules, and session handling are established. Synthetic tests validate
 internal behavior only; they do not prove an upstream contract.
+
+## Offline book boundary
+
+The core `book` module provides `assemble_outline` and `read_section` for
+explicitly supplied normalized inputs. These are not upstream schemas, import
+formats, or adapter commands. The
+[runnable core example](../src/beyond-gate-core/src/book/mod.rs) uses original
+invented text: obtain an outline, select an entry, read one chunk, and explicitly
+request the next chunk.
+
+Both operations validate the explicit selection, call a request-scoped access
+callback, and load only after `AccessState::Granted`. `Unavailable` evidence
+returns `AccessDenied`; `Unknown` returns `AccessUnknown`. Access is checked on
+every call, including continuation. An earlier outline, library grant, or cursor
+cannot override a later denial. These callbacks are a testable offline boundary,
+not proof that caller-supplied evidence is fresh or truthful.
+
+### Navigation and text limits
+
+| Concern | Local rule |
+|---------|------------|
+| Outline entries | At most 1,000 raw entries; duplicates count before rejection |
+| Navigation | Preserve source order and parent IDs; reject duplicates, missing parents, and cycles |
+| Text per section result | At most 4,096 UTF-8 bytes |
+| Selection | One explicit book and section on every call |
+| Attribution | Validated HTTPS source URL with each result; section fragments are allowed |
+| Continuation | Opaque Rust value with private fields; no wire format or public constructor |
+| Completion | `next_cursor() == None` and `is_complete() == true` |
+| Empty section | Empty text with attribution and explicit completion |
+
+Identifiers, titles, and revisions must be meaningful, unpadded text without
+control characters. Source URLs must have a host and cannot contain credentials,
+padding, or control characters. They are attribution data, not fetch instructions
+or an origin allowlist. Outline parents can appear after children. Validation
+walks links without recursion and returns no partial outline.
+
+`SectionRecord` supplies one complete selected section, not a book. Its text
+already contains any source headings, lists, and line breaks. Reads do not parse
+HTML, invent headings, normalize whitespace, execute instructions, or interpret
+game rules. Chunking preserves every original byte. When a split is needed, it
+prefers an existing complete line within the byte cap. Otherwise it cuts at a
+UTF-8 character boundary. A cut need not be a word or grapheme boundary.
+Concatenating all chunks reproduces the exact supplied text.
+
+The hard byte cap applies to result text only. It does not bound metadata,
+caller allocations, or a future serialized adapter envelope. The outline cap
+counts entries, not bytes. No persistent text cache, whole-book operation,
+crawler, or automatic continuation is added.
+
+### Cursor and failure semantics
+
+`SectionCursor` binds book ID, section ID, revision, parsed source URL, and the
+next unread byte. It contains no section text. A caller must explicitly select
+the same book and section and pass the cursor on another call. Each successful
+nonterminal result advances; no result silently moves to another section.
+Cloning a cursor does not grant access or reserve a snapshot.
+
+The loader must change its revision whenever section text or identity changes.
+The core rejects a changed revision or source URL as `StaleContinuation`.
+Wrong scope, zero, terminal, out-of-range, or non-character-boundary positions
+return `InvalidContinuation`. There is no cursor parser or persistence contract;
+wire encoding belongs to later adapter work. The core cannot detect text
+changes that the caller conceals by reusing a revision, or prove upstream
+freshness from an offline value.
+
+`BookError` separates invalid metadata, malformed outlines, access denial,
+unknown access, unavailable content, unsupported sections, invalid or stale
+continuation, entry overflow, and unsupported live operations.
+`SourceRead(HttpError)` preserves typed, redacted HTTP causes for access or load
+failures, including rejected sessions, access denial, rate limits, and malformed
+responses. A 401 alone does not prove expiry. No failure returns partial text.
+Debug output and error messages omit source text, identifiers, revisions, URLs,
+and cursor state.
+
+`get_book_outline` and `read_book_section` always report `UnsupportedOperation`.
+They do not access credentials or send requests. Neither adapter exposes book
+reads. Synthetic tests cover exact limits, Unicode cuts, complete reconstruction,
+bad links, cursor rejection, access revocation, source failures, untrusted text,
+and safe diagnostics. This is partial offline work for #6, not a live contract.
 
 ## Data and output contracts
 
@@ -316,8 +397,8 @@ internal behavior only; they do not prove an upstream contract.
 - List operations will support table, JSON, and TSV with consistent field names.
 - Keep structured values and typed failures in the core. Format at the adapter edge.
 - Preserve unknown upstream character fields without interpreting game rules.
-- Keep character and campaign page assembly offline until the live feasibility
-  gate opens.
+- Keep current character, campaign, library, and book operations explicitly
+  offline until real source contracts and session handling are implemented.
 - Report upstream changes and unsupported response shapes explicitly.
 - Distinguish inaccessible content, expired login, rate limits, and network failure.
 - Bound book section size and continuation; return a source URL with each result.
@@ -326,10 +407,12 @@ internal behavior only; they do not prove an upstream contract.
 
 ## Safety and testing
 
-The [feasibility gate](roadmap.md) comes before live integration.
-An authorized account is not proof that automation is permitted. Review the
-[current Wizards terms](https://company.wizards.com/en/legal/terms) and get
-appropriate permission or clarification where needed.
+The [development policy](roadmap.md#development-policy-and-technical-status)
+removes the blanket permission stop gate. It does not remove access controls or
+establish upstream approval. An authorized account is not proof that automation
+is permitted. Keep the dated terms evidence below distinct from technical
+findings. Live account tests and credential access need separate explicit
+approval, with selected hosts, operations, budgets, stop conditions, and cleanup.
 
 Future HTTP code must bound timeouts, redirects, retries, and response sizes.
 Never forward cookies or authorization headers to an unapproved host. Retry only
@@ -341,13 +424,14 @@ Share contract cases between CLI and MCP when those adapters expose the same rea
 
 ## Open decisions
 
-The implementation issues must settle these before the relevant behavior ships:
+Track these questions in the relevant implementation issues:
 
-- Whether each required upstream operation has a permitted, stable access path.
+- Which runtime hosts and source contracts can support each required read.
 - Which human-controlled browser login method can return a session safely.
 - Whether the selected native credential backends work in each desktop user session.
 - Which upstream fields and identifiers can be relied on without data loss.
-- Which book section and continuation limits balance usability and access terms.
+- Whether upstream text-delivery limits require stricter caps than the offline
+  book policy.
 - Which MCP clients need native install support first.
 
 If any required read is not permitted or available, document the limit. Do not
@@ -355,13 +439,13 @@ substitute a bypass, fake result, or silently wider scope.
 
 ## Feasibility assessment
 
-**Reviewed: 2026-10-27. Result: no permitted integration path established.**
+**Historical review: 2026-10-27. Result: no permitted integration path established.**
 This completes the documented assessment for
-[#1](https://github.com/PlagueHO/beyond-gate/issues/1), not the live integration
-gate. Permission remains unresolved for every required read. Technical feasibility
-and simple browser login remain unproven. Do not start dependent live integration.
-This is a project access decision, not a legal opinion or a claim that upstream
-cannot approve a future integration.
+[#1](https://github.com/PlagueHO/beyond-gate/issues/1). The maintainer has since
+removed its blanket development stop decision. That decision is superseded,
+not converted into upstream approval. The source review remains dated evidence,
+not a legal opinion. Technical contracts and simple browser login remain
+unproven for the product.
 
 ### Interactive use and evaluation assumption
 
@@ -402,9 +486,10 @@ they do not establish general developer access or reusable partner permission.
 
 ### Required reads and decisions
 
-**Unresolved** means upstream permission or clarification is required before a
-live proof. **Unproven** means no usable API contract was established from the
-reviewed sources. Every row below is blocked for live integration.
+This table preserves the historical review. **Unresolved** means the reviewed
+sources did not establish upstream permission. **Unproven** means they did not
+establish a usable API contract. These labels no longer impose a blanket
+development stop gate. The clarification column records the original questions.
 
 | Required read | Permission result | Technical result and evidence | Required clarification |
 |---------------|-------------------|-------------------------------|------------------------|
@@ -417,10 +502,10 @@ reviewed sources. Every row below is blocked for live integration.
 | Read a purchased or shared book outline | Unresolved; E1, E2, E7 | Unproven. No outline schema or supported retrieval interface was established. | Approve outline reads and define the permitted metadata and access checks. |
 | Read a bounded section of a purchased or shared book | Unresolved; E1, E2, E7 | Unproven. No section schema, continuation contract, or permitted size was established. | Approve bounded text delivery through CLI and local MCP, with source URLs and explicit limits. |
 
-No required read is approved by this assessment. There is also no confirmed
-permanent refusal from upstream. The current decision is **no-go for live work
-until permission and a usable contract are established**, not a claim that all
-future access is impossible. A small response limit is not an access exception.
+No required read is approved by this historical assessment. There is also no
+confirmed permanent refusal from upstream. Its earlier no-go project decision
+is superseded by the current development policy. A small response limit is not
+an access exception, and no policy change supplies a missing technical contract.
 
 ### Technical evidence boundary
 
@@ -457,10 +542,10 @@ URLs failed DNS resolution. The `/avrae` path on `www.dndbeyond.com` returned HT
 had no comments; its artifact list API returned HTTP 404. These limits prevent a
 claim that every possible official or private partner path was reviewed.
 
-### Permission questions and next gate
+### Integration evidence and live tests
 
-Before any live proof, obtain upstream authorization or official guidance that
-answers these questions:
+Track these open upstream questions as evidence gaps, not a blanket development
+stop gate:
 
 1. May this native local app perform each read above through both CLI and local
    MCP, including delivery of bounded licensed text to an MCP client?
@@ -473,9 +558,9 @@ answers these questions:
 5. What text size, continuation, caching, and retention limits apply to outlines
    and sections? Are there additional terms for partnered content?
 
-Do not treat silence as approval. After permission and contracts are established,
-start with synthetic offline proofs. A separate explicit maintainer approval is
-still required for a live experiment. Define its hosts, operations, request
+Do not treat silence as upstream approval. Start with synthetic offline proofs.
+A separate explicit maintainer approval is still required for a live experiment.
+Define its hosts, operations, request
 budget, stop conditions, and cleanup first. Do not persist credentials or content
 during that experiment or attach account responses, HAR files, or browser data.
 Persistent protected session storage belongs to later approved product work.
@@ -497,7 +582,7 @@ foundation-notice behavior. Additional synthetic probe tests check the isolated
 exchange boundary. Neither set proves account access, automatic browser handoff,
 or any required data read.
 
-If permission cannot be obtained, propose a separate scope decision: retain an
-offline-only foundation, or assess local user-supplied data with independently
-verified rights and a supported export format. Neither option fulfills the
-current live-read scope. Do not adopt it silently or substitute scraping.
+The approved scope of #6 in this change is the offline book core. It does not
+fulfill the live-read goal. Other source integrations and local-data import
+remain separate work. Do not silently substitute scraping or bypass access
+controls to make an unavailable operation appear successful.

@@ -107,13 +107,16 @@ documentation and its usefulness; compiler checks cannot prove this.
 
 Tests must run offline without a real account. Use synthetic examples, not copies
 of character responses or book text. Mock network boundaries when they exist.
-Do not execute a live login or content read without explicit approval and the
-feasibility gate in the roadmap.
+There is no blanket upstream-permission development gate. See the
+[development policy](docs/roadmap.md#development-policy-and-technical-status).
+Live login, account reads, and credential access still need separate explicit
+approval. Define the selected hosts, operations, request budget, stop conditions,
+and cleanup before a live test. Stop after an access denial; do not bypass it.
 
 The [session-exchange probe](docs/authentication.md#opt-in-session-exchange-probe)
 is an ignored developer test, not product login. Its ordinary tests use synthetic
 data and local mocks. Run its live case only from an unrecorded interactive
-terminal with the required permission. Never pass a cookie through agent tools,
+terminal with separate explicit test approval. Never pass a cookie through agent tools,
 command arguments, environment variables, or files.
 
 ## Pull requests

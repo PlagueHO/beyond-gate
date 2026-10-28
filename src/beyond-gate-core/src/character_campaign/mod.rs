@@ -2,7 +2,7 @@
 //!
 //! The normalized records are not an upstream schema. Assembly validates
 //! explicitly supplied pages only. Live list and read operations remain
-//! unsupported until permission and usable upstream contracts exist.
+//! unsupported until usable upstream contracts and login are implemented.
 
 mod error;
 mod model;

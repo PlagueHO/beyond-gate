@@ -4,9 +4,11 @@
 //! built-in upstream hosts or endpoints. Local auth operations use one protected
 //! credential entry. Browser login, session exchange, and MCP serving remain
 //! blocked. Character, campaign, and library assembly accept supplied offline
-//! pages only.
+//! pages only. Book outlines and bounded section reads use fresh supplied access
+//! evidence and normalized offline records, not live account data.
 
 pub mod auth;
+pub mod book;
 pub mod character_campaign;
 pub mod http;
 pub mod library;

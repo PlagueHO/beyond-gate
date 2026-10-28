@@ -7,7 +7,7 @@ use zeroize::Zeroize;
 /// Separates blocked login, invalid local material, and protected-store failures.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum AuthErrorKind {
-    /// No permitted browser return path has been established.
+    /// No working browser return path is implemented.
     LoginBlocked,
     /// Opaque credential data is empty, oversized, or invalid for the store.
     InvalidSecret,
@@ -28,7 +28,7 @@ impl fmt::Display for AuthErrorKind {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::LoginBlocked => {
-                "browser login is blocked: no permitted session handoff is established; see docs/authentication.md; do not supply a password or cookie"
+                "browser login is blocked: no working session handoff is implemented; see docs/authentication.md; do not supply a password or cookie"
             }
             Self::InvalidSecret => {
                 "local session material is invalid or exceeds a storage limit; no upstream validation was performed"

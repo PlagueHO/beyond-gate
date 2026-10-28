@@ -31,6 +31,14 @@ It preserves supplied JSON fields, validates opaque identifiers, and bounds
 complete pagination. It does not interpret game rules or enable live character
 or campaign reads.
 
+The core also provides offline
+[book outlines and bounded section reads](docs/architecture.md#offline-book-boundary).
+Each call checks fresh supplied access before loading one selected source.
+Section results contain at most 4,096 UTF-8 text bytes, source attribution, and
+an opaque continuation or explicit end state. Outlines allow at most 1,000
+entries. These are synthetic-tested core operations, not live book access or
+available CLI/MCP commands.
+
 ## Goals and limits
 
 - Run native local binaries without a required Python or Node.js runtime.
@@ -54,9 +62,12 @@ Content ownership or sharing access does **not** establish permission to automat
 access. The [Wizards terms](https://company.wizards.com/en/legal/terms) restrict
 unauthorized automated access. The
 [2026-10-27 feasibility assessment](docs/architecture.md#feasibility-assessment)
-did not establish a permitted integration path. Account integration remains
-blocked pending upstream permission and a supported technical contract. Simple
-browser login remains unproven. Do not bypass paywalls, access controls, or bot
+did not establish a permitted integration path. At the maintainer's request,
+the project no longer uses that assessment as a blanket development stop gate.
+This policy change is not upstream approval. Live features still need working
+login, source contracts, and implementation. Live account tests and credential
+access need separate explicit approval. Simple browser login remains unproven.
+Do not bypass paywalls, access controls, or bot
 protection. This repository contains no proprietary content or real account
 fixtures.
 
@@ -100,7 +111,7 @@ beyond-gate auth status
 beyond-gate auth logout
 ```
 
-Login exits with code 1 and reports the missing permitted browser handoff.
+Login exits with code 1 and reports the missing working browser handoff.
 It does not open a browser, prompt for a secret, access storage, or send a request.
 There is no product command to create or import a credential. Do not manually
 create a credential as a substitute for browser login.
@@ -122,7 +133,7 @@ for backend requirements and recovery steps.
 
 | Path | Purpose |
 |------|---------|
-| `src/beyond-gate-core` | Local session operations, offline HTTP policy, and library metadata assembly |
+| `src/beyond-gate-core` | Local session operations, offline HTTP policy, metadata assembly, and bounded book reads |
 | `src/beyond-gate-cli` | The `beyond-gate` CLI |
 | `src/beyond-gate-mcp` | The `beyond-gate-mcp` binary; server work is pending |
 | `docs` | Architecture, authentication design, and implementation roadmap |

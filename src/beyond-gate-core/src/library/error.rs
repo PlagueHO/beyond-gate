@@ -24,7 +24,7 @@ pub enum LibraryError {
     IncompleteDiscovery,
     /// The page, per-page entry, or total raw-entry cap was exceeded.
     LimitExceeded,
-    /// A permitted live library interface and usable login are not established.
+    /// A live library source contract and usable login are not implemented.
     UnsupportedDiscovery,
     /// A supplied page failed; the underlying HTTP classification is preserved.
     PageRead(HttpError),
@@ -44,7 +44,7 @@ impl fmt::Display for LibraryError {
             }
             Self::LimitExceeded => "Library discovery exceeds a local page or entry limit.",
             Self::UnsupportedDiscovery => {
-                "Live library discovery is unsupported: a permitted endpoint contract and usable login are not established."
+                "Live library discovery is unsupported: a source contract and usable login are not implemented."
             }
             Self::PageRead(_) => "A library page read failed; no snapshot is available.",
         };

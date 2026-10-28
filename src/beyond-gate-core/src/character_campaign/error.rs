@@ -21,7 +21,7 @@ pub enum CharacterCampaignError {
     IncompleteDiscovery,
     /// The page, per-page record, or total raw-record cap was exceeded.
     LimitExceeded,
-    /// A permitted live interface and usable login have not been established.
+    /// Live source contracts and usable login are not implemented.
     UnsupportedOperation,
     /// A supplied page failed; the underlying HTTP classification is preserved.
     PageRead(HttpError),
@@ -45,7 +45,7 @@ impl fmt::Display for CharacterCampaignError {
                 "Character or campaign discovery exceeds a local page or record limit."
             }
             Self::UnsupportedOperation => {
-                "Live character and campaign reads are unsupported: permission, usable endpoints, and login are not established."
+                "Live character and campaign reads are unsupported: source contracts and usable login are not implemented."
             }
             Self::PageRead(_) => {
                 "A character or campaign page read failed; no snapshot is available."
