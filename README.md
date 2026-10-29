@@ -6,10 +6,12 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns, and
 purchased or shared books.
 
-**Status: local session management only.** Both binaries provide `--help` and
+**Status: offline CLI adapter and local session management.** Both binaries provide `--help` and
 `--version`. The CLI also provides local `auth status` and `auth logout`.
 `auth login` reports the browser-handoff blocker and fails without collecting
-credentials. Account login, data access, and MCP serving are not implemented.
+credentials. The CLI also generates shell completions. Character, campaign, and
+book commands exist, but return explicit unsupported-operation errors.
+Account login, live data access, and MCP serving are not implemented.
 No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful
@@ -22,8 +24,8 @@ D&D Beyond hosts or resource endpoints. Neither binary sends requests.
 The core also has offline [library metadata assembly](docs/architecture.md#offline-library-boundary).
 It validates supplied pages, keeps purchase and sharing evidence separate, and
 rejects incomplete or conflicting results. Catalog visibility never grants
-access. This is not a data import command or live book discovery. Neither binary
-can list books, and no library cache or proprietary catalog fixture is included.
+access. This is not a data import command or live book discovery. The CLI's
+`book list` reports this limit. No library cache or proprietary catalog fixture is included.
 
 The core also provides offline
 [character and campaign record assembly](docs/architecture.md#offline-character-and-campaign-boundary).
@@ -36,8 +38,8 @@ The core also provides offline
 Each call checks fresh supplied access before loading one selected source.
 Section results contain at most 4,096 UTF-8 text bytes, source attribution, and
 an opaque continuation or explicit end state. Outlines allow at most 1,000
-entries. These are synthetic-tested core operations, not live book access or
-available CLI/MCP commands.
+entries. CLI output and continuation use these synthetic-tested core operations
+in offline adapter tests, not live book access. MCP reads remain unavailable.
 
 ## Goals and limits
 
@@ -142,13 +144,134 @@ for backend requirements and recovery steps.
 This structure adapts [ArcadeJanitor](https://github.com/PlagueHO/arcade-janitor).
 It does not copy that project's ROM operations or HTTP MCP transport.
 
-## Remaining planned interfaces
+## Resource commands and output
 
-Local `auth` commands are available as described above. The remaining intended
-CLI resources are `character`, `campaign`, `book`, `mcp`, and `completions`.
-List commands will support table, JSON, and TSV
-output. Result data goes to stdout. Diagnostics go to stderr. MCP stdout will
-contain protocol messages only. These remaining interfaces are proposed, not available.
+These commands have implemented parsing and output contracts. **Live reads are
+unsupported.** Each valid read currently exits with code 1, writes a diagnostic
+to stderr, and leaves stdout empty. No command substitutes sample data or an
+empty successful result. Offline tests supply synthetic core inputs through a
+test-only executable, not a fixture flag or environment mode in the product.
+
+```shell
+beyond-gate character list --format json
+beyond-gate character show <id>
+beyond-gate campaign list --format tsv --no-headers
+beyond-gate campaign show <id>
+beyond-gate book list
+beyond-gate book outline <book-id> --format tsv
+beyond-gate book read <book-id> <section-id>
+beyond-gate book read <book-id> <section-id> --continuation <token>
+```
+
+Replace angle-bracket placeholders with explicit identifiers. They are opaque
+text, not necessarily numbers. Empty, padded, or control-bearing identifiers
+are invalid. These examples show command syntax, not successful live access.
+
+Lists and outlines accept `--format table|json|tsv`, with table as the default.
+They include headers unless `--no-headers` is supplied. JSON has field names,
+not row headers; `--no-headers --format json` is invalid.
+Show and section-read commands emit JSON only and accept no format/header flags.
+
+| Result | Table and TSV columns, in order | Additional JSON fields |
+|--------|--------------------------------|------------------------|
+| Character list | `id`, `name`, `source_url` | `raw` |
+| Campaign list | `id`, `name`, `source_url`, `character_ids` | `raw` |
+| Book list | `id`, `title`, `access`, `source_url` | `evidence` |
+| Book outline | `id`, `title`, `parent_id`, `source_url` | Envelope: `book_id`, `source_url`, `entries` |
+
+JSON lists are arrays. Show results use the corresponding list object's fields.
+`raw` retains the entire supplied JSON value, including unknown nested fields;
+it is not a quoted JSON string. Optional metadata is JSON `null` or an empty
+table/TSV cell. Campaign associations are JSON arrays; table/TSV cells contain
+their compact JSON representation with the cell escaping described below.
+Source order is preserved. No rows or fields are silently truncated.
+
+Book access labels are `purchased`, `shared`, `purchased_and_shared`,
+`unavailable`, and `unknown`. JSON `evidence` contains objects with `kind`:
+`catalog_only`, `purchased`, or `shared`. Purchase/sharing objects also contain
+`state`: `granted`, `unavailable`, or `unknown`. Sharing objects retain
+`context_id`. These observations never grant access to a later read.
+
+TSV uses one physical line per row and tabs between cells. Table output uses
+spaces between columns. Both escape backslashes as `\\`, tabs as `\t`, newlines
+as `\n`, carriage returns as `\r`, and other control characters as `\u{hex}`.
+Undo cell escaping before parsing an association cell as JSON.
+JSON retains original values with standard JSON escaping. Output has no
+automatic color or terminal-dependent format changes.
+
+Empty JSON lists are `[]`; empty outlines retain their envelope with
+`"entries": []`. Empty table/TSV results contain only headers, or no bytes with
+`--no-headers`. Operation failures are not empty successful results.
+Exit codes are 0 for success, 1 for operation/output failures, and 2 for invalid
+usage. Result data goes to stdout. Diagnostics go to stderr.
+Rejected sessions require human login but do not prove expiry; the browser-login
+blocker remains. Never supply passwords, cookies, or tokens as login arguments.
+
+### Bounded section output
+
+Each successful section result would be one JSON object with `book_id`,
+`section_id`, `source_url`, `text`, `next_cursor`, `is_complete`, and
+`max_text_bytes` (4,096). This is an offline-tested output contract, not a
+currently successful live command.
+The cap applies to UTF-8 text bytes, not JSON escaping, attribution, or cursor
+bytes. Existing line breaks and text structure remain unchanged.
+
+A nonterminal result contains one token. Request another chunk explicitly with
+`--continuation`; the CLI never follows it automatically.
+At the end, including an empty section, `next_cursor` is `null` and
+`is_complete` is `true`. There is no whole-book export or content cache.
+
+Tokens use a `bg1.` prefix and URL-safe unpadded base64, with a strict JSON
+payload. The complete token is limited to 16,384 encoded bytes. It contains only
+book/section identity, revision, source URL, and byte position, not text or
+credentials. It is not encrypted, signed, or an access grant. Treat it as opaque.
+Malformed or oversized tokens are usage errors. Fresh reads reject wrong scope,
+changed revision/URL, and invalid positions. Every read must check current access
+again. Tokens cannot choose a URL to fetch. Oversized output tokens fail
+explicitly rather than hiding required continuation.
+
+## Shell completions
+
+Completion generation works now and does not access credentials or the network:
+
+```shell
+beyond-gate completions bash
+beyond-gate completions elvish
+beyond-gate completions fish
+beyond-gate completions powershell
+beyond-gate completions zsh
+```
+
+Scripts come from the same clap definition as command parsing and help. They
+include implemented commands and options, not dynamic account identifiers.
+
+For Bash with bash-completion installed, save the script in its user-local
+completion directory:
+
+```bash
+mkdir -p "$HOME/.local/share/bash-completion/completions"
+beyond-gate completions bash > "$HOME/.local/share/bash-completion/completions/beyond-gate"
+```
+
+For PowerShell 7, save a user-local script next to your profile and load it:
+
+```powershell
+$completionDirectory = Split-Path -Parent $PROFILE
+New-Item -ItemType Directory -Force -Path $completionDirectory | Out-Null
+$completionPath = Join-Path $completionDirectory 'beyond-gate-completions.ps1'
+beyond-gate completions powershell | Set-Content -LiteralPath $completionPath -Encoding utf8
+. $completionPath
+```
+
+For later sessions, add this line to your PowerShell profile after you review the
+generated script:
+
+```powershell
+. (Join-Path (Split-Path -Parent $PROFILE) 'beyond-gate-completions.ps1')
+```
+
+MCP serving and the `mcp` CLI resource remain planned. MCP stdout will contain
+protocol messages only.
 
 See the [roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and
 [authentication design](docs/authentication.md). See [AGENTS.md](AGENTS.md) for

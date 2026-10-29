@@ -25,4 +25,4 @@ pub mod library;
 ///
 /// assert!(FOUNDATION_NOTICE.contains("not implemented"));
 /// ```
-pub const FOUNDATION_NOTICE: &str = "Local auth status and logout only: browser login, account access, and MCP serving are not implemented.";
+pub const FOUNDATION_NOTICE: &str = "Local auth status/logout and CLI completions are available. Resource commands report unsupported live reads: browser login, account access, and MCP serving are not implemented.";

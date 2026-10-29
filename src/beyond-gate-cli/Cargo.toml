@@ -15,6 +15,16 @@ path = "src/main.rs"
 [dependencies]
 beyond-gate-core.workspace = true
 clap.workspace = true
+clap_complete = "4.6"
+serde_json = "1.0.154"
+
+[dev-dependencies]
+base64 = "0.23.1"
+
+[[test]]
+name = "adapter_process"
+path = "tests/adapter_process.rs"
+harness = false
 
 [lints]
 workspace = true
