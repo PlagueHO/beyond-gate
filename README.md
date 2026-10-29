@@ -6,12 +6,13 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns, and
 purchased or shared books.
 
-**Status: offline CLI adapter and local session management.** Both binaries provide `--help` and
-`--version`. The CLI also provides local `auth status` and `auth logout`.
+**Status: offline CLI/MCP adapters and local session management.** Both binaries
+provide `--help` and `--version`. The CLI also provides local `auth status` and `auth logout`.
 `auth login` reports the browser-handoff blocker and fails without collecting
-credentials. The CLI also generates shell completions. Character, campaign, and
-book commands exist, but return explicit unsupported-operation errors.
-Account login, live data access, and MCP serving are not implemented.
+credentials. The CLI also generates shell completions. The MCP server uses stdio
+and exposes matching read tools. Character, campaign, and book reads return
+explicit unsupported-operation errors through both adapters. Account login and
+live data access are not implemented.
 No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful
@@ -39,7 +40,8 @@ Each call checks fresh supplied access before loading one selected source.
 Section results contain at most 4,096 UTF-8 text bytes, source attribution, and
 an opaque continuation or explicit end state. Outlines allow at most 1,000
 entries. CLI output and continuation use these synthetic-tested core operations
-in offline adapter tests, not live book access. MCP reads remain unavailable.
+in offline adapter tests, not live book access. MCP exposes the same bounded
+outline and section tool contracts, but live reads remain unsupported.
 
 ## Goals and limits
 
@@ -137,7 +139,7 @@ for backend requirements and recovery steps.
 |------|---------|
 | `src/beyond-gate-core` | Local session operations, offline HTTP policy, metadata assembly, and bounded book reads |
 | `src/beyond-gate-cli` | The `beyond-gate` CLI |
-| `src/beyond-gate-mcp` | The `beyond-gate-mcp` binary; server work is pending |
+| `src/beyond-gate-mcp` | The `beyond-gate-mcp` stdio server and read tools |
 | `docs` | Architecture, authentication design, and implementation roadmap |
 | `.github` | Agent guidance, issue/PR templates, CI, and release packaging |
 
@@ -270,7 +272,29 @@ generated script:
 . (Join-Path (Split-Path -Parent $PROFILE) 'beyond-gate-completions.ps1')
 ```
 
-MCP serving and the `mcp` CLI resource remain planned. MCP stdout will contain
+## Local MCP server
+
+Start `beyond-gate-mcp` from the MCP client as a local stdio process. The server
+uses the official rmcp SDK. Stdout carries MCP protocol messages only. Startup
+and transport failures go to stderr.
+
+The server exposes `character_list`, `character_show`, `campaign_list`,
+`campaign_show`, `book_list`, `book_outline`, and `book_read`. Every tool has a
+strict input object and a read-only annotation. Character and campaign tools
+preserve the same identifiers, optional metadata, associations, and raw JSON
+fields as the CLI's JSON contracts. Book tools preserve access evidence, source
+URLs, and the complete outline or one section chunk. The `book_read` input uses
+explicit `book_id` and `section_id` fields. Its optional continuation is capped
+at 16 KiB, and the core section-text cap remains 4,096 UTF-8 bytes. The server
+never follows continuations automatically.
+
+Live operations are not implemented. Valid tool calls therefore return an MCP
+tool error with the shared core's explicit unsupported-operation message. They
+do not return sample data or empty success results. The server has no login,
+credential, write, arbitrary-URL, or account-selection tools. Retrieved content
+from future live operations must be treated as data, not instructions.
+
+The `mcp` CLI resource remains separate planned work. MCP stdout contains
 protocol messages only.
 
 See the [roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and

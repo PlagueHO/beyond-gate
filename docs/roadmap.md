@@ -107,6 +107,12 @@ Bash, Elvish, Fish, PowerShell, and Zsh completions. Offline process tests do no
 make the core's unsupported live operations usable. There is no product fixture
 input, cached content, or account snapshot.
 
+Issue #8 now has a local rmcp stdio server and seven matching read tools. The
+tools call the shared core functions and preserve their explicit unsupported
+errors; they do not enable account reads. Tool schemas, read-only annotations,
+bounded continuation input, and protocol process tests are implemented. The
+current MCP output contract is documented alongside the CLI contract.
+
 Issue #3 remains partial. `auth login` fails with the browser-handoff blocker.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream
 usability or expiry. `auth logout` removes the local entry but cannot revoke

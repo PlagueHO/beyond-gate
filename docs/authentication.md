@@ -32,7 +32,8 @@ There is no product command to create or import a credential. Do not create one
 manually to work around blocked login. The core write boundary exists for a future
 approved flow and uses synthetic values in tests. No credential argument,
 environment input, password prompt, or MCP input is added. Neither adapter uses
-stored material for an upstream request. MCP serving remains unavailable.
+stored material for an upstream request. The MCP server exposes only read tools,
+which currently return the core's explicit unsupported-operation errors.
 
 ### Protected-store selection and recovery
 
