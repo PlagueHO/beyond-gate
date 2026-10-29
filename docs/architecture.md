@@ -11,9 +11,10 @@ and bounded section chunks with request-scoped access checks. The CLI exposes
 blocked login plus local status/logout, resource command parsing and formatting,
 and shell completion generation. Its resource commands use the core's explicit
 unsupported live entry points. Synthetic success paths exist only in tests.
-There is no built-in runtime host list, resource endpoint, account model,
-browser handoff, or MCP implementation. Neither adapter constructs an HTTP client
-or sends upstream requests.
+There is no built-in runtime host list, resource endpoint, account model, or
+browser handoff. The MCP adapter serves local stdio with seven read-only tools;
+their shared core operations currently return explicit unsupported errors.
+Neither adapter constructs an HTTP client or sends upstream requests.
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
@@ -47,10 +48,33 @@ repository, or transport layers before the first operation needs them.
 The HTTP boundary uses async reqwest with Tokio. Its synthetic tests do not
 establish an upstream response contract. The separate developer probe uses
 reqwest's blocking interface only.
-The MCP implementation should use the
-[official Rust SDK, rmcp](https://github.com/modelcontextprotocol/rust-sdk),
-with stdio only. Select current compatible versions when those issues start.
-Do not copy ArcadeJanitor's custom HTTP/WebSocket MCP layer.
+The MCP adapter uses the
+[official Rust SDK, rmcp 3.8.0](https://docs.rs/rmcp/3.8.0/rmcp/), with stdio
+only. Its input schemas use schemars, and Tokio runs the service. Do not copy
+ArcadeJanitor's custom HTTP/WebSocket MCP layer.
+
+## MCP stdio adapter
+
+`beyond-gate-mcp` starts the rmcp server on stdio when run without command-line
+arguments. Help and version remain ordinary command-line output. During serving,
+stdout is reserved for MCP messages; server diagnostics use stderr.
+
+The adapter exposes `character_list`, `character_show`, `campaign_list`,
+`campaign_show`, `book_list`, `book_outline`, and `book_read`. It calls the same
+core live-read functions as the CLI. This does not create live access: each
+function currently returns a typed unsupported-operation error, which rmcp
+returns as a tool result with `isError` set. It never substitutes an empty or
+synthetic successful result. Tool input does not accept credentials, arbitrary
+URLs, or account identities.
+
+Input objects reject unknown fields. Resource identifiers use the CLI's
+nonempty, unpadded, control-free rule. Book reads require an explicit book and
+section selection. A continuation token is optional, limited to 16 KiB, and
+passed only to the core cursor validator. One section result remains bounded to
+4,096 UTF-8 text bytes. Continuation is explicit and never automatic. Output
+fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
+book evidence, source attribution, and section completion state. Source content
+is data and is not executed or treated as instructions.
 
 ## Local session boundary
 
@@ -81,9 +105,10 @@ failures where the backend enum permits it. Unknown failures do not become absen
 
 The CLI parses and presents these operations. Its login command returns an
 explicit blocker before any storage, browser, input, or network activity.
-Future MCP session use must call the same core operations and identity; no MCP
-tools or credential input are implemented here. Native store calls are blocking,
-so future async adapters must keep them off executor threads.
+MCP read tools call the same core operations and do not read credentials or
+create a separate session identity. No auth or credential-input tool is exposed.
+Native store calls are blocking, so future async operations must keep them off
+executor threads.
 
 This is partial offline work for #3. Browser handoff, session exchange, upstream
 expiry, refresh, rejection, and actual adapter session parity remain blocked.

@@ -7,6 +7,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Local stdio MCP server using rmcp 3.8.0 with seven read-only tools, strict
+  schemas, explicit bounded book continuation, safe typed core error messages,
+  and process tests for protocol discovery and tool calls. Live reads remain
+  unsupported and return explicit tool errors.
 - Resource-first `character list/show`, `campaign list/show`, and
   `book list/outline/read` CLI adapter with offline process tests, table/JSON/TSV
   list output, header control, preserved structured JSON, safe typed diagnostics,
