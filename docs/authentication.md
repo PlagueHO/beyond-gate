@@ -80,7 +80,8 @@ write/read/delete, exact size bounds, invalid stored material, denied or locked
 storage, missing backends, native failures, ambiguous entries, repeated logout,
 and redacted error chains. CLI tests check local output and failures with injected
 operations. Process tests exercise blocked login, help, and rejected input without
-accessing real credentials. MCP process tests keep its non-serving boundary.
+accessing real credentials. MCP process tests check local stdio serving and
+explicit unsupported live-read errors.
 
 No native credential-store round trip or live account test is part of these
 checks. Platform CI checks build compatibility, not real credential-service access.

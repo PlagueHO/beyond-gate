@@ -128,17 +128,57 @@ Do not describe a planned feature as implemented.
 
 ## Packaging and future releases
 
-The Release packaging workflow builds both binaries on Linux, macOS, and Windows.
+The Release packaging workflow builds both binaries on fixed native runners:
+Ubuntu 24.04 x86_64, Windows Server 2022 x86_64, and macOS 15 Apple Silicon.
+These are test baselines, not verified minimum OS versions.
+A relevant pull request runs the same package checks without creating a release.
 A manual run uploads archives and SHA-256 checksums without creating a release.
 Assets include the Rust target triple to identify architecture and platform.
-The packages include the README, license, and changelog.
+The packages include both binaries, the README, license, changelog, and the
+self-contained [installation guide](docs/installation.md).
+
+On Windows, packaging CI installs the 2022 Build Tools product if it is missing;
+the runner's Visual Studio Enterprise installation is not a substitute for the
+repository-selected environment. Every packaging Cargo command uses
+`scripts\cargo.ps1`. The developer-shell banner goes to the host stream so that
+in-process callers can parse Cargo metadata from the success stream.
+
+Before upload, `scripts\test-package.ps1` verifies each checksum and exact archive
+contents, then extracts into a temporary path with spaces. It tests both packaged
+binaries with a restricted child PATH, offline errors, stdio MCP discovery, and
+registration against temporary synthetic client settings. It does not access
+real client files or credentials. `scripts\test-package-failures.ps1` checks that
+bad checksums, changed bytes, wrong versions/targets, missing files, empty files,
+and unexpected archive members fail. These development scripts need PowerShell
+7.4 or later. Product binaries do not need PowerShell.
+
+To check an existing Windows package locally:
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-package.ps1 `
+    -Archive .\dist\beyond-gate-v0.1.0-x86_64-pc-windows-msvc.zip `
+    -Checksum .\dist\beyond-gate-v0.1.0-x86_64-pc-windows-msvc.zip.sha256 `
+    -Version 0.1.0 -Target x86_64-pc-windows-msvc
+pwsh -NoProfile -File .\scripts\test-package-failures.ps1 `
+    -Archive .\dist\beyond-gate-v0.1.0-x86_64-pc-windows-msvc.zip `
+    -Version 0.1.0 -Target x86_64-pc-windows-msvc
+```
+
+Use the candidate's actual version and target. On Linux and macOS, use the
+matching `.tar.gz` archive on its native CPU. The packaging log records shared
+library dependencies with `ldd`, `otool`, or `dumpbin`. Restricted-PATH checks are
+not clean-desktop installation, real credential-store tests, or download trust
+checks.
 
 An explicit maintainer push of a `vX.Y.Z` tag also prepares a **draft** GitHub
 release after all build jobs pass. The tag must match the workspace package version.
 The draft needs review before publication. Never publish from a pull request.
 No crates are published to crates.io. No release is part of this foundation change.
 
-Before a real release, finish the release-usability roadmap issue. It covers
-installation instructions, package smoke tests, and platform-specific limits.
+Before a real release, resolve the [release blockers](docs/installation.md#release-readiness)
+in the release-usability roadmap issue. Offline package checks do not prove
+working login, live CLI/MCP parity, real client discovery, or protected-store
+behavior. Those checks remain blocked or need separate approval.
 Change the shared version in `Cargo.toml` and lockfile together. Add a dated
-changelog entry before tagging.
+changelog entry before tagging. A maintainer must review the version, lockfile,
+changelog, assets, evidence, and draft before publication.

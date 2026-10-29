@@ -2,10 +2,11 @@
 //!
 //! Account access is not implemented. The offline-tested HTTP boundary has no
 //! built-in upstream hosts or endpoints. Local auth operations use one protected
-//! credential entry. Browser login, session exchange, and MCP serving remain
-//! blocked. Character, campaign, and library assembly accept supplied offline
-//! pages only. Book outlines and bounded section reads use fresh supplied access
-//! evidence and normalized offline records, not live account data.
+//! credential entry. Browser login and session exchange remain blocked. The local
+//! MCP server exposes explicit unsupported reads. Character, campaign, and library
+//! assembly accept supplied offline pages only. Book outlines and bounded section
+//! reads use fresh supplied access evidence and normalized offline records, not
+//! live account data.
 
 pub mod auth;
 pub mod book;
@@ -25,4 +26,4 @@ pub mod library;
 ///
 /// assert!(FOUNDATION_NOTICE.contains("not implemented"));
 /// ```
-pub const FOUNDATION_NOTICE: &str = "Local auth status/logout and CLI completions are available. Resource commands report unsupported live reads: browser login, account access, and MCP serving are not implemented.";
+pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Resource commands report unsupported live reads: browser login and account access are not implemented.";

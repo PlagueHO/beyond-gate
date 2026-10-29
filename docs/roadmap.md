@@ -123,3 +123,18 @@ and real CLI/MCP session parity remain deferred.
 v1 is local-only and read-only. It needs simple authentication, consistent CLI/MCP
 results, source URLs, bounded book reads, and clear errors before a usable release.
 There is no requirement for a cloud service, Python, Node.js, or crate publication.
+
+Issue #10 adds offline extracted-package verification and the
+[native installation guide](installation.md). The package matrix is Linux x86_64,
+Windows x86_64, and macOS Apple Silicon on fixed native CI runners. Packaging
+checks hashes, archive contents, executable paths, startup, honest unsupported
+errors, MCP protocol behavior, and isolated synthetic client registration.
+Each platform result applies only after its packaging workflow succeeds.
+
+This is not completion of #10 or proof of a usable v1. Missing-session and expiry
+errors for live operations remain blocked, not replaced by unsupported errors.
+Simple login, native credential-store checks, actual client discovery, and approved
+live CLI/MCP checks for access, attribution, and book bounds remain release blockers.
+See the guide's [release-readiness table](installation.md#release-readiness).
+Maintainers must review version, lockfile, dated changelog, assets, evidence, and
+the draft before publication. This issue authorizes no release tag or publication.

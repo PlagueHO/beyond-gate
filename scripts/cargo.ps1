@@ -19,8 +19,10 @@ if ($IsWindows) {
         }
         $developerShell = Join-Path $installation 'Common7\Tools\Launch-VsDevShell.ps1'
     }
-    & $developerShell -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
-    if (-not $?) {
+    $developerOutput = & $developerShell -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+    $developerShellSucceeded = $?
+    $developerOutput | Out-Host
+    if (-not $developerShellSucceeded) {
         throw 'Visual Studio 2022 Build Tools environment setup failed.'
     }
 }

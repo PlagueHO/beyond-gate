@@ -27,6 +27,8 @@ fn help_reports_foundation_scope() {
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Usage: beyond-gate"));
     assert!(stdout.contains(beyond_gate_core::FOUNDATION_NOTICE));
+    assert!(stdout.contains("local MCP serving are available"));
+    assert!(!stdout.contains("MCP serving are not implemented"));
 }
 
 /// Checks that version output uses the shared workspace package version.

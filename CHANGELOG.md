@@ -7,6 +7,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Extracted-package verification for fixed Linux x86_64, Windows x86_64, and
+  macOS Apple Silicon runners. Checks cover SHA-256, exact archive contents,
+  runtime-independent startup, offline CLI/MCP failures, local stdio discovery,
+  and isolated synthetic client registration. Rejection tests cover damaged
+  packages and wrong package contracts. No live credentials or clients are used.
+- Packaged native installation guide with checksum and extraction commands,
+  OS/runtime and trust limits, troubleshooting, and explicit v1 release blockers.
 - Resource-first `mcp start` and `mcp install` commands. Start launches the
   sibling native MCP server with inherited stdio and exit status. Install
   supports user-level VS Code Copilot Global, Claude Code, and Copilot CLI
@@ -74,7 +81,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Correct stale CLI help, README, and changelog statements about local MCP
+  serving. Browser login and live reads remain unimplemented.
+- Keep Visual Studio setup messages out of the Cargo wrapper's success stream
+  so in-process callers can parse metadata.
 - Stop before starting an HTTP attempt when a queued permit becomes available
   after the total deadline. Accept case-insensitive identity content encoding.
 
-No account login, D&D Beyond reads, or MCP serving is available yet.
+Account login and live D&D Beyond reads are not available. Local stdio MCP
+serving is available, but its live read tools return explicit unsupported errors.

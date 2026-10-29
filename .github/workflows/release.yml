@@ -2,6 +2,18 @@ name: Release packaging
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "scripts/**"
+      - "src/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "rust-toolchain.toml"
+      - "README.md"
+      - "LICENSE"
+      - "CHANGELOG.md"
+      - "docs/installation.md"
   push:
     tags: ["v*"]
 
@@ -10,12 +22,18 @@ permissions:
 
 jobs:
   build:
-    name: Package (${{ matrix.os }})
+    name: Package (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - os: windows-2022
+            target: x86_64-pc-windows-msvc
+          - os: macos-15
+            target: aarch64-apple-darwin
     defaults:
       run:
         shell: pwsh
@@ -27,10 +45,23 @@ jobs:
           persist-credentials: false
       - name: Select repository toolchain
         run: rustup show
+      - name: Ensure Visual Studio 2022 Build Tools
+        if: runner.os == 'Windows'
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = & $vswhere -latest -version '[17.0,18.0)' -products Microsoft.VisualStudio.Product.BuildTools -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect Visual Studio installations." }
+          if (!$installation) {
+            choco install visualstudio2022buildtools --yes --no-progress --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --norestart"
+            if ($LASTEXITCODE -notin @(0, 3010)) { throw "Visual Studio 2022 Build Tools installation failed." }
+          }
+          exit 0
       - name: Check package version and tag
         id: package
+        env:
+          EXPECTED_TARGET: ${{ matrix.target }}
         run: |
-          $metadata = cargo metadata --no-deps --format-version 1 --locked | ConvertFrom-Json
+          $metadata = & ./scripts/cargo.ps1 metadata --no-deps --format-version 1 --locked | ConvertFrom-Json
           if ($LASTEXITCODE -ne 0) { throw "Cannot read Cargo metadata." }
           $versions = @($metadata.packages.version | Select-Object -Unique)
           if ($versions.Count -ne 1) { throw "Workspace package versions must match." }
@@ -41,14 +72,34 @@ jobs:
           $hostLine = rustc -vV | Select-String "^host: (.+)$"
           if ($LASTEXITCODE -ne 0 -or !$hostLine) { throw "Cannot identify the Rust host." }
           $target = $hostLine.Matches[0].Groups[1].Value
+          if ($target -cne $env:EXPECTED_TARGET) { throw "Expected $env:EXPECTED_TARGET, found $target." }
           "version=$version" >> $env:GITHUB_OUTPUT
           "target=$target" >> $env:GITHUB_OUTPUT
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
-      - run: cargo test --workspace --doc --locked
-      - run: cargo doc --workspace --no-deps --document-private-items --locked
-      - run: cargo build --release --workspace --locked
+      - run: ./scripts/cargo.ps1 fmt --all -- --check
+      - run: ./scripts/cargo.ps1 clippy --workspace --all-targets --locked '--' -D warnings
+      - run: ./scripts/cargo.ps1 test --workspace --locked
+      - run: ./scripts/cargo.ps1 test --workspace --doc --locked
+      - run: ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
+      - run: ./scripts/cargo.ps1 build --release --workspace --locked
+      - name: Record native runtime dependencies
+        run: |
+          if ($IsWindows) {
+            $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+            $installation = & $vswhere -latest -version '[17.0,18.0)' -products Microsoft.VisualStudio.Product.BuildTools -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+            if ($LASTEXITCODE -ne 0 -or !$installation) { throw "Visual Studio 2022 Build Tools was not found." }
+            $developerOutput = & (Join-Path $installation 'Common7/Tools/Launch-VsDevShell.ps1') -Arch amd64 -HostArch amd64 -SkipAutomaticLocation
+            $developerShellSucceeded = $?
+            $developerOutput | Out-Host
+            if (!$developerShellSucceeded) { throw "Visual Studio 2022 environment setup failed." }
+          }
+          foreach ($name in @("beyond-gate", "beyond-gate-mcp")) {
+            $suffix = if ($IsWindows) { ".exe" } else { "" }
+            $binary = Join-Path (Join-Path target release) "$name$suffix"
+            if ($IsWindows) { & dumpbin /DEPENDENTS $binary }
+            elseif ($IsLinux) { & ldd $binary }
+            else { & otool -L $binary }
+            if ($LASTEXITCODE -ne 0) { throw "Cannot inspect $name native dependencies." }
+          }
       - name: Package native binaries and checksums
         env:
           VERSION: ${{ steps.package.outputs.version }}
@@ -66,6 +117,7 @@ jobs:
             Copy-Item $binary -Destination package
           }
           Copy-Item README.md, LICENSE, CHANGELOG.md -Destination package
+          Copy-Item docs/installation.md -Destination package
           $stem = "beyond-gate-v$env:VERSION-$env:TARGET"
           if ($IsWindows) {
             $archive = "$stem.zip"
@@ -77,6 +129,8 @@ jobs:
           }
           $hash = (Get-FileHash (Join-Path dist $archive) -Algorithm SHA256).Hash.ToLowerInvariant()
           "$hash  $archive" | Set-Content (Join-Path dist "$archive.sha256") -Encoding ascii
+          ./scripts/test-package.ps1 -Archive (Join-Path dist $archive) -Checksum (Join-Path dist "$archive.sha256") -Version $env:VERSION -Target $env:TARGET
+          ./scripts/test-package-failures.ps1 -Archive (Join-Path dist $archive) -Version $env:VERSION -Target $env:TARGET
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           name: beyond-gate-${{ steps.package.outputs.target }}
