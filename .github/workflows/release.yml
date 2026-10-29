@@ -76,7 +76,7 @@ jobs:
           "version=$version" >> $env:GITHUB_OUTPUT
           "target=$target" >> $env:GITHUB_OUTPUT
       - run: ./scripts/cargo.ps1 fmt --all -- --check
-      - run: ./scripts/cargo.ps1 clippy --workspace --all-targets --locked -- -D warnings
+      - run: ./scripts/cargo.ps1 clippy --workspace --all-targets --locked '--' -D warnings
       - run: ./scripts/cargo.ps1 test --workspace --locked
       - run: ./scripts/cargo.ps1 test --workspace --doc --locked
       - run: ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
