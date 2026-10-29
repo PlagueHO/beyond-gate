@@ -5,7 +5,7 @@
 
 use std::{
     io::{self, Write},
-    process::{Command, ExitCode, Output},
+    process::{Command, Output},
 };
 
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
@@ -616,7 +616,7 @@ fn output_failures() {
 }
 
 /// Runs parent assertions or a child with the real command runner and synthetic reads.
-fn main() -> ExitCode {
+fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
     if arguments
         .get(1)
@@ -629,7 +629,7 @@ fn main() -> ExitCode {
             .into_owned();
         let cli_arguments = std::iter::once(std::ffi::OsString::from("beyond-gate"))
             .chain(arguments.into_iter().skip(3));
-        return ExitCode::from(beyond_gate_cli::run(
+        std::process::exit(beyond_gate_cli::run(
             cli_arguments,
             &Fixtures { scenario },
             &mut io::stdout().lock(),
@@ -639,5 +639,4 @@ fn main() -> ExitCode {
     list_contracts();
     section_contracts();
     output_failures();
-    ExitCode::SUCCESS
 }

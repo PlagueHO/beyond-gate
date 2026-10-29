@@ -97,6 +97,9 @@ fn resource_help_matches_available_commands() {
         vec!["book", "outline", "--help"],
         vec!["book", "read", "--help"],
         vec!["completions", "--help"],
+        vec!["mcp", "--help"],
+        vec!["mcp", "start", "--help"],
+        vec!["mcp", "install", "--help"],
     ] {
         let output = run(&arguments);
         assert!(output.status.success());
@@ -108,6 +111,11 @@ fn resource_help_matches_available_commands() {
     assert!(help.contains("4,096"));
     assert!(help.contains("--continuation"));
     assert!(help.contains("unsupported"));
+    let output = run(&["mcp", "install", "--help"]);
+    let help = String::from_utf8_lossy(&output.stdout);
+    for expected in ["vscode", "claude-code", "copilot-cli", "--dry-run"] {
+        assert!(help.contains(expected));
+    }
 }
 
 /// Checks invalid input fails before any source or credential service is used.
@@ -136,6 +144,11 @@ fn invalid_resource_usage_has_no_result() {
         ],
         vec!["completions"],
         vec!["completions", "unknown"],
+        vec!["mcp"],
+        vec!["mcp", "unknown"],
+        vec!["mcp", "install"],
+        vec!["mcp", "install", "unknown"],
+        vec!["mcp", "install", "copilot-cli", "--unknown"],
         vec!["--fixture-child", "normal"],
     ] {
         let output = run(&arguments);
@@ -158,6 +171,9 @@ fn completions_include_real_commands_and_options() {
             "character",
             "campaign",
             "book",
+            "mcp",
+            "start",
+            "install",
             "outline",
             "read",
             "auth",

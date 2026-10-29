@@ -17,6 +17,7 @@ pub(crate) enum Failure {
     Library(LibraryError),
     Book(BookError),
     Cursor(BookError),
+    Mcp(crate::mcp::McpError),
     Json(serde_json::Error),
     Output(io::Error),
     Usage(&'static str),
@@ -24,7 +25,7 @@ pub(crate) enum Failure {
 
 impl Failure {
     /// Preserves the existing usage/operation split in process exit codes.
-    pub(crate) fn exit_code(&self) -> u8 {
+    pub(crate) fn exit_code(&self) -> i32 {
         if matches!(self, Self::Usage(_) | Self::Cursor(_)) {
             2
         } else {
@@ -51,6 +52,7 @@ impl fmt::Display for Failure {
             Self::Character(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
+            Self::Mcp(error) => write!(formatter, "{error}")?,
             Self::Json(_) => formatter.write_str("Result JSON could not be encoded.")?,
             Self::Output(_) => formatter.write_str("Result output could not be written.")?,
             Self::Usage(message) => formatter.write_str(message)?,
@@ -87,6 +89,7 @@ impl Error for Failure {
             Self::Character(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),
+            Self::Mcp(error) => Some(error),
             Self::Json(error) => Some(error),
             Self::Output(error) => Some(error),
             Self::Usage(_) => None,

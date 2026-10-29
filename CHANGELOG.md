@@ -7,6 +7,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Resource-first `mcp start` and `mcp install` commands. Start launches the
+  sibling native MCP server with inherited stdio and exit status. Install
+  supports user-level VS Code Copilot Global, Claude Code, and Copilot CLI
+  settings with preview, confirmation, safe JSON merging, and offline tests.
 - Local stdio MCP server using rmcp 3.8.0 with seven read-only tools, strict
   schemas, explicit bounded book continuation, safe typed core error messages,
   and process tests for protocol discovery and tool calls. Live reads remain
