@@ -21,6 +21,8 @@ pub enum BookError {
     UnsupportedSection,
     /// A cursor has the wrong scope or an invalid byte position.
     InvalidContinuation,
+    /// An encoded continuation exceeds the local wire-size limit.
+    ContinuationTooLarge,
     /// A cursor refers to a different source revision or location.
     StaleContinuation,
     /// The raw outline entry limit was exceeded.
@@ -42,6 +44,7 @@ impl fmt::Display for BookError {
             Self::Unavailable => "The selected book or section is unavailable.",
             Self::UnsupportedSection => "The source does not support the selected section.",
             Self::InvalidContinuation => "Section continuation scope or position is invalid.",
+            Self::ContinuationTooLarge => "Section continuation exceeds the 16 KiB encoded limit.",
             Self::StaleContinuation => "Section continuation refers to an older or changed source.",
             Self::LimitExceeded => "Book outline exceeds the local entry limit.",
             Self::UnsupportedOperation => {

@@ -7,6 +7,16 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Resource-first `character list/show`, `campaign list/show`, and
+  `book list/outline/read` CLI adapter with offline process tests, table/JSON/TSV
+  list output, header control, preserved structured JSON, safe typed diagnostics,
+  and stable 0/1/2 exits. Production reads fail explicitly as unsupported.
+- Runtime Bash, Elvish, Fish, PowerShell, and Zsh completions generated from the
+  actual clap command definition without credential or account access.
+- Shared versioned section continuation tokens with a 16 KiB encoded cap,
+  strict URL-safe parsing, redacted failures, and synthetic cross-process tests.
+  Tokens do not grant access; reads retain the 4,096-byte UTF-8 text bound and
+  fresh access/source checks. No automatic continuation or content cache is added.
 - Offline core book outlines with a 1,000-entry cap and selected-section reads
   with a 4,096-byte UTF-8 text cap, fresh supplied access checks, source URLs,
   opaque revision-bound cursors, explicit completion, typed redacted failures,

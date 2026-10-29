@@ -8,7 +8,9 @@ provides an offline-tested async HTTP boundary and protected local session
 operations. It can assemble library, character, and campaign metadata from
 explicitly supplied offline pages. The core also provides offline book outlines
 and bounded section chunks with request-scoped access checks. The CLI exposes
-blocked login plus local status and logout.
+blocked login plus local status/logout, resource command parsing and formatting,
+and shell completion generation. Its resource commands use the core's explicit
+unsupported live entry points. Synthetic success paths exist only in tests.
 There is no built-in runtime host list, resource endpoint, account model,
 browser handoff, or MCP implementation. Neither adapter constructs an HTTP client
 or sends upstream requests.
@@ -18,6 +20,9 @@ The workspace uses Rust 2024 and resolver 3. The
 recommends this resolver for Rust 2024. The pinned toolchain is
 [Rust 1.99.1](https://github.com/rust-lang/rust/releases/tag/1.99.1).
 [clap 4.6.7](https://docs.rs/clap/4.6.7/clap/) handles the adapters.
+The CLI uses [clap_complete 4.6.11](https://docs.rs/clap_complete/4.6.11/clap_complete/)
+to generate scripts from its actual clap definition. The shared cursor codec
+uses serde_json and URL-safe unpadded base64.
 The core HTTP boundary uses async
 [reqwest 0.13.5](https://docs.rs/reqwest/0.13.5/reqwest/), Tokio, serde,
 serde_json, and httpdate. The developer-only
@@ -182,8 +187,8 @@ The core `library` module implements partial offline work for
 `assemble_library` validates explicitly supplied normalized pages and returns a
 `LibrarySnapshot` only when the complete sequence succeeds. `discover_library`
 always returns `LibraryError::UnsupportedDiscovery` before any HTTP client
-construction, network request, or credential access. Neither adapter exposes a
-book command or tool.
+construction, network request, or credential access. The CLI's `book list`
+reports that failure. No live book discovery or MCP tool is enabled.
 
 These are Beyond Gate's internal types, not an upstream response schema or an
 import-file format. They do not establish that the caller's observations are
@@ -306,7 +311,8 @@ before parsing or constructing records.
 
 `list_characters`, `get_character`, `list_campaigns`, and `get_campaign` always
 return an explicit unsupported-operation error. They do not construct a client
-or access credentials. No CLI or MCP operation is enabled. Live reads remain
+or access credentials. CLI commands expose those explicit failures; synthetic
+adapter tests cover successful formatting. No live CLI or MCP read is enabled. Live reads remain
 unimplemented until runtime hosts, response schemas, pagination,
 access rules, and session handling are established. Synthetic tests validate
 internal behavior only; they do not prove an upstream contract.
@@ -315,7 +321,7 @@ internal behavior only; they do not prove an upstream contract.
 
 The core `book` module provides `assemble_outline` and `read_section` for
 explicitly supplied normalized inputs. These are not upstream schemas, import
-formats, or adapter commands. The
+formats. The CLI adapter formats their validated results in synthetic tests. The
 [runnable core example](../src/beyond-gate-core/src/book/mod.rs) uses original
 invented text: obtain an outline, select an entry, read one chunk, and explicitly
 request the next chunk.
@@ -336,7 +342,7 @@ not proof that caller-supplied evidence is fresh or truthful.
 | Text per section result | At most 4,096 UTF-8 bytes |
 | Selection | One explicit book and section on every call |
 | Attribution | Validated HTTPS source URL with each result; section fragments are allowed |
-| Continuation | Opaque Rust value with private fields; no wire format or public constructor |
+| Continuation | Opaque Rust value with private fields; bounded `bg1.` wire token for explicit cross-process continuation |
 | Completion | `next_cursor() == None` and `is_complete() == true` |
 | Empty section | Empty text with attribution and explicit completion |
 
@@ -370,8 +376,19 @@ Cloning a cursor does not grant access or reserve a snapshot.
 The loader must change its revision whenever section text or identity changes.
 The core rejects a changed revision or source URL as `StaleContinuation`.
 Wrong scope, zero, terminal, out-of-range, or non-character-boundary positions
-return `InvalidContinuation`. There is no cursor parser or persistence contract;
-wire encoding belongs to later adapter work. The core cannot detect text
+return `InvalidContinuation`. `SectionCursor::to_token` and `from_token` provide
+a shared wire codec. The token is a `bg1.` prefix followed by URL-safe unpadded
+base64 of strict JSON fields: `book_id`, `section_id`, `revision`, `source_url`,
+and `next_byte`. Unknown/duplicate fields, unknown versions, malformed encoding,
+invalid metadata/URLs, and zero positions are rejected.
+Both directions enforce a 16,384-byte encoded limit, including the prefix.
+Decoding checks length before allocating the decoded payload.
+Oversized tokens return `ContinuationTooLarge`; malformed tokens return
+`InvalidContinuation`, without echoing input. Encoding never silently drops
+required continuation. There is no persistence or signing service.
+Tokens contain no text or credentials; they are not encrypted or access grants.
+Source-dependent validity still requires the fresh access and read path.
+The core cannot detect text
 changes that the caller conceals by reusing a revision, or prove upstream
 freshness from an offline value.
 
@@ -385,16 +402,20 @@ Debug output and error messages omit source text, identifiers, revisions, URLs,
 and cursor state.
 
 `get_book_outline` and `read_book_section` always report `UnsupportedOperation`.
-They do not access credentials or send requests. Neither adapter exposes book
-reads. Synthetic tests cover exact limits, Unicode cuts, complete reconstruction,
+They do not access credentials or send requests. Neither adapter enables live
+book reads. The CLI routes to these blockers without constructing synthetic
+production sources. Synthetic tests cover exact limits, Unicode cuts, complete reconstruction,
 bad links, cursor rejection, access revocation, source failures, untrusted text,
 and safe diagnostics. This is partial offline work for #6, not a live contract.
 
 ## Data and output contracts
 
 - v1 is read-only. Local session storage changes do not authorize upstream writes.
-- Local `auth` commands exist. `character`, `campaign`, `book`, and `mcp` remain proposed.
-- List operations will support table, JSON, and TSV with consistent field names.
+- Local `auth` commands and shell completion generation work. `character`,
+  `campaign`, and `book` commands exist but live reads fail explicitly. `mcp`
+  remains proposed.
+- List operations and outlines support table, JSON, and TSV in the offline-tested
+  adapter. Show and section-read results use JSON.
 - Keep structured values and typed failures in the core. Format at the adapter edge.
 - Preserve unknown upstream character fields without interpreting game rules.
 - Keep current character, campaign, library, and book operations explicitly
@@ -404,6 +425,50 @@ and safe diagnostics. This is partial offline work for #6, not a live contract.
 - Bound book section size and continuation; return a source URL with each result.
 - Do not crawl entire books or silently collect an account library.
 - Treat retrieved text as untrusted data, not as tool instructions.
+
+### CLI adapter boundary
+
+The CLI library owns one clap builder, a command runner, safe error presentation,
+and result formatting. Its binary only supplies OS arguments, stdout/stderr, and
+`LiveReads`. The narrow `ReadOperations` trait is an actual offline test boundary,
+not an upstream abstraction or plugin API. Its seven operations use existing
+shared result and error types. `LiveReads` calls the existing unsupported live
+functions. Auth uses its existing protected-store operations and is not part of
+the read trait.
+
+The command patterns are `character list/show`, `campaign list/show`, and
+`book list/outline/read`. Lists and outlines default to table and accept
+`--format table|json|tsv` and `--no-headers`. JSON rejects header suppression.
+Show/read are JSON only. Identifiers remain opaque meaningful text.
+The [README output contract](../README.md#resource-commands-and-output) defines
+exact columns, JSON fields, evidence labels, escaping, and empty-result shapes.
+Unknown character fields stay structured under `raw`; no rules are computed.
+Output is deterministic and not silently truncated.
+
+Section reads return one JSON chunk with attribution, explicit completion,
+an optional encoded continuation, and the 4,096-byte text limit.
+Parsing an invalid/oversized wire token is a usage error. Source-dependent
+cursor errors remain operation errors. A valid token cannot override the live
+blocker, choose a source URL, or authorize loading. There is no automatic fetch
+of another chunk.
+
+Results and completion scripts are prepared before stdout writes. Fallible
+write/flush paths report output errors without a print-macro panic.
+Exit codes remain 0 for success, 1 for operation/output failure, and 2 for
+invalid usage. Typed HTTP causes retain safe distinctions and rejected-session
+login guidance; a rejected session is not proof of expiry. Diagnostics never
+print raw records, section text, or token state.
+
+`clap_complete` generates Bash, Elvish, Fish, PowerShell, and Zsh scripts from the
+same command builder. Generation needs no protected storage or network.
+There are no dynamic account lookups or manually duplicated command trees.
+
+Process tests cover the shipped command's blockers, help, usage, and completions.
+A separate self-spawning `harness = false` test target supplies original
+synthetic core results to the same runner. Its child-control arguments exist
+only in that test executable, not the product. It checks actual process exit
+codes, stdout/stderr, formats, and continuation across processes.
+These tests establish adapter contracts, not working upstream access.
 
 ## Safety and testing
 

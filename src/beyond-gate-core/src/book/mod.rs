@@ -15,7 +15,7 @@
 //! use beyond_gate_core::{
 //!     book::{
 //!         BookError, OutlineEntryRecord, OutlineRecord, SectionRecord,
-//!         SectionRequest, assemble_outline, read_section,
+//!         SectionCursor, SectionRequest, assemble_outline, read_section,
 //!     },
 //!     library::AccessState,
 //! };
@@ -51,8 +51,10 @@
 //!     request, |_, _| Ok(AccessState::Granted), |_, _| Ok(source.clone()),
 //! )?;
 //! let cursor = first.next_cursor().ok_or(BookError::InvalidContinuation)?;
+//! let token = cursor.to_token()?;
+//! let decoded = SectionCursor::from_token(&token)?;
 //! let second = read_section(
-//!     SectionRequest { continuation: Some(cursor), ..request },
+//!     SectionRequest { continuation: Some(&decoded), ..request },
 //!     |_, _| Ok(AccessState::Granted),
 //!     |_, _| Ok(source.clone()),
 //! )?;
@@ -61,9 +63,11 @@
 //! # Ok::<(), BookError>(())
 //! ```
 
+mod cursor;
 mod error;
 mod model;
 
+pub use cursor::MAX_CURSOR_BYTES;
 pub use error::BookError;
 pub use model::{
     BookOutline, OutlineEntry, OutlineEntryRecord, OutlineRecord, SectionChunk, SectionCursor,

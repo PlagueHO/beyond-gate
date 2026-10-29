@@ -1,7 +1,9 @@
 # Implementation roadmap
 
-Both binaries provide help and version output. The CLI also has blocked login
-and local auth status/logout. Protected-store operations have synthetic offline
+Both binaries provide help and version output. The CLI also has blocked login,
+local auth status/logout, and shell completions. Resource command parsing and
+formatting have offline process tests; live reads fail explicitly.
+Protected-store operations have synthetic offline
 tests; no product credential-creation flow exists. The core HTTP boundary has
 offline policy tests, but no live endpoints or adapter wiring. Authenticated operations
 below remain pending. The core can also assemble explicitly supplied offline
@@ -22,7 +24,7 @@ dependencies, tests, and documentation requirements.
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library metadata, evidence, and page assembly implemented; live discovery blocked | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
 | [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Offline outlines and bounded section reads implemented; live reads not implemented | #4 |
-| [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | Resource-first CLI, output formats, completions | #5, #6 |
+| [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | Offline CLI adapter, output formats, bounded wire continuation, and completions implemented; live reads blocked | #5, #6 |
 | [#8](https://github.com/PlagueHO/beyond-gate/issues/8) | Local stdio MCP and read parity | #5, #6; coordinate with #7 |
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
 | [#10](https://github.com/PlagueHO/beyond-gate/issues/10) | Native packages and first-run usability | #9 and its prerequisites |
@@ -74,8 +76,8 @@ for #6 in this change, not a claim that the live-read goal has been fulfilled.
 Issue #4 remains partial. The [offline library boundary](architecture.md#offline-library-boundary)
 validates supplied metadata, access evidence, duplicate handling, and bounded
 complete pagination. It retains no prior grants or persistent cache.
-`discover_library` explicitly reports unsupported discovery; neither adapter
-lists books. Runtime endpoints, actual metadata and entitlement
+`discover_library` explicitly reports unsupported discovery; the CLI's `book list`
+reports that failure instead of returning live books. Runtime endpoints, actual metadata and entitlement
 schemas, source-URL rules, upstream pagination, usable sessions, and approved live
 validation remain unresolved. Offline tests cannot prove upstream freshness,
 detect unreported revocation, or establish schema-change compatibility.
@@ -83,16 +85,27 @@ detect unreported revocation, or establish schema-change compatibility.
 Issue #5 remains offline-only. The core validates explicitly supplied character
 and campaign records, preserves unknown JSON, and assembles bounded complete
 pages. Live list and read functions explicitly report unsupported operations.
-No adapter exposes them, and no upstream schema, access rule, or endpoint is
-assumed.
+The CLI exposes their explicit unsupported failures and tests successful output
+with synthetic core results. No upstream schema, access rule, or endpoint is assumed.
 
 Issue #6 remains offline-only. The [book boundary](architecture.md#offline-book-boundary)
 returns validated outlines with at most 1,000 raw entries and selected-section
 chunks with at most 4,096 UTF-8 text bytes. Every call checks fresh supplied
 access before loading. Opaque in-process cursors bind book, section, source
-revision, URL, and byte position. No CLI/MCP exposure, live book contract,
-automatic continuation, or content cache is added. Real access freshness and
+revision, URL, and byte position. Shared `bg1.` wire tokens allow explicit
+cross-process continuation with a 16 KiB encoded cap. The CLI tests bounded
+output and continuation offline, but its production commands fail as unsupported.
+No live book contract, MCP read, automatic continuation, or content cache is
+added. Real access freshness and
 source revisions still depend on a future source implementation.
+
+Issue #7 remains partial for live-read criteria. Its CLI adapter defines
+`character list/show`, `campaign list/show`, and `book list/outline/read`.
+Lists/outlines support table, JSON, and TSV with header control. Show/read
+preserve structured JSON. The CLI uses the actual clap definition to generate
+Bash, Elvish, Fish, PowerShell, and Zsh completions. Offline process tests do not
+make the core's unsupported live operations usable. There is no product fixture
+input, cached content, or account snapshot.
 
 Issue #3 remains partial. `auth login` fails with the browser-handoff blocker.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream

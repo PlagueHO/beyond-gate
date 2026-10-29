@@ -169,9 +169,10 @@ impl fmt::Debug for SectionRequest<'_> {
 
 /// Opaque in-process continuation tied to a section, revision, URL, and position.
 ///
-/// Only successful reads create cursors. There is no public constructor, parser,
-/// or wire representation. Clones remain valid only with matching fresh source
-/// data and a new successful access check. This value stores no section text.
+/// Reads create cursors; [`Self::from_token`] accepts untrusted position claims
+/// from another process. Neither a clone nor a decoded token grants access.
+/// Every read still needs matching fresh source data and a new access check.
+/// This value stores no section text.
 #[derive(Clone, Eq, PartialEq)]
 pub struct SectionCursor {
     /// Binds continuation to one book.
