@@ -201,7 +201,7 @@ fn client_is_available(client: Client) -> bool {
         .map(str::to_owned)
         .collect();
     #[cfg(not(windows))]
-    let extensions = vec![String::new()];
+    let extensions = [String::new()];
 
     command_in_path(
         client.executable_name(),
