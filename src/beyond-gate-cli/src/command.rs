@@ -43,6 +43,29 @@ pub fn command() -> Command {
                 ),
         )
         .subcommand(
+            resource("mcp", "Start or register the local MCP server")
+                .subcommand(
+                    Command::new("start")
+                        .about("Start the sibling beyond-gate-mcp stdio server"),
+                )
+                .subcommand(
+                    Command::new("install")
+                        .about("Preview and register the local server with an MCP client")
+                        .arg(
+                            Arg::new("client")
+                                .required(true)
+                                .value_parser(["vscode", "claude-code", "copilot-cli"])
+                                .help("User-level client configuration to update"),
+                        )
+                        .arg(
+                            Arg::new("dry-run")
+                                .long("dry-run")
+                                .action(ArgAction::SetTrue)
+                                .help("Show the proposed entry without prompting or writing"),
+                        ),
+                ),
+        )
+        .subcommand(
             Command::new("completions")
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),

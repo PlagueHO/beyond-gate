@@ -9,8 +9,11 @@ operations. It can assemble library, character, and campaign metadata from
 explicitly supplied offline pages. The core also provides offline book outlines
 and bounded section chunks with request-scoped access checks. The CLI exposes
 blocked login plus local status/logout, resource command parsing and formatting,
-and shell completion generation. Its resource commands use the core's explicit
-unsupported live entry points. Synthetic success paths exist only in tests.
+shell completion generation, and local MCP start/install commands. The start
+command runs the sibling MCP binary. The install command previews user-level
+configuration changes and writes only after confirmation. Its resource commands
+use the core's explicit unsupported live entry points. Synthetic success paths
+exist only in tests.
 There is no built-in runtime host list, resource endpoint, account model, or
 browser handoff. The MCP adapter serves local stdio with seven read-only tools;
 their shared core operations currently return explicit unsupported errors.
@@ -75,6 +78,31 @@ passed only to the core cursor validator. One section result remains bounded to
 fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
 book evidence, source attribution, and section completion state. Source content
 is data and is not executed or treated as instructions.
+
+## Local MCP client registration
+
+The CLI starts `beyond-gate-mcp` from the same directory as `beyond-gate`. It
+invokes the native executable directly, without a shell, and inherits stdio.
+The installer supports VS Code through its Copilot Global configuration,
+Claude Code, and GitHub Copilot CLI. It writes user-level settings only.
+
+VS Code Copilot Global and Copilot CLI share the portable
+`$COPILOT_HOME/mcp-config.json` file, or `~/.copilot/mcp-config.json` when the
+environment variable is unset. Claude Code uses `~/.claude.json`. Each client
+uses its documented local stdio entry shape. The installer preserves unrelated
+JSON fields, rejects malformed settings and conflicting server names, and does
+not overwrite an existing registration with different values. It shows the
+proposed entry and asks before it writes. `--dry-run` previews without writing.
+Repeated installation of the same entry is a no-op.
+
+The initial client selection follows current official documentation:
+[VS Code MCP servers](https://code.visualstudio.com/docs/agent-customization/mcp-servers),
+[VS Code configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration),
+[Claude Code MCP](https://code.claude.com/docs/en/mcp), and
+[GitHub Copilot CLI MCP](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
+The installer does not register credentials or remote URLs. Server discovery
+does not enable live reads. Product login remains blocked by the missing browser
+handoff.
 
 ## Local session boundary
 
@@ -522,7 +550,6 @@ Track these questions in the relevant implementation issues:
 - Which upstream fields and identifiers can be relied on without data loss.
 - Whether upstream text-delivery limits require stricter caps than the offline
   book policy.
-- Which MCP clients need native install support first.
 
 If any required read is not permitted or available, document the limit. Do not
 substitute a bypass, fake result, or silently wider scope.

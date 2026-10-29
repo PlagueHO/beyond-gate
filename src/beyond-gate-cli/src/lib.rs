@@ -5,9 +5,13 @@
 
 mod command;
 mod error;
+mod mcp;
 mod output;
 
-use std::{ffi::OsString, io::Write};
+use std::{
+    ffi::OsString,
+    io::{self, BufRead, Write},
+};
 
 use beyond_gate_core::{
     auth::{self, AuthError, SessionStatus, SessionStore},
@@ -72,6 +76,53 @@ pub trait ReadOperations {
     ///
     /// Returns the shared access, source, or continuation failure.
     fn read_book_section(&self, request: SectionRequest<'_>) -> Result<SectionChunk, BookError>;
+}
+
+/// Starts the MCP server or registers it with one supported local client.
+fn execute_mcp(
+    matches: &ArgMatches,
+    stdin: &mut impl BufRead,
+    stdout: &mut impl Write,
+    stderr: &mut impl Write,
+) -> i32 {
+    let Some((action, arguments)) = matches.subcommand() else {
+        return report(
+            &Failure::Usage("Select `mcp start` or `mcp install`."),
+            stderr,
+        );
+    };
+    match action {
+        "start" => match mcp::start_server() {
+            Ok(status) => status.code().unwrap_or(1),
+            Err(error) => report(&Failure::Mcp(error), stderr),
+        },
+        "install" => {
+            let client = match arguments.get_one::<String>("client").map(String::as_str) {
+                Some("vscode") => mcp::Client::Vscode,
+                Some("claude-code") => mcp::Client::ClaudeCode,
+                Some("copilot-cli") => mcp::Client::CopilotCli,
+                _ => {
+                    return report(&Failure::Usage("Select a supported MCP client."), stderr);
+                }
+            };
+            let executable = match mcp::companion_executable() {
+                Ok(path) => path,
+                Err(error) => return report(&Failure::Mcp(error), stderr),
+            };
+            let preview_only = arguments.get_flag("dry-run");
+            match mcp::install(client, &executable, preview_only, stdin, stdout) {
+                Ok(()) => match stdout.flush() {
+                    Ok(()) => 0,
+                    Err(error) => report(&Failure::Output(error), stderr),
+                },
+                Err(error) => report(&Failure::Mcp(error), stderr),
+            }
+        }
+        _ => report(
+            &Failure::Usage("Select `mcp start` or `mcp install`."),
+            stderr,
+        ),
+    }
 }
 
 /// Delegates resource operations to the core's explicit live-read boundary.
@@ -161,7 +212,8 @@ fn execute_auth(
 
 /// Parses and executes one command, keeping result data separate from diagnostics.
 ///
-/// Returns 0 on success, 1 on operation/output failure, or 2 on invalid usage.
+/// Returns 0 on success, 1 on operation/output failure, 2 on invalid usage, or
+/// the child status for `mcp start`.
 /// Help, version, completions, and resource parsing never open native storage.
 /// Only explicit auth status/logout can access the protected credential service.
 /// Output failures return 1, including when stderr itself cannot be written.
@@ -170,7 +222,26 @@ pub fn run<I, T>(
     reads: &impl ReadOperations,
     stdout: &mut impl Write,
     stderr: &mut impl Write,
-) -> u8
+) -> i32
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    let mut stdin = io::stdin().lock();
+    run_with_input(arguments, reads, &mut stdin, stdout, stderr)
+}
+
+/// Parses and executes one command with an explicit input stream.
+///
+/// The input stream is used only by the MCP installer confirmation. All other
+/// commands keep their existing storage and output behavior.
+pub fn run_with_input<I, T>(
+    arguments: I,
+    reads: &impl ReadOperations,
+    stdin: &mut impl BufRead,
+    stdout: &mut impl Write,
+    stderr: &mut impl Write,
+) -> i32
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
@@ -191,6 +262,9 @@ where
             };
         }
     };
+    if let Some(("mcp", arguments)) = matches.subcommand() {
+        return execute_mcp(arguments, stdin, stdout, stderr);
+    }
     match execute(&matches, reads).and_then(|bytes| write_output(stdout, &bytes)) {
         Ok(()) => 0,
         Err(error) => report(&error, stderr),
@@ -206,7 +280,7 @@ fn write_output(writer: &mut impl Write, bytes: &[u8]) -> Result<(), Failure> {
 }
 
 /// Reports one safe failure, returning nonzero even when diagnostics cannot be written.
-fn report(error: &Failure, stderr: &mut impl Write) -> u8 {
+fn report(error: &Failure, stderr: &mut impl Write) -> i32 {
     match write_output(stderr, format!("error: {error}\n").as_bytes()) {
         Ok(()) => error.exit_code(),
         Err(_) => 1,

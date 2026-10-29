@@ -274,9 +274,44 @@ generated script:
 
 ## Local MCP server
 
-Start `beyond-gate-mcp` from the MCP client as a local stdio process. The server
-uses the official rmcp SDK. Stdout carries MCP protocol messages only. Startup
-and transport failures go to stderr.
+Build and install both native binaries in the same directory. The CLI starts the
+sibling MCP binary and passes its exit status through:
+
+```shell
+beyond-gate mcp start
+```
+
+The MCP server uses the official rmcp SDK. Stdout carries MCP protocol messages
+only. Startup and transport failures go to stderr. MCP clients start the server
+as a local stdio process.
+
+Register it with one of the supported clients:
+
+```shell
+beyond-gate mcp install vscode
+beyond-gate mcp install claude-code
+beyond-gate mcp install copilot-cli
+```
+
+The installer shows the proposed `beyond-gate` entry and asks before it writes.
+Use `--dry-run` to preview without a prompt or write. The installer writes only
+to user-level settings. VS Code uses its **Copilot Global** configuration.
+VS Code and Copilot CLI share
+`$COPILOT_HOME/mcp-config.json`, or `~/.copilot/mcp-config.json` when
+`COPILOT_HOME` is not set. Claude Code uses `~/.claude.json`. The selected
+client command must be on `PATH`. Existing entries and unrelated settings stay
+unchanged. A conflicting `beyond-gate` entry is not overwritten.
+
+To check discovery, open the MCP server list in VS Code, enter `/mcp` in
+Copilot CLI, or run `claude mcp list` in Claude Code. A discovered server does
+not mean that its live reads work. Product login is not implemented.
+`beyond-gate auth login` reports the missing browser handoff. Do not enter a
+password, cookie, or token in the CLI or client settings.
+
+To remove the registration, remove only the `beyond-gate` item from the
+client's `mcpServers` object. For VS Code and Copilot CLI, remove it from the
+shared Copilot configuration file. For Claude Code, remove it from
+`~/.claude.json`. Keep the rest of the settings file.
 
 The server exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `book_list`, `book_outline`, and `book_read`. Every tool has a
@@ -293,9 +328,6 @@ tool error with the shared core's explicit unsupported-operation message. They
 do not return sample data or empty success results. The server has no login,
 credential, write, arbitrary-URL, or account-selection tools. Retrieved content
 from future live operations must be treated as data, not instructions.
-
-The `mcp` CLI resource remains separate planned work. MCP stdout contains
-protocol messages only.
 
 See the [roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and
 [authentication design](docs/authentication.md). See [AGENTS.md](AGENTS.md) for
