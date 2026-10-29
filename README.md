@@ -93,8 +93,8 @@ cargo run --locked -p beyond-gate-mcp -- --version
 ```
 
 The CLI shows help and exits with code 2 when no arguments are supplied.
-The MCP binary exits with code 1 and a stderr diagnostic when started without
-arguments. It does not pretend to start a server. Unknown arguments or commands
+The MCP binary starts its local stdio server when supplied no arguments. It waits
+for MCP protocol messages, not terminal input. Unknown arguments or commands
 exit with code 2. Help and version requests exit with code 0.
 
 There is no published release yet. Build optimized binaries locally with:
@@ -104,8 +104,10 @@ cargo build --release --workspace --locked
 ```
 
 The binaries are `beyond-gate` and `beyond-gate-mcp` in the Cargo release output
-directory. Windows adds `.exe`. See [Contributing](CONTRIBUTING.md) for checks and
-the packaging process.
+directory. Windows adds `.exe`. See the [native installation guide](docs/installation.md)
+for the package matrix, checksum checks, extraction, platform requirements, and
+first-run limits. The guide is also included as `installation.md` in every archive.
+See [Contributing](CONTRIBUTING.md) for checks and the packaging process.
 
 ## Local session commands
 
