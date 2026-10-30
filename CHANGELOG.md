@@ -92,6 +92,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Record the existing-browser review for #29 and the later user-approved
+  extension evaluation. Document cookie-permission limits, a native-messaging
+  candidate with 14 session-only synthetic tests, the user-reported successful
+  synthetic Edge handoff, requested Chrome support and fallback, and remaining
+  browser and account checks. Keep login blocked and #30 lifecycle work separate.
+  No product browser, credential, or network behavior changes.
 - Update repository AI guidance to reflect local auth and MCP features while
   keeping live reads unsupported. Separate operational instructions from
   authoring rules and check commands, paths, and CI details against the repository.

@@ -29,6 +29,13 @@ dependencies, tests, and documentation requirements.
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
 | [#10](https://github.com/PlagueHO/beyond-gate/issues/10) | Native packages and first-run usability | #9 and its prerequisites |
 
+Authentication follow-up work remains open:
+
+| Issue | Scope | Current dependency |
+|-------|-------|--------------------|
+| [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Human-controlled browser login and protected handoff | The user reported a successful [synthetic Edge handoff](authentication.md#edge-synthetic-browser-test). Chrome, pending CLI binding, account handoff, protected save, and the requested fallback remain unverified. |
+| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Needs verified session contracts and coordination with #29; opaque local presence is not upstream validation. |
+
 Implement the HTTP boundary before full session exchange. Simple login remains
 an early required milestone, not an optional fallback. Library discovery and
 character/campaign reads can proceed in parallel after session handling.

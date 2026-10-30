@@ -10,6 +10,10 @@ developer-only
 [session-exchange probe](#opt-in-session-exchange-probe) is now available.
 The user reported a successful manual exchange on 2026-10-27. The probe does not
 implement product login.
+The [existing-browser review for #29](#existing-browser-decision-for-issue-29)
+records the remaining return-path blocker and the evidence needed to resume.
+The later [extension feasibility evaluation](#extension-feasibility-evaluation)
+adds a candidate transport, not a working account login.
 
 ## Local session commands
 
@@ -96,7 +100,8 @@ The manual developer probe below remains separate and unchanged.
 ## Required user experience
 
 1. The user starts `beyond-gate auth login` after the browser handoff is implemented.
-2. Beyond Gate opens the user's installed browser for human-controlled login.
+2. Beyond Gate opens the user's installed Edge or Chrome browser for
+   human-controlled login.
 3. Beyond Gate obtains only the session material needed for authorized reads.
 4. It stores persistent session material in protected OS credential storage.
 5. The CLI and MCP server use that same local session without repeated setup.
@@ -107,6 +112,26 @@ D&D Beyond is not assumed to expose an OAuth callback for this project.
 Do not promise one. Evaluate a working browser-mediated handoff before choosing
 a browser integration. Do not read unrelated browser profiles or cookies.
 Beyond Gate must never ask for the account password.
+
+### Requested fallback
+
+The user requested a fallback when browser handoff is unavailable. Direct
+credential values in CLI arguments or MCP tool inputs are not part of the
+design. Those inputs can expose a session through process information or client
+records. MCP tools must not accept credentials.
+
+One option to evaluate is a user-initiated, one-shot import from a temporary
+process environment into the shared core, followed by validation and protected
+OS storage. The value must not be placed in command arguments, shell history,
+logs, or MCP client configuration. The CLI and MCP server would then use the
+same stored session. This is a proposal, not an implemented fallback.
+
+An environment variable is not equivalent to protected OS storage. Parent or
+child processes and diagnostics can retain or expose its value. Define the
+trusted injection method, user consent, lifetime, failure behavior, and cleanup
+before selecting this option. Do not assume that the application can erase
+copies held by another process. Any test with a real credential still needs
+separate approval.
 
 ## Browser handoff assessment
 
@@ -180,6 +205,177 @@ community evidence and the user's probe result support the candidate exchange,
 not a claim of an officially supported flow. Further live account tests need
 separate explicit approval under the
 [live-test guidance](architecture.md#integration-evidence-and-live-tests).
+
+### Existing-browser decision for issue #29
+
+**Initial review: 2026-10-31. Result: no verified return path established.**
+For [#29](https://github.com/PlagueHO/beyond-gate/issues/29), the user initially selected
+the existing browser only. This scope excludes an extension, separate browser
+profile, embedded browser, and browser debugging connection. It does not approve
+live account tests or native credential access.
+
+The review read the issue, its comments and artifact list, the original #3, and
+the separate session-lifecycle issue #30. No comments or artifacts were returned
+for #29. The review also checked the public sources below. A targeted public
+search found no additional documented return contract for Beyond Gate.
+This limited finding does not prove that no private partner integration exists.
+
+| Source | Finding | Limit |
+|--------|---------|-------|
+| [D&D Beyond Authentication Information](https://dndbeyond-support.wizards.com/hc/en-us/articles/7747237593108-Authentication-Information) | Describes login providers and mobile account linking. | Does not specify third-party client registration or a return path for this app. |
+| [D&D Beyond Terms & Conditions](https://www.dndbeyond.com/en/terms-conditions) | Provides access and account terms. | Is not an authentication protocol or callback specification. |
+| [RFC 8252, section 7](https://www.rfc-editor.org/rfc/rfc8252.html#section-7) | Defines native OAuth return methods that require authorization-server support. | Does not establish D&D Beyond support for any method. |
+| [MDN cookie security guidance](https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/Cookies#security) | Explains cookie scope and the `HttpOnly` restriction on page JavaScript. | Does not establish the attributes of an actual D&D Beyond cookie or transfer one to this app. |
+
+Opening the website in the existing browser does not return session material to
+Beyond Gate. A local listener cannot make upstream accept a callback. The manual
+probe starts with an already supplied cookie, so its successful exchange does
+not fill that gap. Do not copy another application's client identity, assume a
+redirect is supported, or weaken browser protections.
+
+Implementation stops at this missing contract. `auth login` retains its existing
+explicit failure before browser, input, storage, or network activity. No callback
+listener, product token exchange, cookie import, or simulated successful login
+is added. Cancellation, timeout, rejected login, and successful protected handoff
+remain unimplemented; synthetic storage and probe tests do not satisfy them.
+
+To resume within this scope, establish these facts from protocol evidence:
+
+1. A login entry point and return method intended for this app, including any
+   client registration, redirect rules, scopes, and transaction binding.
+2. The minimum returned session material, exact credential destinations, and any
+   required exchange host, operation, and response contract.
+3. How to verify the result before saving it, with bounded waiting, request and
+   response limits, cancellation, rejection, and cleanup rules.
+
+Agree on the stored-session boundary with
+[#30](https://github.com/PlagueHO/beyond-gate/issues/30) before changing its format.
+That issue owns shared session validation, expiry evidence, bounded refresh,
+and authenticated CLI/MCP use. The current opaque storage limit is not a
+verified upstream format, and local presence is not proof of usable login.
+
+Issue #29 remains blocked, not complete. A verified contract can permit offline
+implementation and synthetic flow/process tests. It does not approve a live
+experiment. Any live check still needs separate approval for exact hosts,
+operations, request budgets, stop conditions, and cleanup. Expanding the browser
+integration beyond the approved synthetic extension evaluation also needs a new
+user decision.
+
+### Extension feasibility evaluation
+
+**Scope update: 2026-10-31. Result: candidate transport; account login unverified.**
+The user then approved evaluation of a narrowly scoped extension with synthetic
+tests. This replaces the earlier exclusion of extension evaluation. The user
+subsequently ran a test extension and native host in Edge. This does not approve
+live account tests or native credential-store access.
+
+The browser platform offers a possible return path without an upstream OAuth
+callback. [Chrome's cookies API](https://developer.chrome.com/docs/extensions/reference/api/cookies)
+can query cookie objects with a name and URL. It requires the `cookies`
+permission and host permissions. Cookie objects include `HttpOnly` values through
+this privileged API; page JavaScript restrictions are a different boundary.
+[Mozilla documents the same cookie fields](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/cookies/Cookie).
+This is not evidence that a particular D&D Beyond cookie is readable, sufficient,
+or usable outside its browser session.
+
+**Permission limit:** host permissions cannot restrict the extension to one
+cookie name. The extension code must enforce that limit. The granted capability
+is broader than the intended single-cookie operation, even with an exact host.
+Review this risk before selecting the product design. Do not claim that a
+manifest makes access to other cookies on that host impossible.
+
+[Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
+can send JSON between an extension page or service worker and a registered
+native process over stdio. Each frame has a native-endian 32-bit byte length.
+It does not require an HTTP listener or sending credentials in a URL.
+The native host manifest restricts allowed extension origins without wildcards.
+[Edge](https://learn.microsoft.com/en-us/microsoft-edge/extensions/developer-guide/native-messaging)
+uses the same transport with its own registration.
+[Firefox](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/Native_messaging)
+requires different host-manifest fields and caller-argument handling.
+Browser support is a platform contract, not upstream permission.
+
+The user requested both Edge and Chrome as target browsers. The same candidate
+design can use their Chromium extension APIs, but each browser needs appropriate
+native-host registration and allowed extension IDs. A published extension ID can
+differ between stores. The synthetic browser test passed in Edge only; Chrome
+still needs its own synthetic registration, handoff, failure, and cleanup tests.
+Neither browser has a product login implementation yet.
+
+#### Synthetic evidence and limits
+
+A session-only prototype uses `login.beyond-gate.invalid`, an invented cookie
+name, and values restricted to the `synthetic-` prefix. It has no production
+host, cookie name, network requests, OS-store access, or installation code.
+Its manifest is a permission fixture, not an installed or complete extension.
+Node.js runs these development tests only; neither product binary gains a
+Node.js runtime dependency.
+
+The prototype passed 14 synthetic tests. They cover consent gating; one
+URL/name/path-filtered query; absent, ambiguous, expired, wrong-scope, partitioned,
+and malformed cookie rejection; the exact 8 KiB value bound; safe error output;
+cancellation and timeout; late-result suppression; port cleanup; request binding;
+and native-frame size, UTF-8, JSON, and truncation checks. A separate child process
+uses real framed stdio to check receipt, incorrect binding, extra fields, and
+replay rejection. Replies confirm only synthetic receipt, never authentication
+or a saved session.
+
+The original prototype mocks the browser APIs and consent action. It does not
+test a real extension runtime or browser-to-host launch. It does not connect to
+a pending CLI login or implement
+protected storage, exchange, or #30's lifecycle. Its random challenge binds test
+messages only; it is not proof of an authorized pending login. JavaScript
+strings and browser-owned copies cannot be guaranteed to clear from memory.
+The prototype's cookie attributes are invented, not product validation rules.
+The test sources remain session artifacts, not a shipped login path.
+
+#### Edge synthetic browser test
+
+On 2026-10-31, the user reported a pass from a separate session-only test
+extension in Edge and shared a screenshot of the popup result. The screenshot
+shows the consent box selected and the message: `PASS: Edge sent the fake cookie
+to the local test host. No login was validated or saved.`
+
+The test package serves an invented `HttpOnly` cookie from `127.0.0.1`. Its
+extension checks the exact synthetic cookie scope and sends the fake value to a
+local Rust native-messaging host. The host acknowledges the request before the
+popup reports a pass. This user-reported result exercises the Edge extension
+runtime, cookie API, native-host registration, and host launch on the successful
+synthetic path. It is not evidence of a D&D Beyond session or product login.
+
+The screenshot does not establish permission-denial behavior, rejection of
+another extension, cancellation, timeout, or registration cleanup. The native
+host checks the format of its caller-origin argument; it does not authenticate
+an arbitrary local process that could supply such an argument. The browser
+registration restricts which extension Edge may launch it for, but that
+restriction alone does not bind the host to a pending CLI login.
+
+#### Remaining validation gates
+
+Continue with synthetic data. Verify permission denial, rejection of a different
+extension, cancellation, timeout, and test-registration cleanup. On 2026-10-31,
+the user reported removing the test host. Cleanup of the Edge extension and
+local test site has not been confirmed.
+
+A production design must also bind the separately launched native host to one
+pending `auth login` in the same OS user context. Native messaging alone does not
+connect it to an already running CLI process. Define authenticated local IPC,
+its local-process threat model, one-use transactions, deadlines, duplicate and
+replay rejection, and consent before reading or saving a session. Do not trust
+a caller-supplied origin or challenge without that pending-login check. Do not
+accept credentials from arbitrary local callers.
+
+Only after the synthetic browser test and implementation contracts are established,
+request separate approval for a bounded live experiment. Identify the exact
+cookie scope and minimum material; verify any required exchange and successful
+protected save. Stop on access denial or bot protection. Define hosts, operations,
+request budgets, stop conditions, and cleanup before approval. Do not upload
+cookie values, account responses, or browser data.
+
+Issue #29 therefore remains incomplete, but the Edge test confirms one synthetic
+transport path. Issue #30 still owns token use, expiry evidence, bounded refresh,
+and authenticated adapter parity. Do not substitute the test host's receipt for
+any of those results.
 
 ## Opt-in session-exchange probe
 
