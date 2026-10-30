@@ -1,0 +1,43 @@
+{
+  "schema": 1,
+  "live_request_budget": 0,
+  "live_ready": false,
+  "cli": [
+    { "path": "", "arguments": [] },
+    { "path": "auth", "arguments": [] },
+    { "path": "auth login", "arguments": [] },
+    { "path": "auth status", "arguments": [] },
+    { "path": "auth logout", "arguments": [] },
+    { "path": "character", "arguments": [] },
+    { "path": "character list", "arguments": ["format", "no-headers"] },
+    { "path": "character show", "arguments": ["id"] },
+    { "path": "campaign", "arguments": [] },
+    { "path": "campaign list", "arguments": ["format", "no-headers"] },
+    { "path": "campaign show", "arguments": ["id"] },
+    { "path": "book", "arguments": [] },
+    { "path": "book list", "arguments": ["format", "no-headers"] },
+    { "path": "book outline", "arguments": ["book-id", "format", "no-headers"] },
+    { "path": "book read", "arguments": ["book-id", "continuation", "section-id"] },
+    { "path": "mcp", "arguments": [] },
+    { "path": "mcp start", "arguments": [] },
+    { "path": "mcp install", "arguments": ["client", "dry-run"] },
+    { "path": "completions", "arguments": ["shell"] }
+  ],
+  "formats": ["json", "table", "tsv"],
+  "shells": ["bash", "elvish", "fish", "powershell", "zsh"],
+  "clients": ["claude-code", "copilot-cli", "vscode"],
+  "reads": [
+    { "path": "character list", "tool": "character_list", "arguments": {}, "list": true },
+    { "path": "character show", "tool": "character_show", "arguments": { "id": "synthetic" }, "list": false },
+    { "path": "campaign list", "tool": "campaign_list", "arguments": {}, "list": true },
+    { "path": "campaign show", "tool": "campaign_show", "arguments": { "id": "synthetic" }, "list": false },
+    { "path": "book list", "tool": "book_list", "arguments": {}, "list": true },
+    { "path": "book outline", "tool": "book_outline", "arguments": { "book_id": "synthetic" }, "list": true },
+    { "path": "book read", "tool": "book_read", "arguments": { "book_id": "synthetic", "section_id": "opening" }, "list": false }
+  ],
+  "live_assertions": [
+    "cli-mcp-parity", "source-urls", "fresh-access", "explicit-continuation",
+    "outline-1000-entries", "section-4096-utf8-bytes", "continuation-16384-bytes",
+    "selected-resources", "authenticated-session", "browser-handoff"
+  ]
+}

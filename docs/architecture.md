@@ -525,6 +525,20 @@ These tests establish adapter contracts, not working upstream access.
 
 ## Safety and testing
 
+The [manual capability suite](testing.md) uses real CLI/MCP processes, including
+direct stdio and `mcp start`. Its shared inventory separates offline contract
+passes from blocked live-success cases. Missing required coverage prevents full
+success. The manual-only workflow uses `windows-latest` but still selects Visual
+Studio 2022 Build Tools explicitly.
+
+An off-by-default test feature selects isolated native credential entries and
+requires explicit approval before opening storage. It never falls back to the
+product entry. Its synthetic setup helper does not import cookies. Real client
+settings are replaced with temporary synthetic settings, not copied from users.
+No live source is injected. The request budget stays zero until production
+session, endpoint, transport, and request-budget contracts exist. A cookie input
+cannot bypass those missing prerequisites.
+
 The [development policy](roadmap.md#development-policy-and-technical-status)
 removes the blanket permission stop gate. It does not remove access controls or
 establish upstream approval. An authorized account is not proof that automation

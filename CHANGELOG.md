@@ -7,6 +7,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Manual CLI/MCP capability inventory and shared bounded process suite, with
+  separate passed, failed, blocked, and not-applicable results. Required missing
+  live reads prevent full success. A manual-only `windows-latest` workflow still
+  selects Visual Studio 2022 Build Tools. An off-by-default test feature isolates
+  native session entries. Offline harness checks cover safe reports and a
+  per-submission Actions secret lifecycle. Live credential input and account
+  requests remain disabled; no successful live coverage is claimed.
 - Non-root Rust development container that installs the selected toolchain,
   portable VS Code tasks and settings, focused Copilot App tasks, GitHub Actions
   Copilot setup, and pinned rumdl Markdown style and offline local-link checks.

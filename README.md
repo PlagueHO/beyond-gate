@@ -18,6 +18,11 @@ An ignored [developer authentication probe](docs/authentication.md#opt-in-sessio
 can test a manually supplied session separately. The user reported one successful
 exchange on 2026-10-27. It is not product login and does not verify data reads.
 
+The [manual capability suite](docs/testing.md) runs both real executables locally
+or through a manual Actions workflow. It reports unsupported contracts separately
+from blocked live reads. Its credential-free subset can pass; full coverage
+cannot pass until production live prerequisites exist.
+
 The core has an offline-tested [HTTP boundary](docs/architecture.md#http-boundary).
 It provides bounded async JSON reads and typed, redacted errors. It has no built-in
 D&D Beyond hosts or resource endpoints. Neither binary sends requests.

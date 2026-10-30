@@ -21,6 +21,9 @@ pub enum AuthErrorKind {
     AmbiguousEntry,
     /// This target has no explicitly selected native credential backend.
     UnsupportedPlatform,
+    /// An isolated test build has no valid, explicitly approved native context.
+    #[cfg(feature = "e2e-isolation")]
+    TestContextRequired,
 }
 
 impl fmt::Display for AuthErrorKind {
@@ -47,6 +50,10 @@ impl fmt::Display for AuthErrorKind {
             }
             Self::UnsupportedPlatform => {
                 "protected session storage is supported only on Windows, macOS, and Linux"
+            }
+            #[cfg(feature = "e2e-isolation")]
+            Self::TestContextRequired => {
+                "isolated test storage requires a valid test context and explicit native-storage approval"
             }
         })
     }

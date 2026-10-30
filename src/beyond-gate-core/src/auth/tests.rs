@@ -6,6 +6,45 @@ use keyring_core::{Error as NativeError, mock};
 
 use super::*;
 
+/// Rejects unsafe test identities without opening any native credential service.
+#[cfg(feature = "e2e-isolation")]
+#[test]
+fn isolated_context_and_entries_do_not_select_product_credentials() {
+    for value in ["", "local-session", &"A".repeat(32), &"f".repeat(33)] {
+        assert_eq!(
+            validate_e2e_context(value)
+                .expect_err("invalid context")
+                .kind(),
+            AuthErrorKind::TestContextRequired
+        );
+    }
+    let context = "0123456789abcdef0123456789abcdef";
+    validate_e2e_context(context).expect("valid context");
+    let backend = mock::Store::new().expect("synthetic backend");
+    let product = SessionStore::from_store(backend.as_ref(), None).expect("product");
+    let isolated = SessionStore::from_identity(backend.as_ref(), None, "beyond-gate-e2e", context)
+        .expect("isolated");
+    let other = SessionStore::from_identity(
+        backend.as_ref(),
+        None,
+        "beyond-gate-e2e",
+        "ffffffffffffffffffffffffffffffff",
+    )
+    .expect("other run");
+    product
+        .save(&SessionSecret::new(b"synthetic-product".to_vec()).expect("secret"))
+        .expect("save");
+    isolated
+        .save(&SessionSecret::new(b"synthetic-test".to_vec()).expect("secret"))
+        .expect("save");
+    isolated.logout().expect("isolated deletion");
+    assert_eq!(
+        product.status().expect("product unchanged"),
+        SessionStatus::StoredUnverified
+    );
+    assert_eq!(other.status().expect("other absent"), SessionStatus::Absent);
+}
+
 /// Builds the production entry identity in an isolated in-memory test store.
 ///
 /// # Panics
