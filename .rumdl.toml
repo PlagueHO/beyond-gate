@@ -1,0 +1,23 @@
+[global]
+flavor = "gfm"
+include = ["*.md", "docs/**/*.md", ".github/**/*.md"]
+exclude = ["target/**", "dist/**", "docs/generated/**"]
+respect-gitignore = true
+cache = false
+extend-enable = ["MD057"]
+
+[per-file-ignores]
+# Pull request templates start with section headings inside GitHub's page.
+".github/PULL_REQUEST_TEMPLATE.md" = ["MD041"]
+
+[MD013]
+line-length = 100
+code-blocks = false
+tables = false
+
+[MD051]
+anchor-style = "github"
+ignore-case = false
+
+[MD057]
+absolute-links = "warn"

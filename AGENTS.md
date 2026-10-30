@@ -20,23 +20,37 @@ changes. Do not use unrestricted `vswhere -latest` or machine-specific linker pa
 [Contributing](CONTRIBUTING.md#windows-build-environment) for direct setup and
 [Copilot App tasks](CONTRIBUTING.md#github-copilot-app-tasks) for manual tasks.
 
-```shell
-cargo build --workspace --locked
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cargo test --workspace --doc --locked
-cargo doc --workspace --no-deps --document-private-items --locked
+```powershell
+pwsh -NoProfile -File ./scripts/cargo.ps1 build --workspace --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 fmt --all -- --check
+pwsh -NoProfile -File ./scripts/cargo.ps1 clippy --workspace --all-targets --locked -- -D warnings
+pwsh -NoProfile -File ./scripts/cargo.ps1 test --workspace --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 test --workspace --doc --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
 ```
 
 The wrapper sets `RUSTDOCFLAGS` to `-D warnings`; set it yourself for direct documentation builds.
+VS Code and Copilot App tasks use these same commands. See
+[developer setup](CONTRIBUTING.md#local-development) for native and container setup.
+PowerShell 7 is needed for the development scripts on all platforms.
 For focused process checks, use:
 
-```shell
-cargo test -p beyond-gate-cli --test cli --locked
-cargo test -p beyond-gate-cli --test adapter_process --locked
-cargo test -p beyond-gate-mcp --test cli --locked
+```powershell
+pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-cli --test cli --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-cli --test adapter_process --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-mcp --test cli --locked
 ```
+
+For Markdown changes, install the pinned development tool once and run both
+style and offline local-link checks:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-doc-tools.ps1
+pwsh -NoProfile -File .\scripts\check-docs.ps1
+```
+
+The shared rumdl configuration includes root guidance, `docs`, and Markdown
+templates under `.github`. Do not replace local checks with network link checks.
 
 ## Layout
 
@@ -46,8 +60,9 @@ cargo test -p beyond-gate-mcp --test cli --locked
 | `src/beyond-gate-cli` | CLI parsing, output, completions, local MCP start/install, and process tests |
 | `src/beyond-gate-mcp` | Local rmcp stdio server, read tools, and protocol process tests |
 | `docs` | Architecture, login design, and linked roadmap |
-| `scripts` | Cargo environment setup and offline package checks |
+| `scripts` | Cargo environment setup, documentation checks, and offline package checks |
 | `.github/workflows` | Checks and native binary packaging |
+| `.devcontainer`, `.vscode` | Portable development environment and manual editor tasks |
 
 Follow the [roadmap's development policy](docs/roadmap.md#development-policy-and-technical-status).
 The historical permission stop gate is removed; live features still need technical contracts.
@@ -76,6 +91,8 @@ MCP `tests/cli.rs` for protocol checks. Parser-only tests do not replace them.
 - Packaging checks checksums, archive contents, extracted binaries, and rejection cases.
 - Manual packaging uploads artifacts only; a version tag can create a draft release.
 - No workflow publishes Cargo crates.
+- Documentation CI runs pinned rumdl style and offline file/anchor checks.
+- Copilot setup applies to GitHub Actions sessions, not desktop or cloud sandboxes.
 
 ## Conventions
 
@@ -95,5 +112,6 @@ MCP `tests/cli.rs` for protocol checks. Parser-only tests do not replace them.
 - Get explicit approval before releases, crate publication, or repository policy changes.
 - Do not merge a PR without an explicit request.
 - Stop and report an access denial; do not bypass it.
+- See [MAINTAINERS.md](MAINTAINERS.md) for ownership and dependency/release review.
 
 See [.github/copilot-instructions.md](.github/copilot-instructions.md) for authoring rules.

@@ -22,9 +22,40 @@ they do not apply.
 
 ## Local development
 
-Install rustup. Windows needs Visual Studio Build Tools with the C++ workload and
-Windows SDK. Use the toolchain in `rust-toolchain.toml`; do not depend on a
-machine-specific path. Cargo manages all Rust dependencies.
+Choose native setup or the development container. Both use the toolchain in
+`rust-toolchain.toml`, not a separate moving `stable` toolchain.
+
+For native setup, install rustup and PowerShell 7. Windows needs Visual Studio
+2022 Build Tools with the C++ workload and Windows SDK. On Ubuntu, install
+`build-essential`, `cmake`, `perl`, `pkg-config`, and `ca-certificates`. On macOS,
+install the Xcode command line tools. Cargo manages Rust dependencies.
+PowerShell is development tooling, not a product runtime.
+
+From the workspace root, prepare dependencies and the Markdown checker:
+
+```powershell
+rustup show
+pwsh -NoProfile -File .\scripts\cargo.ps1 fetch --locked
+pwsh -NoProfile -File .\scripts\install-doc-tools.ps1
+```
+
+In POSIX shells, use `/` separators for these script paths.
+
+### Development container
+
+Install Docker with a running Linux engine and the VS Code Dev Containers
+extension. Open the checkout in VS Code. Select **Dev Containers: Reopen in
+Container** from the Command Palette.
+
+[The container definition](.devcontainer/devcontainer.json) uses the non-root
+`vscode` user. Setup selects `rust-toolchain.toml`, adds rust-analyzer and Rust
+sources, fetches locked dependencies, and installs the pinned Markdown checker.
+It does not run live tests or start the MCP server. No HTTP ports are forwarded.
+Do not add host credential-store mounts or forward account credentials.
+
+Run **Validate workspace** after setup. Linux container checks do not prove
+Windows Credential Manager, macOS Keychain, or host Secret Service integration.
+The container does not provide product login or a substitute credential store.
 
 ### Windows build environment
 
@@ -63,51 +94,147 @@ the product binaries do not require it.
 See Microsoft's [developer shell guidance](https://learn.microsoft.com/en-us/visualstudio/ide/reference/command-prompt-powershell).
 Check probe compilation without requesting a cookie or sending a live request:
 
-```shell
-cargo test -p beyond-gate-core --test auth_probe --locked --no-run
+```powershell
+pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-core --test auth_probe --locked --no-run
 ```
 
 ### GitHub Copilot App tasks
 
-[`.github/github-app.yml`](.github/github-app.yml) defines manual Run CLI help,
-Run MCP help, Build, Test, Lint, Check formatting, Test API examples, and Build API
-docs tasks. Each task uses the wrapper so Windows environment setup and Cargo
-run in the same process. The run tasks show help only; they do not access
-credentials or start a live operation. No task runs automatically.
+[`.github/github-app.yml`](.github/github-app.yml) defines manual build,
+release build, formatting check/apply, Clippy (`Lint`), workspace and focused
+process tests, doctests, API documentation, help, and documentation-check tasks.
+Each Cargo task uses the wrapper so Windows setup and Cargo run in the same
+process. Select the named task from the app's task menu.
+The run tasks show help only. They do not access credentials or start live
+operations. No task runs automatically.
 
 Review and accept this repository configuration in the app before using the
 tasks. See GitHub's [repository configuration reference](https://docs.github.com/copilot/reference/github-copilot-app-reference/repository-configuration).
 These tasks do not change GitHub Actions runner configuration.
 
+### VS Code tasks
+
+Accept the [recommended extensions](.vscode/extensions.json).
+Select **Terminal: Run Task** from the Command Palette, then choose a task.
+**Build** and **Test** are the default build and test tasks.
+**Validate workspace** runs all checks in sequence, including the release build,
+focused process tests, both help commands, Markdown, and offline links.
+It also tests the documentation checker's failure cases.
+It stops when a prerequisite fails. **Apply formatting** changes Rust files;
+it is not part of validation.
+
+[Tasks](.vscode/tasks.json) use argument arrays and the workspace directory, so
+checkout paths can contain spaces. Every Windows Cargo task runs PowerShell 7
+and `scripts\cargo.ps1`. Other platforms use Cargo directly.
+Documentation tasks reject rustdoc warnings on all platforms.
+
+[Editor settings](.vscode/settings.json) also use the wrapper for rust-analyzer
+build-script checks and Clippy diagnostics. PowerShell 7 must be on `PATH`.
+These commands retain JSON compiler diagnostics. Cargo metadata discovery does
+not compile code. No machine-specific compiler path is configured.
+
+Run tasks are manual help commands, not server tasks.
+To start stdio MCP manually after a build, use:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 run --locked -p beyond-gate-mcp
+```
+
+The process waits for MCP protocol input. It has no HTTP address or health port.
+Do not type ordinary text into the protocol stream. Press **Ctrl+C** to stop
+manual execution, or stop the process from its terminal. Normal MCP clients
+start and stop their own child process. Do not configure this as an unattended
+background task.
+
+### Copilot setup on GitHub Actions
+
+[Copilot setup steps](.github/workflows/copilot-setup-steps.yml) prepare native
+build dependencies, the repository toolchain, locked Cargo dependencies, and the
+Markdown checker. The required job is named `copilot-setup-steps`.
+Checkout uses read-only permissions and does not persist Git credentials.
+Setup does not access account credentials or enable live authentication tests.
+
+This workflow applies only to Copilot sessions on GitHub Actions. It does not
+configure desktop sessions or cloud sandboxes. It must be on the default branch
+for Copilot to use it. See GitHub's
+[agent environment reference](https://docs.github.com/en/copilot/how-tos/copilot-on-github/customize-copilot/customize-cloud-agent/customize-the-agent-environment).
+
 ### Workspace checks
 
 Run from the workspace root:
 
-```shell
-cargo build --workspace --locked
-cargo fmt --all -- --check
-cargo clippy --workspace --all-targets --locked -- -D warnings
-cargo test --workspace --locked
-cargo test --workspace --doc --locked
+```powershell
+pwsh -NoProfile -File ./scripts/cargo.ps1 build --workspace --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 fmt --all -- --check
+pwsh -NoProfile -File ./scripts/cargo.ps1 clippy --workspace --all-targets --locked -- -D warnings
+pwsh -NoProfile -File ./scripts/cargo.ps1 test --workspace --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 test --workspace --doc --locked
 ```
 
 Build all API documentation, including private items, with warnings as errors.
-In PowerShell:
+Use the wrapper to build API documentation with warnings as errors:
 
 ```powershell
-$env:RUSTDOCFLAGS = "-D warnings"
-cargo doc --workspace --no-deps --document-private-items --locked
-```
-
-In a POSIX shell:
-
-```sh
-RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --document-private-items --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
 ```
 
 For a focused change, use the crate and test selectors in [AGENTS.md](AGENTS.md).
 After an intentional dependency update, regenerate `Cargo.lock` with Cargo and
 review it. Do not change package registries to work around a local setup problem.
+
+### Markdown and local links
+
+The development-only checker is pinned to rumdl 0.3.2. The installer uses its
+published Cargo lockfile and writes only to `target/dev-tools`. It does not add
+product dependencies or require Node.js or Python.
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-doc-tools.ps1
+pwsh -NoProfile -File .\scripts\check-docs.ps1 -Mode Style
+pwsh -NoProfile -File .\scripts\check-docs.ps1 -Mode Links
+pwsh -NoProfile -File .\scripts\check-docs.ps1
+pwsh -NoProfile -File .\scripts\test-doc-checks.ps1
+```
+
+The default mode checks both style and local links. The VS Code and Copilot App
+tasks run the same checks as [documentation CI](.github/workflows/docs.yml).
+The shared [configuration](.rumdl.toml) checks root Markdown, `docs`, and
+Markdown templates and guidance under `.github`. It excludes build output and
+generated documentation. Missing tools, wrong tool versions, style violations,
+missing local files, and invalid heading anchors fail with nonzero exit codes.
+
+MD051 checks same-file and cross-file anchors. MD057 checks local target paths.
+All selected documents are checked together. The checker does not request
+external links or send private URLs to a service. See the pinned
+[MD051](https://github.com/rvben/rumdl/blob/v0.3.2/docs/md051.md) and
+[MD057](https://github.com/rvben/rumdl/blob/v0.3.2/docs/md057.md) references.
+The checker tests use temporary synthetic files in a path with spaces. They
+verify that style errors, broken files/anchors, wrong versions, and missing tools
+fail. They also verify `.github` coverage and build-output exclusion.
+
+### Dependency maintenance
+
+[Dependabot](.github/dependabot.yml) follows `dependabot-monthly-v1` for the root
+Cargo workspace and GitHub Actions. Routine checks run on the first day of each
+month at 09:00 `Pacific/Auckland`. Routine releases have a three-day cooldown.
+Each ecosystem allows five open routine update PRs.
+
+Minor and patch updates are grouped by ecosystem. Major updates remain separate.
+Security updates are event-driven and have separate security groups. They do not
+wait for the monthly schedule or routine cooldown. This depends on Dependabot
+security updates being enabled in repository settings; the configuration does
+not change that setting. See the [Dependabot options reference](https://docs.github.com/en/code-security/reference/supply-chain-security/dependabot-options-reference).
+
+For a routine update outside the schedule, select **Check for updates** in the
+repository's Dependabot interface. The routine cooldown and PR limit still
+apply. Review release notes, compatibility, manifest changes, and `Cargo.lock`.
+Keep action references pinned to full commit SHAs. Run the relevant workspace,
+process, documentation, and packaging checks. No automatic approval or merging
+is configured. No dependency labels are added.
+
+Dependabot does not cover the Rust toolchain, container image and features,
+native packages, PowerShell, editor extensions, or the pinned rumdl installer.
+Review these tools manually. See [maintainer responsibilities](MAINTAINERS.md).
 
 ## Code and tests
 
@@ -142,6 +269,8 @@ Keep each change small and coherent. Use the PR template. Update tests, affected
 documentation, and `CHANGELOG.md` under `Unreleased`. Use Keep a Changelog
 categories such as Added, Changed, Fixed, and Security. State which checks ran.
 Do not describe a planned feature as implemented.
+See [MAINTAINERS.md](MAINTAINERS.md#changelog-and-release-review) for owner review,
+dated release entries, synchronized versions, and explicit release approval.
 
 ## Packaging and future releases
 

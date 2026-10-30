@@ -1,0 +1,43 @@
+# dependabot-monthly-v1: Routine updates are monthly; security updates are event-driven.
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: /
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: Pacific/Auckland
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: deps
+    groups:
+      cargo-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      cargo-security:
+        applies-to: security-updates
+        patterns: ["*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: Pacific/Auckland
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: deps
+    groups:
+      github-actions-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      github-actions-security:
+        applies-to: security-updates
+        patterns: ["*"]

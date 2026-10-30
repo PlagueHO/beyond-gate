@@ -20,15 +20,29 @@ jobs:
     env:
       RUSTDOCFLAGS: -D warnings
       CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        shell: pwsh
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - name: Select repository toolchain
         run: rustup show
-      - run: cargo fmt --all -- --check
-      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
-      - run: cargo test --workspace --locked
-      - run: cargo test --workspace --doc --locked
-      - run: cargo doc --workspace --no-deps --document-private-items --locked
-      - run: cargo build --workspace --locked
+      - name: Ensure Visual Studio 2022 Build Tools
+        if: runner.os == 'Windows'
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = & $vswhere -latest -version '[17.0,18.0)' -products Microsoft.VisualStudio.Product.BuildTools -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect Visual Studio installations." }
+          if (!$installation) {
+            choco install visualstudio2022buildtools --yes --no-progress --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --norestart"
+            if ($LASTEXITCODE -notin @(0, 3010)) { throw "Visual Studio 2022 Build Tools installation failed." }
+          }
+          exit 0
+      - run: ./scripts/cargo.ps1 fmt --all '--' --check
+      - run: ./scripts/cargo.ps1 clippy --workspace --all-targets --locked '--' -D warnings
+      - run: ./scripts/cargo.ps1 test --workspace --locked
+      - run: ./scripts/cargo.ps1 test --workspace --doc --locked
+      - run: ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
+      - run: ./scripts/cargo.ps1 build --workspace --locked

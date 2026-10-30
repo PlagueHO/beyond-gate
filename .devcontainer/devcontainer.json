@@ -1,0 +1,25 @@
+{
+  "name": "Beyond Gate Rust",
+  "build": {
+    "dockerfile": "Dockerfile"
+  },
+  "features": {
+    "ghcr.io/devcontainers/features/powershell:1": {}
+  },
+  "remoteUser": "vscode",
+  "containerEnv": {
+    "CARGO_TERM_COLOR": "always",
+    "RUSTDOCFLAGS": "-D warnings"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml",
+        "redhat.vscode-yaml",
+        "github.vscode-github-actions"
+      ]
+    }
+  },
+  "postCreateCommand": "pwsh -NoProfile -File ./scripts/setup-devcontainer.ps1"
+}
