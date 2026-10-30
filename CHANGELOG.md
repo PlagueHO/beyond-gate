@@ -73,6 +73,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Update repository AI guidance to reflect local auth and MCP features while
+  keeping live reads unsupported. Separate operational instructions from
+  authoring rules and check commands, paths, and CI details against the repository.
 - Remove the blanket upstream-permission development stop gate at the
   maintainer's request. Keep dated evidence, access-control protections, technical
   contract requirements, and separate approval for live account tests and
