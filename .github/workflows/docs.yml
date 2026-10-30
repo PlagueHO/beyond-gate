@@ -1,0 +1,32 @@
+name: Documentation checks
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  markdown:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Select repository toolchain
+        run: rustup show
+      - name: Install pinned Markdown checker
+        shell: pwsh
+        run: ./scripts/install-doc-tools.ps1
+      - name: Check Markdown style
+        shell: pwsh
+        run: ./scripts/check-docs.ps1 -Mode Style
+      - name: Check local links and anchors
+        shell: pwsh
+        run: ./scripts/check-docs.ps1 -Mode Links
+      - name: Test checker failure cases
+        shell: pwsh
+        run: ./scripts/test-doc-checks.ps1

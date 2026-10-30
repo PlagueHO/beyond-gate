@@ -79,17 +79,17 @@ fixtures.
 
 Install [Rust with rustup](https://www.rust-lang.org/tools/install).
 On Windows, also install the Visual Studio Build Tools C++ workload and Windows SDK.
-Load the [Visual Studio 2022 Build Tools environment](CONTRIBUTING.md#windows-build-environment)
-before running Cargo. The [Copilot App tasks](CONTRIBUTING.md#github-copilot-app-tasks)
-load this environment for each command.
+Use the repository Cargo wrapper for each command. On Windows, it loads the
+[Visual Studio 2022 Build Tools environment](CONTRIBUTING.md#windows-build-environment).
+The [Copilot App tasks](CONTRIBUTING.md#github-copilot-app-tasks) use this wrapper.
 The repository selects Rust 1.99.1 with `rustfmt` and `clippy`.
 
-```shell
-cargo build --workspace --locked
-cargo run --locked -p beyond-gate-cli -- --help
-cargo run --locked -p beyond-gate-cli -- --version
-cargo run --locked -p beyond-gate-mcp -- --help
-cargo run --locked -p beyond-gate-mcp -- --version
+```powershell
+pwsh -NoProfile -File ./scripts/cargo.ps1 build --workspace --locked
+pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-cli -- --help
+pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-cli -- --version
+pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-mcp -- --help
+pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-mcp -- --version
 ```
 
 The CLI shows help and exits with code 2 when no arguments are supplied.
@@ -99,8 +99,8 @@ exit with code 2. Help and version requests exit with code 0.
 
 There is no published release yet. Build optimized binaries locally with:
 
-```shell
-cargo build --release --workspace --locked
+```powershell
+pwsh -NoProfile -File ./scripts/cargo.ps1 build --release --workspace --locked
 ```
 
 The binaries are `beyond-gate` and `beyond-gate-mcp` in the Cargo release output
@@ -108,6 +108,13 @@ directory. Windows adds `.exe`. See the [native installation guide](docs/install
 for the package matrix, checksum checks, extraction, platform requirements, and
 first-run limits. The guide is also included as `installation.md` in every archive.
 See [Contributing](CONTRIBUTING.md) for checks and the packaging process.
+Choose [native setup](CONTRIBUTING.md#local-development) or the
+[development container](CONTRIBUTING.md#development-container).
+Use [VS Code tasks](CONTRIBUTING.md#vs-code-tasks) or
+[Copilot App tasks](CONTRIBUTING.md#github-copilot-app-tasks) for repeatable checks.
+See [Markdown checks](CONTRIBUTING.md#markdown-and-local-links),
+[dependency maintenance](CONTRIBUTING.md#dependency-maintenance), and
+[maintainer guidance](MAINTAINERS.md) for repository maintenance.
 
 ## Local session commands
 

@@ -7,6 +7,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Non-root Rust development container that installs the selected toolchain,
+  portable VS Code tasks and settings, focused Copilot App tasks, GitHub Actions
+  Copilot setup, and pinned rumdl Markdown style and offline local-link checks.
+- Monthly Cargo and GitHub Actions dependency updates with separate security
+  groups, confirmed maintainer and code-owner guidance, and contributor setup
+  and maintenance instructions. No automatic merging or repository rules change.
 - Chore and Documentation issue forms with purpose-specific fields and safe-data
   guidance. The existing Implementation form now covers feature requests and
   roadmap work. Contributor guidance explains how to select all four forms.
@@ -87,6 +93,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Use the Visual Studio 2022 Cargo wrapper in contributor command examples on
+  Windows.
+- Use PowerShell 7 and the existing Visual Studio 2022 Build Tools wrapper for
+  Windows Rust CI, consistent with native release packaging.
 - Correct stale CLI help, README, and changelog statements about local MCP
   serving. Browser login and live reads remain unimplemented.
 - Keep Visual Studio setup messages out of the Cargo wrapper's success stream

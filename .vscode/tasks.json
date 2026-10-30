@@ -1,0 +1,199 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}",
+    "env": {
+      "RUSTDOCFLAGS": "-D warnings"
+    }
+  },
+  "tasks": [
+    {
+      "label": "Build",
+      "type": "process",
+      "command": "cargo",
+      "args": ["build", "--workspace", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "build", "--workspace", "--locked"]
+      },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Release build",
+      "type": "process",
+      "command": "cargo",
+      "args": ["build", "--release", "--workspace", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "build", "--release", "--workspace", "--locked"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Check formatting",
+      "type": "process",
+      "command": "cargo",
+      "args": ["fmt", "--all", "--", "--check"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "fmt", "--all", "--", "--check"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Apply formatting",
+      "type": "process",
+      "command": "cargo",
+      "args": ["fmt", "--all"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "fmt", "--all"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Clippy",
+      "type": "process",
+      "command": "cargo",
+      "args": ["clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Test",
+      "type": "process",
+      "command": "cargo",
+      "args": ["test", "--workspace", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "test", "--workspace", "--locked"]
+      },
+      "group": { "kind": "test", "isDefault": true },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "CLI process tests",
+      "type": "process",
+      "command": "cargo",
+      "args": ["test", "-p", "beyond-gate-cli", "--test", "cli", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "test", "-p", "beyond-gate-cli", "--test", "cli", "--locked"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Adapter process tests",
+      "type": "process",
+      "command": "cargo",
+      "args": ["test", "-p", "beyond-gate-cli", "--test", "adapter_process", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "test", "-p", "beyond-gate-cli", "--test", "adapter_process", "--locked"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "MCP process tests",
+      "type": "process",
+      "command": "cargo",
+      "args": ["test", "-p", "beyond-gate-mcp", "--test", "cli", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "test", "-p", "beyond-gate-mcp", "--test", "cli", "--locked"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Test API examples",
+      "type": "process",
+      "command": "cargo",
+      "args": ["test", "--workspace", "--doc", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "test", "--workspace", "--doc", "--locked"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Build API docs",
+      "type": "process",
+      "command": "cargo",
+      "args": ["doc", "--workspace", "--no-deps", "--document-private-items", "--locked"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "doc", "--workspace", "--no-deps", "--document-private-items", "--locked"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Run CLI help",
+      "type": "process",
+      "command": "cargo",
+      "args": ["run", "--locked", "-p", "beyond-gate-cli", "--", "--help"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "run", "--locked", "-p", "beyond-gate-cli", "--", "--help"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Run MCP help",
+      "type": "process",
+      "command": "cargo",
+      "args": ["run", "--locked", "-p", "beyond-gate-mcp", "--", "--help"],
+      "windows": {
+        "command": "pwsh",
+        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "run", "--locked", "-p", "beyond-gate-mcp", "--", "--help"]
+      },
+      "problemMatcher": "$rustc"
+    },
+    {
+      "label": "Check Markdown",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/check-docs.ps1", "-Mode", "Style"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Check local links",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/check-docs.ps1", "-Mode", "Links"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Test documentation checks",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/test-doc-checks.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Validate workspace",
+      "dependsOrder": "sequence",
+      "dependsOn": [
+        "Check formatting",
+        "Clippy",
+        "Test",
+        "CLI process tests",
+        "Adapter process tests",
+        "MCP process tests",
+        "Test API examples",
+        "Build API docs",
+        "Build",
+        "Release build",
+        "Run CLI help",
+        "Run MCP help",
+        "Check Markdown",
+        "Check local links",
+        "Test documentation checks"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}

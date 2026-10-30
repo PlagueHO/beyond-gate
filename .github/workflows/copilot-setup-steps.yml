@@ -1,0 +1,36 @@
+name: Copilot setup steps
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/copilot-setup-steps.yml
+      - rust-toolchain.toml
+      - Cargo.toml
+      - Cargo.lock
+      - src/**/Cargo.toml
+      - scripts/cargo.ps1
+      - scripts/install-doc-tools.ps1
+
+permissions:
+  contents: read
+
+jobs:
+  copilot-setup-steps:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Install native build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential ca-certificates cmake perl pkg-config
+      - name: Select repository toolchain
+        run: rustup show
+      - name: Fetch locked workspace dependencies
+        shell: pwsh
+        run: ./scripts/cargo.ps1 fetch --locked
+      - name: Install pinned Markdown checker
+        shell: pwsh
+        run: ./scripts/install-doc-tools.ps1

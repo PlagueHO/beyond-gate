@@ -1,0 +1,28 @@
+{
+  "rust-analyzer.cargo.extraArgs": ["--locked"],
+  "rust-analyzer.cargo.buildScripts.overrideCommand": [
+    "pwsh", "-NoProfile", "-File", "./scripts/cargo.ps1",
+    "check", "--workspace", "--all-targets", "--locked", "--message-format=json"
+  ],
+  "rust-analyzer.check.overrideCommand": [
+    "pwsh", "-NoProfile", "-File", "./scripts/cargo.ps1",
+    "clippy", "--workspace", "--all-targets", "--locked", "--message-format=json",
+    "--", "-D", "warnings"
+  ],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer",
+    "editor.formatOnSave": true
+  },
+  "[toml]": {
+    "editor.defaultFormatter": "tamasfe.even-better-toml"
+  },
+  "files.exclude": {
+    "**/target": true
+  },
+  "search.exclude": {
+    "**/target": true
+  },
+  "files.watcherExclude": {
+    "**/target/**": true
+  }
+}

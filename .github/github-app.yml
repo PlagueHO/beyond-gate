@@ -12,13 +12,29 @@ scripts:
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) run --locked -p beyond-gate-mcp '--' --help"
   - name: Build
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) build --workspace --locked"
+  - name: Release build
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) build --release --workspace --locked"
   - name: Test
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test --workspace --locked"
+  - name: CLI process tests
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test -p beyond-gate-cli --test cli --locked"
+  - name: Adapter process tests
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test -p beyond-gate-cli --test adapter_process --locked"
+  - name: MCP process tests
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test -p beyond-gate-mcp --test cli --locked"
   - name: Lint
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) clippy --workspace --all-targets --locked '--' -D warnings"
   - name: Check formatting
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) fmt --all '--' --check"
+  - name: Apply formatting
+    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) fmt --all"
   - name: Test API examples
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test --workspace --doc --locked"
   - name: Build API docs
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) doc --workspace --no-deps --document-private-items --locked"
+  - name: Check Markdown
+    command: pwsh -NoProfile -Command "& (Join-Path scripts check-docs.ps1) -Mode Style"
+  - name: Check local links
+    command: pwsh -NoProfile -Command "& (Join-Path scripts check-docs.ps1) -Mode Links"
+  - name: Test documentation checks
+    command: pwsh -NoProfile -Command "& (Join-Path scripts test-doc-checks.ps1)"
