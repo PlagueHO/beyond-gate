@@ -1,8 +1,16 @@
-name: Implementation
-description: Plan one coherent part of the Beyond Gate roadmap.
+name: Feature request or implementation
+description: Request new product behavior or plan one coherent part of the Beyond Gate roadmap.
 title: ""
 labels: ["enhancement"]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for a new feature or roadmap implementation.
+        Use Bug report for an observable failure, Chore for maintenance,
+        or Documentation for documentation-only changes.
+        Use synthetic data only. Do not include credentials, private account
+        data, private URLs, or proprietary content.
   - type: textarea
     id: outcome
     attributes:
@@ -28,7 +36,7 @@ body:
     id: dependencies
     attributes:
       label: Dependencies and order
-      description: Link prerequisites. State whether a feasibility decision is needed.
+      description: Link prerequisites or write None. State whether a feasibility decision is needed.
     validations:
       required: true
   - type: textarea

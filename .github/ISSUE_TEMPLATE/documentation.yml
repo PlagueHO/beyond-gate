@@ -1,0 +1,47 @@
+name: Documentation
+description: Correct or improve documentation, examples, or contributor guidance.
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for documentation-only changes.
+        Use Bug report for an observable product failure, Feature request or
+        implementation for new product behavior, or Chore for repository maintenance.
+        Use synthetic data only. Do not include credentials, private account
+        data, private URLs, or proprietary content.
+  - type: textarea
+    id: location
+    attributes:
+      label: Affected documentation
+      description: Give the public page URL, repository path, or section. For missing documentation, state where it belongs.
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Current problem
+      description: Explain what is incorrect, missing, or unclear and who it affects.
+    validations:
+      required: true
+  - type: textarea
+    id: change
+    attributes:
+      label: Proposed change
+      description: Describe the correction or improvement. Keep planned features separate from current behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: completion
+    attributes:
+      label: Completion checks
+      description: State how to check accuracy, links, and examples with synthetic data and offline checks.
+    validations:
+      required: true
+  - type: textarea
+    id: references
+    attributes:
+      label: References and related issues
+      description: Link public sources or related issues if applicable. Do not link private account content.
+    validations:
+      required: false
