@@ -265,6 +265,22 @@ outcomes and dates without credentials, token payloads, or raw responses.
 
 ## Session lifecycle
 
+### Manual-suite test exception
+
+The [manual capability suite](testing.md) adds an off-by-default
+`e2e-isolation` feature. It requires a random non-secret context and separate
+native-storage approval. It uses only `beyond-gate-e2e` test entries, never the
+product `beyond-gate` / `local-session` identity. A feature-required helper can
+seed synthetic bytes and remove its own entry. It cannot import a live cookie.
+
+The suite's live budget is zero. Its dispatch entry point stops before secret
+input or upload while production session use and endpoint contracts are absent.
+The separately tested future Actions lifecycle uses a unique repository secret
+per submission and `gh secret set` stdin. This defines a development-only
+exception to the local-probe rule, not an enabled product or CI login flow.
+No general product credential environment variable or MCP credential parameter
+is added. Browser login, exchange, expiry, and live adapter parity stay blocked.
+
 If the selected upstream flow requires a session cookie to short-lived token
 exchange, the future session design must support it. Determine actual cookie
 names, hosts, token fields, expiry, and refresh behavior in the feasibility work.

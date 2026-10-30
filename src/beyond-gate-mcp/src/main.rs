@@ -11,6 +11,19 @@ use server::BeyondGateServer;
 /// Starts the local MCP server without writing diagnostics to protocol stdout.
 #[tokio::main]
 async fn main() -> ExitCode {
+    #[cfg(feature = "e2e-isolation")]
+    if std::env::args_os().skip(1).eq(["--e2e-context-check"]) {
+        return match beyond_gate_core::auth::e2e_context() {
+            Ok(_) => {
+                println!("beyond-gate-e2e-isolation-v1");
+                ExitCode::SUCCESS
+            }
+            Err(error) => {
+                eprintln!("error: {error}");
+                ExitCode::FAILURE
+            }
+        };
+    }
     Command::new("beyond-gate-mcp")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Local read-only MCP server for Beyond Gate")

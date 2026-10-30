@@ -263,6 +263,20 @@ data and local mocks. Run its live case only from an unrecorded interactive
 terminal with separate explicit test approval. Never pass a cookie through agent tools,
 command arguments, environment variables, or files.
 
+### Manual capability suite
+
+The [manual testing guide](docs/testing.md) describes the shared CLI/MCP process
+suite, isolated native-store tests, and `workflow_dispatch` workflow on
+`windows-latest`. Use `scripts\start-live-e2e.ps1 -Selection contracts` for the
+credential-free subset. Full coverage currently fails with blocked live reads.
+The helper does not request or upload a cookie while production prerequisites
+are absent. Native credential access still needs separate explicit approval.
+
+The test-only feature is an exception for isolated test identities, not a product
+credential-import interface. Normal login stays human-controlled and persistent
+secrets stay in protected OS storage. Do not enable native or live cases in
+ordinary workspace checks.
+
 ## Pull requests
 
 Keep each change small and coherent. Use the PR template. Update tests, affected

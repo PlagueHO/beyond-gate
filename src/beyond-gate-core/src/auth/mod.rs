@@ -3,6 +3,8 @@
 //! Both adapters must use this fixed entry, not their own credential identities.
 //! Stored material is opaque: its presence does not establish usability or expiry.
 //! No product command currently creates a credential or uses one for HTTP.
+//! The off-by-default `e2e-isolation` feature requires an approved test context
+//! and selects a separate test identity instead of the product entry.
 
 mod error;
 
@@ -14,8 +16,10 @@ use keyring_core::{Entry, api::CredentialStoreApi};
 use zeroize::Zeroizing;
 
 /// Identifies this application without using an account name or other personal data.
+#[cfg(any(test, not(feature = "e2e-isolation")))]
 const SERVICE: &str = "beyond-gate";
 /// Selects the single local session shared by the CLI and future MCP operations.
+#[cfg(any(test, not(feature = "e2e-isolation")))]
 const ACCOUNT: &str = "local-session";
 /// Caps opaque session input; native stores can impose a smaller limit.
 const MAX_SECRET_BYTES: usize = 8 * 1024;
@@ -60,7 +64,7 @@ impl fmt::Debug for SessionSecret {
     }
 }
 
-/// Opens only the fixed application entry in an explicitly selected native store.
+/// Opens one application entry in an explicitly selected native store.
 ///
 /// This object holds an entry specifier, not a cached session or bearer token.
 /// Operations are synchronous because the underlying stores use blocking APIs.
@@ -79,8 +83,17 @@ impl SessionStore {
     /// # Errors
     ///
     /// Returns a typed, redacted failure if the platform or store is unavailable.
+    /// Isolated test builds also require a valid context and explicit approval.
     /// Opening a store can contact the local OS service, but never D&D Beyond.
     pub fn open() -> Result<Self, AuthError> {
+        #[cfg(feature = "e2e-isolation")]
+        let account = {
+            let context = e2e_context()?;
+            if std::env::var("BEYOND_GATE_E2E_NATIVE_APPROVED").as_deref() != Ok("1") {
+                return Err(AuthError::new(AuthErrorKind::TestContextRequired));
+            }
+            context
+        };
         #[cfg(target_os = "windows")]
         let store = windows_native_keyring_store::Store::new();
         #[cfg(target_os = "macos")]
@@ -95,6 +108,16 @@ impl SessionStore {
             let modifiers = Some(HashMap::from([("persistence", "Local")]));
             #[cfg(not(target_os = "windows"))]
             let modifiers = None;
+            #[cfg(feature = "e2e-isolation")]
+            {
+                Self::from_identity(
+                    store.as_ref(),
+                    modifiers.as_ref(),
+                    "beyond-gate-e2e",
+                    &account,
+                )
+            }
+            #[cfg(not(feature = "e2e-isolation"))]
             Self::from_store(store.as_ref(), modifiers.as_ref())
         }
         #[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "linux")))]
@@ -102,12 +125,23 @@ impl SessionStore {
     }
 
     /// Builds the same fixed entry for native backends and synthetic test stores.
+    #[cfg(any(test, not(feature = "e2e-isolation")))]
     fn from_store(
         store: &dyn CredentialStoreApi,
         modifiers: Option<&HashMap<&str, &str>>,
     ) -> Result<Self, AuthError> {
+        Self::from_identity(store, modifiers, SERVICE, ACCOUNT)
+    }
+
+    /// Builds one explicit identity without installing a global store.
+    fn from_identity(
+        store: &dyn CredentialStoreApi,
+        modifiers: Option<&HashMap<&str, &str>>,
+        service: &str,
+        account: &str,
+    ) -> Result<Self, AuthError> {
         let entry = store
-            .build(SERVICE, ACCOUNT, modifiers)
+            .build(service, account, modifiers)
             .map_err(AuthError::storage)?;
         Ok(Self { entry })
     }
@@ -159,6 +193,34 @@ impl SessionStore {
             Err(error) => Err(AuthError::storage(error)),
         }
     }
+}
+
+/// Validates the non-secret context of an isolated development build.
+///
+/// This performs no credential access. Normal product builds do not expose it.
+///
+/// # Errors
+///
+/// Returns a safe failure for missing or invalid context, never the input value.
+#[cfg(feature = "e2e-isolation")]
+pub fn e2e_context() -> Result<String, AuthError> {
+    let value = std::env::var("BEYOND_GATE_E2E_CONTEXT")
+        .map_err(|_| AuthError::new(AuthErrorKind::TestContextRequired))?;
+    validate_e2e_context(&value)?;
+    Ok(value)
+}
+
+/// Restricts test accounts to random lowercase hexadecimal submission identifiers.
+#[cfg(feature = "e2e-isolation")]
+fn validate_e2e_context(value: &str) -> Result<(), AuthError> {
+    if value.len() != 32
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(AuthError::new(AuthErrorKind::TestContextRequired));
+    }
+    Ok(())
 }
 
 impl fmt::Debug for SessionStore {

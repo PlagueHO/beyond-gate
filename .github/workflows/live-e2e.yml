@@ -1,0 +1,101 @@
+name: Manual capability tests
+run-name: live-e2e-${{ inputs.submission_id }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      submission_id:
+        description: Fresh non-secret 32-character lowercase hexadecimal submission ID
+        required: true
+        type: string
+      selection:
+        description: Full coverage fails while live prerequisites are missing
+        required: true
+        default: full
+        type: choice
+        options: [full, contracts]
+      acknowledge:
+        description: I selected reviewed main code and understand that live reads remain blocked
+        required: true
+        default: false
+        type: boolean
+      approve_native_storage:
+        description: Permit synthetic native credential tests in an isolated test entry
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  capability-tests:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Check dispatch boundaries
+        env:
+          SUBMISSION_ID: ${{ inputs.submission_id }}
+          ACKNOWLEDGE: ${{ inputs.acknowledge }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          REPOSITORY: ${{ github.repository }}
+          REF: ${{ github.ref }}
+        run: |
+          if ($env:REPOSITORY -cne 'PlagueHO/beyond-gate' -or $env:REF -cne 'refs/heads/main') {
+            throw 'Only reviewed main code in PlagueHO/beyond-gate can run this suite.'
+          }
+          if ($env:SUBMISSION_ID -cnotmatch '^[a-f0-9]{32}$') { throw 'Invalid submission identifier.' }
+          if ($env:ACKNOWLEDGE -ne 'true') { throw 'Operator acknowledgment is required.' }
+          if ($env:RUN_ATTEMPT -ne '1') { throw 'Reruns are disabled. Start a new explicit dispatch.' }
+          "Runner: $env:RUNNER_OS; image: $env:ImageOS; version: $env:ImageVersion"
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Ensure Visual Studio 2022 Build Tools
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = & $vswhere -latest -version '[17.0,18.0)' -products Microsoft.VisualStudio.Product.BuildTools -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0) { throw 'Cannot inspect Visual Studio installations.' }
+          if (!$installation) {
+            choco install visualstudio2022buildtools --yes --no-progress --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --norestart"
+            if ($LASTEXITCODE -notin @(0, 3010)) { throw 'Visual Studio 2022 Build Tools installation failed.' }
+          }
+          exit 0
+      - name: Select repository toolchain
+        run: rustup show
+      - name: Check harness offline
+        run: ./scripts/test-e2e-harness.ps1
+      - name: Build and run shared suite without live credentials
+        env:
+          SELECTION: ${{ inputs.selection }}
+          NATIVE_APPROVED: ${{ inputs.approve_native_storage }}
+        run: |
+          ./scripts/start-live-e2e.ps1 -Selection $env:SELECTION `
+            -ApproveNativeStorage:($env:NATIVE_APPROVED -eq 'true') `
+            -ReportPath (Join-Path $env:RUNNER_TEMP 'capability-summary.json')
+          exit $LASTEXITCODE
+      - name: Publish only sanitized case results
+        if: always()
+        run: |
+          $path = Join-Path $env:RUNNER_TEMP 'capability-summary.json'
+          if (!(Test-Path -LiteralPath $path)) {
+            'Capability summary unavailable: setup or execution failed.' >> $env:GITHUB_STEP_SUMMARY
+            exit 0
+          }
+          Import-Module ./scripts/e2e/common.psm1 -Force -DisableNameChecking
+          $summary = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json -AsHashtable
+          $expected = Get-E2eCases (Get-E2eInventory)
+          $allowed = @($expected.id) + @('suite.infrastructure', 'suite.native-cleanup', 'suite.file-cleanup')
+          'Live reads are disabled. This summary does not claim full capability coverage.' >> $env:GITHUB_STEP_SUMMARY
+          '| Case | Status | Reason |' >> $env:GITHUB_STEP_SUMMARY
+          '| --- | --- | --- |' >> $env:GITHUB_STEP_SUMMARY
+          foreach ($case in $summary.cases) {
+            Assert-E2e ($case.case -cin $allowed) 'inventory_invalid'
+            $probe = @{}
+            Set-E2eResult $probe $case.status $case.reason
+            "| $($case.case) | $($case.status) | $($case.reason) |" >> $env:GITHUB_STEP_SUMMARY
+          }

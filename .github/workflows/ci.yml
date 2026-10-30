@@ -46,3 +46,5 @@ jobs:
       - run: ./scripts/cargo.ps1 test --workspace --doc --locked
       - run: ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
       - run: ./scripts/cargo.ps1 build --workspace --locked
+      - name: Check manual-suite infrastructure offline
+        run: ./scripts/test-e2e-harness.ps1
