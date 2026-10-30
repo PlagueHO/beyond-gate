@@ -154,6 +154,15 @@ Issue [#30](https://github.com/PlagueHO/beyond-gate/issues/30) separately owns
 session validation, expiry evidence, bounded refresh, and authenticated adapter
 use. A future login flow must agree on its stored-session boundary with that work.
 
+The [contract-first checkpoint](browser-handoff.md) proposes separate
+extension-to-host and host-to-CLI protocols plus one shared core establishment
+boundary. #29 owns the native host, browser registration, and CLI connection;
+[#46](https://github.com/PlagueHO/beyond-gate/issues/46) owns the extension and
+real synthetic browser CI. No product types, host, or IPC implementation are
+added. The checkpoint remains blocked until application-peer authentication,
+the production cookie profile, and #30's validation/persistence contract are
+established. A caller origin, OS user identity, or challenge alone is not enough.
+
 ## HTTP boundary
 
 The core's `http` module supplies one concrete `HttpClient` and `get_json<T>`

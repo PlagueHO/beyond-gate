@@ -80,6 +80,12 @@ extension integration, separate browser profile, or cookie import is added.
 The later [extension evaluation](authentication.md#extension-feasibility-evaluation)
 uses synthetic tests only and does not change this command.
 
+The [version 1 handoff proposal](browser-handoff.md) is a contract checkpoint,
+not a working host or extension integration. Application-peer authentication,
+the production cookie profile, and shared core validation remain blocked.
+It adds no CLI option or credential input and does not change this command's
+exit code, streams, or side effects.
+
 There is no product credential creation or import command. Do not manually create
 a credential to work around blocked login. The developer authentication probe is
 not a product login flow.

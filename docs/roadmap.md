@@ -33,8 +33,15 @@ Authentication follow-up work remains open:
 
 | Issue | Scope | Current dependency |
 |-------|-------|--------------------|
-| [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Human-controlled browser login and protected handoff | The user reported a successful [synthetic Edge handoff](authentication.md#edge-synthetic-browser-test). Chrome, pending CLI binding, account handoff, protected save, and the requested fallback remain unverified. |
-| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Needs verified session contracts and coordination with #29; opaque local presence is not upstream validation. |
+| [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | [Contract checkpoint](browser-handoff.md) proposed but blocked on authenticated IPC, the cookie profile, and the shared core boundary. #46 blocks end-to-end completion. |
+| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Agree on the checkpoint's core boundary with #29; opaque local presence is not upstream validation. No reciprocal completion dependency. |
+| [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Synthetic feasibility can start independently. Product integration needs the accepted #29 contracts, not completion of all of #29. |
+
+The user reported one successful
+[synthetic Edge handoff](authentication.md#edge-synthetic-browser-test).
+Chrome, authenticated pending-CLI binding, account handoff, protected save, and
+the requested separate environment fallback remain unverified. The checkpoint's
+synthetic JSON cases are not yet executed by Rust or browser tests.
 
 Implement the HTTP boundary before full session exchange. Simple login remains
 an early required milestone, not an optional fallback. Library discovery and

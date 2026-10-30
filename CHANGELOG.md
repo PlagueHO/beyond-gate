@@ -7,6 +7,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Proposed version 1 browser-to-host and host-to-CLI contracts, a shared core
+  session-establishment API proposal, and canonical synthetic conformance data.
+  The contract checkpoint remains blocked on application-peer authentication,
+  the production cookie profile, and core validation/persistence agreement.
+  No product login, fixture consumer, host registration, or credential access
+  is added.
 - Dedicated CLI command and local stdio MCP tool references, with exact inputs,
   output contracts, errors, safety bounds, and clearly labeled synthetic examples.
   README interface sections now link to these references. Live reads remain unsupported.
