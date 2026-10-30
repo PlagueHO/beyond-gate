@@ -7,6 +7,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Dedicated CLI command and local stdio MCP tool references, with exact inputs,
+  output contracts, errors, safety bounds, and clearly labeled synthetic examples.
+  README interface sections now link to these references. Live reads remain unsupported.
 - Manual CLI/MCP capability inventory and shared bounded process suite, with
   separate passed, failed, blocked, and not-applicable results. Required missing
   live reads prevent full success. A manual-only `windows-latest` workflow still

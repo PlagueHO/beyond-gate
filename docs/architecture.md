@@ -493,7 +493,7 @@ The command patterns are `character list/show`, `campaign list/show`, and
 `book list/outline/read`. Lists and outlines default to table and accept
 `--format table|json|tsv` and `--no-headers`. JSON rejects header suppression.
 Show/read are JSON only. Identifiers remain opaque meaningful text.
-The [README output contract](../README.md#resource-commands-and-output) defines
+The [CLI output contract](cli.md#output-contracts) defines
 exact columns, JSON fields, evidence labels, escaping, and empty-result shapes.
 Unknown character fields stay structured under `raw`; no rules are computed.
 Output is deterministic and not silently truncated.
