@@ -69,3 +69,6 @@ finally {
         Remove-Item -LiteralPath $fixture -Recurse -Force
     }
 }
+
+# Do not return the last expected rejection's exit code to the calling shell.
+exit 0

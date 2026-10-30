@@ -93,6 +93,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Documentation checker tests now return success after all assertions pass,
+  instead of returning the last expected rejection's exit code to GitHub Actions.
 - Use the Visual Studio 2022 Cargo wrapper in contributor command examples on
   Windows.
 - Use PowerShell 7 and the existing Visual Studio 2022 Build Tools wrapper for
