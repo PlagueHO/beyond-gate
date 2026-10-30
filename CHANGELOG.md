@@ -7,6 +7,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Chore and Documentation issue forms with purpose-specific fields and safe-data
+  guidance. The existing Implementation form now covers feature requests and
+  roadmap work. Contributor guidance explains how to select all four forms.
 - Extracted-package verification for fixed Linux x86_64, Windows x86_64, and
   macOS Apple Silicon runners. Checks cover SHA-256, exact archive contents,
   runtime-independent startup, offline CLI/MCP failures, local stdio discovery,

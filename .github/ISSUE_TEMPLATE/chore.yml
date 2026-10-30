@@ -1,0 +1,39 @@
+name: Chore
+description: Plan maintenance, tooling, dependency, or CI work without new product behavior.
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for repository maintenance.
+        Use Bug report for an observable failure, Feature request or implementation
+        for new product behavior, or Documentation for documentation-only changes.
+        Use synthetic data only. Do not include credentials, private account
+        data, private URLs, or proprietary content.
+  - type: textarea
+    id: reason
+    attributes:
+      label: Reason
+      description: Describe the maintenance problem and why this work is needed.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: State the affected files or tools, included work, excluded work, and unresolved decisions.
+    validations:
+      required: true
+  - type: textarea
+    id: completion
+    attributes:
+      label: Completion checks
+      description: Define measurable checks, offline tests, and affected documentation. Do not require live account data.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and related issues
+      description: Link prerequisites or related issues if applicable.
+    validations:
+      required: false

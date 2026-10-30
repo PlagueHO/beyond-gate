@@ -1,7 +1,24 @@
 # Contributing
 
 Start with the [roadmap](docs/roadmap.md). The project is a foundation, not a working
-D&D Beyond client. Use an implementation issue for a new product operation.
+D&D Beyond client.
+
+## Issues
+
+Select the form that matches the work:
+
+| Form | Use |
+|------|-----|
+| Bug report | An observable failure, with reproduction steps, environment, and safe diagnostics. |
+| Feature request or implementation | New product behavior or one coherent part of the roadmap, with scope and acceptance criteria. |
+| Chore | Maintenance, tooling, dependencies, or CI work without new product behavior. |
+| Documentation | Documentation-only corrections, missing guidance, or clearer examples. |
+
+Use synthetic data only. Do not include credentials, private URLs, account
+identifiers, real account data, or proprietary content. For a feature request or
+implementation, write `None` if there are no dependencies. For a bug report,
+write `N/A` if there are no safe diagnostics. Leave optional fields empty if
+they do not apply.
 
 ## Local development
 
