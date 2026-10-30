@@ -73,6 +73,13 @@ Reports that no working browser session handoff exists. It exits with code 1,
 with a diagnostic on stderr and no stdout. It does not open a browser, prompt for
 a secret, access storage, or send a request.
 
+The [existing-browser review for #29](authentication.md#existing-browser-decision-for-issue-29)
+did not establish a return path from human login to this app. Opening the website
+alone cannot complete the command. Login remains blocked; no product callback,
+extension integration, separate browser profile, or cookie import is added.
+The later [extension evaluation](authentication.md#extension-feasibility-evaluation)
+uses synthetic tests only and does not change this command.
+
 There is no product credential creation or import command. Do not manually create
 a credential to work around blocked login. The developer authentication probe is
 not a product login flow.

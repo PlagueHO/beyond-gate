@@ -141,6 +141,19 @@ executor threads.
 This is partial offline work for #3. Browser handoff, session exchange, upstream
 expiry, refresh, rejection, and actual adapter session parity remain blocked.
 
+The [2026-10-31 review for #29](authentication.md#existing-browser-decision-for-issue-29)
+initially kept login within the user's selected existing-browser-only scope. It found no
+verified return contract and adds no speculative callback or exchange.
+The user later approved [extension evaluation with synthetic tests](authentication.md#extension-feasibility-evaluation).
+The user reported a successful synthetic Edge extension-to-host handoff.
+Chrome is also a requested target, but has not been tested. This tests a browser
+transport, not account login or protected storage. A
+[requested environment-based fallback](authentication.md#requested-fallback)
+also needs a secure import contract; MCP tool inputs cannot carry credentials.
+Issue [#30](https://github.com/PlagueHO/beyond-gate/issues/30) separately owns
+session validation, expiry evidence, bounded refresh, and authenticated adapter
+use. A future login flow must agree on its stored-session boundary with that work.
+
 ## HTTP boundary
 
 The core's `http` module supplies one concrete `HttpClient` and `get_json<T>`
