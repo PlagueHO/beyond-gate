@@ -98,6 +98,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Record the Windows-first browser-handoff gate review, including OS-reported
+  pipe peer IDs, safe Rust transport candidates, and the limits of parent-process
+  checks. Chrome and Edge remain targets, not verified product support.
+  Login stays blocked pending authenticated launch, cookie-profile evidence,
+  and the shared core session contract. No runtime behavior changes.
 - Record the existing-browser review for #29 and the later user-approved
   extension evaluation. Document cookie-permission limits, a native-messaging
   candidate with 14 session-only synthetic tests, the user-reported successful
