@@ -1,0 +1,667 @@
+{
+  "fixture_version": 1,
+  "status": "proposed-blocked",
+  "synthetic_only": true,
+  "clock_unix_seconds": 2000000000,
+  "limits": {
+    "frame_bytes": 16384,
+    "value_bytes": 8192,
+    "pending_ms": 300000,
+    "hello_ms": 10000,
+    "cookie_query_ms": 15000,
+    "validation_ms": 15000,
+    "connect_ms": 5000,
+    "save_wait_ms": 5000,
+    "json_depth": 8,
+    "frames_per_direction": 8
+  },
+  "profile": {
+    "id": "synthetic-v1",
+    "url": "https://login.beyond-gate.invalid/",
+    "name": "BeyondGateSyntheticSession",
+    "domain": "login.beyond-gate.invalid",
+    "path": "/",
+    "host_only": true,
+    "secure": true,
+    "http_only": true,
+    "same_site": "lax",
+    "partitioned": false,
+    "value_prefix": "synthetic-",
+    "minimum_value_bytes": 10,
+    "chrome_origin": "chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/",
+    "edge_origin": "chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/"
+  },
+  "default_conditions": {
+    "authenticated_peer": true,
+    "trusted_browser_launch": true,
+    "pending_login": true,
+    "profile_accepted": true
+  },
+  "cookie_fixture": {
+    "name": "BeyondGateSyntheticSession",
+    "value": "synthetic-session",
+    "domain": "login.beyond-gate.invalid",
+    "path": "/",
+    "hostOnly": true,
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "lax",
+    "session": true
+  },
+  "messages": {
+    "chrome_hello": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "hello",
+      "browser": "chrome",
+      "profile": "synthetic-v1",
+      "consent": true
+    },
+    "cli_chrome_open": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "open",
+      "browser": "chrome",
+      "profile": "synthetic-v1",
+      "consent": true
+    },
+    "browser_hello": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "hello",
+      "browser": "edge",
+      "profile": "synthetic-v1",
+      "consent": true
+    },
+    "browser_pending": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "pending",
+      "transaction": "11111111111111111111111111111111",
+      "profile": "synthetic-v1",
+      "expires_in_ms": 300000
+    },
+    "browser_submit": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "submit",
+      "transaction": "11111111111111111111111111111111",
+      "profile": "synthetic-v1",
+      "value": "synthetic-session"
+    },
+    "browser_cancel": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "cancel",
+      "transaction": "11111111111111111111111111111111"
+    },
+    "browser_result": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "result",
+      "transaction": "11111111111111111111111111111111",
+      "outcome": "saved",
+      "validation": "service-validated",
+      "expiry": "unknown"
+    },
+    "browser_error": {
+      "protocol": "bg-browser-handoff",
+      "version": 1,
+      "type": "error",
+      "transaction": null,
+      "code": "no_pending_login"
+    },
+    "cli_open": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "open",
+      "browser": "edge",
+      "profile": "synthetic-v1",
+      "consent": true
+    },
+    "cli_authorized": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "authorized",
+      "transaction": "11111111111111111111111111111111",
+      "profile": "synthetic-v1",
+      "expires_in_ms": 300000
+    },
+    "cli_submit": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "submit",
+      "transaction": "11111111111111111111111111111111",
+      "profile": "synthetic-v1",
+      "value": "synthetic-session"
+    },
+    "cli_cancel": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "cancel",
+      "transaction": "11111111111111111111111111111111"
+    },
+    "cli_result": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "result",
+      "transaction": "11111111111111111111111111111111",
+      "outcome": "saved",
+      "validation": "service-validated",
+      "expiry": "unknown"
+    },
+    "cli_error": {
+      "protocol": "bg-host-cli",
+      "version": 1,
+      "type": "error",
+      "transaction": "11111111111111111111111111111111",
+      "code": "session_rejected"
+    }
+  },
+  "cases": [
+    {
+      "id": "short-synthetic-value",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "value_bytes": 9 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "invalid_material", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "result-before-submit",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "message": "browser_result" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "mismatched-result-after-submit",
+      "boundary": "browser",
+      "state": "awaiting-result",
+      "input": { "message": "browser_result", "set": { "transaction": "22222222222222222222222222222222" } },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "malformed-result-after-submit",
+      "boundary": "browser",
+      "state": "awaiting-result",
+      "input": { "message": "browser_result", "remove": ["validation"] },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "synthetic-chrome-complete-flow",
+      "boundary": "combined",
+      "state": "idle",
+      "input": { "sequence": ["chrome_hello", "cli_chrome_open", "cli_authorized", "browser_pending", "browser_submit", "cli_submit", "service_validated", "save_confirmed", "cli_result", "browser_result"] },
+      "conditions": {},
+      "expected": { "state": "saved", "code": "ok", "storage": "saved", "effects": { "cookie_read": true, "validate": true, "save": true } }
+    },
+    {
+      "id": "synthetic-complete-flow",
+      "boundary": "combined",
+      "state": "idle",
+      "input": { "sequence": ["browser_hello", "cli_open", "cli_authorized", "browser_pending", "browser_submit", "cli_submit", "service_validated", "save_confirmed", "cli_result", "browser_result"] },
+      "conditions": {},
+      "expected": { "state": "saved", "code": "ok", "storage": "saved", "effects": { "cookie_read": true, "validate": true, "save": true } }
+    },
+    {
+      "id": "no-consent-no-connect",
+      "boundary": "browser",
+      "state": "idle",
+      "input": { "event": "user_action_without_consent" },
+      "conditions": {},
+      "expected": { "state": "idle", "code": "consent_required", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "hello-refuses-false-consent",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "message": "browser_hello", "set": { "consent": false } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "consent_required", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "no-pending-login",
+      "boundary": "host-cli",
+      "state": "waiting",
+      "input": { "message": "cli_open" },
+      "conditions": { "pending_login": false },
+      "expected": { "state": "failed", "code": "no_pending_login", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "forged-origin-argument-is-not-authentication",
+      "boundary": "host-cli",
+      "state": "waiting",
+      "input": { "message": "cli_open" },
+      "conditions": { "authenticated_peer": false, "trusted_browser_launch": false, "origin": "chrome-extension://bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb/" },
+      "expected": { "state": "waiting", "code": "unauthorized_peer", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "trusted-host-direct-launch-is-not-browser-proof",
+      "boundary": "host-cli",
+      "state": "waiting",
+      "input": { "message": "cli_open" },
+      "conditions": { "trusted_browser_launch": false },
+      "expected": { "state": "waiting", "code": "unauthorized_peer", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "false-cli-endpoint",
+      "boundary": "host-cli",
+      "state": "connecting",
+      "input": { "event": "endpoint_peer_check_failed" },
+      "conditions": { "authenticated_peer": false },
+      "expected": { "state": "failed", "code": "unauthorized_peer", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "wrong-extension-origin",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "message": "browser_hello" },
+      "conditions": { "origin": "chrome-extension://cccccccccccccccccccccccccccccccc/" },
+      "expected": { "state": "failed", "code": "origin_rejected", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "unsupported-version",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "message": "browser_hello", "set": { "version": 2 } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "version_mismatch", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "production-profile-not-selected",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "message": "browser_hello", "set": { "profile": "unverified-production" } },
+      "conditions": { "profile_accepted": false },
+      "expected": { "state": "failed", "code": "unsupported_profile", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "unknown-field-not-peer-proof",
+      "boundary": "host-cli",
+      "state": "waiting",
+      "input": { "message": "cli_open", "add": { "authenticated_peer": true } },
+      "conditions": {},
+      "expected": { "state": "waiting", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "missing-field",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "message": "browser_hello", "remove": ["consent"] },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "wrong-field-type",
+      "boundary": "host-cli",
+      "state": "waiting",
+      "input": { "message": "cli_open", "set": { "version": "1" } },
+      "conditions": {},
+      "expected": { "state": "waiting", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "one-pending-login",
+      "boundary": "host-cli",
+      "state": "waiting",
+      "input": { "event": "second_cli_login" },
+      "conditions": {},
+      "expected": { "state": "waiting", "code": "busy", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "authorization-permits-one-cookie-query",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "message": "browser_pending" },
+      "conditions": {},
+      "expected": { "state": "authorized", "code": "ok", "storage": "unchanged", "effects": { "cookie_read": true, "validate": false, "save": false } }
+    },
+    {
+      "id": "permission-denied",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_permission_denied" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cookie_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "ambiguous-cookie",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_query_completed", "matching_candidates": 2 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cookie_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "missing-cookie",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_query_completed", "matching_candidates": 0 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cookie_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "expired-cookie-at-clock",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_query_completed", "cookie_set": { "session": false, "expirationDate": 2000000000 } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cookie_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "partitioned-cookie",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_query_completed", "cookie_set": { "partitionKey": { "topLevelSite": "https://login.beyond-gate.invalid" } } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cookie_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "wrong-cookie-scope",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_query_completed", "cookie_set": { "path": "/other" } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cookie_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "transaction-mismatch",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "set": { "transaction": "22222222222222222222222222222222" } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "transaction_mismatch", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "cross-connection-replay",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit" },
+      "conditions": { "authenticated_peer": false },
+      "expected": { "state": "authorized", "code": "unauthorized_peer", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "duplicate-while-validating",
+      "boundary": "host-cli",
+      "state": "validating",
+      "input": { "message": "cli_submit" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "replay", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "replay-after-completion",
+      "boundary": "host-cli",
+      "state": "saved",
+      "input": { "message": "cli_submit" },
+      "conditions": {},
+      "expected": { "state": "saved", "code": "replay", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "exact-value-bound",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "value_bytes": 8192 },
+      "conditions": {},
+      "expected": { "state": "validating", "code": "ok", "storage": "unchanged", "effects": { "cookie_read": false, "validate": true, "save": false } }
+    },
+    {
+      "id": "oversized-value",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "value_bytes": 8193 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "invalid_material", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "empty-value",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "value_bytes": 0 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "invalid_material", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "header-injection-value",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "set": { "value": "synthetic-\r\nCookie: other" } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "invalid_material", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "exact-frame-bound",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "frame": { "pad_json_to_bytes": 16384 } },
+      "conditions": {},
+      "expected": { "state": "validating", "code": "ok", "storage": "unchanged", "effects": { "cookie_read": false, "validate": true, "save": false } }
+    },
+    {
+      "id": "oversized-frame-before-allocation",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "frame": { "declared_length": 16385 } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "empty-frame",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "frame": { "declared_length": 0 } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "excess-json-depth",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "frame": { "json_depth": 9 } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "message-count-exhausted",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit" },
+      "conditions": { "frames_seen": 8 },
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "truncated-prefix",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "frame": { "prefix_hex": "0100" }, "event": "eof" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "truncated-payload",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "frame": { "declared_length": 10, "payload_hex": "7b" }, "event": "eof" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "invalid-utf8",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "frame": { "declared_length": 1, "payload_hex": "ff" } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "duplicate-json-key",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "frame": { "declared_length": 13, "payload_hex": "7b2261223a312c2261223a327d" } },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "protocol_error", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "cancel-before-submit",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_cancel" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cancelled", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "cancel-during-validation",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "cancel_observed" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cancelled", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "cancel-beats-validation-completion",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "service_validated", "cancel_observed": true },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "cancelled", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "pending-deadline-exact",
+      "boundary": "host-cli",
+      "state": "authorized",
+      "input": { "message": "cli_submit", "elapsed_ms": 300000 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "timed_out", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "hello-wait-exact",
+      "boundary": "browser",
+      "state": "connecting",
+      "input": { "event": "hello_wait_elapsed", "elapsed_ms": 10000 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "timed_out", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "cookie-query-wait-exact",
+      "boundary": "browser",
+      "state": "authorized",
+      "input": { "event": "cookie_wait_elapsed", "elapsed_ms": 15000 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "timed_out", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "validation-wait-exact",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "validation_wait_elapsed", "elapsed_ms": 15000 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "timed_out", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "late-browser-callback",
+      "boundary": "browser",
+      "state": "failed",
+      "input": { "event": "cookie_query_completed", "elapsed_ms": 15001 },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "timed_out", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "receipt-is-not-validated-login",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "token_received_without_service_validation" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "unsupported_contract", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "rejected-not-guessed-expired",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "upstream_rejected_without_expiry_evidence" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "session_rejected", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "verified-expiry",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "upstream_expiry_verified" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "session_expired", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "validation-transport-failure",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "validation_transport_failed" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "validation_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "unknown-expiry-does-not-block-validated-save",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "service_validated", "expiry": "unknown" },
+      "conditions": {},
+      "expected": { "state": "saving", "code": "ok", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": true } }
+    },
+    {
+      "id": "store-unavailable-before-write",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "store_unavailable_before_write" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "storage_unavailable", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "store-denied-before-write",
+      "boundary": "core",
+      "state": "validating",
+      "input": { "event": "store_denied_before_write" },
+      "conditions": {},
+      "expected": { "state": "failed", "code": "storage_access", "storage": "unchanged", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "failed-save-not-unchanged",
+      "boundary": "core",
+      "state": "saving",
+      "input": { "event": "native_write_failed" },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "cancel-during-native-save",
+      "boundary": "core",
+      "state": "saving",
+      "input": { "event": "cancel_observed" },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "save-wait-exact",
+      "boundary": "core",
+      "state": "saving",
+      "input": { "event": "save_wait_elapsed", "elapsed_ms": 5000 },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "lost-final-reply",
+      "boundary": "browser",
+      "state": "awaiting-result",
+      "input": { "event": "disconnect_after_submit" },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    },
+    {
+      "id": "no-late-success-after-save-uncertainty",
+      "boundary": "core",
+      "state": "indeterminate",
+      "input": { "event": "save_confirmed" },
+      "conditions": {},
+      "expected": { "state": "indeterminate", "code": "save_indeterminate", "storage": "unknown", "effects": { "cookie_read": false, "validate": false, "save": false } }
+    }
+  ]
+}

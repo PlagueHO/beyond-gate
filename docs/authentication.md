@@ -15,6 +15,14 @@ records the remaining return-path blocker and the evidence needed to resume.
 The later [extension feasibility evaluation](#extension-feasibility-evaluation)
 adds a candidate transport, not a working account login.
 
+The [browser handoff contract checkpoint](browser-handoff.md) now records two
+version 1 protocol proposals, a shared core API proposal for #30, and canonical
+synthetic test cases for #29/#46. It is **blocked for product integration**:
+application-peer authentication, the production cookie profile, and the core
+validation/persistence contract remain unresolved. The cases are not yet consumed
+by Rust or browser tests. This documentation does not enable login or credential
+access.
+
 ## Local session commands
 
 The CLI now exposes `auth login`, `auth status`, and `auth logout`. This is partial
