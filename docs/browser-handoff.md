@@ -33,6 +33,10 @@ can start independently. Do not make #46 depend on completion of its parent.
 Issue #30 can develop synthetic lifecycle cases independently; neither issue depends
 on completion of the other.
 
+The user selected Chrome and Edge on Windows for the first product handoff.
+This is a target, not a support claim. macOS and Linux browser login remain
+unsupported; their existing local status and logout behavior stays unchanged.
+
 ### Verified platform facts
 
 [Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging)
@@ -113,6 +117,57 @@ Repository `unsafe` code and a new required runtime remain forbidden. A safe
 dependency for OS checks or authenticated transport needs review before use.
 If a pairing action or a different trust boundary is necessary, obtain a user
 decision before changing this proposal. No such action is approved here.
+
+### Windows candidate review
+
+**Reviewed: 2026-10-31. Result: IPC-1 remains unresolved.**
+The full staged implementation plan starts with the existing contract gates.
+Approval of that plan does not establish a working authentication mechanism,
+freeze the proposed contracts, or authorize account or credential-store tests.
+
+The review checked the Windows and safe Rust interfaces below. It did not
+install a dependency, launch a browser, register a host, or access credentials.
+
+| Candidate | Verified capability | Missing proof |
+|-----------|---------------------|---------------|
+| Named-pipe access controls | Explicit permissions and logon isolation can restrict callers. | A permitted OS user is not an approved application or browser launch. |
+| Named-pipe peer process IDs | Windows exposes both client and server process ID queries. | A process ID alone does not prove application identity, extension consent, or a pending login. |
+| Browser parent-process check | Windows allows a creator to specify another process as the new process's parent, subject to access rights. | Parent identity alone cannot prove that the browser created the host for the approved extension. |
+| Tokio 1.54.1 named pipes | Provides first-instance creation and remote-client rejection. | These transport controls do not authenticate both applications or the browser launch. |
+| Interprocess 2.4.7 named pipes | Provides safe client/server peer process and session ID queries. | Safe access to peer metadata is not a complete authentication mechanism. |
+
+[GetNamedPipeClientProcessId](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeclientprocessid)
+and
+[GetNamedPipeServerProcessId](https://learn.microsoft.com/en-us/windows/win32/api/winbase/nf-winbase-getnamedpipeserverprocessid)
+provide OS-reported process identifiers rather than JSON assertions. A design
+using them must still establish trusted executable identity, process lifetime,
+connection binding, and authorized browser launch. Checking the installed host
+binary alone would also accept a direct launch of that same binary.
+
+[UpdateProcThreadAttribute](https://learn.microsoft.com/en-us/windows/win32/api/processthreadsapi/nf-processthreadsapi-updateprocthreadattribute)
+documents `PROC_THREAD_ATTRIBUTE_PARENT_PROCESS`. It lets a creator select
+another parent using a handle with `PROCESS_CREATE_PROCESS` access. Do not
+assume those rights are available for every browser process. The documented
+option is enough to reject an unconditional claim that a parent PID proves
+the creator or extension. No parent-spoofing experiment was run.
+
+[Tokio's options](https://docs.rs/tokio/1.54.1/tokio/net/windows/named_pipe/struct.ServerOptions.html)
+remain useful transport controls.
+[Interprocess's Windows API](https://docs.rs/interprocess/2.4.7/x86_64-pc-windows-msvc/interprocess/os/windows/named_pipe/struct.PipeStream.html)
+shows that peer metadata need not require repository `unsafe` code.
+Neither library is selected by this review. A library that transports bytes
+and exposes process IDs does not itself resolve IPC-1.
+
+PROFILE-1 and CORE-1 also remain unresolved. The browser cookie API describes
+fields, not the actual `CobaltSession` profile. The core still has only opaque
+local storage; it has no implemented `establish_session` operation or accepted
+service-validation result. The developer probe is not a replacement.
+
+Stop dependent product work at these gates. Do not enable a host, register it,
+or authorize a cookie query using an origin, parent PID, peer PID, or challenge
+alone. A reviewed launch-proof mechanism or an explicitly approved alternative
+is still required. This review does not prove that no viable mechanism exists.
+The version 1 message proposal and synthetic fixture remain unchanged.
 
 The fixture condition `authenticated_peer` is an injected test precondition.
 It is **not a wire field**, an implemented check, or permission to enable a host.
