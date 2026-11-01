@@ -186,7 +186,7 @@ before running the
 [separate-process tests](../src/beyond-gate-core/tests/paired_process.rs):
 
 ```powershell
-pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --features browser-fixture --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --example pending-slot-fixture --example browser-handoff-fixture --features browser-fixture --locked
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --test browser_handoff_transport --test browser_handoff_flow --test paired_process --features browser-fixture --locked
 ```
 
@@ -280,7 +280,7 @@ the released namespace. Fixed metadata never claims validation or save.
 
 ```powershell
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::handoff::slot --locked
-pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --example pending-slot-fixture --features browser-fixture --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --example pending-slot-fixture --example browser-handoff-fixture --features browser-fixture --locked
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --test paired_process --features browser-fixture --locked
 ```
 
@@ -303,7 +303,7 @@ A compile-fail endpoint example checks the reservation lifetime.
 
 ```powershell
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::handoff --locked -- --test-threads=1
-pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --example pending-slot-fixture --features browser-fixture --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --example pending-slot-fixture --example browser-handoff-fixture --features browser-fixture --locked
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --test paired_process --features browser-fixture --locked -- --test-threads=1
 ```
 

@@ -136,6 +136,7 @@ enum Cause {
     /// Retains malformed pairing-key encoding without its input.
     Encoding(base64::DecodeError),
     /// Keeps both the original failure and a failed safe reply behind fixed diagnostics.
+    #[cfg(windows)]
     Delivery {
         original: Box<HandoffError>,
         reply: Box<HandoffError>,
@@ -166,6 +167,7 @@ impl fmt::Display for HandoffCause {
                 _ => "handoff cryptographic operation failed",
             }),
             Cause::Encoding(_error) => formatter.write_str("pairing key encoding is invalid"),
+            #[cfg(windows)]
             Cause::Delivery { original, reply } => write!(
                 formatter,
                 "handoff failed ({}); failure reply also failed ({})",
@@ -211,12 +213,14 @@ impl HandoffError {
     }
 
     /// Changes only the category when confirmed-save delivery becomes uncertain.
+    #[cfg(windows)]
     pub(super) fn reclassify(mut self, code: ErrorCode) -> Self {
         self.code = code;
         self
     }
 
     /// Preserves the original category and both typed failures after reply failure.
+    #[cfg(windows)]
     pub(super) fn failed_reply(original: Self, reply: Self) -> Self {
         Self {
             code: original.code(),

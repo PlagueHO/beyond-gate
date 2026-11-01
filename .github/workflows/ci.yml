@@ -51,6 +51,9 @@ jobs:
       - name: Build synthetic Windows reservation fixture
         if: runner.os == 'Windows'
         run: ./scripts/cargo.ps1 build -p beyond-gate-core --example pending-slot-fixture --features browser-fixture --locked
+      - name: Build synthetic Windows native profile fixture
+        if: runner.os == 'Windows'
+        run: ./scripts/cargo.ps1 build -p beyond-gate-core --example browser-handoff-fixture --features browser-fixture --locked
       - name: Check encrypted streams and separate local processes
         run: ./scripts/cargo.ps1 test -p beyond-gate-core --test browser_handoff_transport --test browser_handoff_flow --test paired_process --features browser-fixture --locked
       - name: Build synthetic terminal pairing fixture
