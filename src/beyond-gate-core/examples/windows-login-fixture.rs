@@ -20,6 +20,11 @@ fn main() -> ExitCode {
                     match error.kind() {
                         std::io::ErrorKind::InvalidInput => "fixture_invalid_input",
                         std::io::ErrorKind::NotFound => "fixture_file_missing",
+                        std::io::ErrorKind::ConnectionAborted => "fixture_connection_aborted",
+                        std::io::ErrorKind::ConnectionReset => "fixture_connection_reset",
+                        std::io::ErrorKind::BrokenPipe => "fixture_broken_pipe",
+                        std::io::ErrorKind::TimedOut => "fixture_io_timeout",
+                        std::io::ErrorKind::WouldBlock => "fixture_io_would_block",
                         _ => "fixture_io_failure",
                     }
                 } else {

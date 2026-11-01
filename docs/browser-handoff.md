@@ -114,6 +114,8 @@ tests. Its consent, single cookie query, cancellation, and acknowledgement
 controller is implemented. Real Chrome and Edge process checks now exercise
 the product controller and native/core completion with invented material.
 They use private fixture pipes, a local mock service, and in-memory storage.
+The Windows mock service restores blocking mode on accepted sockets before
+bounded reads. A regression test sends delayed, fragmented request headers.
 The production interactive CLI, live validation, native save, restart/status,
 logout, and owned cleanup passed in the separate approved local scope.
 

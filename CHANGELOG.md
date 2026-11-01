@@ -281,6 +281,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Windows synthetic login service now restores blocking mode on accepted
+  sockets before bounded HTTP reads. Delayed or fragmented requests no longer
+  fail with `WouldBlock`. Fixed fixture diagnostics identify safe I/O categories
+  without printing request data or credentials.
 - Check the five-second save deadline in the blocking worker before storage
   setup and write admission, even when the async timeout has not run.
 - Check native-host registry ownership and remove matching mappings in one

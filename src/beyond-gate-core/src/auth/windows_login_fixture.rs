@@ -171,6 +171,7 @@ fn service(
                 Err(error) => return Err(error.into()),
             }
         };
+        stream.set_nonblocking(false)?;
         stream.set_read_timeout(Some(Duration::from_secs(2)))?;
         stream.set_write_timeout(Some(Duration::from_secs(2)))?;
         let mut request = Zeroizing::new(Vec::new());
@@ -342,6 +343,44 @@ pub fn run(arguments: &[OsString]) -> FixtureResult<()> {
     });
     runtime.shutdown_timeout(Duration::from_secs(1));
     result
+}
+
+/// Handles delayed, fragmented HTTP headers on Windows without inheriting nonblocking reads.
+#[cfg(test)]
+#[test]
+fn mock_service_waits_for_fragmented_request() {
+    let count = Arc::new(AtomicUsize::new(0));
+    let (url, worker) = service("saved", Arc::clone(&count)).expect("loopback mock service");
+    let address = url
+        .strip_prefix("http://")
+        .and_then(|url| url.strip_suffix("/v1/cobalt-token"))
+        .expect("fixture address");
+    let mut client = std::net::TcpStream::connect(address).expect("loopback connection");
+    client
+        .set_read_timeout(Some(Duration::from_secs(5)))
+        .expect("bounded response read");
+    std::thread::sleep(Duration::from_millis(100));
+    client
+        .write_all(b"POST /v1/cobalt-token HTTP/1.1\r\n")
+        .expect("partial request");
+    std::thread::sleep(Duration::from_millis(100));
+    client
+        .write_all(b"Cookie: cobaltSession=synthetic-session\r\n\r\n")
+        .expect("remaining headers");
+    let mut received = Vec::new();
+    client
+        .read_to_end(&mut received)
+        .expect("complete response");
+    worker.join().expect("mock worker").expect("served request");
+    let body = response().expect("invented response");
+    let mut expected = format!(
+        "HTTP/1.1 200 Fixture\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
+    )
+    .into_bytes();
+    expected.extend_from_slice(&body);
+    assert_eq!(received, expected);
+    assert_eq!(count.load(Ordering::SeqCst), 1);
 }
 
 /// Invented fixture material cannot become a general cookie or native-store ingress.
