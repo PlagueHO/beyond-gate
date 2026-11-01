@@ -7,6 +7,7 @@ on:
       - ".github/workflows/release.yml"
       - "scripts/**"
       - "src/**"
+      - "beyond-gate-browser-extension/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -92,7 +93,9 @@ jobs:
             $developerOutput | Out-Host
             if (!$developerShellSucceeded) { throw "Visual Studio 2022 environment setup failed." }
           }
-          foreach ($name in @("beyond-gate", "beyond-gate-mcp")) {
+          $names = @("beyond-gate", "beyond-gate-mcp")
+          if ($IsWindows) { $names += "beyond-gate-native-host" }
+          foreach ($name in $names) {
             $suffix = if ($IsWindows) { ".exe" } else { "" }
             $binary = Join-Path (Join-Path target release) "$name$suffix"
             if ($IsWindows) { & dumpbin /DEPENDENTS $binary }
@@ -118,6 +121,12 @@ jobs:
           }
           Copy-Item README.md, LICENSE, CHANGELOG.md -Destination package
           Copy-Item docs/installation.md -Destination package
+          if ($IsWindows) {
+            Copy-Item target/release/beyond-gate-native-host.exe -Destination package
+            $browserFiles = @("manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs") |
+              ForEach-Object { Join-Path beyond-gate-browser-extension $_ }
+            Compress-Archive -LiteralPath $browserFiles -DestinationPath package/beyond-gate-browser.zip
+          }
           $stem = "beyond-gate-v$env:VERSION-$env:TARGET"
           if ($IsWindows) {
             $archive = "$stem.zip"

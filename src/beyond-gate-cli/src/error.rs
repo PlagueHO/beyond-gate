@@ -12,6 +12,9 @@ use beyond_gate_core::{
 
 /// Retains shared operation errors without copying private response values.
 pub(crate) enum Failure {
+    BrowserSetup(crate::browser_setup::SetupError),
+    #[cfg(windows)]
+    Login(crate::login::LoginError),
     Auth(AuthError),
     Character(CharacterCampaignError),
     Library(LibraryError),
@@ -48,6 +51,9 @@ impl fmt::Display for Failure {
     /// Never prints raw JSON, input tokens, or arbitrary transport source chains.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::BrowserSetup(error) => write!(formatter, "{error}")?,
+            #[cfg(windows)]
+            Self::Login(error) => write!(formatter, "{error}")?,
             Self::Auth(error) => write!(formatter, "{error}")?,
             Self::Character(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
@@ -85,6 +91,9 @@ impl Error for Failure {
     /// Preserves typed causes for callers without flattening their classifications.
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::BrowserSetup(error) => Some(error),
+            #[cfg(windows)]
+            Self::Login(error) => Some(error),
             Self::Auth(error) => Some(error),
             Self::Character(error) => Some(error),
             Self::Library(error) => Some(error),

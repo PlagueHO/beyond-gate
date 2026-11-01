@@ -7,12 +7,136 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Completed Windows human-controlled browser login and protected handoff.
+  Approved Chrome and Edge Dev tests passed actual product-console login,
+  direct-service validation, native protected save, restart/status, logout,
+  repeated logout, and final absence. Hosted Chrome/Edge synthetic jobs and
+  three-OS Rust checks passed. The shared core contract is agreed with #30.
+  macOS/Linux browser login and reusable live-session handling remain separate.
+  Earlier authentication entries below record intermediate milestones; their
+  incomplete-state notes are historical, not the current Windows login status.
+- Real Chrome/Edge process checks for the product browser controller, native
+  relay, private Windows pipe, Noise pairing, and shared completion. The fixture
+  uses only invented cookies, local mock responses, and in-memory storage.
+  Cancellation does not save; lost acknowledgement remains indeterminate.
+  Windows CI runs this separately from receipt-only feasibility checks.
+  Windows archives now include the native host and bounded manual browser ZIP,
+  with package identity, permission, and rejection checks.
+- Windows native-host setup and owned removal with explicit browser and stable
+  directory selection, public manifest preview, and confirmation. Conflict
+  checks cover both registry views and hives, including Edge fallback locations.
+  Existing foreign setup is not overwritten. Registry creation uses a Windows
+  transaction. The user accepted registry entries, manifests, and launch mapping
+  as trusted installed configuration. Actual product browser integration,
+  packaging, and fresh approved live/save evidence remain incomplete.
+- Manual Chrome/Edge login form in a user-selected separate browser window.
+  Explicit consent and bound native authorization gate the single selected
+  cookie query. Keys are cleared from the form before connection. Final
+  acknowledgement gates saved-session evidence; failed or cancelled pending
+  queries cannot submit later. Shared invented production recipes now drive
+  browser and Rust codec/relay checks. Offline logic and synthetic UI rendering
+  checks passed. Real installation and end-to-end evidence
+  remain incomplete.
+- Actual Windows native-host executable and terminal-gated CLI login
+  orchestration. One-use pairing now reaches real shared validation and save,
+  with concurrent cancellation and final browser acknowledgement. A fixed
+  five-second save wait prevents late write admission. Post-submit failures
+  cannot report unchanged storage without the CLI's confirmation. Offline
+  process and paired local-service/in-memory-store checks cover refusal,
+  cancellation, rejection, timeout, uncertain writes, and lost/wrong receipts.
+  Browser setup and end-to-end product evidence remain incomplete.
+- User-reported one-use Edge API metadata evidence and the selected Windows
+  `cobalt-session-v1` contract. Windows parsers enforce its 2,552-byte value
+  limit. The paired controller fixes the profile before authorization and
+  rejects changes at open or submit. Production-bound receipt conversion moves
+  material into the shared core without a credential copy; synthetic receipts
+  are rejected. Offline tests use invented bytes. The metadata scope is
+  consumed; diagnostic removal is unconfirmed. Product login remains unsupported.
+- User-accepted Windows pairing boundary: the one-use, user-entered key
+  authorizes the application connection without independent extension-launch
+  proof. Installed code and process memory remain trusted. Origin checks,
+  consent, local pipe controls, deadlines, and replay rejection remain required.
+- Shared Windows session establishment with one fixed direct TLS exchange,
+  the user-accepted positive account and future bearer-expiry rule, and one
+  confirmed protected save. Versioned cookie bytes fit the 2,560-byte native
+  limit; derived bearers and account claims are not persisted. Atomic
+  cancellation/write admission and worker-owned reservations preserve pre-write
+  state and report uncertain started saves. Offline tests use local services
+  and in-memory keyring entries. Product browser login remains unsupported.
+- Separately approved fresh-cookie field evidence: HTTP 200 with a nonempty
+  token, positive nameidentifier, and future expiry. Negative and older-cookie
+  rejection evidence remains distinct. No product validation, content read,
+  or protected save occurred; all live request scopes are consumed.
+- Separately gated developer validation-field comparison with a maximum of
+  three approved direct exchanges, hidden real-cookie input, fixed anonymous
+  and expiry facts, zeroizing owned buffers, and no storage or content access.
+  Seven new offline checks cover field redaction, bounds, approval, terminal
+  refusal, missing-token negative evidence, and actual mock HTTP behavior.
+  JWT decoding does not validate a
+  product session. The live comparison remains ignored by default.
+- Windows single-instance handoff endpoint with safe owned-handle transfer,
+  reservation-bound server lifetime, logon-only client access, explicit owner
+  control denial, anonymous client security QoS, and bounded connection waiting.
+  Drop closes without blocking flush workers. Eight endpoint checks and actual
+  paired-pipe process cases cover access, receipt, rejection, and cleanup.
+  Application pairing is still required; product browser login and session
+  validation remain incomplete.
+- Windows pending-login reservation with a logon-specific namespace, first-instance
+  ownership, one non-inheritable server handle, and a protected deny-all Owner
+  Rights DACL. The reservation accepts no client and grants no data, pipe-instance,
+  or permission-change rights. Offline checks cover competing processes, normal
+  exit, owned-process termination, rejected client rights, and a pre-existing
+  foreign object. The complete application handoff and product login remain incomplete.
+- Interactive terminal pairing display with redirected-output refusal, canonical
+  43-character base64url keys, an owned alternate screen, explicit cleanup,
+  process-local display exclusion, and redacted errors. Six unit checks and one
+  process refusal check passed. An invented-key Windows native-console preview
+  completed rendering and close. Product endpoint and browser integration remain
+  incomplete; terminal/OS copies have no erasure guarantee.
+- System-generated, redacted 256-bit pairing keys and separate 128-bit public
+  transactions using pinned `getrandom` 0.4.3, without a randomness fallback.
+  A consuming application controller now sends authorization only after a
+  consented open on an already paired connection and returns one bound receipt,
+  never login success. Eleven flow checks and two key/error checks passed
+  locally. Ownership doctests reject repeated transfer and receipt.
+- Bounded encrypted host-to-CLI streams with a fixed binary envelope, consuming
+  pairing tickets, shared deadlines, directional frame budgets, and failure or
+  cancellation cleanup. Sixteen stream checks and three separate-process checks
+  passed locally on Windows. The helper now uses core-generated authorization
+  and rejects wrong transactions as well as wrong keys. It requires an explicit
+  feature build; the Rust CI matrix includes these checks. Product key delivery,
+  OS-isolated IPC, browser integration, validation, and save remain incomplete.
+- Encrypted pairing primitive using pinned `snow` 0.10.0 and a fixed
+  Noise PSK handshake and a consuming, expiring pairing ticket. Thirteen offline
+  checks cover real encryption, proof failures, tampering, replay, bounds, safe
+  causes, and exact ticket deadlines. User-mediated secret delivery, OS-wide
+  pending-login control, and native IPC are not yet implemented.
+- Separately gated, ignored negative-authentication probe with fixed absent
+  and invented-cookie requests, HTTP-status-only reporting, and stop conditions.
+  Nine offline checks passed. No real account, credential-store operation, or
+  live request is enabled by the default tests.
+- Development-only Chrome and Edge synthetic native-messaging checks with a
+  feature-required Rust fixture host, isolated profiles, narrow invented cookie
+  scope, and a rejecting local proxy. Local checks cover real cookie APIs,
+  missing registration, wrong extension origin, absent consent, no pending
+  authorization, native receipt, and owned cleanup. Separate Windows browser CI
+  jobs are defined but have not run. No account validation, protected save,
+  authenticated CLI channel, or product extension is added.
+- Shared version 1 handoff message parsers and bounded async frame readers and
+  writers for the invented profile. Owned input and credential allocations are
+  zeroizing; error chains hide peer and dependency text. Tests execute shared
+  message and frame recipes, exact bounds, duplicate fields, frame budgets,
+  deadlines, and cancellation. No authenticated transport, native-host ingress,
+  product browser integration, or product login is enabled.
+- Offline Rust consistency checks for the shared browser handoff fixture.
+  Checks cover canonical message shapes, proposed bounds, unique case IDs,
+  message references, and safe expected error effects. They do not execute
+  event recipes, authenticate peers, or implement product login.
 - Proposed version 1 browser-to-host and host-to-CLI contracts, a shared core
   session-establishment API proposal, and canonical synthetic conformance data.
   The contract checkpoint remains blocked on application-peer authentication,
   the production cookie profile, and core validation/persistence agreement.
-  No product login, fixture consumer, host registration, or credential access
-  is added.
+  No product login, host registration, or credential access is added.
 - Dedicated CLI command and local stdio MCP tool references, with exact inputs,
   output contracts, errors, safety bounds, and clearly labeled synthetic examples.
   README interface sections now link to these references. Live reads remain unsupported.
@@ -98,6 +222,43 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Align current login, architecture, roadmap, and installation guidance with
+  verified Windows behavior. Remove obsolete fallback and validation-gate
+  planning text while retaining dated evidence and accepted trust limits.
+- Share cancellation and original/phase deadline checks in the establishment
+  controller instead of repeating save-worker guards.
+- Rename the browser source directory to `beyond-gate-browser-extension` to
+  match the product's component names. Extension identity and archive names
+  remain unchanged.
+- Recorded the bounded validation comparison: absent-cookie HTTP 200 without a
+  token, invented-cookie HTTP 401, and a separately approved real-cookie HTTP
+  401. Both denials stopped their scopes. No authenticated session or protected
+  save is established; rejected input is not guessed to be expired.
+- Recorded user-reported non-secret Edge cookie metadata and the separately
+  approved Windows synthetic-store results. All four isolated native assertions
+  passed with cleanup. The full manual suite still returned exit 1, with five
+  failed installation-harness cases and 47 blocked live cases. No real-cookie
+  save, product session, or complete validation contract is established.
+- Recorded the separately approved negative-authentication result: the
+  absent-cookie request returned HTTP 200. The bounded check stopped before
+  its second request and read no body. A successful status cannot establish
+  service validation; response meaning remains unverified.
+- A second, separately approved absent-cookie JSON-shape observation returned
+  HTTP 200 with no nonempty `token` and a positive `ttl` field. Only status and
+  field-presence Booleans were reported; the bounded owned body was zeroizing.
+  No authenticated-session or token-lifetime claim is made.
+- Recorded pinned public cookie-selection and token-exchange source evidence.
+  Mocked cookie callbacks and a token-field check do not establish the production
+  cookie attributes or upstream negative-authentication behavior. Documented
+  that generic credential storage does not itself authenticate an application
+  peer. No live authentication request or credential-store access was performed.
+- Refined the browser-login contract checkpoint with the remaining launch-proof,
+  cookie-profile, and shared-core decisions. Recorded the Windows 2,560-byte
+  credential-blob limit and the existing HTTP cookie name/value bound.
+  A session-only synthetic test confirmed pipe metadata on standard handles;
+  reviewed Chromium named-pipe launch behavior does not prove extension identity.
+  All three gates remain blocked. Protocols, synthetic fixtures, product login,
+  and credential access are unchanged.
 - Record the Windows-first browser-handoff gate review, including OS-reported
   pipe peer IDs, safe Rust transport candidates, and the limits of parent-process
   checks. Chrome and Edge remain targets, not verified product support.
@@ -120,6 +281,18 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Windows synthetic login service now restores blocking mode on accepted
+  sockets before bounded HTTP reads. Delayed or fragmented requests no longer
+  fail with `WouldBlock`. Fixed fixture diagnostics identify safe I/O categories
+  without printing request data or credentials.
+- Check the five-second save deadline in the blocking worker before storage
+  setup and write admission, even when the async timeout has not run.
+- Check native-host registry ownership and remove matching mappings in one
+  Windows transaction. Concurrent changes cannot cause a foreign mapping to
+  be deleted.
+- Reset accepted synthetic authentication mock sockets to blocking mode before
+  applying I/O timeouts. This prevents inherited nonblocking mode from causing
+  Windows `WouldBlock` failures in offline exchange checks.
 - Documentation checker tests now return success after all assertions pass,
   instead of returning the last expected rejection's exit code to GitHub Actions.
 - Use the Visual Studio 2022 Cargo wrapper in contributor command examples on
@@ -133,5 +306,5 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Stop before starting an HTTP attempt when a queued permit becomes available
   after the total deadline. Accept case-insensitive identity content encoding.
 
-Account login and live D&D Beyond reads are not available. Local stdio MCP
-serving is available, but its live read tools return explicit unsupported errors.
+Windows account login and local stdio MCP serving are available. Live D&D Beyond
+reads remain unsupported, including through MCP tools.

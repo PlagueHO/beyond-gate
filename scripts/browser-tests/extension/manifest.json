@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Beyond Gate synthetic transport fixture",
+  "version": "0.0.1",
+  "description": "Development-only fixture. No account login or production cookie access.",
+  "permissions": ["cookies", "nativeMessaging"],
+  "host_permissions": ["https://login.beyond-gate.invalid/*"],
+  "background": {
+    "service_worker": "service_worker.js",
+    "type": "module"
+  }
+}

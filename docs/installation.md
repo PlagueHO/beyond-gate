@@ -2,8 +2,11 @@
 
 **Status: offline foundation, not a usable v1 D&D Beyond client.**
 There is no published release yet. The packaging workflow produces test archives.
-Login and live reads are not implemented. Local MCP serving and registration
-work, but discovery does not establish access to account data.
+Windows login and native-host setup are implemented.
+Approved real Chrome and Edge Dev login/save/restart/logout checks passed.
+Live reads are not
+implemented. Local MCP serving and registration work, but discovery does not
+establish access to account data.
 
 ## Package matrix
 
@@ -28,9 +31,31 @@ Each archive contains exactly these files at its root:
 - `beyond-gate` and `beyond-gate-mcp` (with `.exe` on Windows).
 - `README.md`, `LICENSE`, `CHANGELOG.md`, and `installation.md` (this guide).
 
+Windows archives also contain `beyond-gate-native-host.exe` and
+`beyond-gate-browser.zip`. The browser ZIP contains only `manifest.json`,
+`launch.mjs`, `flow.mjs`, `login.html`, `login.css`, and `login.mjs`.
+Development fixtures and tests are not included.
+
 Keep both binaries together in one stable directory. MCP registration records
 the absolute server path. If you move the files later, remove the old registration
 and register the new path. Do not copy only the CLI.
+
+For Windows browser setup, keep the native host beside the CLI in the stable
+installation directory. Extract `beyond-gate-browser.zip` into a separate
+`beyond-gate-browser-extension` subdirectory. Load that unpacked directory from
+`chrome://extensions` or `edge://extensions` with Developer mode enabled.
+Check that its ID is `gnhdconfgjfdbbgkemadegjcjnnodefh`.
+Do not continue if the ID differs. No browser-store package is published.
+
+Use `auth install edge --directory PATH --dry-run` or
+`auth install chrome --directory PATH --dry-run` to preview native-host setup.
+Remove `--dry-run` to request confirmation.
+Use the same directory with `auth uninstall` to preview or remove matching
+per-user setup. The command preserves binaries, other browsers, and machine-wide
+entries. Edge can still find a Chrome fallback after explicit Edge removal.
+See the [Windows setup commands](cli.md#auth-install-and-auth-uninstall) for the
+trust boundary and conflict rules. Do not register a temporary source worktree
+or build directory. These instructions do not establish completed live login.
 
 ## Verify the download
 
@@ -177,17 +202,21 @@ Unknown arguments also exit with code 2.
 After PATH setup, these checks are safe without an account:
 
 ```sh
-beyond-gate auth login
 beyond-gate character list --format json
 beyond-gate book read synthetic opening
 ```
 
-Each currently exits with code 1 and leaves stdout empty. Login reports the
-missing working session handoff. Reads report unsupported live operations.
+Each currently exits with code 1 and leaves stdout empty.
+Reads report unsupported live operations.
 These are implementation limits, not verified missing-session or expiry errors.
 Do not supply a password, cookie, or token. Do not create a credential manually.
 Do not run `auth status` or `auth logout` as an automated package check:
 they access the real OS store.
+Do not run interactive `auth login` as an account-free check. After human pairing
+and consent, it reads the selected browser cookie, validates it, and replaces the
+protected local entry. Separate explicit approval is required for real account
+or credential-store tests. Redirected package checks verify refusal before those
+operations.
 
 Starting `beyond-gate-mcp` with no arguments starts a stdio server. It waits for
 MCP messages, not terminal commands. It is not a login prompt. Use an MCP client
@@ -227,8 +256,10 @@ errors. Do not interpret discovery as successful login or live read access.
 
 To remove registration, stop the server in the client. Remove only the
 `beyond-gate` entry from the settings file's `mcpServers` object. Keep unrelated
-entries. Remove both installed binaries and their documentation if you no longer
-need them. Remove any PATH line you added. Unregistering or deleting the binaries
+entries. For browser login removal, also use the matching `auth uninstall`
+command before removing the native host and extension files. Remove the installed
+binaries and their documentation if you no longer need them. Remove any PATH
+line you added. Unregistering or deleting the binaries
 does not revoke an upstream session or remove a stored credential.
 
 ## Troubleshooting
@@ -244,7 +275,8 @@ does not revoke an upstream session or remove a stored credential.
 | Malformed client JSON or conflicting server name | Repair or remove only the conflicting entry after a backup. The installer will not overwrite it. |
 | MCP waits without output | It expects MCP JSON-RPC on stdin. Start it through a client, not as a terminal REPL. |
 | Locked or unavailable credential service | Use the desktop's normal unlock/service controls. Do not use a file fallback. |
-| Login blocker or unsupported read | This is the current product limit. Runtime installation will not resolve it. |
+| Windows login setup fails | Check the pinned extension ID, matching native-host registration, and three interactive terminal streams. Use a new login key after failure. |
+| Other-platform login or unsupported read | This is the current product limit. Runtime installation will not resolve it. |
 
 ## Release readiness
 
@@ -257,8 +289,8 @@ An offline package check is not a v1 acceptance decision.
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
 | CLI/MCP errors and output contracts, source attribution, book bounds | Existing offline suites use synthetic records. Live parity and source contracts remain blocked. |
 | Missing, expired, or rejected upstream session errors | Blocked by missing session-aware live operations. Unsupported errors are not substitutes. |
-| Simple browser login and native credential-store operation | Blocked or untested. Require separate explicit approval for real credential access. |
-| Live login, reads, and client walkthrough | Not tested by packaging. Require explicit approval and a permitted access path. Stop on access denial. |
+| Simple browser login and native credential-store operation | Approved Windows Chrome and Edge Dev product checks passed separately from packaging. Other-platform login remains deferred. New real-store tests need explicit approval. |
+| Live reads and client walkthrough | Not tested by packaging or Windows login checks. Require explicit approval and a permitted access path. Stop on access denial. |
 | Version, lockfile, dated changelog, assets, evidence, and draft release | Require maintainer review before publication. No tag or publication is authorized by issue #10 alone. |
 
 Manual packaging uploads artifacts only. A maintainer-approved version tag can

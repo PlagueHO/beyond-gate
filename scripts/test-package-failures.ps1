@@ -106,6 +106,24 @@ try {
   [System.IO.File]::WriteAllText($guide, '')
   Write-TestArchive $contents
   Assert-RejectedPackage $testArchive 'Package files must not be empty'
+  [System.IO.File]::WriteAllText($guide, $guideText)
+  if ($IsWindows) {
+    $browserArchive = Join-Path $contents 'beyond-gate-browser.zip'
+    $browserBytes = [System.IO.File]::ReadAllBytes($browserArchive)
+    $zip = [System.IO.Compression.ZipFile]::Open($browserArchive, [System.IO.Compression.ZipArchiveMode]::Update)
+    try {
+      $entry = $zip.CreateEntry('../unexpected.txt')
+      $writer = [System.IO.StreamWriter]::new($entry.Open())
+      try { $writer.Write('invented') } finally { $writer.Dispose() }
+    } finally { $zip.Dispose() }
+    Write-TestArchive $contents
+    Assert-RejectedPackage $testArchive 'Unexpected or unsafe browser archive member'
+    [System.IO.File]::WriteAllBytes($browserArchive, $browserBytes)
+    $zip = [System.IO.Compression.ZipFile]::Open($browserArchive, [System.IO.Compression.ZipArchiveMode]::Update)
+    try { $zip.GetEntry('flow.mjs').Delete() } finally { $zip.Dispose() }
+    Write-TestArchive $contents
+    Assert-RejectedPackage $testArchive 'Browser package is missing required files'
+  }
 }
 finally {
   if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }

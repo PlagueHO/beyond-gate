@@ -10,7 +10,7 @@ pub use error::{CauseKind, ErrorKind, FailureCause, HttpError};
 use std::{fmt, sync::Arc, time::Duration};
 
 use reqwest::{
-    Client, Response, Url,
+    Client, ClientBuilder, RequestBuilder, Response, Url,
     header::{
         ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_ENCODING, COOKIE, HeaderValue, RETRY_AFTER,
     },
@@ -20,6 +20,39 @@ use tokio::{
     sync::Semaphore,
     time::{Instant, sleep, timeout_at},
 };
+use zeroize::Zeroizing;
+
+/// Shares direct, non-redirecting transport setup without selecting an upstream origin.
+pub(crate) fn direct_client_builder() -> ClientBuilder {
+    Client::builder()
+        .no_proxy()
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .referer(false)
+        .no_gzip()
+        .no_brotli()
+        .no_deflate()
+        .no_zstd()
+        .connection_verbose(false)
+        .user_agent(concat!("beyond-gate/", env!("CARGO_PKG_VERSION")))
+}
+
+/// Checks a single RFC 6265 cookie without allocating a credential header.
+pub(crate) fn validate_cookie(name: &str, value: &str) -> Result<(), HttpError> {
+    if name.is_empty()
+        || value.is_empty()
+        || name.len().saturating_add(value.len()) > 8 * 1024
+        || !name
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+        || !value.bytes().all(
+            |byte| matches!(byte, 0x21 | 0x23..=0x2b | 0x2d..=0x3a | 0x3c..=0x5b | 0x5d..=0x7e),
+        )
+    {
+        return Err(HttpError::new(ErrorKind::InvalidInput));
+    }
+    Ok(())
+}
 
 /// Holds only the credential headers supplied by a future session operation.
 ///
@@ -61,22 +94,23 @@ impl SessionHeaders {
     ///
     /// Returns `InvalidInput` for empty, oversized, or unsafe input.
     pub fn cookie(name: &str, value: &str) -> Result<Self, HttpError> {
-        if name.is_empty()
-            || value.is_empty()
-            || name.len().saturating_add(value.len()) > 8 * 1024
-            || !name
-                .bytes()
-                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
-            || !value.bytes().all(
-                |byte| matches!(byte, 0x21 | 0x23..=0x2b | 0x2d..=0x3a | 0x3c..=0x5b | 0x5d..=0x7e),
-            )
-        {
-            return Err(HttpError::new(ErrorKind::InvalidInput));
-        }
+        validate_cookie(name, value)?;
+        let text = Zeroizing::new(format!("{name}={value}"));
         Ok(Self {
             authorization: None,
-            cookie: Some(sensitive_header(&format!("{name}={value}"))?),
+            cookie: Some(sensitive_header(&text)?),
         })
+    }
+
+    /// Adds only the validated sensitive headers to one scoped request.
+    pub(crate) fn apply(&self, mut request: RequestBuilder) -> RequestBuilder {
+        if let Some(header) = &self.authorization {
+            request = request.header(AUTHORIZATION, header.clone());
+        }
+        if let Some(header) = &self.cookie {
+            request = request.header(COOKIE, header.clone());
+        }
+        request
     }
 }
 
@@ -212,21 +246,11 @@ impl HttpClient {
             }
             origins.push(url.origin().ascii_serialization());
         }
-        let client = Client::builder()
+        let client = direct_client_builder()
             .https_only(!test_loopback)
-            .no_proxy()
-            .redirect(reqwest::redirect::Policy::none())
-            .retry(reqwest::retry::never())
-            .referer(false)
-            .no_gzip()
-            .no_brotli()
-            .no_deflate()
-            .no_zstd()
-            .connection_verbose(false)
             .connect_timeout(policy.connect)
             .timeout(policy.attempt)
             .pool_max_idle_per_host(policy.concurrency)
-            .user_agent(concat!("beyond-gate/", env!("CARGO_PKG_VERSION")))
             .build()
             .map_err(|error| {
                 let mut failure = HttpError::transport(error);
@@ -317,12 +341,7 @@ impl HttpClient {
             .header(ACCEPT, "application/json")
             .header(ACCEPT_ENCODING, "identity");
         if let Some(session) = session {
-            if let Some(header) = &session.authorization {
-                request = request.header(AUTHORIZATION, header.clone());
-            }
-            if let Some(header) = &session.cookie {
-                request = request.header(COOKIE, header.clone());
-            }
+            request = session.apply(request);
         }
         let mut response = request.send().await.map_err(HttpError::transport)?;
         check_status(&response)?;

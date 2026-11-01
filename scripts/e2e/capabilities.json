@@ -6,6 +6,8 @@
     { "path": "", "arguments": [] },
     { "path": "auth", "arguments": [] },
     { "path": "auth login", "arguments": [] },
+    { "path": "auth install", "arguments": ["browser", "directory", "dry-run"] },
+    { "path": "auth uninstall", "arguments": ["browser", "directory", "dry-run"] },
     { "path": "auth status", "arguments": [] },
     { "path": "auth logout", "arguments": [] },
     { "path": "character", "arguments": [] },
@@ -26,6 +28,7 @@
   "formats": ["json", "table", "tsv"],
   "shells": ["bash", "elvish", "fish", "powershell", "zsh"],
   "clients": ["claude-code", "copilot-cli", "vscode"],
+  "browsers": ["chrome", "edge"],
   "reads": [
     { "path": "character list", "tool": "character_list", "arguments": {}, "list": true },
     { "path": "character show", "tool": "character_show", "arguments": { "id": "synthetic" }, "list": false },

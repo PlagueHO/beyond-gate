@@ -13,23 +13,25 @@ pub fn command() -> Command {
         .after_help(FOUNDATION_NOTICE)
         .arg_required_else_help(true)
         .subcommand(
-            resource("auth", "Inspect or remove the protected local session; browser login is blocked")
-                .subcommand(Command::new("login").about("Report the browser-login blocker without collecting credentials"))
+            resource("auth", "Manage the protected local session")
+                .subcommand(Command::new("login").about("Complete human-controlled Windows browser login after explicit extension setup"))
+                .subcommand(browser_setup("install", "Preview and register the Windows browser native host"))
+                .subcommand(browser_setup("uninstall", "Preview and remove matching Windows browser native-host setup"))
                 .subcommand(Command::new("status").about("Report local presence only, without checking upstream usability"))
                 .subcommand(Command::new("logout").about("Remove the local credential without upstream revocation")),
         )
         .subcommand(
-            resource("character", "Character reads (live source and login are not implemented)")
+            resource("character", "Character reads (live source is not implemented)")
                 .subcommand(list_options(Command::new("list").about("List character summaries; live reads are unsupported")))
                 .subcommand(Command::new("show").about("Show character metadata and unchanged raw JSON; live reads are unsupported").arg(identifier("id"))),
         )
         .subcommand(
-            resource("campaign", "Campaign reads (live source and login are not implemented)")
+            resource("campaign", "Campaign reads (live source is not implemented)")
                 .subcommand(list_options(Command::new("list").about("List campaigns and character associations; live reads are unsupported")))
                 .subcommand(Command::new("show").about("Show campaign metadata, associations, and raw JSON; live reads are unsupported").arg(identifier("id"))),
         )
         .subcommand(
-            resource("book", "Book reads (live source and login are not implemented)")
+            resource("book", "Book reads (live source is not implemented)")
                 .subcommand(list_options(Command::new("list").about("List book metadata and access evidence; live discovery is unsupported")))
                 .subcommand(list_options(Command::new("outline").about("List section navigation; live reads are unsupported").arg(identifier("book-id"))))
                 .subcommand(
@@ -69,6 +71,27 @@ pub fn command() -> Command {
             Command::new("completions")
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
+        )
+}
+
+/// Requires an explicit stable installation directory and browser for host setup.
+fn browser_setup(name: &'static str, about: &'static str) -> Command {
+    Command::new(name)
+        .about(about)
+        .arg(Arg::new("browser").required(true).value_parser(["chrome", "edge"]))
+        .arg(
+            Arg::new("directory")
+                .long("directory")
+                .required(true)
+                .value_name("PATH")
+                .value_parser(value_parser!(std::path::PathBuf))
+                .help("Existing stable installation directory; source and build directories are refused"),
+        )
+        .arg(
+            Arg::new("dry-run")
+                .long("dry-run")
+                .action(ArgAction::SetTrue)
+                .help("Check conflicts and show setup without prompting or writing"),
         )
 }
 

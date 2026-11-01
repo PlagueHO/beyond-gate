@@ -8,16 +8,23 @@ provides an offline-tested async HTTP boundary and protected local session
 operations. It can assemble library, character, and campaign metadata from
 explicitly supplied offline pages. The core also provides offline book outlines
 and bounded section chunks with request-scoped access checks. The CLI exposes
-blocked login plus local status/logout, resource command parsing and formatting,
+Windows terminal pairing plus local status/logout, resource command parsing and formatting,
 shell completion generation, and local MCP start/install commands. The start
 command runs the sibling MCP binary. The install command previews user-level
 configuration changes and writes only after confirmation. Its resource commands
 use the core's explicit unsupported live entry points. Synthetic success paths
 exist only in tests.
-There is no built-in runtime host list, resource endpoint, account model, or
-browser handoff. The MCP adapter serves local stdio with seven read-only tools;
+There is no built-in resource host list, resource endpoint, or account model.
+Windows browser setup and native/core completion are implemented.
+Approved real Chrome and Edge Dev login and protected-save checks passed.
+The MCP adapter serves local stdio with seven read-only tools;
 their shared core operations currently return explicit unsupported errors.
-Neither adapter constructs an HTTP client or sends upstream requests.
+Resource reads do not construct an HTTP client or send upstream requests.
+The core now also exports a Windows-only
+[shared establishment boundary](browser-handoff.md#shared-core-boundary)
+with a fixed authentication-service origin. Windows CLI completion now calls it
+after a production-bound submission. The native relay checks its fixed origin,
+authenticates pairing, and waits for final browser receipt confirmation.
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
@@ -34,7 +41,9 @@ serde_json, and httpdate. The developer-only
 blocking reqwest and rpassword through development dependencies.
 `Cargo.lock` records exact resolved versions, including development dependencies.
 Local auth uses `keyring-core`, explicit target-specific credential-store crates,
-and `zeroize`. These operations do not use the probe or the HTTP boundary.
+and `zeroize`. Local storage does not use the probe or HTTP client.
+Windows establishment reuses the HTTP module's direct transport and cookie
+header helpers, not its resource-read operation.
 
 ## Intended boundaries
 
@@ -101,8 +110,8 @@ The initial client selection follows current official documentation:
 [Claude Code MCP](https://code.claude.com/docs/en/mcp), and
 [GitHub Copilot CLI MCP](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
 The installer does not register credentials or remote URLs. Server discovery
-does not enable live reads. Product login remains blocked by the missing browser
-handoff.
+does not enable live reads. Windows browser login has separate explicit setup
+and approved product verification; it does not enable authenticated resource reads.
 
 ## Local session boundary
 
@@ -116,7 +125,8 @@ fallback is used. See [backend requirements](authentication.md#protected-store-s
 provides the real test boundary, so no additional storage trait is needed.
 Unit tests supply isolated in-memory entries, never native credentials.
 `SessionSecret` owns bounded opaque bytes and clears its allocation on drop.
-The format is not an upstream contract. No product command currently writes one.
+The opaque bound is not an upstream contract. Windows paired login saves only
+the separately versioned cookie envelope through shared establishment.
 
 Status reports `Absent` or `StoredUnverified`. An entry is not proof of usable,
 expired, or rejected authentication. Only the native missing-entry result means
@@ -125,43 +135,44 @@ deleted. Logout removes the fixed entry without reading the secret and treats
 an already missing entry as success. It does not revoke an upstream session.
 There is no in-memory token cache or long-running authenticated adapter yet.
 
+Windows establishment separates browser cookie input, transient bearer evidence,
+and versioned persistent bytes. It trusts the accepted direct TLS response rule,
+not independent JWT signature verification. Native store setup follows validation
+and runs off the executor with the save. Atomic cancellation/write admission
+preserves pre-write state; a started write with unconfirmed completion is
+`save_indeterminate`. Worker ownership retains the pending reservation after
+caller drop. In-memory keyring and local HTTP tests cover this boundary.
+The production browser controller checks the selected cookie profile.
+Authenticated adapter reads remain deferred.
+
 Errors retain typed native causes behind a redacted wrapper. Display, Debug, and
 the standard error chain omit credential bytes and raw native messages. The safe
 classification distinguishes invalid local data, denied or locked storage,
 unavailable backends, ambiguous entries, unsupported platforms, and other native
 failures where the backend enum permits it. Unknown failures do not become absence.
 
-The CLI parses and presents these operations. Its login command returns an
-explicit blocker before any storage, browser, input, or network activity.
+The CLI parses and presents these operations. Windows login requires interactive
+streams and one-use browser pairing before validation and protected save.
+Redirected login and other platforms fail before credential access.
 MCP read tools call the same core operations and do not read credentials or
 create a separate session identity. No auth or credential-input tool is exposed.
 Native store calls are blocking, so future async operations must keep them off
 executor threads.
 
-This is partial offline work for #3. Browser handoff, session exchange, upstream
-expiry, refresh, rejection, and actual adapter session parity remain blocked.
+Windows browser handoff, direct exchange, rejection, cancellation, and protected
+save have [approved product evidence](testing.md#approved-windows-product-login-verification).
+Reusable upstream-session states, refresh, revocation, and authenticated adapter
+parity remain [#30](https://github.com/PlagueHO/beyond-gate/issues/30) work.
 
-The [2026-10-31 review for #29](authentication.md#existing-browser-decision-for-issue-29)
-initially kept login within the user's selected existing-browser-only scope. It found no
-verified return contract and adds no speculative callback or exchange.
-The user later approved [extension evaluation with synthetic tests](authentication.md#extension-feasibility-evaluation).
-The user reported a successful synthetic Edge extension-to-host handoff.
-Chrome is also a requested target, but has not been tested. This tests a browser
-transport, not account login or protected storage. A
-[requested environment-based fallback](authentication.md#requested-fallback)
-also needs a secure import contract; MCP tool inputs cannot carry credentials.
-Issue [#30](https://github.com/PlagueHO/beyond-gate/issues/30) separately owns
-session validation, expiry evidence, bounded refresh, and authenticated adapter
-use. A future login flow must agree on its stored-session boundary with that work.
-
-The [contract-first checkpoint](browser-handoff.md) proposes separate
-extension-to-host and host-to-CLI protocols plus one shared core establishment
-boundary. #29 owns the native host, browser registration, and CLI connection;
-[#46](https://github.com/PlagueHO/beyond-gate/issues/46) owns the extension and
-real synthetic browser CI. No product types, host, or IPC implementation are
-added. The checkpoint remains blocked until application-peer authentication,
-the production cookie profile, and #30's validation/persistence contract are
-established. A caller origin, OS user identity, or challenge alone is not enough.
+The [browser contracts](browser-handoff.md) define extension-to-host JSON,
+encrypted host-to-CLI framing, one-use key pairing, logon-restricted Windows
+pipes, and the agreed shared establishment boundary. #29 owns the native host,
+registration, and CLI connection. #46 owns the manual browser extension and
+real synthetic browser CI. Their Windows product integration is implemented.
+The accepted trust boundary includes installed configuration and code; it does
+not independently prove extension launch or resist a substituted native host.
+The earlier browser and IPC investigations remain dated evidence in the
+authentication and handoff guides, not current implementation blockers.
 
 ## HTTP boundary
 
