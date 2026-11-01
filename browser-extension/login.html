@@ -1,0 +1,53 @@
+<!doctype html>
+<!--
+THESIS: A focused, user-controlled pairing form extends the plain CLI workflow.
+OWN-WORLD: Native system type, white form surface, solid controls, restrained blue.
+STORY: Sign in in the browser; authorize one pairing; wait for confirmed save.
+FIRST VIEWPORT: One readable column, sign-in link, key and consent, primary action.
+FORM: User-selected separate browser window; no toolbar popup or automatic login.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Beyond Gate login</title>
+  <link rel="stylesheet" href="login.css">
+  <script type="module" src="login.mjs"></script>
+</head>
+<body>
+  <main>
+    <h1>Connect Beyond Gate</h1>
+    <p class="intro">Sign in yourself. Your password stays in the browser.</p>
+    <p><a href="https://www.dndbeyond.com/" target="_blank" rel="noopener noreferrer">Open D&amp;D Beyond to sign in</a></p>
+    <p class="instruction">Run <code>beyond-gate auth login</code> in an interactive terminal.
+      Keep this window open while you enter its one-use pairing key.</p>
+    <form id="pairing-form">
+      <fieldset id="pairing-fields">
+        <legend>Authorize one login</legend>
+        <label for="browser">This browser</label>
+        <select id="browser" name="browser">
+          <option value="edge">Microsoft Edge</option>
+          <option value="chrome">Google Chrome</option>
+        </select>
+        <label for="key">One-use pairing key</label>
+        <input id="key" name="pairing-key" type="password" required minlength="43" maxlength="43"
+          autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="key-help">
+        <p id="key-help" class="help">Enter the 43-character key from the terminal. This is not your D&amp;D Beyond password.</p>
+        <label class="consent" for="consent">
+          <input id="consent" type="checkbox" required>
+          <span>I authorize Beyond Gate to read one <code>CobaltSession</code> cookie from this browser,
+            validate it with D&amp;D Beyond, and replace the protected local Beyond Gate session.</span>
+        </label>
+        <button id="connect" type="submit">Pair and save session</button>
+      </fieldset>
+    </form>
+    <section id="status" aria-live="polite" aria-atomic="true" tabindex="-1">
+      <h2 id="status-heading">Waiting for your approval</h2>
+      <p id="status-text">No cookie has been read. Native-host registration is required.</p>
+    </section>
+    <button id="cancel" type="button" hidden>Cancel login</button>
+    <p class="footnote">Closing this window stops the handoff. A started save can remain unconfirmed.
+      This does not log your browser out. Account reads are not yet supported.</p>
+  </main>
+</body>
+</html>

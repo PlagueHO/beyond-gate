@@ -1,0 +1,17 @@
+{
+  "name": "beyond-gate-browser-feasibility",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "test": "node --test unit.test.mjs product-flow.test.mjs ../../browser-extension/tests/flow.test.mjs",
+    "feasibility": "node run.mjs",
+    "product-flow": "node product-flow.mjs"
+  },
+  "devDependencies": {
+    "puppeteer-core": "25.16.0"
+  }
+}

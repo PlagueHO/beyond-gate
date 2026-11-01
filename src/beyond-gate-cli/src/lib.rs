@@ -3,10 +3,17 @@
 //! The production read implementation delegates to unsupported live core entry
 //! points. Synthetic success paths belong only to test processes.
 
+mod browser_setup;
 mod command;
 mod error;
 mod mcp;
 mod output;
+
+#[cfg(windows)]
+mod login;
+
+/// Presents one pairing key only on an interactive, owned terminal screen.
+pub mod pairing;
 
 use std::{
     ffi::OsString,
@@ -233,7 +240,7 @@ where
 
 /// Parses and executes one command with an explicit input stream.
 ///
-/// The input stream is used only by the MCP installer confirmation. All other
+/// The input stream is used only by local setup confirmation. All other
 /// commands keep their existing storage and output behavior.
 pub fn run_with_input<I, T>(
     arguments: I,
@@ -265,6 +272,14 @@ where
     if let Some(("mcp", arguments)) = matches.subcommand() {
         return execute_mcp(arguments, stdin, stdout, stderr);
     }
+    if let Some(arguments) = matches.subcommand_matches("auth")
+        && matches!(arguments.subcommand_name(), Some("install" | "uninstall"))
+    {
+        return match browser_setup::run(arguments, stdin, stdout) {
+            Ok(()) => 0,
+            Err(error) => report(&Failure::BrowserSetup(error), stderr),
+        };
+    }
     match execute(&matches, reads).and_then(|bytes| write_output(stdout, &bytes)) {
         Ok(()) => 0,
         Err(error) => report(&error, stderr),
@@ -290,6 +305,16 @@ fn report(error: &Failure, stderr: &mut impl Write) -> i32 {
 /// Dispatches the validated command before any presentation is written.
 fn execute(matches: &ArgMatches, reads: &impl ReadOperations) -> Result<Vec<u8>, Failure> {
     if let Some(action) = auth_action(matches) {
+        #[cfg(windows)]
+        if matches!(action, AuthAction::Login) {
+            let saved = login::login().map_err(Failure::Login)?;
+            return Ok(format!(
+                "saved: Beyond Gate session; validation={}; expiry={}.\n",
+                saved.validation_evidence(),
+                saved.expiry_evidence(),
+            )
+            .into_bytes());
+        }
         let message = execute_auth(
             action,
             || SessionStore::open()?.status(),

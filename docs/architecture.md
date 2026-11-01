@@ -8,16 +8,23 @@ provides an offline-tested async HTTP boundary and protected local session
 operations. It can assemble library, character, and campaign metadata from
 explicitly supplied offline pages. The core also provides offline book outlines
 and bounded section chunks with request-scoped access checks. The CLI exposes
-blocked login plus local status/logout, resource command parsing and formatting,
+Windows terminal pairing plus local status/logout, resource command parsing and formatting,
 shell completion generation, and local MCP start/install commands. The start
 command runs the sibling MCP binary. The install command previews user-level
 configuration changes and writes only after confirmation. Its resource commands
 use the core's explicit unsupported live entry points. Synthetic success paths
 exist only in tests.
-There is no built-in runtime host list, resource endpoint, account model, or
-browser handoff. The MCP adapter serves local stdio with seven read-only tools;
+There is no built-in resource host list, resource endpoint, or account model.
+Windows browser setup and synthetic native/core completion are implemented;
+real account login and protected save remain unverified.
+The MCP adapter serves local stdio with seven read-only tools;
 their shared core operations currently return explicit unsupported errors.
-Neither adapter constructs an HTTP client or sends upstream requests.
+Resource reads do not construct an HTTP client or send upstream requests.
+The core now also exports a Windows-only
+[shared establishment boundary](browser-handoff.md#proposed-shared-core-boundary)
+with a fixed authentication-service origin. Windows CLI completion now calls it
+after a production-bound submission. The native relay checks its fixed origin,
+authenticates pairing, and waits for final browser receipt confirmation.
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
@@ -116,7 +123,8 @@ fallback is used. See [backend requirements](authentication.md#protected-store-s
 provides the real test boundary, so no additional storage trait is needed.
 Unit tests supply isolated in-memory entries, never native credentials.
 `SessionSecret` owns bounded opaque bytes and clears its allocation on drop.
-The format is not an upstream contract. No product command currently writes one.
+The opaque bound is not an upstream contract. Windows paired login saves only
+the separately versioned cookie envelope through shared establishment.
 
 Status reports `Absent` or `StoredUnverified`. An entry is not proof of usable,
 expired, or rejected authentication. Only the native missing-entry result means
@@ -124,6 +132,15 @@ absence; other errors remain failures. Invalid local values are not silently
 deleted. Logout removes the fixed entry without reading the secret and treats
 an already missing entry as success. It does not revoke an upstream session.
 There is no in-memory token cache or long-running authenticated adapter yet.
+
+Windows establishment separates browser cookie input, transient bearer evidence,
+and versioned persistent bytes. It trusts the accepted direct TLS response rule,
+not independent JWT signature verification. Native store setup follows validation
+and runs off the executor with the save. Atomic cancellation/write admission
+preserves pre-write state; a started write with unconfirmed completion is
+`save_indeterminate`. Worker ownership retains the pending reservation after
+caller drop. In-memory keyring and local HTTP tests cover this boundary.
+Production browser profile checks and authenticated adapter use remain absent.
 
 Errors retain typed native causes behind a redacted wrapper. Display, Debug, and
 the standard error chain omit credential bytes and raw native messages. The safe
@@ -146,8 +163,9 @@ initially kept login within the user's selected existing-browser-only scope. It 
 verified return contract and adds no speculative callback or exchange.
 The user later approved [extension evaluation with synthetic tests](authentication.md#extension-feasibility-evaluation).
 The user reported a successful synthetic Edge extension-to-host handoff.
-Chrome is also a requested target, but has not been tested. This tests a browser
-transport, not account login or protected storage. A
+The later [isolated browser suite](testing.md#isolated-browser-feasibility) passed
+real synthetic native messaging in both Chrome and Edge on Windows. These tests
+prove transport feasibility, not account login or protected storage. A
 [requested environment-based fallback](authentication.md#requested-fallback)
 also needs a secure import contract; MCP tool inputs cannot carry credentials.
 Issue [#30](https://github.com/PlagueHO/beyond-gate/issues/30) separately owns
@@ -158,10 +176,25 @@ The [contract-first checkpoint](browser-handoff.md) proposes separate
 extension-to-host and host-to-CLI protocols plus one shared core establishment
 boundary. #29 owns the native host, browser registration, and CLI connection;
 [#46](https://github.com/PlagueHO/beyond-gate/issues/46) owns the extension and
-real synthetic browser CI. No product types, host, or IPC implementation are
-added. The checkpoint remains blocked until application-peer authentication,
+real synthetic browser CI. Shared synthetic message types, framing, and a
+development-only host exist; no product host or authenticated IPC is added.
+The checkpoint remains blocked until application-peer authentication,
 the production cookie profile, and #30's validation/persistence contract are
 established. A caller origin, OS user identity, or challenge alone is not enough.
+
+The [focused gate decision](browser-handoff.md#contract-blocker-decision) keeps
+these contracts proposed and blocked. An inherited CLI pipe still needs an
+authenticated handle-delivery path to the browser-launched host. A native window
+argument does not prove that launch. The core profile must also reconcile the
+HTTP name/value bound and the Windows 2,560-byte credential-blob limit before
+selecting a portable persistent encoding. No runtime or stored format changes.
+
+The later [synthetic standard-handle test](browser-handoff.md#synthetic-standard-handle-follow-up)
+confirmed OS pipe metadata on two test standard handles. Reviewed Chromium source
+uses named pipes and can pass pre-opened client handles to the host. This does
+not prove an approved extension launch or identify every later handle holder.
+The full authenticated channel and a compatible safe Rust implementation remain
+unresolved.
 
 ## HTTP boundary
 

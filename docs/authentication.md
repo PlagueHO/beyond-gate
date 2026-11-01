@@ -1,6 +1,7 @@
 # Authentication design
 
-**Local storage implemented; browser login blocked.** Simple local login is a core requirement.
+**Windows setup and synthetic login integration implemented; live login unverified.**
+Simple local login is a core requirement.
 The [2026-10-27 feasibility assessment](architecture.md#feasibility-assessment)
 did not establish a permitted path. Its blanket development stop gate is now
 removed under the [current policy](roadmap.md#development-policy-and-technical-status).
@@ -17,11 +18,95 @@ adds a candidate transport, not a working account login.
 
 The [browser handoff contract checkpoint](browser-handoff.md) now records two
 version 1 protocol proposals, a shared core API proposal for #30, and canonical
-synthetic test cases for #29/#46. It is **blocked for product integration**:
-application-peer authentication, the production cookie profile, and the core
-validation/persistence contract remain unresolved. The cases are not yet consumed
-by Rust or browser tests. This documentation does not enable login or credential
-access.
+synthetic test cases for #29/#46. It is **incomplete for product integration**:
+the accepted Windows pairing and service rules have offline implementations.
+The user-reported Edge API observation supplies the production profile fields.
+The real native host and CLI orchestration now call shared completion.
+The product browser form and explicit Windows host setup now exist.
+Both browsers passed synthetic native/core completion checks.
+Production terminal, real account, and protected-save evidence remain incomplete.
+Rust tests check fixture
+data and execute selected message and frame recipes against shared core parsers.
+The newer paired completion tests run real local validation and mock saves;
+they do not prove live login. Only the Windows CLI starts this ingress.
+The parsers accept the invented profile
+and, on Windows, `cobalt-session-v1`. Parsing cannot establish service validation
+or protected-save success.
+
+The [focused contract-blocker review](browser-handoff.md#contract-blocker-decision)
+is a historical checkpoint. The user has since
+[approved pairing and scoped evidence work](browser-handoff.md#approved-pairing-and-evidence-direction).
+Encrypted pairing, terminal display, and a protected Windows endpoint are
+implemented. Synthetic browser integration now passes locally; live login remains
+unverified. The review records the
+missing launch proof, a proposed
+metadata-only approval packet, and the validation/encoding decisions needed
+from #30. Approval of this documentation does not approve the observation or
+freeze the protocols.
+
+The user subsequently accepted the
+[Windows pairing boundary](browser-handoff.md#accepted-windows-pairing-boundary).
+The one-use, user-entered key authorizes the application connection. Independent
+extension-launch proof is not claimed. Installed code and process memory remain
+trusted. Production terminal and protected-store integration still need manual evidence.
+
+The user has now accepted the
+[strict Windows service rule](browser-handoff.md#accepted-windows-service-rule).
+The shared core API validates a direct service response and confirms one
+protected save with safe cancellation and write-uncertainty handling.
+It persists only a versioned cookie, with a 2,552-byte value limit and eight-byte
+header. The bearer remains transient; cookie expiry remains unknown.
+Windows CLI completion now calls this boundary. The
+[selected Windows cookie contract](browser-handoff.md#selected-windows-cookie-contract)
+now fixes the observed scope and attributes. The paired controller binds its
+profile before authorization, and the core consumes its receipt without a
+credential copy. Actual browser selection and complete product handoff remain
+incomplete. No product credential was saved.
+
+## Browser login window
+
+The [manual package](../browser-extension/manifest.json) opens a separate browser
+window after an explicit toolbar action. It is not an action popup that closes
+when focus moves. The user selected this form so the terminal and browser can
+remain visible together.
+
+The form provides a fixed D&D Beyond sign-in link. Navigation and password entry
+remain user actions. Loading the extension or opening its window does not query
+cookies, connect a native host, or send a service request. The user must enter
+the terminal's one-use key and approve the cookie read, validation, and protected
+session replacement.
+
+The [browser controller](../browser-extension/flow.mjs) requires the pinned
+extension ID and a regular context before pairing. It uses exactly the selected
+cookie query after bound pending authorization. Missing, ambiguous, partitioned,
+expired-metadata, or malformed candidates fail; no alternate profile or store
+is enumerated. No key or cookie is written to browser storage or logs.
+Browser/JavaScript-owned memory copies have no erasure guarantee.
+
+The window waits for final acknowledgement before showing saved-session
+evidence. Cancellation during cookie selection prevents later submission.
+Cancellation after submission waits for the native outcome; disconnect or
+unconfirmed completion cannot prove unchanged storage. Closing the window stops
+its handoff. A started write can remain uncertain.
+
+The [shared production recipes](fixtures/windows-login-v1.json) contain invented
+keys, cookies, and results. Browser tests and Rust codec/relay tests use them.
+The package's public SPKI key derives the same ID as the native host.
+Offline browser logic and synthetic UI rendering checks have passed. These
+checks do not prove real native registration, account access, or protected save.
+
+**Accepted setup boundary:** the user approved native-host registration as trusted
+installed configuration. This includes registry entries, manifests, and the
+mapping that selects the launched executable. The browser preface passes the
+pairing key to that trusted host. A same-user registry change can redirect the
+launch without changing the original executable. The current flow does not
+protect the key, cookie, or browser result from a substituted host. Origin checks
+and host-to-CLI encryption do not remove this limit.
+
+Windows setup now has explicit
+[install and uninstall commands](cli.md#auth-install-and-auth-uninstall).
+They check conflicts before confirmation and do not overwrite foreign setup.
+This trust approval does not authorize new account or credential-store tests.
 
 ## Local session commands
 
@@ -31,7 +116,7 @@ completed browser-login flow.
 
 | Command | Current result |
 |---------|----------------|
-| `beyond-gate auth login` | Exits with code 1. Reports the missing working browser handoff on stderr. No browser, secret input, credential-store access, or request occurs. |
+| `beyond-gate auth login` | Windows: requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Explicit browser setup is available; real account login remains unverified. Other platforms retain the unsupported error. |
 | `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. Stored material has not been validated upstream; expiry is unknown. |
 | `beyond-gate auth logout` | Exits with code 0 after local deletion or when the entry is already absent. States that upstream revocation is not implemented. |
 
@@ -40,9 +125,10 @@ code 2. A locked store or a failed service is not an absent session. Status does
 not modify a credential. Logout deletes its entry without first reading its
 secret, so it can also remove invalid stored data.
 
-There is no product command to create or import a credential. Do not create one
-manually to work around blocked login. The core write boundary exists for a future
-approved flow and uses synthetic values in tests. No credential argument,
+There is no credential import command. Do not create a credential manually to
+work around failed browser setup. The Windows CLI calls the core write
+boundary after paired submission. Offline tests use synthetic values only.
+No credential argument,
 environment input, password prompt, or MCP input is added. Neither adapter uses
 stored material for an upstream request. The MCP server exposes only read tools,
 which currently return the core's explicit unsupported-operation errors.
@@ -80,6 +166,14 @@ Opaque session values must be nonempty and at most 8 KiB. Native stores can impo
 a smaller limit; such failures are explicit. This bound is a local storage rule,
 not an upstream cookie or token contract. Core-owned secret allocations are cleared
 on drop. This does not guarantee removal of copies held by OS APIs or callers.
+
+The selected Windows backend uses generic credentials.
+[`CREDENTIALW`](https://learn.microsoft.com/en-us/windows/win32/api/wincred/ns-wincred-credentialw)
+limits their secret blob to 2,560 bytes. The Windows establishment encoding
+uses eight bytes of overhead and at most 2,552 cookie bytes. The original 8 KiB
+opaque storage bound remains unchanged for local presence checks.
+Unknown persistent versions and malformed envelopes fail safely; no migration,
+truncation, split-entry storage, or plaintext fallback is selected.
 
 There is no token cache in this implementation. Logout does not revoke an
 upstream session, log the browser out, or clear credentials held by another
@@ -306,8 +400,9 @@ Browser support is a platform contract, not upstream permission.
 The user requested both Edge and Chrome as target browsers. The same candidate
 design can use their Chromium extension APIs, but each browser needs appropriate
 native-host registration and allowed extension IDs. A published extension ID can
-differ between stores. The synthetic browser test passed in Edge only; Chrome
-still needs its own synthetic registration, handoff, failure, and cleanup tests.
+differ between stores. The later
+[isolated browser suite](testing.md#isolated-browser-feasibility) passed synthetic
+registration, handoff, rejection, and cleanup tests in both Chrome and Edge.
 Neither browser has a product login implementation yet.
 
 #### Synthetic evidence and limits
@@ -359,6 +454,11 @@ registration restricts which extension Edge may launch it for, but that
 restriction alone does not bind the host to a pending CLI login.
 
 #### Remaining validation gates
+
+The later repository suite verifies cleanup of its own Chrome and Edge fixtures
+and rejection of a different allowed origin. It does not clean up the earlier
+session-only prototype or implement authenticated CLI binding. Hosted-runner
+execution and the full product state/operation cases remain unverified.
 
 Continue with synthetic data. Verify permission denial, rejection of a different
 extension, cancellation, timeout, and test-registration cleanup. On 2026-10-31,

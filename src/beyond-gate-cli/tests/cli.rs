@@ -102,6 +102,8 @@ fn resource_help_matches_available_commands() {
         vec!["mcp", "--help"],
         vec!["mcp", "start", "--help"],
         vec!["mcp", "install", "--help"],
+        vec!["auth", "install", "--help"],
+        vec!["auth", "uninstall", "--help"],
     ] {
         let output = run(&arguments);
         assert!(output.status.success());
@@ -152,6 +154,9 @@ fn invalid_resource_usage_has_no_result() {
         vec!["mcp", "install", "unknown"],
         vec!["mcp", "install", "copilot-cli", "--unknown"],
         vec!["--fixture-child", "normal"],
+        vec!["auth", "install", "edge"],
+        vec!["auth", "uninstall", "chrome"],
+        vec!["auth", "install", "unknown", "--directory", "."],
     ] {
         let output = run(&arguments);
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
@@ -159,6 +164,26 @@ fn invalid_resource_usage_has_no_result() {
         assert!(!output.stderr.is_empty());
         assert!(!String::from_utf8_lossy(&output.stderr).contains("private-invalid"));
     }
+}
+
+/// Setup refuses a development directory before any product registry write.
+#[test]
+fn browser_setup_refuses_the_source_tree() {
+    let output = run(&[
+        "auth",
+        "install",
+        "edge",
+        "--directory",
+        env!("CARGO_MANIFEST_DIR"),
+        "--dry-run",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    let error = String::from_utf8_lossy(&output.stderr);
+    #[cfg(windows)]
+    assert!(error.contains("stable local installation directory"));
+    #[cfg(not(windows))]
+    assert!(error.contains("only on Windows"));
 }
 
 /// Generates each supported shell's script from the actual resource command tree.
@@ -208,15 +233,20 @@ fn auth_help_describes_local_commands() {
     }
 }
 
-/// Checks blocked login fails before terminal input, storage, or network activity.
+/// Checks redirected login fails before terminal input, storage, or network activity.
 #[test]
 fn auth_login_reports_the_blocker_without_stdout() {
     let output = run(&["auth", "login"]);
     assert_eq!(output.status.code(), Some(1));
     assert!(output.stdout.is_empty());
     let diagnostic = String::from_utf8_lossy(&output.stderr);
-    assert!(diagnostic.contains("no working session handoff"));
-    assert!(diagnostic.contains("do not supply a password or cookie"));
+    #[cfg(windows)]
+    assert!(diagnostic.contains("pairing requires interactive stdin, stdout, and stderr"));
+    #[cfg(not(windows))]
+    {
+        assert!(diagnostic.contains("no working session handoff"));
+        assert!(diagnostic.contains("do not supply a password or cookie"));
+    }
 }
 
 /// Checks malformed auth commands cannot accept credentials or access storage.

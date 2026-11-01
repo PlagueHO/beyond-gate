@@ -47,6 +47,8 @@ fn manual_inventory_matches_parser() {
         ("book outline", "format", "formats"),
         ("completions", "shell", "shells"),
         ("mcp install", "client", "clients"),
+        ("auth install", "browser", "browsers"),
+        ("auth uninstall", "browser", "browsers"),
     ] {
         let mut selected = &command;
         for component in path.split(' ') {

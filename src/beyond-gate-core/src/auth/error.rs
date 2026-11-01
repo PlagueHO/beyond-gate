@@ -34,7 +34,7 @@ impl fmt::Display for AuthErrorKind {
                 "browser login is blocked: no working session handoff is implemented; see docs/authentication.md; do not supply a password or cookie"
             }
             Self::InvalidSecret => {
-                "local session material is invalid or exceeds a storage limit; no upstream validation was performed"
+                "local session material is invalid or exceeds a storage limit"
             }
             Self::StorageAccess => {
                 "protected credential storage is locked or access was denied; unlock it or allow access through your OS credential manager"

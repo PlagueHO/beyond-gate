@@ -46,5 +46,64 @@ jobs:
       - run: ./scripts/cargo.ps1 test --workspace --doc --locked
       - run: ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
       - run: ./scripts/cargo.ps1 build --workspace --locked
+      - name: Build synthetic paired-process fixture
+        run: ./scripts/cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --features browser-fixture --locked
+      - name: Build synthetic Windows reservation fixture
+        if: runner.os == 'Windows'
+        run: ./scripts/cargo.ps1 build -p beyond-gate-core --example pending-slot-fixture --features browser-fixture --locked
+      - name: Check encrypted streams and separate local processes
+        run: ./scripts/cargo.ps1 test -p beyond-gate-core --test browser_handoff_transport --test browser_handoff_flow --test paired_process --features browser-fixture --locked
+      - name: Build synthetic terminal pairing fixture
+        run: ./scripts/cargo.ps1 build -p beyond-gate-cli --example pairing-terminal-fixture --features pairing-fixture --locked
+      - name: Check redirected pairing output refusal
+        run: ./scripts/cargo.ps1 test -p beyond-gate-cli --test pairing_terminal --features pairing-fixture --locked
       - name: Check manual-suite infrastructure offline
         run: ./scripts/test-e2e-harness.ps1
+
+  browser:
+    name: Synthetic native messaging (${{ matrix.browser }}, Windows)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chrome, edge]
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26.12.1'
+          package-manager-cache: false
+      - name: Select repository toolchain
+        run: rustup show
+      - name: Ensure Visual Studio 2022 Build Tools
+        run: |
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $installation = & $vswhere -latest -version '[17.0,18.0)' -products Microsoft.VisualStudio.Product.BuildTools -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
+          if ($LASTEXITCODE -ne 0) { throw "Cannot inspect Visual Studio installations." }
+          if (!$installation) {
+            choco install visualstudio2022buildtools --yes --no-progress --package-parameters "--add Microsoft.VisualStudio.Workload.VCTools --includeRecommended --passive --norestart"
+            if ($LASTEXITCODE -notin @(0, 3010)) { throw "Visual Studio 2022 Build Tools installation failed." }
+          }
+          exit 0
+      - name: Install pinned browser development dependencies
+        run: npm ci --prefix .\scripts\browser-tests --ignore-scripts --no-audit --no-fund
+      - name: Check synthetic extension behavior
+        run: npm test --prefix .\scripts\browser-tests
+      - name: Lint development-only native host
+        run: .\scripts\cargo.ps1 clippy -p beyond-gate-core --example browser-handoff-fixture --features browser-fixture --locked '--' -D warnings
+      - name: Exercise regular browser and real native host
+        env:
+          BEYOND_GATE_TEST_BROWSER: ${{ matrix.browser }}
+        run: npm run feasibility --prefix .\scripts\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER
+      - name: Lint isolated product completion fixture
+        run: .\scripts\cargo.ps1 clippy -p beyond-gate-core --example windows-login-fixture --features windows-login-fixture --locked '--' -D warnings
+      - name: Exercise product pairing and completion with invented data
+        env:
+          BEYOND_GATE_TEST_BROWSER: ${{ matrix.browser }}
+        run: npm run product-flow --prefix .\scripts\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER

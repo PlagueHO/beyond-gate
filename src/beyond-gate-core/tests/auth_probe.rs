@@ -13,6 +13,9 @@ use reqwest::StatusCode;
 use reqwest::blocking::{Client, ClientBuilder};
 use reqwest::header::{ACCEPT, CONTENT_TYPE, COOKIE, HeaderValue};
 
+#[path = "support/auth_validation_evidence.rs"]
+mod validation_evidence;
+
 /// Limits the live request to the community-documented token exchange.
 const AUTH_URL: &str = "https://auth-service.dndbeyond.com/v1/cobalt-token";
 /// Bounds the candidate session value before it becomes an HTTP header.
@@ -30,6 +33,9 @@ enum ProbeError {
     Status(u16),
     BodyTooLarge,
     MissingToken,
+    ApprovalRequired,
+    InvalidEvidence,
+    Base64(base64::DecodeError),
 }
 
 impl fmt::Display for ProbeError {
@@ -57,6 +63,12 @@ impl fmt::Display for ProbeError {
             }
             Self::BodyTooLarge => write!(formatter, "response exceeded 65536 bytes; stopped"),
             Self::MissingToken => write!(formatter, "response has no nonempty string token"),
+            Self::ApprovalRequired => write!(
+                formatter,
+                "exact validation-evidence scope approval is required"
+            ),
+            Self::InvalidEvidence => write!(formatter, "unexpected validation evidence; stopped"),
+            Self::Base64(_) => write!(formatter, "invalid token encoding; stopped"),
         }
     }
 }
@@ -75,6 +87,7 @@ impl Error for ProbeError {
             Self::Http(error) => Some(error),
             Self::Io(error) => Some(error),
             Self::Json(error) => Some(error),
+            Self::Base64(error) => Some(error),
             _ => None,
         }
     }
@@ -107,8 +120,8 @@ fn session_header(cookie: &str) -> Result<HeaderValue, ProbeError> {
         return Err(ProbeError::InvalidCookie);
     }
 
-    let mut header = HeaderValue::from_str(&format!("CobaltSession={cookie}"))
-        .map_err(|_| ProbeError::InvalidCookie)?;
+    let header_text = zeroize::Zeroizing::new(format!("CobaltSession={cookie}"));
+    let mut header = HeaderValue::from_str(&header_text).map_err(|_| ProbeError::InvalidCookie)?;
     header.set_sensitive(true);
     Ok(header)
 }
@@ -214,6 +227,9 @@ fn mock_exchange(status: u16, body: &[u8]) -> (Result<(), ProbeError>, String) {
                 Err(error) => panic!("mock accept failed: {error}"),
             }
         };
+        stream
+            .set_nonblocking(false)
+            .expect("make accepted mock stream blocking");
         stream
             .set_read_timeout(Some(Duration::from_secs(5)))
             .expect("bound mock read");

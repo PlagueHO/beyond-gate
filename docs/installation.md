@@ -2,8 +2,10 @@
 
 **Status: offline foundation, not a usable v1 D&D Beyond client.**
 There is no published release yet. The packaging workflow produces test archives.
-Login and live reads are not implemented. Local MCP serving and registration
-work, but discovery does not establish access to account data.
+Windows login and native-host setup have partial local implementations, but
+the real browser-to-CLI product flow is not verified. Live reads are not
+implemented. Local MCP serving and registration work, but discovery does not
+establish access to account data.
 
 ## Package matrix
 
@@ -28,9 +30,31 @@ Each archive contains exactly these files at its root:
 - `beyond-gate` and `beyond-gate-mcp` (with `.exe` on Windows).
 - `README.md`, `LICENSE`, `CHANGELOG.md`, and `installation.md` (this guide).
 
+Windows archives also contain `beyond-gate-native-host.exe` and
+`beyond-gate-browser.zip`. The browser ZIP contains only `manifest.json`,
+`launch.mjs`, `flow.mjs`, `login.html`, `login.css`, and `login.mjs`.
+Development fixtures and tests are not included.
+
 Keep both binaries together in one stable directory. MCP registration records
 the absolute server path. If you move the files later, remove the old registration
 and register the new path. Do not copy only the CLI.
+
+For Windows browser setup, keep the native host beside the CLI in the stable
+installation directory. Extract `beyond-gate-browser.zip` into a separate
+`browser-extension` subdirectory. Load that unpacked directory from
+`chrome://extensions` or `edge://extensions` with Developer mode enabled.
+Check that its ID is `gnhdconfgjfdbbgkemadegjcjnnodefh`.
+Do not continue if the ID differs. No browser-store package is published.
+
+Use `auth install edge --directory PATH --dry-run` or
+`auth install chrome --directory PATH --dry-run` to preview native-host setup.
+Remove `--dry-run` to request confirmation.
+Use the same directory with `auth uninstall` to preview or remove matching
+per-user setup. The command preserves binaries, other browsers, and machine-wide
+entries. Edge can still find a Chrome fallback after explicit Edge removal.
+See the [Windows setup commands](cli.md#auth-install-and-auth-uninstall) for the
+trust boundary and conflict rules. Do not register a temporary source worktree
+or build directory. These instructions do not establish completed live login.
 
 ## Verify the download
 

@@ -143,6 +143,7 @@ Assert-Package ($actualHash -ceq $checksumMatch.Groups[1].Value) 'Archive SHA-25
 
 $suffix = if ($IsWindows) { '.exe' } else { '' }
 $expectedFiles = @("beyond-gate$suffix", "beyond-gate-mcp$suffix", 'README.md', 'LICENSE', 'CHANGELOG.md', 'installation.md')
+if ($IsWindows) { $expectedFiles += @('beyond-gate-native-host.exe', 'beyond-gate-browser.zip') }
 $seen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
 
 # Only flat regular files are permitted. Check before allowing an extractor to write.
@@ -214,10 +215,42 @@ try {
   }
   $cli = Join-Path $extracted "beyond-gate$suffix"
   $server = Join-Path $extracted "beyond-gate-mcp$suffix"
+  if ($IsWindows) {
+    $native = Join-Path $extracted 'beyond-gate-native-host.exe'
+    $result = Invoke-PackagedProcess $native @('chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/')
+    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('origin_rejected')) 'Native host must refuse another extension before input or endpoint access.'
+    $browserZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $extracted 'beyond-gate-browser.zip'))
+    $browserNames = @('manifest.json', 'launch.mjs', 'flow.mjs', 'login.html', 'login.css', 'login.mjs')
+    $browserSeen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
+    try {
+      foreach ($entry in $browserZip.Entries) {
+        Assert-Package ($browserNames -ccontains $entry.FullName) 'Unexpected or unsafe browser archive member.'
+        Assert-Package ($browserSeen.Add($entry.FullName)) 'Duplicate browser archive member.'
+        $fileType = ($entry.ExternalAttributes -shr 16) -band 0xF000
+        Assert-Package ($fileType -in @(0, 0x8000) -and $entry.Length -gt 0 -and $entry.Length -le 65536) 'Browser archive members must be bounded nonempty regular files.'
+      }
+      Assert-Package ($browserSeen.Count -eq $browserNames.Count) 'Browser package is missing required files.'
+      $reader = [System.IO.StreamReader]::new($browserZip.GetEntry('manifest.json').Open())
+      try { $manifest = ConvertFrom-Json $reader.ReadToEnd() -AsHashtable }
+      finally { $reader.Dispose() }
+      Assert-Package ($manifest.manifest_version -eq 3 -and $manifest.incognito -ceq 'not_allowed') 'Browser package must use MV3 and refuse incognito.'
+      Assert-Package (($manifest.permissions | Sort-Object) -join ',' -ceq 'cookies,nativeMessaging') 'Browser package permission scope changed.'
+      Assert-Package (($manifest.host_permissions | Sort-Object) -join ',' -ceq 'https://dndbeyond.com/*,https://www.dndbeyond.com/*') 'Browser package host scope changed.'
+      $hash = [System.Security.Cryptography.SHA256]::HashData([Convert]::FromBase64String($manifest.key))
+      $id = -join (0..15 | ForEach-Object {
+        [char](97 + ($hash[$_] -shr 4)); [char](97 + ($hash[$_] -band 15))
+      })
+      Assert-Package ($id -ceq 'gnhdconfgjfdbbgkemadegjcjnnodefh') 'Browser package identity does not match the native host.'
+      Assert-Package (!$manifest.ContainsKey('content_scripts') -and !$manifest.ContainsKey('web_accessible_resources')) 'Browser package must not expose scripts to websites.'
+      Assert-Package ($manifest.content_security_policy.extension_pages.Contains("connect-src 'none'") -and $manifest.content_security_policy.extension_pages.Contains("script-src 'self'")) 'Browser package must prohibit remote connections and scripts.'
+    }
+    finally { $browserZip.Dispose() }
+  }
   $result = Invoke-PackagedProcess $cli
   Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err.Contains('Usage:')) 'CLI no-argument contract failed.'
   $result = Invoke-PackagedProcess $cli @('auth', 'login')
-  Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('no working session handoff')) 'Login must report its blocker without collecting credentials.'
+  $loginReason = if ($IsWindows) { 'requires interactive stdin, stdout, and stderr' } else { 'no working session handoff' }
+  Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains($loginReason)) 'Redirected login must fail without collecting credentials.'
   foreach ($arguments in @(
     ,@('character', 'list')
     ,@('character', 'show', 'synthetic')

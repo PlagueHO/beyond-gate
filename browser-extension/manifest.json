@@ -1,0 +1,18 @@
+{
+  "manifest_version": 3,
+  "name": "Beyond Gate login",
+  "version": "0.1.0",
+  "description": "Human-controlled Windows login for Beyond Gate.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAog2cypr8DcUl4b+uhBEBh39Uxe+enxfxccdUSqAIEAChE9orIeePD7zziaXTuzDLX73BzyoHvnD1NPqdjZSF+fWn+wq/6+XRHOKSkH2f4D0XhsIU346dnHIfFWY1SuDzFgi8fVeUQ7HkxTH9VOctX4StH/kdDNFR2ND/Ko1elGMoBS18FBWlN1ckUlh2YO65jxwIYQS2a4mvraTaazhds7GSrYqrNYpK9/gMjiXNrw18PGEZLcZWWcz5yZl7uXQhd6K82J4AhER9KcRFHFBjfk6Y5AQi1f8e6UC9pzb473RAAY/BA/yHZ01A4ewa9CRNW9+hC9U9HzuN6cJgLmWp7QIDAQAB",
+  "permissions": ["cookies", "nativeMessaging"],
+  "host_permissions": [
+    "https://dndbeyond.com/*",
+    "https://www.dndbeyond.com/*"
+  ],
+  "incognito": "not_allowed",
+  "action": { "default_title": "Open Beyond Gate login" },
+  "background": { "service_worker": "launch.mjs", "type": "module" },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'"
+  }
+}

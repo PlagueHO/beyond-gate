@@ -1,8 +1,9 @@
 # CLI command reference
 
 **Current status:** `beyond-gate` supports help, version output, shell completions,
-local session status and logout, and local MCP start and registration. Browser
-login and live character, campaign, and book reads are not implemented.
+local session status and logout, and local MCP start and registration. Windows
+login orchestration and the native host are implemented. Browser setup and
+end-to-end login evidence remain incomplete. Live resource reads are unsupported.
 
 Valid resource reads currently exit with code 1, write an unsupported-operation
 diagnostic to stderr, and leave stdout empty. They do not return sample data or
@@ -44,7 +45,7 @@ operation. The CLI does not infer a source URL from an identifier.
 
 | Command | Purpose | Current behavior |
 |---------|---------|------------------|
-| [`auth login`](#auth-login) | Start human-controlled login when available | Reports the browser-handoff blocker |
+| [`auth login`](#auth-login) | Start human-controlled login | Windows terminal pairing; browser setup incomplete |
 | [`auth status`](#auth-status) | Inspect local credential presence | Implemented; no upstream validation |
 | [`auth logout`](#auth-logout) | Remove the local credential | Implemented; no upstream revocation |
 | [`character list`](#character-list) | List character summaries | Live read unsupported |
@@ -69,26 +70,80 @@ They do not accept passwords, cookies, tokens, or account identities.
 beyond-gate auth login
 ```
 
-Reports that no working browser session handoff exists. It exits with code 1,
-with a diagnostic on stderr and no stdout. It does not open a browser, prompt for
-a secret, access storage, or send a request.
+On Windows, all three standard streams must be interactive terminals. Redirected
+streams fail before runtime, key generation, endpoint creation, network, or storage.
+The command reserves one logon-local pending slot and displays a one-use key on
+an owned alternate screen. The pending lifetime is at most five minutes.
+Ctrl+C cancels the operation. A second pending login fails with `busy`.
 
-The [existing-browser review for #29](authentication.md#existing-browser-decision-for-issue-29)
-did not establish a return path from human login to this app. Opening the website
-alone cannot complete the command. Login remains blocked; no product callback,
-extension integration, separate browser profile, or cookie import is added.
-The later [extension evaluation](authentication.md#extension-feasibility-evaluation)
-uses synthetic tests only and does not change this command.
+An authorized browser host must prove key possession before cookie authorization.
+The terminal display closes after pairing. The shared core then validates the
+production-bound cookie and confirms a protected save. Only final browser receipt
+confirmation permits a successful command result on stdout. Failure uses stderr
+and exit code 1; an unconfirmed started save reports `save_indeterminate`.
+Success uses exit code 0 and the fixed text contract:
 
-The [version 1 handoff proposal](browser-handoff.md) is a contract checkpoint,
-not a working host or extension integration. Application-peer authentication,
-the production cookie profile, and shared core validation remain blocked.
-It adds no CLI option or credential input and does not change this command's
-exit code, streams, or side effects.
+```text
+saved: Beyond Gate session; validation=service_validated; expiry=unknown.
+```
 
-There is no product credential creation or import command. Do not manually create
-a credential to work around blocked login. The developer authentication probe is
-not a product login flow.
+**Browser setup remains incomplete.** The native executable is
+`beyond-gate-native-host.exe`. The manual browser form exists, but extension
+installation and real Chrome/Edge
+product-flow evidence are still required.
+The command does not open a website or install components automatically.
+Do not use this partial integration as a completed login procedure.
+See the [Windows runtime contract](browser-handoff.md#windows-runtime-integration).
+
+macOS and Linux retain the unsupported-login error. No credential argument,
+password prompt, cookie import, environment ingress, or MCP input is added.
+The developer authentication probe is not product login.
+
+### auth install and auth uninstall
+
+Windows host setup requires an explicit stable local installation directory.
+That directory must be outside source and `target` trees. Installation requires
+`beyond-gate.exe` and `beyond-gate-native-host.exe` there. Windows test archives
+include the native host and the separate `beyond-gate-browser.zip`.
+
+Preview the selected browser without writing:
+
+```powershell
+beyond-gate auth install edge --directory C:\Tools\BeyondGate --dry-run
+beyond-gate auth install chrome --directory C:\Tools\BeyondGate --dry-run
+```
+
+Remove `--dry-run` to request confirmation. The command writes a browser-specific
+public JSON manifest in that directory. It registers the exact pinned extension
+origin in the selected browser's per-user native-host key, in the 32-bit view.
+The registry leaf and its default value are created in one Windows transaction.
+An existing leaf must match; the command does not overwrite it.
+
+Conflict checks cover user and machine keys in both registry views. Edge checks
+its Chromium and Chrome fallback locations too. A foreign path, malformed
+manifest, extra registry value, or child key stops setup. Machine-wide and
+fallback keys are not modified. A failed operation can leave public setup files
+or registrations; inspect the previewed locations before retrying.
+
+Preview removal with the original installation directory:
+
+```powershell
+beyond-gate auth uninstall edge --directory C:\Tools\BeyondGate --dry-run
+beyond-gate auth uninstall chrome --directory C:\Tools\BeyondGate --dry-run
+```
+
+Removal requires confirmation. It removes only matching selected-browser
+per-user leaves. It preserves binaries, other browsers, and machine-wide keys.
+It retains a manifest if another checked registration still uses it. Edge can
+still use a Chrome fallback after its explicit registration is removed.
+A moved installation requires removal with its old directory before registration
+of the new one.
+
+Registry entries, manifests, and launch mapping are
+[trusted installed configuration](authentication.md#browser-login-window).
+Setup does not read cookies, make account requests, or access the credential
+store. Neither setup nor a preview proves successful browser login.
+macOS and Linux setup fail explicitly before filesystem or registry access.
 
 ### auth status
 

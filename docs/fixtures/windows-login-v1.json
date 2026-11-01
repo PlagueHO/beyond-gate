@@ -1,0 +1,63 @@
+{
+  "schema": 1,
+  "synthetic_only": true,
+  "browser_protocol_version": 1,
+  "cli_protocol_version": 1,
+  "host_name": "io.github.plagueho.beyond_gate",
+  "extension_id": "gnhdconfgjfdbbgkemadegjcjnnodefh",
+  "profile": "cobalt-session-v1",
+  "max_cookie_bytes": 2552,
+  "query": { "url": "https://www.dndbeyond.com/", "name": "CobaltSession", "path": "/" },
+  "cookie": {
+    "name": "CobaltSession",
+    "value": "synthetic-session",
+    "domain": ".dndbeyond.com",
+    "path": "/",
+    "hostOnly": false,
+    "secure": true,
+    "httpOnly": true,
+    "sameSite": "unspecified",
+    "session": false,
+    "expirationDate": 4102444800,
+    "storeId": "0"
+  },
+  "messages": {
+    "pair": {
+      "protocol": "bg-browser-handoff", "version": 1, "type": "pair",
+      "browser": "edge", "profile": "cobalt-session-v1", "consent": true,
+      "key": "KioqKioqKioqKioqKioqKioqKioqKioqKioqKioqKio"
+    },
+    "open": {
+      "protocol": "bg-host-cli", "version": 1, "type": "open",
+      "browser": "edge", "profile": "cobalt-session-v1", "consent": true
+    },
+    "pending": {
+      "protocol": "bg-browser-handoff", "version": 1, "type": "pending",
+      "transaction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "profile": "cobalt-session-v1",
+      "expires_in_ms": 30000
+    },
+    "authorized": {
+      "protocol": "bg-host-cli", "version": 1, "type": "authorized",
+      "transaction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "profile": "cobalt-session-v1",
+      "expires_in_ms": 30000
+    },
+    "submit": {
+      "protocol": "bg-browser-handoff", "version": 1, "type": "submit",
+      "transaction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "profile": "cobalt-session-v1",
+      "value": "synthetic-session"
+    },
+    "result": {
+      "protocol": "bg-browser-handoff", "version": 1, "type": "result",
+      "transaction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "outcome": "saved",
+      "validation": "service-validated", "expiry": "unknown"
+    },
+    "ack": {
+      "protocol": "bg-browser-handoff", "version": 1, "type": "ack",
+      "transaction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "host_ack": {
+      "protocol": "bg-host-cli", "version": 1, "type": "ack",
+      "transaction": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  }
+}

@@ -10,6 +10,24 @@ publish.workspace = true
 
 [features]
 e2e-isolation = []
+browser-fixture = ["tokio/rt", "tokio/io-std"]
+windows-login-fixture = ["browser-fixture"]
+
+[[example]]
+name = "browser-handoff-fixture"
+required-features = ["browser-fixture"]
+
+[[example]]
+name = "paired-handoff-fixture"
+required-features = ["browser-fixture"]
+
+[[example]]
+name = "pending-slot-fixture"
+required-features = ["browser-fixture"]
+
+[[example]]
+name = "windows-login-fixture"
+required-features = ["windows-login-fixture"]
 
 [[example]]
 name = "e2e-session"
@@ -17,16 +35,21 @@ required-features = ["e2e-isolation"]
 
 [dependencies]
 base64 = "0.23.1"
+getrandom = "=0.4.3"
 httpdate = "1.0.3"
 keyring-core = "1.0.0"
 reqwest = { version = "0.13.5", default-features = false, features = ["rustls"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
-tokio = { version = "1.54.1", features = ["sync", "time"] }
+snow = { version = "=0.10.0", default-features = false, features = ["std", "use-curve25519", "use-chacha20poly1305", "use-sha2", "use-getrandom"] }
+tokio = { version = "1.54.1", features = ["io-util", "rt", "sync", "time"] }
 zeroize = "1.8"
 
 [target.'cfg(target_os = "windows")'.dependencies]
+interprocess = { version = "=2.4.7", default-features = false, features = ["tokio"] }
+widestring = "=1.2.1"
 windows-native-keyring-store = { version = "1.1", default-features = false }
+winsafe = { version = "=0.0.29", default-features = false, features = ["advapi", "kernel"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 apple-native-keyring-store = { version = "1.0", features = ["keychain"] }
@@ -38,6 +61,7 @@ zbus-secret-service-keyring-store = { version = "1.0", features = ["crypto-rust"
 reqwest = { version = "0.13.5", default-features = false, features = ["blocking", "rustls"] }
 rpassword = "7.5.4"
 serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.154", features = ["raw_value"] }
 tokio = { version = "1.54.1", features = ["macros", "rt-multi-thread", "net", "io-util", "test-util"] }
 
 [lints]
