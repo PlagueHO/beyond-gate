@@ -33,7 +33,7 @@ Authentication follow-up work remains open:
 
 | Issue | Scope | Current dependency |
 |-------|-------|--------------------|
-| [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | Windows setup and synthetic browser/native/core integration implemented. Production-terminal, real account, protected-save, and hosted CI evidence remain incomplete. #46 blocks end-to-end completion. |
+| [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | Windows implementation and #46 integration verified. Hosted CI and approved Chrome/Edge Dev login/save/restart/logout passed. Shared core contract agreed with #30. Code is on the feature branch, not merged. |
 | [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Agree on the checkpoint's core boundary with #29; opaque local presence is not upstream validation. No reciprocal completion dependency. |
 | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Synthetic feasibility can start independently. Product integration needs the accepted #29 contracts, not completion of all of #29. |
 
@@ -44,15 +44,17 @@ local Chrome and Edge cookie/native-host checks and owned cleanup. Rust tests
 execute canonical messages and selected parsing/framing recipes. Full state
 coverage and authenticated pending-CLI binding now have offline checks.
 Both browsers passed five synthetic native/core completion cases.
-Real account handoff, protected save, hosted-runner execution, and the separate
-environment fallback remain unverified.
+Hosted-runner checks and approved real Chrome/Edge Dev handoff, protected save,
+restart/status, and logout now passed. The separate environment fallback remains
+unimplemented.
 
 The historical [contract-blocker milestone](browser-handoff.md#contract-blocker-decision)
 records the earlier unresolved decisions. Later user decisions accepted Windows
 pairing, the cookie profile, direct-service validation, and trusted installed
 registration. The host, setup commands, and synthetic browser integration are
 implemented. Account observations and credential-store tests still need separate
-approval. Shared lifecycle coordination with #30 remains open.
+approval. The user agreed to the shared establishment boundary with #30;
+reusable session lifecycle remains #30 work.
 
 Implement the HTTP boundary before full session exchange. Simple login remains
 an early required milestone, not an optional fallback. Library discovery and
@@ -76,9 +78,10 @@ and the rules against crawling or bulk extraction. Live account tests and
 credential access still need separate explicit approval. Define selected hosts,
 operations, request budgets, stop conditions, and cleanup before such tests.
 
-The [browser-login handoff](authentication.md#browser-handoff-assessment) remains
-unproven. Live resource endpoints, schemas, entitlement checks, and product
-session handling are not implemented. Those technical limits still prevent
+The [Windows browser-login handoff](testing.md#approved-windows-product-login-verification)
+has approved product evidence. Live resource endpoints, schemas, entitlement
+checks, and reusable authenticated-session handling are not implemented.
+Those technical limits still prevent
 working live reads in #4 through #6, dependent adapters, and a usable release.
 Offline work does not resolve them.
 The [HTTP boundary](architecture.md#http-boundary) implements offline request
@@ -140,8 +143,8 @@ current MCP output contract is documented alongside the CLI contract.
 
 Issue #3 remains partial. Windows `auth login` now starts one-use pairing and
 calls shared completion after bound submission. Windows setup and synthetic
-browser integration are implemented; real end-to-end login evidence remains
-incomplete. Other platforms retain unsupported login.
+browser integration are implemented. Real Chrome and Edge Dev login/save checks
+and hosted CI passed. Other platforms retain unsupported login.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream
 usability or expiry. `auth logout` removes the local entry but cannot revoke
 upstream sessions. Native-store runtime checks need separate approval; automated

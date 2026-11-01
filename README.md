@@ -9,13 +9,13 @@ purchased or shared books.
 **Status: offline CLI/MCP adapters and local session management.** Both binaries
 provide `--help` and `--version`. The CLI also provides local `auth status` and `auth logout`.
 Windows `auth login` now starts one-use terminal pairing and calls shared
-completion after a bound submit. Windows setup and synthetic browser integration
-are implemented; live login and protected-save evidence remain incomplete.
+completion after a bound submit. Windows setup, real human-controlled login,
+protected save, restart/status, and logout passed with Chrome and Edge Dev.
 Other platforms retain the unsupported error.
 The CLI also generates shell completions. The MCP server uses stdio
 and exposes matching read tools. Character, campaign, and book reads return
-explicit unsupported-operation errors through both adapters. Windows account
-login is not yet verified. Live data access is not implemented.
+explicit unsupported-operation errors through both adapters.
+Live data access and reusable authenticated-session lifecycle are not implemented.
 No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful
@@ -135,7 +135,8 @@ Both commands can trigger an OS access or unlock dialog.
 Windows `auth login` requires interactive stdin, stdout, and stderr. It starts
 one-use pairing. The manual browser form and explicit native-host setup commands
 are implemented. Both browsers passed synthetic native/core completion checks.
-Real account login and protected-save evidence remain incomplete.
+Approved real Chrome and Edge Dev login, protected save, restart/status, and
+logout checks passed. See the [tested scope and limits](docs/testing.md#approved-windows-product-login-verification).
 Other platforms report unsupported login.
 There is no product credential import command. See the
 [CLI authentication reference](docs/cli.md#authentication-commands) for syntax,

@@ -2,8 +2,9 @@
 
 **Status: offline foundation, not a usable v1 D&D Beyond client.**
 There is no published release yet. The packaging workflow produces test archives.
-Windows login and native-host setup have partial local implementations, but
-the real browser-to-CLI product flow is not verified. Live reads are not
+Windows login and native-host setup are implemented.
+Approved real Chrome and Edge Dev login/save/restart/logout checks passed.
+Live reads are not
 implemented. Local MCP serving and registration work, but discovery does not
 establish access to account data.
 
@@ -201,17 +202,21 @@ Unknown arguments also exit with code 2.
 After PATH setup, these checks are safe without an account:
 
 ```sh
-beyond-gate auth login
 beyond-gate character list --format json
 beyond-gate book read synthetic opening
 ```
 
-Each currently exits with code 1 and leaves stdout empty. Login reports the
-missing working session handoff. Reads report unsupported live operations.
+Each currently exits with code 1 and leaves stdout empty.
+Reads report unsupported live operations.
 These are implementation limits, not verified missing-session or expiry errors.
 Do not supply a password, cookie, or token. Do not create a credential manually.
 Do not run `auth status` or `auth logout` as an automated package check:
 they access the real OS store.
+Do not run interactive `auth login` as an account-free check. After human pairing
+and consent, it reads the selected browser cookie, validates it, and replaces the
+protected local entry. Separate explicit approval is required for real account
+or credential-store tests. Redirected package checks verify refusal before those
+operations.
 
 Starting `beyond-gate-mcp` with no arguments starts a stdio server. It waits for
 MCP messages, not terminal commands. It is not a login prompt. Use an MCP client

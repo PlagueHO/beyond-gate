@@ -5,8 +5,9 @@
 //! protected write. Windows also recognizes the bounded `cobalt-session-v1`
 //! profile; other platforms recognize only the invented `synthetic-v1` profile.
 //! Windows CLI orchestration enables paired submission and shared completion.
-//! Product browser selection, registration, and end-to-end evidence remain
-//! incomplete. Generic parsers alone never establish a validated login.
+//! Product selection, registration, and approved end-to-end login checks passed
+//! on Windows with Chrome and Edge Dev. Generic parsers alone never establish
+//! a validated login.
 
 mod error;
 mod framing;

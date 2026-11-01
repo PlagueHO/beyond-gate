@@ -2,8 +2,9 @@
 
 **Current status:** `beyond-gate` supports help, version output, shell completions,
 local session status and logout, and local MCP start and registration. Windows
-login orchestration and the native host are implemented. Browser setup and
-end-to-end login evidence remain incomplete. Live resource reads are unsupported.
+login, explicit browser setup, and the native host are implemented.
+Approved Chrome and Edge Dev login/save/restart/logout checks passed.
+Live resource reads are unsupported.
 
 Valid resource reads currently exit with code 1, write an unsupported-operation
 diagnostic to stderr, and leave stdout empty. They do not return sample data or
@@ -45,7 +46,9 @@ operation. The CLI does not infer a source URL from an identifier.
 
 | Command | Purpose | Current behavior |
 |---------|---------|------------------|
-| [`auth login`](#auth-login) | Start human-controlled login | Windows terminal pairing; browser setup incomplete |
+| [`auth login`](#auth-login) | Complete human-controlled login | Windows; approved Chrome and Edge Dev checks passed |
+| [`auth install`](#auth-install-and-auth-uninstall) | Register a native browser host | Windows; explicit directory, preview, and confirmation |
+| [`auth uninstall`](#auth-install-and-auth-uninstall) | Remove matching native setup | Windows; preserves other installations |
 | [`auth status`](#auth-status) | Inspect local credential presence | Implemented; no upstream validation |
 | [`auth logout`](#auth-logout) | Remove the local credential | Implemented; no upstream revocation |
 | [`character list`](#character-list) | List character summaries | Live read unsupported |
@@ -61,7 +64,8 @@ operation. The CLI does not infer a source URL from an identifier.
 
 ## Authentication commands
 
-These commands have no positional arguments or action-specific options.
+`auth login`, `auth status`, and `auth logout` have no positional arguments or
+action-specific options.
 They do not accept passwords, cookies, tokens, or account identities.
 
 ### auth login
@@ -87,12 +91,13 @@ Success uses exit code 0 and the fixed text contract:
 saved: Beyond Gate session; validation=service_validated; expiry=unknown.
 ```
 
-**Browser setup remains incomplete.** The native executable is
-`beyond-gate-native-host.exe`. The manual browser form exists, but extension
-installation and real Chrome/Edge
-product-flow evidence are still required.
+The native executable is `beyond-gate-native-host.exe`.
+Install it and the manual browser package through the
+[explicit setup procedure](installation.md).
 The command does not open a website or install components automatically.
-Do not use this partial integration as a completed login procedure.
+Approved real Chrome and Edge Dev login, protected save, restart/status, and
+logout checks passed. Browser versions and remaining limits are in the
+[verification record](testing.md#approved-windows-product-login-verification).
 See the [Windows runtime contract](browser-handoff.md#windows-runtime-integration).
 
 macOS and Linux retain the unsupported-login error. No credential argument,

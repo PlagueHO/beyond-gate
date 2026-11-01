@@ -14,7 +14,7 @@ pub fn command() -> Command {
         .arg_required_else_help(true)
         .subcommand(
             resource("auth", "Manage the protected local session")
-                .subcommand(Command::new("login").about("Start human-controlled Windows browser pairing; extension setup is incomplete"))
+                .subcommand(Command::new("login").about("Complete human-controlled Windows browser login after explicit extension setup"))
                 .subcommand(browser_setup("install", "Preview and register the Windows browser native host"))
                 .subcommand(browser_setup("uninstall", "Preview and remove matching Windows browser native-host setup"))
                 .subcommand(Command::new("status").about("Report local presence only, without checking upstream usability"))

@@ -15,8 +15,8 @@ configuration changes and writes only after confirmation. Its resource commands
 use the core's explicit unsupported live entry points. Synthetic success paths
 exist only in tests.
 There is no built-in resource host list, resource endpoint, or account model.
-Windows browser setup and synthetic native/core completion are implemented;
-real account login and protected save remain unverified.
+Windows browser setup and native/core completion are implemented.
+Approved real Chrome and Edge Dev login and protected-save checks passed.
 The MCP adapter serves local stdio with seven read-only tools;
 their shared core operations currently return explicit unsupported errors.
 Resource reads do not construct an HTTP client or send upstream requests.
@@ -108,8 +108,8 @@ The initial client selection follows current official documentation:
 [Claude Code MCP](https://code.claude.com/docs/en/mcp), and
 [GitHub Copilot CLI MCP](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers).
 The installer does not register credentials or remote URLs. Server discovery
-does not enable live reads. Product login remains blocked by the missing browser
-handoff.
+does not enable live reads. Windows browser login has separate explicit setup
+and approved product verification; it does not enable authenticated resource reads.
 
 ## Local session boundary
 

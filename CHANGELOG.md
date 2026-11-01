@@ -7,6 +7,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Completed Windows human-controlled browser login and protected handoff.
+  Approved Chrome and Edge Dev tests passed actual product-console login,
+  direct-service validation, native protected save, restart/status, logout,
+  repeated logout, and final absence. Hosted Chrome/Edge synthetic jobs and
+  three-OS Rust checks passed. The shared core contract is agreed with #30.
+  macOS/Linux browser login and reusable live-session handling remain separate.
+  Earlier authentication entries below record intermediate milestones; their
+  incomplete-state notes are historical, not the current Windows login status.
 - Real Chrome/Edge process checks for the product browser controller, native
   relay, private Windows pipe, Noise pairing, and shared completion. The fixture
   uses only invented cookies, local mock responses, and in-memory storage.

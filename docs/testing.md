@@ -607,6 +607,58 @@ classifications, and a zero live request budget. They do not contain child
 arguments, exception details, credentials, account names, resource identifiers,
 private URLs, response bodies, or book text. No raw transcript is uploaded.
 
+## Approved Windows product login verification
+
+The user separately approved this local product test after hosted CI passed.
+It is not the manual live-resource suite and does not enable that suite.
+The user selected Edge Dev, not the separately installed stable Edge build.
+
+| Browser | Version | Human pairing and saved result | New CLI status | Local logout |
+|---------|---------|--------------------------------|----------------|--------------|
+| Chrome | 156.0.8078.74 | Passed; actual product CLI exit 0 | `stored-unverified` | Passed |
+| Edge Dev | 158.0.4357.0 | Passed; actual product CLI exit 0 | `stored-unverified` | Passed |
+
+The OS was Windows kernel `10.0.26100`. Default-feature product binaries were
+built with the repository wrapper and Visual Studio 2022 Build Tools.
+They ran from an explicit stable local installation outside source and `target`.
+Both browsers confirmed the pinned extension ID before handoff.
+The user controlled sign-in and entered each generated key only in the browser.
+The agent did not capture the console key, password, cookie, bearer, or claims.
+A session-only runner recorded only browser labels and product CLI exit codes.
+
+Each browser completed one product login. Success required the real fixed
+direct-service validation, native protected save, and final acknowledgement.
+There was no fixture service, cookie API replacement, memory store, proxy, retry,
+or resource read. The approval allowed one exact `CobaltSession` query and one
+POST to `https://auth-service.dndbeyond.com/v1/cobalt-token` per browser.
+No other handoff was started. Request counts follow the tested single-request
+product contract; no private network transcript was captured.
+
+Four native status calls covered initial absence, persistence after each login
+in a new CLI process, and final absence. Three logout calls covered both saved
+entries and repeated deletion. The first restart assertion used incorrect
+wording. The observed output matched the source contract; the assertion was
+corrected without another credential read.
+
+The user removed both test extensions and closed their login windows.
+Matching native-host removal passed for both browsers. Only the owned manifests,
+extension files, binaries, and installation directory were removed.
+The earlier temporary Edge metadata diagnostic was also confirmed removed.
+The protected product entry was absent at the end. All private-test approval
+budgets are consumed; another test requires a new exact approval.
+
+[Hosted CI run 41282317197](https://github.com/PlagueHO/beyond-gate/actions/runs/41282317197)
+passed separate stable Chrome and Edge synthetic jobs and all three Rust OS jobs.
+The earlier run passed browser jobs but found non-Windows unused helpers and a
+missing Windows fixture build; those failures were fixed before this successful run.
+Stable Edge has synthetic CI evidence, not a separate real-account pass.
+macOS and Linux product browser login remain deferred.
+
+Saved evidence describes validation at login time. Local status does not prove
+current upstream usability or expiry. Reusable authenticated CLI/MCP sessions,
+refresh, live resource reads, and upstream revocation remain separate work.
+No PR, release, or merge occurred during this verification.
+
 ## Isolated native storage
 
 Native storage tests require separate explicit credential-access approval.

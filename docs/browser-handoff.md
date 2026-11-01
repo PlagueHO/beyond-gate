@@ -1,10 +1,13 @@
 # Browser login contract checkpoint
 
-**Status: Windows synthetic integration implemented; live login unverified.**
+**Status: Windows product login verified with Chrome and Edge Dev.**
 This document defines a
 version 1 proposal for [#29](https://github.com/PlagueHO/beyond-gate/issues/29).
-It does not implement login or establish agreement with
+The user approved the implemented shared core boundary for
 [#30](https://github.com/PlagueHO/beyond-gate/issues/30).
+The agreement is recorded on
+[#29](https://github.com/PlagueHO/beyond-gate/issues/29#issuecomment-6554690324)
+and [#30](https://github.com/PlagueHO/beyond-gate/issues/30#issuecomment-6554690285).
 The user accepted the [Windows pairing boundary](#accepted-windows-pairing-boundary)
 and the [direct-service rule](#accepted-windows-service-rule). Shared Windows
 validation and saving have offline tests. The
@@ -14,8 +17,9 @@ profile fields. Windows parsers and the paired controller now bind the selected
 [Windows runtime integration](#windows-runtime-integration) now connects the
 native relay and CLI to actual shared completion. Browser selection, explicit
 Windows setup, and real-browser synthetic completion checks are implemented.
-Production terminal, real account, protected-save, and hosted CI evidence remain
-incomplete. Message examples alone are
+Production terminal, direct validation, protected save, restart/status, and logout
+passed in the [approved local scope](testing.md#approved-windows-product-login-verification).
+Hosted CI also passed. Message examples alone are
 not an authenticated channel.
 
 The [canonical synthetic cases](fixtures/browser-handoff-v1.json) now have
@@ -25,11 +29,12 @@ The shared core parses the proposed message shapes and bounded frames with the
 invented profile and, on Windows, the bounded production profile. Selected
 message and frame recipes execute this code.
 Encrypted peer and process checks now run; Chrome and Edge synthetic native
-messaging passed locally. Full product login remains absent. A fixture pass is
+messaging passed locally. Real Windows login now has separate approved evidence.
+A fixture pass is
 not proof of account authentication.
 Redirected `beyond-gate auth login` still fails before runtime, storage, or
 network activity. Interactive Windows login now starts the pending pairing flow;
-this is not verified product-login support.
+macOS and Linux product browser login remain deferred.
 
 ## Windows runtime integration
 
@@ -100,14 +105,15 @@ The native result projects `service-validated`; the CLI/core result uses
 These runtime paths have offline relay, actual native-process refusal, and
 paired local-service/in-memory-store checks. Both real browsers passed synthetic
 success, service rejection, cancellation, lost acknowledgement, and unavailable
-storage. Fresh approved live/save evidence remains incomplete.
+storage. Separate approved Chrome and Edge Dev product login/save checks passed.
 The manual browser form now uses
 [shared production recipes](fixtures/windows-login-v1.json) in browser and Rust
 tests. Its consent, single cookie query, cancellation, and acknowledgement
 controller is implemented. Real Chrome and Edge process checks now exercise
 the product controller and native/core completion with invented material.
 They use private fixture pipes, a local mock service, and in-memory storage.
-The production interactive CLI, live validation, and native save remain unverified.
+The production interactive CLI, live validation, native save, restart/status,
+logout, and owned cleanup passed in the separate approved local scope.
 
 The user accepted
 [native registration as trusted installed configuration](authentication.md#browser-login-window).
@@ -546,12 +552,13 @@ receipts cannot enter this conversion. Receipt still produces no final success.
 The actual extension must enforce metadata and consent; these are not wire
 claims that the native host can independently verify.
 
-**Remaining PROFILE-1 work:** the exact browser selection, including malformed
+**PROFILE-1 result:** the exact browser selection, including malformed
 and ambiguous results, has offline tests. Only one real Edge profile was observed;
-real Chrome cookie evidence and production-terminal login checks remain absent.
-**Remaining CORE-1 work:** the Windows operation is integrated with the relay
-and completion controller. Verify the real protected save and coordinate shared
-lifecycle/adapter use with #30. Live login is not yet verified.
+actual Chrome and Edge Dev selection and production-terminal login now passed.
+The diagnostic was confirmed removed. No new cookie query is authorized.
+**CORE-1 result:** the Windows operation is integrated with the relay and
+completion controller. Real protected save passed, and the user agreed to this
+shared boundary for #30. Later lifecycle/adapter use remains #30 work.
 
 The native host name is `io.github.plagueho.beyond_gate`.
 The sibling binary is `beyond-gate-native-host` (`.exe` on Windows).
@@ -571,8 +578,9 @@ before enabling the bridge. Do not use a shell to launch the native host.
 
 | Browser/OS | Evidence | Required before a support claim |
 |------------|----------|---------------------------------|
-| Edge / Windows | Five real-browser synthetic completion cases and cleanup passed locally; isolated setup tests passed | Hosted CI and approved production-terminal, real-cookie, and protected-save checks |
-| Chrome / Windows | Five real-browser synthetic completion cases and cleanup passed locally; isolated setup tests passed | Separate hosted CI and approved production-terminal, real-cookie, and protected-save checks |
+| Edge / Windows | Five real-browser synthetic completion cases and cleanup passed locally and in hosted CI; isolated setup tests passed | Stable Edge real-account behavior is not claimed from Edge Dev |
+| Edge Dev / Windows | Approved real product login/save, restart/status, logout and cleanup passed on 158.0.4357.0 | Retest changed versions under a fresh exact approval |
+| Chrome / Windows | Five synthetic completion cases passed locally and in CI; approved real login/save/restart/logout passed on 156.0.8078.74 | Retest changed versions under a fresh exact approval |
 | Chrome or Edge / macOS | Untested | OS-specific secure IPC, install paths, browser and cleanup evidence |
 | Chrome or Edge / Linux | Untested | OS-specific secure IPC, install paths, browser and cleanup evidence |
 

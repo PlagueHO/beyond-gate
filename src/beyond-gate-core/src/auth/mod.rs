@@ -3,7 +3,7 @@
 //! Both adapters must use this fixed entry, not their own credential identities.
 //! Stored presence does not establish current usability or expiry.
 //! Windows paired CLI login calls shared validation and protected saving.
-//! Product browser setup remains incomplete; resource reads remain unsupported.
+//! Windows browser login is implemented; resource reads remain unsupported.
 //! The off-by-default `e2e-isolation` feature requires an approved test context
 //! and selects a separate test identity instead of the product entry.
 

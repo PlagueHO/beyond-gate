@@ -1,11 +1,11 @@
 # Authentication design
 
-**Windows setup and synthetic login integration implemented; live login unverified.**
+**Windows human-controlled login implemented and verified with Chrome and Edge Dev.**
 Simple local login is a core requirement.
 The [2026-10-27 feasibility assessment](architecture.md#feasibility-assessment)
 did not establish a permitted path. Its blanket development stop gate is now
 removed under the [current policy](roadmap.md#development-policy-and-technical-status).
-This is not upstream approval or a working login implementation. Live account
+This policy change is not upstream approval. Live account
 tests and credential access still need separate explicit approval. An ignored,
 developer-only
 [session-exchange probe](#opt-in-session-exchange-probe) is now available.
@@ -18,13 +18,15 @@ adds a candidate transport, not a working account login.
 
 The [browser handoff contract checkpoint](browser-handoff.md) now records two
 version 1 protocol proposals, a shared core API proposal for #30, and canonical
-synthetic test cases for #29/#46. It is **incomplete for product integration**:
+synthetic test cases for #29/#46. Windows product integration is implemented:
 the accepted Windows pairing and service rules have offline implementations.
 The user-reported Edge API observation supplies the production profile fields.
 The real native host and CLI orchestration now call shared completion.
 The product browser form and explicit Windows host setup now exist.
 Both browsers passed synthetic native/core completion checks.
-Production terminal, real account, and protected-save evidence remain incomplete.
+Approved real product-console, account-validation, protected-save, restart/status,
+and logout checks now passed with Chrome and Edge Dev.
+The user also approved the shared establishment contract for #29/#30.
 Rust tests check fixture
 data and execute selected message and frame recipes against shared core parsers.
 The newer paired completion tests run real local validation and mock saves;
@@ -37,8 +39,8 @@ The [focused contract-blocker review](browser-handoff.md#contract-blocker-decisi
 is a historical checkpoint. The user has since
 [approved pairing and scoped evidence work](browser-handoff.md#approved-pairing-and-evidence-direction).
 Encrypted pairing, terminal display, and a protected Windows endpoint are
-implemented. Synthetic browser integration now passes locally; live login remains
-unverified. The review records the
+implemented. Synthetic browser integration and approved Windows product login
+now pass. The review records the
 missing launch proof, a proposed
 metadata-only approval packet, and the validation/encoding decisions needed
 from #30. Approval of this documentation does not approve the observation or
@@ -48,7 +50,8 @@ The user subsequently accepted the
 [Windows pairing boundary](browser-handoff.md#accepted-windows-pairing-boundary).
 The one-use, user-entered key authorizes the application connection. Independent
 extension-launch proof is not claimed. Installed code and process memory remain
-trusted. Production terminal and protected-store integration still need manual evidence.
+trusted. Production terminal and protected-store integration passed the
+[approved Windows checks](testing.md#approved-windows-product-login-verification).
 
 The user has now accepted the
 [strict Windows service rule](browser-handoff.md#accepted-windows-service-rule).
@@ -60,8 +63,8 @@ Windows CLI completion now calls this boundary. The
 [selected Windows cookie contract](browser-handoff.md#selected-windows-cookie-contract)
 now fixes the observed scope and attributes. The paired controller binds its
 profile before authorization, and the core consumes its receipt without a
-credential copy. Actual browser selection and complete product handoff remain
-incomplete. No product credential was saved.
+credential copy. Actual Chrome and Edge Dev selection, product handoff, and
+protected save passed. Both test sessions were removed after verification.
 
 ## Browser login window
 
@@ -110,14 +113,15 @@ This trust approval does not authorize new account or credential-store tests.
 
 ## Local session commands
 
-The CLI now exposes `auth login`, `auth status`, and `auth logout`. This is partial
-offline work for [#3](https://github.com/PlagueHO/beyond-gate/issues/3), not a
-completed browser-login flow.
+The CLI exposes `auth login`, `auth status`, and `auth logout`.
+Local presence and deletion started in
+[#3](https://github.com/PlagueHO/beyond-gate/issues/3).
+Windows browser login now has approved product verification.
 
 | Command | Current result |
 |---------|----------------|
-| `beyond-gate auth login` | Windows: requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Explicit browser setup is available; real account login remains unverified. Other platforms retain the unsupported error. |
-| `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. Stored material has not been validated upstream; expiry is unknown. |
+| `beyond-gate auth login` | Windows: requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Real Chrome and Edge Dev login/save checks passed. Other platforms retain the unsupported error. |
+| `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. It does not check current upstream usability; expiry is unknown. |
 | `beyond-gate auth logout` | Exits with code 0 after local deletion or when the entry is already absent. States that upstream revocation is not implemented. |
 
 Storage errors exit with code 1 and use stderr. Invalid command usage exits with
