@@ -6,8 +6,9 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns, and
 purchased or shared books.
 
-**Status: offline CLI/MCP adapters and local session management.** Both binaries
-provide `--help` and `--version`. The CLI also provides local `auth status` and `auth logout`.
+**Status: verified Windows login, local sessions, and offline-tested CLI/MCP adapters.**
+The CLI and MCP binaries provide `--help` and `--version`.
+The CLI also provides local `auth status` and `auth logout`.
 Windows `auth login` now starts one-use terminal pairing and calls shared
 completion after a bound submit. Windows setup, real human-controlled login,
 protected save, restart/status, and logout passed with Chrome and Edge Dev.
@@ -65,10 +66,10 @@ accessible to the user in the browser, not background collection or bulk
 extraction. Browser access and native-client session access remain separate
 technical questions.
 
-The installed browser can provide the future login experience. No cloud service,
+The installed browser provides human-controlled Windows login. No cloud service,
 remote MCP hosting, account sharing, content redistribution, or write operations
-are in the v1 scope. Local execution still needs an internet connection for future
-D&D Beyond requests.
+are in the v1 scope. Windows login and future D&D Beyond reads need an internet
+connection.
 
 This project is unofficial. D&D Beyond endpoints may change without notice.
 Content ownership or sharing access does **not** establish permission to automate
@@ -77,9 +78,10 @@ unauthorized automated access. The
 [2026-10-27 feasibility assessment](docs/architecture.md#feasibility-assessment)
 did not establish a permitted integration path. At the maintainer's request,
 the project no longer uses that assessment as a blanket development stop gate.
-This policy change is not upstream approval. Live features still need working
-login, source contracts, and implementation. Live account tests and credential
-access need separate explicit approval. Simple browser login remains unproven.
+This policy change is not upstream approval. Live reads still need reusable
+session handling, source contracts, and adapter implementation. Live account tests and credential
+access need separate explicit approval. Windows browser login has approved
+product evidence; other platforms remain deferred.
 Do not bypass paywalls, access controls, or bot
 protection. This repository contains no proprietary content or real account
 fixtures.
@@ -113,7 +115,8 @@ pwsh -NoProfile -File ./scripts/cargo.ps1 build --release --workspace --locked
 ```
 
 The binaries are `beyond-gate` and `beyond-gate-mcp` in the Cargo release output
-directory. Windows adds `.exe`. See the [native installation guide](docs/installation.md)
+directory. Windows adds `.exe` and `beyond-gate-native-host.exe`.
+See the [native installation guide](docs/installation.md)
 for the package matrix, checksum checks, extraction, platform requirements, and
 first-run limits. The guide is also included as `installation.md` in every archive.
 See [Contributing](CONTRIBUTING.md) for checks and the packaging process.
@@ -150,6 +153,7 @@ for protected-store requirements and recovery.
 | `src/beyond-gate-core` | Local session operations, offline HTTP policy, metadata assembly, and bounded book reads |
 | `src/beyond-gate-cli` | The `beyond-gate` CLI |
 | `src/beyond-gate-mcp` | The `beyond-gate-mcp` stdio server and read tools |
+| `beyond-gate-browser-extension` | The manual Chrome/Edge login extension and its offline tests |
 | `docs` | CLI/MCP references, installation, architecture, authentication, and roadmap |
 | `.github` | Agent guidance, issue/PR templates, CI, and release packaging |
 

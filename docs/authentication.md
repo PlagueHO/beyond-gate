@@ -1,74 +1,31 @@
 # Authentication design
 
 **Windows human-controlled login implemented and verified with Chrome and Edge Dev.**
-Simple local login is a core requirement.
-The [2026-10-27 feasibility assessment](architecture.md#feasibility-assessment)
-did not establish a permitted path. Its blanket development stop gate is now
-removed under the [current policy](roadmap.md#development-policy-and-technical-status).
-This policy change is not upstream approval. Live account
-tests and credential access still need separate explicit approval. An ignored,
-developer-only
-[session-exchange probe](#opt-in-session-exchange-probe) is now available.
-The user reported a successful manual exchange on 2026-10-27. The probe does not
-implement product login.
-The [existing-browser review for #29](#existing-browser-decision-for-issue-29)
-records the remaining return-path blocker and the evidence needed to resume.
-The later [extension feasibility evaluation](#extension-feasibility-evaluation)
-adds a candidate transport, not a working account login.
+The manual extension, native host, and interactive CLI use the
+[version 1 browser handoff](browser-handoff.md). Approved product checks covered
+human pairing, direct-service validation, protected save, restart/status, logout,
+and cleanup. See the [scope and evidence](testing.md#approved-windows-product-login-verification).
+macOS/Linux browser login and reusable authenticated CLI/MCP reads remain deferred.
 
-The [browser handoff contract checkpoint](browser-handoff.md) now records two
-version 1 protocol proposals, a shared core API proposal for #30, and canonical
-synthetic test cases for #29/#46. Windows product integration is implemented:
-the accepted Windows pairing and service rules have offline implementations.
-The user-reported Edge API observation supplies the production profile fields.
-The real native host and CLI orchestration now call shared completion.
-The product browser form and explicit Windows host setup now exist.
-Both browsers passed synthetic native/core completion checks.
-Approved real product-console, account-validation, protected-save, restart/status,
-and logout checks now passed with Chrome and Edge Dev.
-The user also approved the shared establishment contract for #29/#30.
-Rust tests check fixture
-data and execute selected message and frame recipes against shared core parsers.
-The newer paired completion tests run real local validation and mock saves;
-they do not prove live login. Only the Windows CLI starts this ingress.
-The parsers accept the invented profile
-and, on Windows, `cobalt-session-v1`. Parsing cannot establish service validation
-or protected-save success.
-
-The [focused contract-blocker review](browser-handoff.md#contract-blocker-decision)
-is a historical checkpoint. The user has since
-[approved pairing and scoped evidence work](browser-handoff.md#approved-pairing-and-evidence-direction).
-Encrypted pairing, terminal display, and a protected Windows endpoint are
-implemented. Synthetic browser integration and approved Windows product login
-now pass. The review records the
-missing launch proof, a proposed
-metadata-only approval packet, and the validation/encoding decisions needed
-from #30. Approval of this documentation does not approve the observation or
-freeze the protocols.
-
-The user subsequently accepted the
+The user accepted the
 [Windows pairing boundary](browser-handoff.md#accepted-windows-pairing-boundary).
 The one-use, user-entered key authorizes the application connection. Independent
-extension-launch proof is not claimed. Installed code and process memory remain
-trusted. Production terminal and protected-store integration passed the
-[approved Windows checks](testing.md#approved-windows-product-login-verification).
+extension-launch proof is not claimed. Installed configuration, code, and process
+memory remain trusted. The accepted
+[service rule](browser-handoff.md#accepted-windows-service-rule) and
+[cookie contract](browser-handoff.md#selected-windows-cookie-contract) define the
+shared core boundary agreed with #30. Only a versioned cookie is persisted.
+The bearer is transient, and cookie expiry remains unknown.
 
-The user has now accepted the
-[strict Windows service rule](browser-handoff.md#accepted-windows-service-rule).
-The shared core API validates a direct service response and confirms one
-protected save with safe cancellation and write-uncertainty handling.
-It persists only a versioned cookie, with a 2,552-byte value limit and eight-byte
-header. The bearer remains transient; cookie expiry remains unknown.
-Windows CLI completion now calls this boundary. The
-[selected Windows cookie contract](browser-handoff.md#selected-windows-cookie-contract)
-now fixes the observed scope and attributes. The paired controller binds its
-profile before authorization, and the core consumes its receipt without a
-credential copy. Actual Chrome and Edge Dev selection, product handoff, and
-protected save passed. Both test sessions were removed after verification.
+Live account tests and credential access still need separate explicit approval
+under the [current policy](roadmap.md#development-policy-and-technical-status).
+The earlier browser assessments and the
+[developer probe](#opt-in-session-exchange-probe) below retain dated evidence.
+They do not describe the current Windows implementation or authorize new tests.
 
 ## Browser login window
 
-The [manual package](../browser-extension/manifest.json) opens a separate browser
+The [manual package](../beyond-gate-browser-extension/manifest.json) opens a separate browser
 window after an explicit toolbar action. It is not an action popup that closes
 when focus moves. The user selected this form so the terminal and browser can
 remain visible together.
@@ -79,7 +36,7 @@ cookies, connect a native host, or send a service request. The user must enter
 the terminal's one-use key and approve the cookie read, validation, and protected
 session replacement.
 
-The [browser controller](../browser-extension/flow.mjs) requires the pinned
+The [browser controller](../beyond-gate-browser-extension/flow.mjs) requires the pinned
 extension ID and a regular context before pairing. It uses exactly the selected
 cookie query after bound pending authorization. Missing, ambiguous, partitioned,
 expired-metadata, or malformed candidates fail; no alternate profile or store
@@ -189,7 +146,7 @@ Unit tests use isolated in-memory credentials. They check shared entry identity,
 write/read/delete, exact size bounds, invalid stored material, denied or locked
 storage, missing backends, native failures, ambiguous entries, repeated logout,
 and redacted error chains. CLI tests check local output and failures with injected
-operations. Process tests exercise blocked login, help, and rejected input without
+operations. Process tests exercise redirected-login refusal, help, and rejected input without
 accessing real credentials. MCP process tests check local stdio serving and
 explicit unsupported live-read errors.
 
@@ -197,49 +154,28 @@ No native credential-store round trip or live account test is part of these
 checks. Platform CI checks build compatibility, not real credential-service access.
 A native-store smoke test requires separate explicit credential-access approval.
 
-Usable, expired, and rejected upstream session states remain deferred. So do
-browser cancellation, cookie exchange failures, timed expiry, bounded refresh,
-and actual CLI/MCP authenticated-session parity. They need a working browser
-handoff and tested exchange, expiry, refresh, and host contracts first.
-The manual developer probe below remains separate and unchanged.
+Windows establishment tests cover cancellation, cookie exchange failures,
+deadlines, service rejection, expired bearer evidence, and uncertain writes.
+Reusable upstream-session states, bounded refresh, and authenticated CLI/MCP
+read parity remain #30 work. The developer probe below remains separate.
 
 ## Required user experience
 
-1. The user starts `beyond-gate auth login` after the browser handoff is implemented.
-2. Beyond Gate opens the user's installed Edge or Chrome browser for
-   human-controlled login.
-3. Beyond Gate obtains only the session material needed for authorized reads.
-4. It stores persistent session material in protected OS credential storage.
-5. The CLI and MCP server use that same local session without repeated setup.
+1. The user installs the manual extension and registers its Windows native host.
+2. The user starts `beyond-gate auth login` in an interactive terminal.
+3. The user opens the extension window and signs in in the regular browser.
+4. The user enters the one-use terminal key and approves validation and save.
+5. Beyond Gate queries the selected cookie, validates it, and confirms protected
+   storage and final receipt before reporting success.
 
-These steps describe the desired future experience, not the current blocked command
-or a verified capture mechanism.
-D&D Beyond is not assumed to expose an OAuth callback for this project.
-Do not promise one. Evaluate a working browser-mediated handoff before choosing
-a browser integration. Do not read unrelated browser profiles or cookies.
-Beyond Gate must never ask for the account password.
-
-### Requested fallback
-
-The user requested a fallback when browser handoff is unavailable. Direct
-credential values in CLI arguments or MCP tool inputs are not part of the
-design. Those inputs can expose a session through process information or client
-records. MCP tools must not accept credentials.
-
-One option to evaluate is a user-initiated, one-shot import from a temporary
-process environment into the shared core, followed by validation and protected
-OS storage. The value must not be placed in command arguments, shell history,
-logs, or MCP client configuration. The CLI and MCP server would then use the
-same stored session. This is a proposal, not an implemented fallback.
-
-An environment variable is not equivalent to protected OS storage. Parent or
-child processes and diagnostics can retain or expose its value. Define the
-trusted injection method, user consent, lifetime, failure behavior, and cleanup
-before selecting this option. Do not assume that the application can erase
-copies held by another process. Any test with a real credential still needs
-separate approval.
+The CLI does not open or control the browser. Password entry stays in the
+browser. No OAuth callback, credential import, or environment-based fallback
+is implemented. Reuse of the stored session for CLI/MCP reads remains deferred.
 
 ## Browser handoff assessment
+
+**Historical assessment.** The Windows implementation and approved evidence
+above supersede the return-path blockers in this section.
 
 **Reviewed: 2026-10-27. Result: no working product handoff established.**
 Opening the installed browser does not establish a way for this app to receive a
@@ -315,6 +251,7 @@ separate explicit approval under the
 ### Existing-browser decision for issue #29
 
 **Initial review: 2026-10-31. Result: no verified return path established.**
+The later accepted extension design supersedes this existing-browser-only scope.
 For [#29](https://github.com/PlagueHO/beyond-gate/issues/29), the user initially selected
 the existing browser only. This scope excludes an extension, separate browser
 profile, embedded browser, and browser debugging connection. It does not approve
@@ -339,11 +276,10 @@ probe starts with an already supplied cookie, so its successful exchange does
 not fill that gap. Do not copy another application's client identity, assume a
 redirect is supported, or weaken browser protections.
 
-Implementation stops at this missing contract. `auth login` retains its existing
-explicit failure before browser, input, storage, or network activity. No callback
+At that checkpoint, implementation stopped at the missing contract. `auth login`
+returned an explicit failure before browser, input, storage, or network activity. No callback
 listener, product token exchange, cookie import, or simulated successful login
-is added. Cancellation, timeout, rejected login, and successful protected handoff
-remain unimplemented; synthetic storage and probe tests do not satisfy them.
+was added. Synthetic storage and probe tests did not satisfy the product criteria.
 
 To resume within this scope, establish these facts from protocol evidence:
 
@@ -360,16 +296,14 @@ That issue owns shared session validation, expiry evidence, bounded refresh,
 and authenticated CLI/MCP use. The current opaque storage limit is not a
 verified upstream format, and local presence is not proof of usable login.
 
-Issue #29 remains blocked, not complete. A verified contract can permit offline
-implementation and synthetic flow/process tests. It does not approve a live
-experiment. Any live check still needs separate approval for exact hosts,
-operations, request budgets, stop conditions, and cleanup. Expanding the browser
-integration beyond the approved synthetic extension evaluation also needs a new
-user decision.
+That review left #29 blocked. Later user decisions and Windows product evidence
+resolved this return-path blocker. Any new live check still needs separate
+approval for exact hosts, operations, request budgets, stop conditions, and cleanup.
 
 ### Extension feasibility evaluation
 
 **Scope update: 2026-10-31. Result: candidate transport; account login unverified.**
+This is dated feasibility evidence, not the current product status.
 The user then approved evaluation of a narrowly scoped extension with synthetic
 tests. This replaces the earlier exclusion of extension evaluation. The user
 subsequently ran a test extension and native host in Edge. This does not approve
@@ -407,7 +341,7 @@ native-host registration and allowed extension IDs. A published extension ID can
 differ between stores. The later
 [isolated browser suite](testing.md#isolated-browser-feasibility) passed synthetic
 registration, handoff, rejection, and cleanup tests in both Chrome and Edge.
-Neither browser has a product login implementation yet.
+Those feasibility checks alone did not establish product login.
 
 #### Synthetic evidence and limits
 
@@ -457,38 +391,6 @@ an arbitrary local process that could supply such an argument. The browser
 registration restricts which extension Edge may launch it for, but that
 restriction alone does not bind the host to a pending CLI login.
 
-#### Remaining validation gates
-
-The later repository suite verifies cleanup of its own Chrome and Edge fixtures
-and rejection of a different allowed origin. It does not clean up the earlier
-session-only prototype or implement authenticated CLI binding. Hosted-runner
-execution and the full product state/operation cases remain unverified.
-
-Continue with synthetic data. Verify permission denial, rejection of a different
-extension, cancellation, timeout, and test-registration cleanup. On 2026-10-31,
-the user reported removing the test host. Cleanup of the Edge extension and
-local test site has not been confirmed.
-
-A production design must also bind the separately launched native host to one
-pending `auth login` in the same OS user context. Native messaging alone does not
-connect it to an already running CLI process. Define authenticated local IPC,
-its local-process threat model, one-use transactions, deadlines, duplicate and
-replay rejection, and consent before reading or saving a session. Do not trust
-a caller-supplied origin or challenge without that pending-login check. Do not
-accept credentials from arbitrary local callers.
-
-Only after the synthetic browser test and implementation contracts are established,
-request separate approval for a bounded live experiment. Identify the exact
-cookie scope and minimum material; verify any required exchange and successful
-protected save. Stop on access denial or bot protection. Define hosts, operations,
-request budgets, stop conditions, and cleanup before approval. Do not upload
-cookie values, account responses, or browser data.
-
-Issue #29 therefore remains incomplete, but the Edge test confirms one synthetic
-transport path. Issue #30 still owns token use, expiry evidence, bounded refresh,
-and authenticated adapter parity. Do not substitute the test host's receipt for
-any of those results.
-
 ## Opt-in session-exchange probe
 
 The user requested implementation of live testing on 2026-10-27. The initial scope
@@ -498,7 +400,8 @@ campaign, or book reads. The test is in
 Blocking reqwest and rpassword are development requirements of this probe.
 Async reqwest and serde_json are also normal dependencies of the separate
 [core HTTP boundary](architecture.md#http-boundary).
-Neither product binary invokes the probe or sends requests.
+Neither product binary invokes the probe. Windows product login uses the
+separate shared establishment exchange.
 
 ### Community evidence, not an official API contract
 
@@ -520,16 +423,17 @@ accepts only the cookie. It does not infer a token lifetime or try a refresh.
 ### Run manually
 
 Run this exact command in an interactive terminal from the repository root.
-On Windows, initialize the
-[Visual Studio developer environment](../CONTRIBUTING.md#local-development)
-first. Missing C headers in `aws-lc-sys` are a build setup failure, not a rejected
-session. The linked instructions include a compile-only check.
+Use the repository wrapper. On Windows, it selects
+[Visual Studio 2022 Build Tools](../CONTRIBUTING.md#windows-build-environment)
+and runs Cargo in the same process. Missing C headers in `aws-lc-sys` are a build
+setup failure, not a rejected session. The linked instructions include a
+compile-only check.
 Do not run the command through an agent or a recorded terminal session.
 Proceed only with your own session and separate explicit approval for the
 experiment.
 
-```shell
-cargo test -p beyond-gate-core --test auth_probe --locked live_authentication -- --ignored --exact --nocapture
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --test auth_probe --locked live_authentication -- --ignored --exact --nocapture
 ```
 
 The test requests the cookie through a hidden terminal prompt. Do not put it in
@@ -559,7 +463,7 @@ HTTPS-only live configuration, exact size limits, input validation, and redacted
 diagnostics. Rejection cases do not prove a specific upstream expiry policy.
 
 **Live result: passed, user-reported on 2026-10-27.** The user supplied the terminal
-result for the exact command above: one live test passed. The probe reported that
+result for the original direct Cargo invocation: one live test passed. The probe reported that
 the token exchange succeeded and the token was discarded. By the test's checks,
 the response was HTTP 200 with a nonempty string `token` field. Right-click paste
 worked at the hidden prompt in the user's terminal.
@@ -587,18 +491,14 @@ The separately tested future Actions lifecycle uses a unique repository secret
 per submission and `gh secret set` stdin. This defines a development-only
 exception to the local-probe rule, not an enabled product or CI login flow.
 No general product credential environment variable or MCP credential parameter
-is added. Browser login, exchange, expiry, and live adapter parity stay blocked.
+is added. This manual live-resource suite remains blocked; the separately
+verified Windows browser login does not enable it.
 
-If the selected upstream flow requires a session cookie to short-lived token
-exchange, the future session design must support it. Determine actual cookie
-names, hosts, token fields, expiry, and refresh behavior in the feasibility work.
-Do not hard-code guessed endpoints or assume that cookies never expire.
-
-The local storage boundary above uses Windows Credential Manager, macOS Keychain,
-or Linux Secret Service. A future approved login must use that boundary. Keep short-lived
-tokens in memory when possible. Store non-secret settings separately in the
-user's OS configuration directory. Do not silently fall back to plaintext when a
-credential store is locked or missing.
+Windows establishment fixes the selected cookie, direct exchange host, response
+rule, and persistent encoding. It keeps the derived bearer transient and saves
+only the cookie. #30 must define bounded reuse and refresh without assuming that
+the cookie never expires. Other-platform login must use the protected storage
+boundary above, not plaintext when a store is locked or missing.
 
 Future `auth status` output must report usability and expiry only when supported
 evidence exists. Current status reports local presence only. It never displays
@@ -610,27 +510,14 @@ Handle expiry explicitly. Bound token refresh and do not repeatedly retry a
 rejected session. Give the user a clear login action. MCP tools must report that
 human login is needed, not ask an agent to collect a cookie or password.
 
-## Early proof and fallback
-
-A manually imported session cookie may test a candidate technical path or provide
-an explicit fallback. It must not become the primary login experience.
-If needed, read it from a no-echo interactive terminal prompt. Never accept a
-secret as a CLI argument, copied MCP prompt, environment example, or logged value.
-Define secure noninteractive input separately if a real need appears.
-
-Tests must use synthetic cookie and token values. Test protected-store failure,
-expired cookies, token expiry, denied login, cancelled login, and logout.
-Do not commit account snapshots, HAR files, browser profiles, or content samples.
-
 ## Unresolved questions
 
 - Does upstream permit a suitable local authentication flow?
-- Can a simple browser handoff work without an extension or credential scraping?
-- What minimal session material and host allowlist does the flow require?
-- What expiry and token-exchange rules does upstream actually support?
-- Which Linux environments provide the protected session service needed at runtime?
+- Which resource hosts and access contracts can support authenticated CLI/MCP reads?
+- What reusable-session expiry, refresh, and revocation rules can #30 verify?
+- Which secure browser handoff can macOS and Linux support?
 
-These remain open after the assessment. Resolve them through the
+Windows login does not resolve these remaining questions. Use the
 [integration questions](architecture.md#integration-evidence-and-live-tests) and
 linked [roadmap](roadmap.md). Do not weaken protected storage or bypass bot
 protection to make login appear successful.

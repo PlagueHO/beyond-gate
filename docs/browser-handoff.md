@@ -1,8 +1,8 @@
-# Browser login contract checkpoint
+# Browser login contracts
 
 **Status: Windows product login verified with Chrome and Edge Dev.**
-This document defines a
-version 1 proposal for [#29](https://github.com/PlagueHO/beyond-gate/issues/29).
+This document defines the version 1 contracts for
+[#29](https://github.com/PlagueHO/beyond-gate/issues/29).
 The user approved the implemented shared core boundary for
 [#30](https://github.com/PlagueHO/beyond-gate/issues/30).
 The agreement is recorded on
@@ -81,6 +81,8 @@ Validation has a 15-second bound. Store setup and save waiting share a fixed
 five-second bound within the original pending deadline. The host waits at most
 20 seconds for this outcome. After submit, a failed delivery, stalled outcome,
 or lost acknowledgement reports `save_indeterminate`, not ordinary timeout.
+The blocking store worker checks the same five-second deadline before setup
+and write admission. This does not depend on the async timeout being polled.
 
 Only a genuine shared `SavedSession` permits `result`. The browser must then
 send the following bound acknowledgement. The host forwards it encrypted to the
@@ -120,32 +122,26 @@ The user accepted
 The browser passes its pairing key to the selected native host. The flow does
 not protect against a change that substitutes another host through registry
 entries, manifests, or launch mapping. Windows setup commands now check conflicts
-and require confirmation. See the
+and require confirmation. Registry ownership checks and selected per-user
+mapping removal share one transaction. See the
 [process evidence and remaining limits](testing.md#windows-product-flow-process-checks).
 
 ## Evidence and ownership
 
-The issue body, all comments, and artifact 1 of #29 were read for this checkpoint.
-Issues #29, #30, and #46 had no comments at the time of review.
-Artifact 1 records the user-reported successful synthetic Edge test and host
-removal. It does not record a pending CLI connection or a protected save.
-The [authentication evidence](authentication.md#extension-feasibility-evaluation)
-retains the original observations and their limits.
+The [approved Windows product checks](testing.md#approved-windows-product-login-verification)
+record real Chrome and Edge Dev login, protected save, and cleanup.
+The [earlier feasibility evidence](authentication.md#extension-feasibility-evaluation)
+remains separate from that product result.
 
-| Work | Owner | Checkpoint boundary |
-|------|-------|---------------------|
-| Native host, browser registration, pending CLI login, protected handoff | [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | This proposal; no runtime implementation |
-| Session exchange, validation, persistent format, expiry and refresh | [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Proposed shared core API below; agreement still required |
-| Chrome and Edge extension, manual package, real synthetic browser CI | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Reuse both contracts and the same fixtures after acceptance |
+| Work | Owner | Current boundary |
+|------|-------|------------------|
+| Native host, browser registration, pending CLI login, protected handoff | [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Windows implementation and product checks complete; review and merge remain separate |
+| Session exchange, validation, persistent format, expiry and refresh | [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Establishment boundary agreed and implemented; reusable session lifecycle remains separate |
+| Chrome and Edge extension, manual package, real synthetic browser CI | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Windows product integration and hosted synthetic checks passed using the shared contracts |
 
-Issue #46 blocks end-to-end completion of #29. Its synthetic browser feasibility work
-can start independently. Do not make #46 depend on completion of its parent.
-Issue #30 can develop synthetic lifecycle cases independently; neither issue depends
-on completion of the other.
-
-The user selected Chrome and Edge on Windows for the first product handoff.
-This is a target, not a support claim. macOS and Linux browser login remain
-unsupported; their existing local status and logout behavior stays unchanged.
+Issue #30 does not require completion of all of #29 before lifecycle development.
+macOS and Linux browser login remain unsupported; their existing local status
+and logout behavior stays unchanged.
 
 ### Verified platform facts
 
@@ -541,7 +537,8 @@ result as a fallback. The root-host permission covers the domain cookie; it
 does not permit arbitrary subdomains.
 The [Chrome cookies API](https://developer.chrome.com/docs/extensions/reference/api/cookies)
 documents the current-context store, unpartitioned default, and `unspecified`
-SameSite value. Actual Chrome product behavior still needs separate evidence.
+SameSite value. Approved Chrome and Edge Dev product selection passed separately
+from the earlier metadata observation.
 
 Windows message parsing enforces the production value limit before receipt.
 `PendingHandoff::for_profile` fixes the profile before opening and rejects
@@ -585,11 +582,11 @@ before enabling the bridge. Do not use a shell to launch the native host.
 | Chrome or Edge / Linux | Untested | OS-specific secure IPC, install paths, browser and cleanup evidence |
 
 No Store publication, automatic update service, or new product runtime is needed.
-Manual installation guidance and packages belong to #46 after the contract
-checkpoint. Browser-specific CI must identify the actual browser flavor and
+Manual installation guidance and packages are implemented under #46.
+Browser-specific CI must identify the actual browser flavor and
 versions; Chromium is not an unlabelled Chrome or Edge pass.
 
-## Proposed shared core boundary
+## Shared core boundary
 
 The Windows implementation now exports the following API through
 `beyond-gate-core::auth::establishment`. It replaces the earlier borrowed-store
@@ -609,14 +606,14 @@ async fn establish_session(
 | `BrowserSessionCookie` | Own a nonempty RFC 6265 value of at most 2,552 bytes; zeroize owned allocations and redact Debug; browser attributes are a separate ingress check |
 | `LoginControl` | Own a monotonic deadline of at most five minutes, cancellation state, and the pending-slot reservation; adapters cannot extend it |
 | `LoginCancellation` | Cancel the owning operation without retaining the reservation after completion |
-| `SavedSession` | Serialize only `validation: "service_validated"` and `expiry: "unknown"` after confirmed save; never a cookie or token |
+| `SavedSession` | Expose only `validation: "service_validated"` and `expiry: "unknown"` after confirmed save; adapters format the result without a cookie or token |
 | `EstablishmentError` | Expose a safe typed category and redacted typed cause; no raw credential, URL input, response body, or native error text |
 
 The core owns exchange, validation, and one protected save. The host and extension
 do not exchange cookies for bearer tokens. Adapters do not implement session
 logic. The derived bearer remains transient process memory and is dropped after
-validation. It is not persisted. Browser profile selection remains blocked;
-the cookie constructor does not prove browser consent, scope, or provenance.
+validation. It is not persisted. Browser profile selection is implemented in
+the extension; the cookie constructor does not prove consent, scope, or provenance.
 
 The user accepted the [strict direct-service rule](#accepted-windows-service-rule).
 Token presence alone remains insufficient. The rule trusts the direct TLS
@@ -646,7 +643,7 @@ permanent access grant. Loading and refresh for live operations remain #30 work.
 CLI login success requires `SavedSession`; a handoff receipt or
 `StoredUnverified` cannot substitute for it. MCP must later consume #30's shared
 session lifecycle using the same fixed entry, not accept a cookie in a tool.
-This proposal adds neither a second credential protocol for MCP nor new tools.
+This boundary adds neither a second credential protocol for MCP nor new tools.
 Refresh, authenticated resource reads, and upstream revocation remain #30 work.
 
 ### Safe errors
@@ -675,7 +672,7 @@ remains exit 2. A closed or corrupt connection need not receive a reply.
 | `timed_out` | `TimedOut`; deadline reached before save | Unchanged |
 | `disconnected` | Peer closed before save or no final result was received | Unchanged before save; otherwise unknown |
 | `session_rejected` | `SessionRejected`; upstream rejects material without verified expiry | Unchanged |
-| `session_expired` | `SessionExpired`; accepted evidence verifies expiry | Unchanged |
+| `session_expired` | `SessionExpired`; service-issued bearer expired, not proof of reusable-cookie expiry | Unchanged |
 | `validation_unavailable` | `ValidationUnavailable`; bounded transport/service failure | Unchanged |
 | `unsupported_contract` | `UnsupportedContract`; no accepted validation/persistence contract | Unchanged |
 | `storage_unavailable` | `StorageUnavailable` | Unchanged if no write started |
@@ -1211,7 +1208,8 @@ No proxy, redirect, automatic retry, alternate origin, second validation request
 content read, or independent signature-verification claim is added.
 A service-issued expired bearer yields `session_expired`; this does not prove
 the reusable cookie expired. Store opening starts only after accepted evidence.
-No product or live credential-store call has been made through this new API.
+This rule was first checked with field observations and offline fixtures.
+Later approved Windows product checks exercised the real API and native store.
 
 The evidence sequence used four service requests under separate approvals:
 absent cookie returned HTTP 200 with no token; invented cookie returned HTTP 401;
@@ -1246,45 +1244,41 @@ environment variable, MCP tool, URL, configuration, or log is permitted.
 
 This decision allows product integration against that boundary. It is not
 permission for a new account request, browser-profile read, or native-store test.
-The earlier independent launch-proof requirements are historical; the complete
-runtime and browser/CLI tests still need implementation.
+The earlier independent launch-proof requirements are historical. The Windows
+runtime, synthetic browser/CLI tests, and approved product checks are implemented.
 
 ## Acceptance and remaining gates
 
-The [contract-blocker decision](#contract-blocker-decision) records the focused
-follow-up review is historical. The Windows service rule and shared save boundary
-above now have executable offline coverage. Real browser selection, complete
-paired application integration, final protocol integration, and hosted evidence remain
-required. These changes do not enable product login.
+The [contract-blocker decision](#contract-blocker-decision) is historical.
+The accepted Windows contracts have offline, hosted synthetic, and approved
+product evidence. macOS/Linux login and reusable authenticated reads remain deferred.
 
 | Decision | Status |
 |----------|--------|
 | Contract-first scope and stated threat boundary | User selected |
-| Both version 1 message proposals and limits | Proposed; not frozen |
-| Application-peer authentication and discovery | Windows one-use pairing boundary accepted without independent extension-launch proof; encrypted transport tested; product wiring still pending |
-| Actual cookie profile | Fixed Edge API fields reported; Windows contract compiled; real selection, Chrome evidence, and diagnostic cleanup remain incomplete |
-| Shared core validation and persistence | Windows service rule accepted; core implementation and offline checks added; adapter/lifecycle coordination with #30 remains incomplete |
+| Both version 1 message contracts and limits | Implemented and checked through the product controller and native/core flow |
+| Application-peer authentication and discovery | Accepted one-use key boundary; Windows encrypted channel and logon-restricted endpoint implemented and tested |
+| Actual cookie profile | Selected Windows contract implemented; Chrome and Edge Dev product selection passed; diagnostic cleanup confirmed |
+| Shared core validation and persistence | Windows service rule and protected save implemented; establishment boundary agreed with #30 |
 | Rust fixture consistency checks | Implemented; data checks only |
-| Rust message parsers and bounded async framing | Implemented; synthetic and Windows production profiles; no adapter ingress |
-| Full fixture transitions and product host-to-CLI coverage | Encrypted synthetic process checks implemented; full product flow not implemented |
-| Real Chrome and Edge synthetic browser/native-host tests | Passed locally on Windows; fixture authorization only |
-| Chrome and Edge synthetic PR CI | Separate jobs defined under #46; Actions execution not yet verified |
-| Live-account or native-store experiment | Approved in principle; exact execution scope and results remain required |
+| Rust message parsers and bounded async framing | Implemented; production CLI/native ingress and separate synthetic fixtures |
+| Product host-to-CLI coverage | Synthetic success, rejection, cancellation, lost acknowledgement, and unavailable storage passed |
+| Real Chrome and Edge synthetic browser/native-host tests | Passed locally and in hosted Windows jobs; no account or native store used |
+| Chrome and Edge synthetic CI | Separate hosted jobs passed on the recorded implementation commit |
+| Live-account and native-store checks | Approved Chrome and Edge Dev product checks passed; test entries, extensions, and owned installation removed |
 
-Maintainers must accept both contracts and the shared core boundary before
-product host/extension integration. Record the accepted revision and fixture
-version in #29 and coordinate #30/#46. Do not freeze or enable the blocked
-portions merely because documentation and JSON checks pass.
-
-Keep #29 open. Separate approval is required for account or credential-store
-tests, with exact hosts, operations, request budgets, stop conditions, and
-cleanup. The environment-based fallback remains an unimplemented separate
-ingress design. No raw-cookie CLI arguments, MCP credential parameters,
+The existing product evidence does not cover later source changes. Review and
+merge remain separate from implementation and test completion. All private-test
+approval budgets are consumed. New account or credential-store tests need exact
+hosts, operations, request budgets, stop conditions, and cleanup before approval.
+No raw-cookie CLI arguments, MCP credential parameters,
 plaintext fallback, Store publication, or access-control workaround is added.
 
 ## Public source follow-up
 
 **Reviewed: 2026-10-31. PROFILE-1 and CORE-1 remain unresolved.**
+This is a historical review. The later accepted Windows rules and product
+evidence resolve these implementation blockers.
 
 The pinned
 [DDBI cookie selector](https://github.com/MrPrimate/ddbi-utilities-extension/blob/40c7f29af86ba0588080aa9792befac5a682c38c/src/popup/cobalt.js)
@@ -1315,6 +1309,8 @@ autonomously.
 
 **Result: IPC-1, PROFILE-1, and CORE-1 remain blocked.** This milestone narrows
 the earlier full implementation plan to the missing contract evidence.
+This section records the earlier decision, not the current Windows status.
+Its proposed observation packets are not active approvals.
 It does not add a host, browser registration, transport, core API, or dependency.
 No browser, account, or credential store was used. A session-only synthetic
 standard-handle experiment is recorded below.
@@ -1436,7 +1432,7 @@ conditions, and cleanup. No service-validation endpoint is selected here.
 
 ### CORE-1 decisions required from the shared operation
 
-The existing [shared core API](#proposed-shared-core-boundary) remains a proposal.
+The existing [shared core API](#shared-core-boundary) remains a proposal.
 Do not treat this review as #30 owner agreement. The current opaque
 `SessionSecret` cannot supply a verified cookie type or a persistent format.
 

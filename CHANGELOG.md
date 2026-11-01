@@ -222,6 +222,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Align current login, architecture, roadmap, and installation guidance with
+  verified Windows behavior. Remove obsolete fallback and validation-gate
+  planning text while retaining dated evidence and accepted trust limits.
+- Share cancellation and original/phase deadline checks in the establishment
+  controller instead of repeating save-worker guards.
+- Rename the browser source directory to `beyond-gate-browser-extension` to
+  match the product's component names. Extension identity and archive names
+  remain unchanged.
 - Recorded the bounded validation comparison: absent-cookie HTTP 200 without a
   token, invented-cookie HTTP 401, and a separately approved real-cookie HTTP
   401. Both denials stopped their scopes. No authenticated session or protected
@@ -273,6 +281,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Check the five-second save deadline in the blocking worker before storage
+  setup and write admission, even when the async timeout has not run.
+- Check native-host registry ownership and remove matching mappings in one
+  Windows transaction. Concurrent changes cannot cause a foreign mapping to
+  be deleted.
 - Reset accepted synthetic authentication mock sockets to blocking mode before
   applying I/O timeouts. This prevents inherited nonblocking mode from causing
   Windows `WouldBlock` failures in offline exchange checks.
@@ -289,5 +302,5 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Stop before starting an HTTP attempt when a queued permit becomes available
   after the total deadline. Accept case-insensitive identity content encoding.
 
-Account login and live D&D Beyond reads are not available. Local stdio MCP
-serving is available, but its live read tools return explicit unsupported errors.
+Windows account login and local stdio MCP serving are available. Live D&D Beyond
+reads remain unsupported, including through MCP tools.

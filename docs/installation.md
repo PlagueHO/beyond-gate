@@ -42,7 +42,7 @@ and register the new path. Do not copy only the CLI.
 
 For Windows browser setup, keep the native host beside the CLI in the stable
 installation directory. Extract `beyond-gate-browser.zip` into a separate
-`browser-extension` subdirectory. Load that unpacked directory from
+`beyond-gate-browser-extension` subdirectory. Load that unpacked directory from
 `chrome://extensions` or `edge://extensions` with Developer mode enabled.
 Check that its ID is `gnhdconfgjfdbbgkemadegjcjnnodefh`.
 Do not continue if the ID differs. No browser-store package is published.
@@ -256,8 +256,10 @@ errors. Do not interpret discovery as successful login or live read access.
 
 To remove registration, stop the server in the client. Remove only the
 `beyond-gate` entry from the settings file's `mcpServers` object. Keep unrelated
-entries. Remove both installed binaries and their documentation if you no longer
-need them. Remove any PATH line you added. Unregistering or deleting the binaries
+entries. For browser login removal, also use the matching `auth uninstall`
+command before removing the native host and extension files. Remove the installed
+binaries and their documentation if you no longer need them. Remove any PATH
+line you added. Unregistering or deleting the binaries
 does not revoke an upstream session or remove a stored credential.
 
 ## Troubleshooting
@@ -273,7 +275,8 @@ does not revoke an upstream session or remove a stored credential.
 | Malformed client JSON or conflicting server name | Repair or remove only the conflicting entry after a backup. The installer will not overwrite it. |
 | MCP waits without output | It expects MCP JSON-RPC on stdin. Start it through a client, not as a terminal REPL. |
 | Locked or unavailable credential service | Use the desktop's normal unlock/service controls. Do not use a file fallback. |
-| Login blocker or unsupported read | This is the current product limit. Runtime installation will not resolve it. |
+| Windows login setup fails | Check the pinned extension ID, matching native-host registration, and three interactive terminal streams. Use a new login key after failure. |
+| Other-platform login or unsupported read | This is the current product limit. Runtime installation will not resolve it. |
 
 ## Release readiness
 
@@ -286,8 +289,8 @@ An offline package check is not a v1 acceptance decision.
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
 | CLI/MCP errors and output contracts, source attribution, book bounds | Existing offline suites use synthetic records. Live parity and source contracts remain blocked. |
 | Missing, expired, or rejected upstream session errors | Blocked by missing session-aware live operations. Unsupported errors are not substitutes. |
-| Simple browser login and native credential-store operation | Blocked or untested. Require separate explicit approval for real credential access. |
-| Live login, reads, and client walkthrough | Not tested by packaging. Require explicit approval and a permitted access path. Stop on access denial. |
+| Simple browser login and native credential-store operation | Approved Windows Chrome and Edge Dev product checks passed separately from packaging. Other-platform login remains deferred. New real-store tests need explicit approval. |
+| Live reads and client walkthrough | Not tested by packaging or Windows login checks. Require explicit approval and a permitted access path. Stop on access denial. |
 | Version, lockfile, dated changelog, assets, evidence, and draft release | Require maintainer review before publication. No tag or publication is authorized by issue #10 alone. |
 
 Manual packaging uploads artifacts only. A maintainer-approved version tag can

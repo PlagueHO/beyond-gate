@@ -382,6 +382,45 @@ async fn save_wait_is_five_seconds_and_cannot_admit_a_late_write() {
     );
 }
 
+/// Rejects late write admission even when the async timeout has not been polled.
+#[tokio::test(start_paused = true)]
+async fn worker_checks_save_deadline_before_the_timeout_is_polled() {
+    let (control, namespace) = login_control(Duration::from_secs(30));
+    let store = store();
+    let target = Arc::clone(&store);
+    let (entered, entered_rx) = tokio::sync::oneshot::channel();
+    let (release, release_rx) = mpsc::channel();
+    let mut future = Box::pin(save(input().cookie.encode(), &control.0, move || {
+        entered.send(()).expect("setup started");
+        release_rx
+            .recv_timeout(Duration::from_secs(2))
+            .expect("test release");
+        Ok(target)
+    }));
+    tokio::select! {
+        result = &mut future => panic!("premature setup result: {result:?}"),
+        result = entered_rx => result.expect("setup entered"),
+    }
+    tokio::time::advance(Duration::from_secs(5)).await;
+    release.send(()).expect("release owned worker");
+    let wait_deadline = std::time::Instant::now() + Duration::from_secs(1);
+    while Arc::strong_count(&control.0) > 1 {
+        assert!(std::time::Instant::now() < wait_deadline, "worker finished");
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert_eq!(
+        future.await.expect_err("late admission").code(),
+        ErrorCode::TimedOut
+    );
+    assert_eq!(
+        store.entry.get_secret().expect("prior entry"),
+        b"synthetic-prior"
+    );
+    drop(control);
+    tokio::time::resume();
+    wait_released(&namespace).await;
+}
+
 /// Builds a disjoint reservation with a future deadline and no product entry access.
 fn login_control(duration: Duration) -> (LoginControl, String) {
     let namespace = Transaction::generate().expect("test randomness");
@@ -964,6 +1003,22 @@ async fn cancelled_control_never_starts_an_exchange() {
     .await
     .expect_err("cancelled");
     assert_eq!(error.code(), ErrorCode::Cancelled);
+}
+
+/// Prevents a later phase deadline from extending the original login lifetime.
+#[tokio::test(start_paused = true)]
+async fn phase_check_cannot_extend_original_login_deadline() {
+    let (control, _) = login_control(Duration::from_secs(2));
+    let phase_deadline = Instant::now() + Duration::from_secs(30);
+    tokio::time::advance(Duration::from_secs(2)).await;
+    assert_eq!(
+        control
+            .0
+            .check_before(phase_deadline)
+            .expect_err("original deadline")
+            .code(),
+        ErrorCode::TimedOut
+    );
 }
 
 /// Rejects an elapsed original deadline before requesting or opening storage.

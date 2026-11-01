@@ -1,11 +1,12 @@
 # Implementation roadmap
 
-Both binaries provide help and version output. The CLI also has blocked login,
-local auth status/logout, and shell completions. Resource command parsing and
+The CLI and MCP binaries provide help and version output. The CLI has verified Windows
+browser login, local auth status/logout, and shell completions. Resource command parsing and
 formatting have offline process tests; live reads fail explicitly.
 Protected-store operations have synthetic offline
-tests; no product credential-creation flow exists. The core HTTP boundary has
-offline policy tests, but no live endpoints or adapter wiring. Authenticated operations
+tests; Windows login creates the protected entry after service validation.
+The core HTTP read boundary has offline policy tests, but no live resource
+endpoints or adapter wiring. Authenticated resource operations
 below remain pending. The core can also assemble explicitly supplied offline
 library metadata with context-specific evidence and bounded pagination. This is
 not live discovery. The core also validates supplied book outlines and reads
@@ -20,7 +21,7 @@ dependencies, tests, and documentation requirements.
 |-------|-------|---------------|
 | [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Access and technical feasibility assessment | None; assessment recorded; blanket permission stop gate removed |
 | [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy; offline boundary implemented | #1; approved hosts and endpoint contracts still unresolved |
-| [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Simple human login and protected sessions; local storage/status/logout implemented, browser login blocked | #1, #2 |
+| [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Windows human login and local storage/status/logout implemented; reusable sessions and other-platform login remain deferred | #1, #2 |
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library metadata, evidence, and page assembly implemented; live discovery blocked | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
 | [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Offline outlines and bounded section reads implemented; live reads not implemented | #4 |
@@ -34,8 +35,8 @@ Authentication follow-up work remains open:
 | Issue | Scope | Current dependency |
 |-------|-------|--------------------|
 | [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | Windows implementation and #46 integration verified. Hosted CI and approved Chrome/Edge Dev login/save/restart/logout passed. Shared core contract agreed with #30. Code is on the feature branch, not merged. |
-| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Agree on the checkpoint's core boundary with #29; opaque local presence is not upstream validation. No reciprocal completion dependency. |
-| [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Synthetic feasibility can start independently. Product integration needs the accepted #29 contracts, not completion of all of #29. |
+| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Establishment boundary agreed with #29. Reusable session use and refresh remain separate; local presence is not upstream validation. No reciprocal completion dependency. |
+| [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Windows product integration and separate browser CI passed against the accepted #29 contracts. Review and merge remain separate. |
 
 The user reported one successful
 [synthetic Edge handoff](authentication.md#edge-synthetic-browser-test).
@@ -45,8 +46,7 @@ execute canonical messages and selected parsing/framing recipes. Full state
 coverage and authenticated pending-CLI binding now have offline checks.
 Both browsers passed five synthetic native/core completion cases.
 Hosted-runner checks and approved real Chrome/Edge Dev handoff, protected save,
-restart/status, and logout now passed. The separate environment fallback remains
-unimplemented.
+restart/status, and logout now passed.
 
 The historical [contract-blocker milestone](browser-handoff.md#contract-blocker-decision)
 records the earlier unresolved decisions. Later user decisions accepted Windows
@@ -148,8 +148,9 @@ and hosted CI passed. Other platforms retain unsupported login.
 `auth status` can establish only `absent` or `stored-unverified`, not upstream
 usability or expiry. `auth logout` removes the local entry but cannot revoke
 upstream sessions. Native-store runtime checks need separate approval; automated
-tests use synthetic stores. Exchange, expiry, bounded refresh, browser cancellation,
-and real CLI/MCP session parity remain deferred.
+tests use synthetic stores. Windows establishment covers exchange failures,
+expired bearer evidence, and browser cancellation. Reusable session expiry,
+bounded refresh, and real CLI/MCP read parity remain deferred.
 
 v1 is local-only and read-only. It needs simple authentication, consistent CLI/MCP
 results, source URLs, bounded book reads, and clear errors before a usable release.
@@ -164,8 +165,9 @@ Each platform result applies only after its packaging workflow succeeds.
 
 This is not completion of #10 or proof of a usable v1. Missing-session and expiry
 errors for live operations remain blocked, not replaced by unsupported errors.
-Simple login, native credential-store checks, actual client discovery, and approved
-live CLI/MCP checks for access, attribution, and book bounds remain release blockers.
+Windows login and protected-store checks have approved product evidence.
+Other-platform login, actual client discovery, and approved live CLI/MCP checks
+for access, attribution, and book bounds remain release blockers.
 See the guide's [release-readiness table](installation.md#release-readiness).
 Maintainers must review version, lockfile, dated changelog, assets, evidence, and
 the draft before publication. This issue authorizes no release tag or publication.

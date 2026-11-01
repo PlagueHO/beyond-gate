@@ -149,7 +149,7 @@ async function probe(name, recipe) {
     const extension = join(directory, "extension");
     await mkdir(extension);
     for (const file of ["manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs"]) {
-      await copyFile(join(REPO, "browser-extension", file), join(extension, file));
+      await copyFile(join(REPO, "beyond-gate-browser-extension", file), join(extension, file));
     }
     for (const file of ["product-fixture.html", "product-fixture.mjs"]) {
       await copyFile(join(HERE, file), join(extension, file));

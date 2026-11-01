@@ -7,7 +7,7 @@ on:
       - ".github/workflows/release.yml"
       - "scripts/**"
       - "src/**"
-      - "browser-extension/**"
+      - "beyond-gate-browser-extension/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - "rust-toolchain.toml"
@@ -124,7 +124,7 @@ jobs:
           if ($IsWindows) {
             Copy-Item target/release/beyond-gate-native-host.exe -Destination package
             $browserFiles = @("manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs") |
-              ForEach-Object { Join-Path browser-extension $_ }
+              ForEach-Object { Join-Path beyond-gate-browser-extension $_ }
             Compress-Archive -LiteralPath $browserFiles -DestinationPath package/beyond-gate-browser.zip
           }
           $stem = "beyond-gate-v$env:VERSION-$env:TARGET"

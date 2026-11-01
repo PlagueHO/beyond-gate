@@ -138,7 +138,8 @@ beyond-gate auth uninstall chrome --directory C:\Tools\BeyondGate --dry-run
 ```
 
 Removal requires confirmation. It removes only matching selected-browser
-per-user leaves. It preserves binaries, other browsers, and machine-wide keys.
+per-user leaves. Ownership checks and registry deletion share one Windows
+transaction. It preserves binaries, other browsers, and machine-wide keys.
 It retains a manifest if another checked registration still uses it. Edge can
 still use a Chrome fallback after its explicit registration is removed.
 A moved installation requires removal with its old directory before registration

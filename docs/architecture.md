@@ -21,7 +21,7 @@ The MCP adapter serves local stdio with seven read-only tools;
 their shared core operations currently return explicit unsupported errors.
 Resource reads do not construct an HTTP client or send upstream requests.
 The core now also exports a Windows-only
-[shared establishment boundary](browser-handoff.md#proposed-shared-core-boundary)
+[shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
 after a production-bound submission. The native relay checks its fixed origin,
 authenticates pairing, and waits for final browser receipt confirmation.
@@ -41,7 +41,9 @@ serde_json, and httpdate. The developer-only
 blocking reqwest and rpassword through development dependencies.
 `Cargo.lock` records exact resolved versions, including development dependencies.
 Local auth uses `keyring-core`, explicit target-specific credential-store crates,
-and `zeroize`. These operations do not use the probe or the HTTP boundary.
+and `zeroize`. Local storage does not use the probe or HTTP client.
+Windows establishment reuses the HTTP module's direct transport and cookie
+header helpers, not its resource-read operation.
 
 ## Intended boundaries
 
@@ -140,7 +142,8 @@ and runs off the executor with the save. Atomic cancellation/write admission
 preserves pre-write state; a started write with unconfirmed completion is
 `save_indeterminate`. Worker ownership retains the pending reservation after
 caller drop. In-memory keyring and local HTTP tests cover this boundary.
-Production browser profile checks and authenticated adapter use remain absent.
+The production browser controller checks the selected cookie profile.
+Authenticated adapter reads remain deferred.
 
 Errors retain typed native causes behind a redacted wrapper. Display, Debug, and
 the standard error chain omit credential bytes and raw native messages. The safe
@@ -148,53 +151,28 @@ classification distinguishes invalid local data, denied or locked storage,
 unavailable backends, ambiguous entries, unsupported platforms, and other native
 failures where the backend enum permits it. Unknown failures do not become absence.
 
-The CLI parses and presents these operations. Its login command returns an
-explicit blocker before any storage, browser, input, or network activity.
+The CLI parses and presents these operations. Windows login requires interactive
+streams and one-use browser pairing before validation and protected save.
+Redirected login and other platforms fail before credential access.
 MCP read tools call the same core operations and do not read credentials or
 create a separate session identity. No auth or credential-input tool is exposed.
 Native store calls are blocking, so future async operations must keep them off
 executor threads.
 
-This is partial offline work for #3. Browser handoff, session exchange, upstream
-expiry, refresh, rejection, and actual adapter session parity remain blocked.
+Windows browser handoff, direct exchange, rejection, cancellation, and protected
+save have [approved product evidence](testing.md#approved-windows-product-login-verification).
+Reusable upstream-session states, refresh, revocation, and authenticated adapter
+parity remain [#30](https://github.com/PlagueHO/beyond-gate/issues/30) work.
 
-The [2026-10-31 review for #29](authentication.md#existing-browser-decision-for-issue-29)
-initially kept login within the user's selected existing-browser-only scope. It found no
-verified return contract and adds no speculative callback or exchange.
-The user later approved [extension evaluation with synthetic tests](authentication.md#extension-feasibility-evaluation).
-The user reported a successful synthetic Edge extension-to-host handoff.
-The later [isolated browser suite](testing.md#isolated-browser-feasibility) passed
-real synthetic native messaging in both Chrome and Edge on Windows. These tests
-prove transport feasibility, not account login or protected storage. A
-[requested environment-based fallback](authentication.md#requested-fallback)
-also needs a secure import contract; MCP tool inputs cannot carry credentials.
-Issue [#30](https://github.com/PlagueHO/beyond-gate/issues/30) separately owns
-session validation, expiry evidence, bounded refresh, and authenticated adapter
-use. A future login flow must agree on its stored-session boundary with that work.
-
-The [contract-first checkpoint](browser-handoff.md) proposes separate
-extension-to-host and host-to-CLI protocols plus one shared core establishment
-boundary. #29 owns the native host, browser registration, and CLI connection;
-[#46](https://github.com/PlagueHO/beyond-gate/issues/46) owns the extension and
-real synthetic browser CI. Shared synthetic message types, framing, and a
-development-only host exist; no product host or authenticated IPC is added.
-The checkpoint remains blocked until application-peer authentication,
-the production cookie profile, and #30's validation/persistence contract are
-established. A caller origin, OS user identity, or challenge alone is not enough.
-
-The [focused gate decision](browser-handoff.md#contract-blocker-decision) keeps
-these contracts proposed and blocked. An inherited CLI pipe still needs an
-authenticated handle-delivery path to the browser-launched host. A native window
-argument does not prove that launch. The core profile must also reconcile the
-HTTP name/value bound and the Windows 2,560-byte credential-blob limit before
-selecting a portable persistent encoding. No runtime or stored format changes.
-
-The later [synthetic standard-handle test](browser-handoff.md#synthetic-standard-handle-follow-up)
-confirmed OS pipe metadata on two test standard handles. Reviewed Chromium source
-uses named pipes and can pass pre-opened client handles to the host. This does
-not prove an approved extension launch or identify every later handle holder.
-The full authenticated channel and a compatible safe Rust implementation remain
-unresolved.
+The [browser contracts](browser-handoff.md) define extension-to-host JSON,
+encrypted host-to-CLI framing, one-use key pairing, logon-restricted Windows
+pipes, and the agreed shared establishment boundary. #29 owns the native host,
+registration, and CLI connection. #46 owns the manual browser extension and
+real synthetic browser CI. Their Windows product integration is implemented.
+The accepted trust boundary includes installed configuration and code; it does
+not independently prove extension launch or resist a substituted native host.
+The earlier browser and IPC investigations remain dated evidence in the
+authentication and handoff guides, not current implementation blockers.
 
 ## HTTP boundary
 

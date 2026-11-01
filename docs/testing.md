@@ -25,7 +25,7 @@ CLI parser tests and real MCP discovery detect inventory changes.
 A `contract.*` pass proves the current unsupported-error contract only.
 Corresponding `live.*` cases remain blocked. Help, successful authentication
 probes, unsupported errors, and empty results do not prove live read coverage.
-Testing the browser-login blocker does not prove a working browser handoff.
+Testing redirected-login refusal does not prove a working browser handoff.
 
 `full` returns a nonzero exit while any required case is not passed.
 `contracts` selects offline command, protocol, and registration contracts. It
@@ -53,7 +53,8 @@ The establishment tests use actual paired receipts, a local HTTP service, and
 in-memory keyring entries. They check real validation/save completion,
 rejection, lost/wrong acknowledgements, buffered cancellation before any request,
 disconnect, early acknowledgement, cancellation before and during writes,
-reservation retention, and the exact five-second save wait. No native credential
+reservation retention, and the exact five-second save wait. A delayed-worker
+regression checks write admission without polling the async timeout. No native credential
 entry or live account is used. CLI process tests require redirected login to
 fail before runtime, key generation, endpoint work, or account access.
 
@@ -66,7 +67,7 @@ These checks alone do not prove real browser integration, hosted CI evidence,
 or approved live/save behavior.
 
 The manual browser form now has twelve
-[offline product-controller tests](../browser-extension/tests/flow.test.mjs).
+[offline product-controller tests](../beyond-gate-browser-extension/tests/flow.test.mjs).
 The [production recipes](fixtures/windows-login-v1.json) are shared with
 [Rust codec checks](../src/beyond-gate-core/tests/windows_login_contract.rs) and
 the actual Noise relay tests. The package's public manifest key derives the
@@ -75,8 +76,17 @@ cookie limits, one query, final acknowledgement, safe cancellation, and fixed
 phase deadlines. Existing synthetic-browser tests remain separate.
 
 ```powershell
-node --test .\scripts\browser-tests\unit.test.mjs .\browser-extension\tests\flow.test.mjs
+npm test --prefix .\scripts\browser-tests
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --test windows_login_contract --locked
+```
+
+Windows setup tests use private synthetic registry roots and invented files.
+They cover preview, cancellation, idempotent install/removal, foreign setup,
+malformed manifests, and transactional removal with concurrent changes.
+They do not register a product host or open protected credentials.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --lib browser_setup --locked
 ```
 
 Synthetic UI rendering was checked in a fresh headless Chrome profile at desktop
@@ -570,10 +580,10 @@ ingress points and preserves successful synthetic receipt with
 passed. The test copies only known synthetic setup and the feature-built binary
 into a newly owned build directory; cleanup removes only those fixed files.
 
-The guarded non-Windows test requires `unsupported_profile`; it has not been
-executed on Linux or macOS in this Windows session. Hosted checks remain
-unverified. The user-reported Edge metadata is recorded separately from these
-offline tests; diagnostic removal is not yet confirmed.
+The guarded non-Windows test requires `unsupported_profile`. Local Windows
+checks cannot execute that platform branch; later hosted Linux/macOS Rust jobs
+passed. The user-reported Edge metadata remains separate from these offline
+tests. Diagnostic removal was confirmed during the approved product check below.
 
 ## Run locally without credentials
 

@@ -197,12 +197,12 @@ impl ControlState {
         EstablishmentError::new(code)
     }
 
-    /// Rejects cancellation and expired deadlines before an operation starts.
-    fn check(&self) -> Result<(), EstablishmentError> {
+    /// Rejects cancellation and the earlier of the phase and original login deadlines.
+    fn check_before(&self, deadline: Instant) -> Result<(), EstablishmentError> {
         if self.cancelled.load(Ordering::SeqCst) {
             return Err(self.stop(ErrorCode::Cancelled));
         }
-        if Instant::now() >= self.deadline {
+        if Instant::now() >= self.deadline.min(deadline) {
             return Err(self.stop(ErrorCode::TimedOut));
         }
         Ok(())
@@ -575,19 +575,19 @@ async fn save<F>(
 where
     F: FnOnce() -> Result<Arc<SessionStore>, AuthError> + Send + 'static,
 {
-    state.check()?;
+    state.check_before(state.deadline)?;
     let save_deadline = state.deadline.min(Instant::now() + Duration::from_secs(5));
     let worker_state = Arc::clone(state);
     let worker = tokio::task::spawn_blocking(move || {
-        worker_state.check()?;
+        worker_state.check_before(save_deadline)?;
         let store = open().map_err(setup_error)?;
-        worker_state.check()?;
+        worker_state.check_before(save_deadline)?;
         if worker_state
             .stage
             .compare_exchange(READY, WRITING, Ordering::SeqCst, Ordering::SeqCst)
             .is_err()
         {
-            worker_state.check()?;
+            worker_state.check_before(save_deadline)?;
             return Err(EstablishmentError::new(ErrorCode::Cancelled));
         }
         store.save(&secret).map_err(|error| {
@@ -608,7 +608,7 @@ where
                 let code = state.stop(ErrorCode::StorageFailure).code();
                 EstablishmentError::caused(code, Cause::Worker(error))
             })??;
-            state.check()?;
+            state.check_before(save_deadline)?;
             Ok(saved)
         },
     }
@@ -625,7 +625,7 @@ pub(super) async fn establish_with<F>(
 where
     F: FnOnce() -> Result<Arc<SessionStore>, AuthError> + Send + 'static,
 {
-    control.0.check()?;
+    control.0.check_before(control.0.deadline)?;
     let secret = input.cookie.encode();
     tokio::select! {
         biased;

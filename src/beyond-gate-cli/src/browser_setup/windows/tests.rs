@@ -157,6 +157,59 @@ fn installation_is_idempotent_and_removal_is_owned() {
     assert!(fixture.path.join("beyond-gate-native-host.exe").exists());
 }
 
+/// Staged removal is invisible until commit and rollback preserves the original mapping.
+#[test]
+fn removal_transaction_preserves_mapping_until_commit() {
+    let fixture = Fixture::new();
+    let setup = fixture.setup("edge");
+    install(&setup, &fixture.user, &fixture.machine).expect("own install");
+    let transaction = winreg::transaction::Transaction::new().expect("removal transaction");
+    stage_removal(&setup, &fixture.user, &transaction).expect("staged owned removal");
+    let key = open_mapping(&fixture.user, EDGE, KEY_WOW64_32KEY)
+        .expect("committed lookup")
+        .expect("mapping remains before commit");
+    assert_eq!(
+        mapping(&key).expect("committed mapping"),
+        setup.manifest_path.to_str().expect("path")
+    );
+    transaction.rollback().expect("rollback staged removal");
+    assert!(
+        open_mapping(&fixture.user, EDGE, KEY_WOW64_32KEY)
+            .expect("preserved lookup")
+            .is_some()
+    );
+    assert!(setup.manifest_path.exists());
+}
+
+/// A concurrent replacement either fails or aborts removal without losing the replacement.
+#[test]
+fn concurrent_mapping_change_cannot_be_deleted_by_removal() {
+    let fixture = Fixture::new();
+    let setup = fixture.setup("edge");
+    install(&setup, &fixture.user, &fixture.machine).expect("own install");
+    let key = fixture
+        .user
+        .open_subkey_with_flags(format!(r"{EDGE}\{HOST_NAME}"), KEY_READ | KEY_WRITE)
+        .expect("separate writer");
+    let transaction = winreg::transaction::Transaction::new().expect("removal transaction");
+    stage_removal(&setup, &fixture.user, &transaction).expect("staged owned removal");
+    let foreign = r"C:\invented-concurrent-host.json";
+    if key.set_value("", &foreign).is_ok() {
+        assert!(
+            transaction.commit().is_err(),
+            "changed mapping aborts removal"
+        );
+        assert_eq!(mapping(&key).expect("preserved replacement"), foreign);
+    } else {
+        transaction.rollback().expect("rollback removal");
+        assert_eq!(
+            mapping(&key).expect("preserved owned mapping"),
+            setup.manifest_path.to_str().expect("path")
+        );
+    }
+    assert!(setup.manifest_path.exists());
+}
+
 /// A foreign entry in either hive, either view, or any Edge fallback blocks writes.
 #[test]
 fn foreign_lookup_entries_are_never_overwritten() {

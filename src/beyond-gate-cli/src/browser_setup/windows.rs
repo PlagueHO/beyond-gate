@@ -231,18 +231,37 @@ fn install(setup: &Setup, user: &RegKey, machine: &RegKey) -> Result<(), SetupEr
     check(setup, user, machine)
 }
 
+/// Checks ownership and stages selected-browser removal in one registry transaction.
+fn stage_removal(
+    setup: &Setup,
+    user: &RegKey,
+    transaction: &winreg::transaction::Transaction,
+) -> Result<(), SetupError> {
+    for view in VIEWS {
+        let path = format!(r"{}\{HOST_NAME}", setup.target());
+        let key = match user.open_subkey_transacted_with_flags(
+            &path,
+            transaction,
+            KEY_READ | KEY_WRITE | view,
+        ) {
+            Ok(key) => key,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => continue,
+            Err(error) => return Err(error.into()),
+        };
+        if mapping(&key)? != setup.manifest_path.to_str().ok_or(SetupError::Directory)? {
+            return Err(SetupError::Conflict);
+        }
+        user.delete_subkey_transacted_with_flags(&path, transaction, view)?;
+    }
+    Ok(())
+}
+
 /// Removes only matching selected-browser per-user leaves, preserving machine/fallback entries.
 fn uninstall(setup: &Setup, user: &RegKey, machine: &RegKey) -> Result<(), SetupError> {
     check(setup, user, machine)?;
-    for view in VIEWS {
-        if let Some(key) = open_mapping(user, setup.target(), view)? {
-            if mapping(&key)? != setup.manifest_path.to_str().ok_or(SetupError::Directory)? {
-                return Err(SetupError::Conflict);
-            }
-            drop(key);
-            user.delete_subkey_with_flags(format!(r"{}\{HOST_NAME}", setup.target()), view)?;
-        }
-    }
+    let transaction = winreg::transaction::Transaction::new()?;
+    stage_removal(setup, user, &transaction)?;
+    transaction.commit()?;
     for root in [user, machine] {
         for family in [EDGE, CHROMIUM, CHROME] {
             for view in VIEWS {
