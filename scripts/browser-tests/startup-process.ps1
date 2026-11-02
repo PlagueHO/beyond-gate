@@ -32,6 +32,10 @@ $kinds = @($children | ForEach-Object {
     thread_count = $threads.Count
     waiting_thread_count = $waiting.Count
     wait_reasons = @($waiting | ForEach-Object { [int]$_.WaitReason } | Sort-Object -Unique)
+    thread_states = @(foreach ($thread in ($threads | Select-Object -First 5)) {
+        ,@([int]$thread.ThreadState,
+            $(if ($thread.ThreadState -eq 'Wait') { [int]$thread.WaitReason } else { $null }))
+    })
     chrome_dll_loaded = $modules -contains 'chrome.dll'
     chrome_elf_loaded = $modules -contains 'chrome_elf.dll'
     child_kinds = $kinds

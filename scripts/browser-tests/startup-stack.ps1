@@ -131,6 +131,18 @@ function Get-SafeProbeProgress {
     }
 }
 
+# Copies one prepared public PDB, or reports why only export hints are available.
+function Copy-PreparedStartupSymbols {
+    param([string]$Cache, [string]$Directory)
+
+    if (!(Test-Path -LiteralPath $Cache -PathType Container)) { return 'missing' }
+    $files = @(Get-ChildItem -LiteralPath $Cache -Filter ntdll.pdb -File -Recurse)
+    if ($files.Count -eq 0) { return 'missing' }
+    if ($files.Count -ne 1) { return 'ambiguous' }
+    Copy-Item -LiteralPath $files[0].FullName -Destination (Join-Path $Directory 'ntdll.pdb')
+    return 'copied'
+}
+
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Debuggers\x64\cdb.exe'
@@ -156,13 +168,11 @@ try {
         @{ status = 'identity-changed' } | ConvertTo-Json -Compress
         exit 0
     }
+    $stage = 'symbols'
+    $symbolPreparation = 'not-prepared'
     if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_TEMP) {
         $symbolCache = Join-Path $env:RUNNER_TEMP 'beyond-gate-startup-ntdll-symbols'
-        if (Test-Path -LiteralPath $symbolCache -PathType Container) {
-            $files = @(Get-ChildItem -LiteralPath $symbolCache -Filter ntdll.pdb -File -Recurse)
-            if ($files.Count -ne 1) { throw 'Expected one prepared Windows loader symbol file.' }
-            Copy-Item -LiteralPath $files[0].FullName -Destination (Join-Path $RunDirectory 'ntdll.pdb')
-        }
+        $symbolPreparation = Copy-PreparedStartupSymbols -Cache $symbolCache -Directory $RunDirectory
     }
     $remaining = [math]::Min(3000,
         $DeadlineUnixMs - [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 1000)
@@ -199,6 +209,7 @@ try {
         stderr_limit_reached = $capture.streams[1].bytes -ge $errors.Length
         target_exited_during_probe = $browser.HasExited
         capture_mode = $(if ($KeepRunning) { 'non-suspending' } else { 'suspended' })
+        symbol_preparation = $symbolPreparation
     }
     $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
     $counts.progress = Get-SafeProbeProgress -Text $text
