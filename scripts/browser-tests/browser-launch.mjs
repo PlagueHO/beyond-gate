@@ -61,6 +61,25 @@ async function startupProcess(child, path, directory) {
   }
 }
 
+/** Reports public module identities after the cases, never preloading a cold browser. */
+export async function reportPublicBrowserSymbols(name, browser, directory, {
+  enabled = process.env.BEYOND_GATE_STARTUP_STACKS === "1",
+  inspect = startupProcess,
+  report = (record) => console.error(JSON.stringify(record)),
+} = {}) {
+  if (!enabled) return;
+  const child = browser.process();
+  const state = child ? await inspect(child, child.spawnfile, directory) : { status: "not-observed" };
+  report({
+    status: state.status === "read" ? "public-build-identities" : "public-build-identities-unavailable",
+    browser: name,
+    phase: "after-browser-cases",
+    inspection: state.status === "read"
+      ? { status: "read", public_module_symbols: state.public_module_symbols }
+      : state,
+  });
+}
+
 /** Collects bounded public stack hints only in explicitly selected hosted sampling runs. */
 async function startupStack(child, path, directory, { keepRunning = false } = {}) {
   if (process.env.BEYOND_GATE_STARTUP_STACKS !== "1") return { status: "not-requested" };

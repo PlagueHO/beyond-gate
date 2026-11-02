@@ -8,7 +8,9 @@ import { dirname, join, resolve } from "node:path";
 import { release } from "node:os";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import { executable, launchBrowser, cleanupActions, withCleanup } from "./browser-launch.mjs";
+import {
+  executable, launchBrowser, reportPublicBrowserSymbols, cleanupActions, withCleanup,
+} from "./browser-launch.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEST_ROOT = join(HERE, "..", "..", "target", "browser-feasibility");
@@ -201,6 +203,7 @@ async function probe(name) {
       assert.equal(result.cookie_api, "passed");
       phase = "native-messaging";
       const cases = await nativeCases(worker, name, id, directory);
+      await reportPublicBrowserSymbols(name, browser, directory);
       const driver = JSON.parse(await readFile(
         join(HERE, "node_modules", "puppeteer-core", "package.json"), "utf8",
       ));

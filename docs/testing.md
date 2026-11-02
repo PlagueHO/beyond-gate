@@ -614,6 +614,12 @@ from an already loaded browser executable or ELF module. These IDs select
 public symbols, not accounts or profiles. At most two fixed module labels
 and hexadecimal build IDs leave the collector. PDB paths, image bytes, and
 process-memory values do not. This does not read browser files before launch.
+These IDs describe backing files. A debugger must still verify that its
+symbols match the loaded module before a function can be identified precisely.
+In manual `startup-stacks` mode, each runner also reports these IDs on stderr
+after all its browser cases succeed, before cleanup. This separate record
+does not require another startup failure or run a stack probe. An unavailable
+inspection is explicit. Default runs do not request this post-case inspection.
 Fixed pipe byte counters, buffer lengths, and end/close flags distinguish
 transport progress without reading or retaining a protocol payload.
 The observer waits for Node.js's `spawn` event before checking the exact executable

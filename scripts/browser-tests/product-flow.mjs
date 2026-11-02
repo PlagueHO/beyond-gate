@@ -8,7 +8,9 @@ import { release } from "node:os";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { launchBrowser, cleanupActions, withCleanup, safeLaunchCause } from "./browser-launch.mjs";
+import {
+  launchBrowser, reportPublicBrowserSymbols, cleanupActions, withCleanup, safeLaunchCause,
+} from "./browser-launch.mjs";
 import { rejectingProxy, registration, cleanupProbe, TEST_ROOT, REPO } from "./run.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -176,6 +178,7 @@ async function probe(name, recipe) {
       await page.waitForFunction(() => typeof globalThis.runProductFixture === "function", { timeout: 5000 });
       stage = "product-flow";
       const results = await cases(page, name, directory, host, recipe);
+      await reportPublicBrowserSymbols(name, browser, directory);
       const driver = JSON.parse(await readFile(
         join(HERE, "node_modules", "puppeteer-core", "package.json"), "utf8",
       ));
