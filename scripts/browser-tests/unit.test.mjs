@@ -401,11 +401,8 @@ test("Windows stack filtering emits only allowed modules and public export hints
     "02 00000001`00000002 00000003`00000004 chrome!synthetic_private+0x99",
     "03 00000001`00000002 00000003`00000004 foreign!ReadFile+0x99",
     "04 00000001`00000002 00000003`00000004 chrome+0x1234",
+    "05 00000001`00000002 00000003`00000004 ntdll!LdrpDrainWorkQueue+0x12",
     "BG_STACK_END",
-    "BG_SETTINGS_BEGIN",
-    "Extensions.AllowNugetExeUpdate: Enables updates",
-    "Extensions.ExtensionSearchPath: C:\\synthetic-privateGallery\\secret",
-    "BG_SETTINGS_END",
     "05 00000001`00000002 00000003`00000004 crypt32!CryptQueryObject+0x99",
   ].join("\r\n");
   const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
@@ -413,20 +410,33 @@ test("Windows stack filtering emits only allowed modules and public export hints
     "@((ConvertTo-SafeStartupStack $env:BEYOND_GATE_TEST_STACK), " +
     "(ConvertTo-SafeStartupStack 'synthetic-private'), " +
     "(Get-SafeProbeProgress $env:BEYOND_GATE_TEST_STACK), " +
-    "@(Get-PublicGallerySettingNames $env:BEYOND_GATE_TEST_STACK)) | ConvertTo-Json -Compress",
+    "@((ConvertTo-SafeStartupStack $env:BEYOND_GATE_TEST_LONG_STACK).frame_count, " +
+    "(ConvertTo-SafeStartupStack $env:BEYOND_GATE_TEST_LONG_STACK -MaxFrames 8).frame_count)) " +
+    "| ConvertTo-Json -Depth 4 -Compress",
   ], {
     env: { ...process.env, BEYOND_GATE_TEST_STACK: text,
+      BEYOND_GATE_TEST_LONG_STACK: [
+        "BG_STACK_BEGIN",
+        ...Array.from({ length: 40 }, () =>
+          "00 0000000100000002 0000000300000004 ntdll!LdrpDrainWorkQueue+0x12"),
+        "BG_STACK_END",
+      ].join("\r\n"),
       BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
     timeout: 8000, maxBuffer: 4096,
   });
   assert.deepEqual(JSON.parse(stdout), [{
-    status: "read", thread: "debugger-thread-zero", frame_count: 5,
+    status: "read", thread: "debugger-thread-zero", frame_count: 6,
     modules: ["ntdll", "kernelbase", "chrome"],
     export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx"],
+    frame_hints: [
+      ["ntdll", "NtWaitForSingleObject"], ["kernelbase", "WaitForSingleObjectEx"],
+      ["chrome", "other"], ["other", "other"], ["chrome", "other"],
+      ["ntdll", "LdrpDrainWorkQueue"],
+    ],
   }, { status: "unreadable", reason: "markers-not-found" }, {
     gallery_preparing: true, gallery_waiting: false, engine_banner: false,
     symbol_path_reported: false, stack_started: true, stack_completed: true,
-  }, ["Extensions.AllowNugetExeUpdate"]]);
+  }, [32, 8]]);
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
   }
@@ -610,6 +620,13 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
     assert.equal(result.startup_stack.status, "read", JSON.stringify(result.startup_stack));
     assert.ok(result.startup_stack.frame_count > 0 && result.startup_stack.frame_count <= 32);
     assert.ok(result.startup_stack.modules.includes("ntdll"));
+    assert.equal(result.startup_stack.os_symbols_loaded, true);
+    assert.ok(result.startup_stack.secondary_threads.length > 0 &&
+      result.startup_stack.secondary_threads.length <= 4);
+    for (const thread of result.startup_stack.secondary_threads) {
+      assert.equal(thread.status, "read");
+      assert.ok(thread.frame_hints.length > 0 && thread.frame_hints.length <= 8);
+    }
   } else {
     assert.deepEqual(result.startup_stack, { status: "not-requested" });
   }

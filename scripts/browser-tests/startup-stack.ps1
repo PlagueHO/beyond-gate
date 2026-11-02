@@ -11,7 +11,7 @@ $ErrorActionPreference = 'Stop'
 
 # Discards addresses, offsets, arbitrary symbols, paths, and debugger diagnostics.
 function ConvertTo-SafeStartupStack {
-    param([string]$Text)
+    param([string]$Text, [ValidateRange(1, 32)][int]$MaxFrames = 32)
 
     $region = [regex]::Match($Text, '(?ms)^BG_STACK_BEGIN\r?\n(.*?)^BG_STACK_END\r?$')
     if (!$region.Success) { return @{ status = 'unreadable'; reason = 'markers-not-found' } }
@@ -30,8 +30,17 @@ function ConvertTo-SafeStartupStack {
         'LoadLibraryExW', 'LdrLoadDll', 'WinVerifyTrust', 'CryptQueryObject',
         'ChromeMain', 'BaseThreadInitThunk', 'RtlUserThreadStart'
     )
-    $frames = [regex]::Matches($region.Groups[1].Value,
-        '(?mi)^[ \t]*[0-9a-f]{2,3}[ \t]+[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+([a-z0-9_]+)(?:!([a-z0-9_]+))?(?:\+0x[0-9a-f]+)?[ \t]*\r?$')
+    $allowedLoaderFunctions = @(
+        'LdrpDrainWorkQueue', 'LdrpLoadDll', 'LdrpLoadDllInternal',
+        'LdrpInitializeThread', 'LdrpCallInitRoutine', 'LdrpCallTlsInitializers',
+        'LdrpProcessWork', 'LdrpWorkCallback', 'LdrpMapDllNtFileName',
+        'LdrpMapDllWithSectionHandle', 'LdrpPrepareModuleForExecution',
+        'LdrpAcquireLoaderLock', 'LdrLockLoaderLock', 'RtlEnterCriticalSection',
+        'RtlAcquireSRWLockExclusive', 'NtCreateSection', 'NtMapViewOfSection'
+    )
+    $frames = @([regex]::Matches($region.Groups[1].Value,
+        '(?mi)^[ \t]*[0-9a-f]{2,3}[ \t]+[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+([a-z0-9_]+)(?:!([a-z0-9_]+))?(?:\+0x[0-9a-f]+)?[ \t]*\r?$') |
+        Select-Object -First $MaxFrames)
     if ($frames.Count -eq 0) { return @{ status = 'unreadable'; reason = 'frames-not-found' } }
     @{
         status = 'read'
@@ -46,6 +55,17 @@ function ConvertTo-SafeStartupStack {
             $symbol = $_.Groups[2].Value
             if ($module -cin $allowedModules -and $symbol -cin $allowedExports) { $symbol }
         } | Select-Object -Unique)
+        frame_hints = @($frames | ForEach-Object {
+            $module = $_.Groups[1].Value.ToLowerInvariant()
+            $symbol = $_.Groups[2].Value
+            if ($module -cnotin $allowedModules) { $module = 'other' }
+            if ($module -eq 'other' -or
+                ($symbol -cnotin $allowedExports -and
+                !($module -eq 'ntdll' -and $symbol -cin $allowedLoaderFunctions))) {
+                $symbol = 'other'
+            }
+            ,@($module, $symbol)
+        })
     }
 }
 
@@ -103,18 +123,6 @@ function Get-SafeProbeProgress {
     }
 }
 
-# Reads public gallery-related configuration names from debugger help, not values.
-function Get-PublicGallerySettingNames {
-    param([string]$Text)
-
-    $help = [regex]::Match($Text, '(?ms)^BG_SETTINGS_BEGIN\r?\n(.*?)^BG_SETTINGS_END\r?$')
-    if (!$help.Success) { return @() }
-    @([regex]::Matches($help.Groups[1].Value,
-        '(?m)^[ \t]*([a-zA-Z_][a-zA-Z0-9_.]*)[ \t]*:') |
-        ForEach-Object { $_.Groups[1].Value } |
-        Where-Object { $_ -match 'Gallery|Repositor|Nuget' } | Sort-Object -Unique)
-}
-
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Debuggers\x64\cdb.exe'
@@ -140,6 +148,14 @@ try {
         @{ status = 'identity-changed' } | ConvertTo-Json -Compress
         exit 0
     }
+    if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_TEMP) {
+        $symbolCache = Join-Path $env:RUNNER_TEMP 'beyond-gate-startup-ntdll-symbols'
+        if (Test-Path -LiteralPath $symbolCache -PathType Container) {
+            $files = @(Get-ChildItem -LiteralPath $symbolCache -Filter ntdll.pdb -File -Recurse)
+            if ($files.Count -ne 1) { throw 'Expected one prepared Windows loader symbol file.' }
+            Copy-Item -LiteralPath $files[0].FullName -Destination (Join-Path $RunDirectory 'ntdll.pdb')
+        }
+    }
     $remaining = [math]::Min(3000,
         $DeadlineUnixMs - [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 1000)
     if ($remaining -le 0) {
@@ -153,11 +169,15 @@ try {
     $probe.StartInfo.CreateNoWindow = $true
     $probe.StartInfo.RedirectStandardOutput = $true
     $probe.StartInfo.RedirectStandardError = $true
+    $commands = '.reload /f ntdll.dll;.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;'
+    for ($index = 1; $index -le [math]::Min(4, $browser.Threads.Count - 1); $index++) {
+        $commands += ".echo BG_STACK_${index}_BEGIN;~${index}s;kn 0n8;.echo BG_STACK_${index}_END;"
+    }
+    $commands += '.echo BG_SYMBOLS_BEGIN;lm m ntdll;.echo BG_SYMBOLS_END;qd'
     foreach ($argument in @(
         '-pv', '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell', '-kqm',
         '-netsyms:no', '-y', $RunDirectory, '-c',
-        ('.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;' +
-        '.echo BG_SETTINGS_BEGIN;.settings help;.echo BG_SETTINGS_END;qd')
+        $commands
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
     $started = $probe.Start()
     if (!$started) { throw 'Cannot start the owned stack probe.' }
@@ -182,9 +202,19 @@ try {
         } else {
             $stage = 'parse'
             $stack = ConvertTo-SafeStartupStack -Text $text
-            $stack.public_gallery_setting_names = @(Get-PublicGallerySettingNames -Text $text)
+            $symbols = [regex]::Match($text, '(?ms)^BG_SYMBOLS_BEGIN\r?\n(.*?)^BG_SYMBOLS_END\r?$')
+            $stack.os_symbols_loaded = $symbols.Success -and
+                $symbols.Groups[1].Value -match '\bntdll[ \t]+\((?:private )?pdb symbols\)'
+            $stack.secondary_threads = @(foreach ($index in 1..4) {
+                $region = [regex]::Match($text, "(?ms)^BG_STACK_${index}_BEGIN\r?\n(.*?)^BG_STACK_${index}_END\r?$")
+                if ($region.Success) {
+                    $other = ConvertTo-SafeStartupStack -MaxFrames 8 -Text (
+                        "BG_STACK_BEGIN`n" + $region.Groups[1].Value + "BG_STACK_END")
+                    @{ index = $index; status = $other.status; frame_hints = $other.frame_hints }
+                }
+            })
             foreach ($key in $counts.Keys) { $stack[$key] = $counts[$key] }
-            $stack | ConvertTo-Json -Compress
+            $stack | ConvertTo-Json -Depth 6 -Compress
         }
     }
 } catch {

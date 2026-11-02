@@ -641,18 +641,26 @@ on the disposable runners. This option is separate from fresh-runner sampling.
 The [pinned SDK installer](https://learn.microsoft.com/windows/apps/windows-sdk/downloads)
 is checked against its SHA-256 checksum and Microsoft signature. Setup selects
 only Debugging Tools for Windows. It refuses to run on a normal local machine.
+Setup also uses [SymChk](https://learn.microsoft.com/windows-hardware/drivers/debugger/using-symchk)
+to prepare matching `ntdll.dll` symbols from the
+[Microsoft public symbol server](https://learn.microsoft.com/windows-hardware/drivers/debugger/microsoft-public-symbols).
+This separate preparation has a thirty-second limit and retains only verified
+public Windows symbols. It does not read or preload Chrome files.
 
 After a launch failure, an optional [noninvasive stack probe](https://learn.microsoft.com/windows-hardware/drivers/debugger/noninvasive-debugging--user-mode-)
 checks the exact executable and owned profile argument. It holds the process
 handle open to prevent PID reuse. It reads at most 32 frames from debugger
-thread zero, then detaches. This temporarily suspends the already failed target.
+thread zero and eight frames from each of the next four threads, then detaches.
+This temporarily suspends the already failed target.
 Process counters are collected first so this suspension cannot change them.
 Network symbol lookup and debugger shell commands are disabled. The probe
 does not create memory dumps, inspect values, or write raw debugger output.
 Its fixed buffers hold at most 16 KiB of output and 4 KiB of stderr.
 Both pipes continue to drain after these storage limits. Excess bytes are
 discarded so they cannot block debugger exit. Quiet mode reduces startup noise.
-Only allowed module names and public export hints leave the collector.
+Only allowed module names and fixed function hints leave the collector.
+Ordered frame hints preserve the call sequence. Windows loader hints use the
+prepared local symbols. The probe reports whether those symbols loaded.
 Export hints can be the nearest export, not the exact waiting function.
 They do not establish a cause without other evidence.
 The debugger has a three-second limit. Its wrapper has an eight-second limit.
@@ -664,12 +672,7 @@ In this explicit investigation mode, a failed probe check does not skip the
 remaining browser checks. The job still fails. Default checks keep their
 normal step conditions.
 Fixed Boolean fields identify debugger gallery, engine, symbol-path, and
-stack-marker progress. The setup step also reads debugger help without a
-target under a ten-second limit. It reports command-line switch names only.
-Neither check reports raw debugger output.
-After stack capture, the debugger also lists public settings help within
-the same three-second limit. Only gallery-related configuration names
-from that help can leave the collector. No setting values are reported.
+stack-marker progress. No raw debugger output leaves the collector.
 
 ```powershell
 gh workflow run ci.yml --ref <branch> -f startup-sampling=true -f startup-stacks=true

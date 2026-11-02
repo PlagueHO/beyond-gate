@@ -37,35 +37,35 @@ if (!(Test-Path -LiteralPath $debugger -PathType Leaf)) {
     throw 'Required debugger executable is missing after setup.'
 }
 . (Join-Path $PSScriptRoot 'startup-stack.ps1') -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake
-$help = [Diagnostics.Process]::new()
-$helpStarted = $false
+$symbolCache = Join-Path $env:RUNNER_TEMP 'beyond-gate-startup-ntdll-symbols'
+$null = [IO.Directory]::CreateDirectory($symbolCache)
+$symbols = [Diagnostics.Process]::new()
+$symbolsStarted = $false
 $output = [IO.MemoryStream]::new([byte[]]::new(16384), 0, 16384, $true, $true)
 $errors = [IO.MemoryStream]::new([byte[]]::new(4096), 0, 4096, $true, $true)
 try {
-    $help.StartInfo.FileName = $debugger
-    $help.StartInfo.UseShellExecute = $false
-    $help.StartInfo.CreateNoWindow = $true
-    $help.StartInfo.RedirectStandardOutput = $true
-    $help.StartInfo.RedirectStandardError = $true
-    foreach ($argument in @('-nosqm', '-noshell', '-netsyms:no', '-?')) {
-        $help.StartInfo.ArgumentList.Add($argument)
+    $symbols.StartInfo.FileName = Join-Path (Split-Path $debugger) 'symchk.exe'
+    $symbols.StartInfo.UseShellExecute = $false
+    $symbols.StartInfo.CreateNoWindow = $true
+    $symbols.StartInfo.RedirectStandardOutput = $true
+    $symbols.StartInfo.RedirectStandardError = $true
+    foreach ($argument in @(
+        (Join-Path $env:SystemRoot 'System32\ntdll.dll'), '/s',
+        "srv*$symbolCache*https://msdl.microsoft.com/download/symbols"
+    )) {
+        $symbols.StartInfo.ArgumentList.Add($argument)
     }
-    $helpStarted = $help.Start()
-    if (!$helpStarted) { throw 'Cannot inspect debugger command-line metadata.' }
-    $capture = Read-BoundedProbeOutput $help $output $errors 10000
-    $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
-    $text += "`n" + [Text.Encoding]::UTF8.GetString($errors.GetBuffer(), 0, [int]$errors.Position)
-    @{
-        startup_debugger_help = $(if ($capture.completed) { 'read' } else { 'timed-out' })
-        exit_code = $(if ($capture.completed) { $help.ExitCode } else { $null })
-        switches = @([regex]::Matches($text, '(?mi)(?:^|[ \t])(-[a-z?][a-z0-9:]*)') |
-            ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique)
-        progress = Get-SafeProbeProgress -Text $text
-    } | ConvertTo-Json -Compress
+    $symbolsStarted = $symbols.Start()
+    if (!$symbolsStarted) { throw 'Cannot prepare the Windows loader symbols.' }
+    $capture = Read-BoundedProbeOutput $symbols $output $errors 30000
+    if (!$capture.completed) { throw 'Windows loader symbol preparation exceeded its thirty-second limit.' }
+    if ($symbols.ExitCode -ne 0) { throw 'Windows loader symbol verification failed.' }
+    $files = @(Get-ChildItem -LiteralPath $symbolCache -Filter ntdll.pdb -File -Recurse)
+    if ($files.Count -ne 1) { throw 'Expected one verified Windows loader symbol file.' }
 } finally {
-    if ($helpStarted -and !$help.HasExited) { $help.Kill($true); $help.WaitForExit() }
-    $help.Dispose()
+    if ($symbolsStarted -and !$symbols.HasExited) { $symbols.Kill($true); $symbols.WaitForExit() }
+    $symbols.Dispose()
     $output.Dispose()
     $errors.Dispose()
 }
-Write-Output 'Startup debugger is available; network symbol lookup remains disabled.'
+Write-Output 'Startup debugger and verified Windows loader symbols are available; probe network symbol lookup remains disabled.'
