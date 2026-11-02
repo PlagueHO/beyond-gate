@@ -89,6 +89,20 @@ function Read-BoundedProbeOutput {
     @{ completed = $Probe.WaitForExit($wait); streams = $streams }
 }
 
+# Identifies fixed debugger startup milestones without returning their text.
+function Get-SafeProbeProgress {
+    param([string]$Text)
+
+    @{
+        gallery_preparing = $Text.Contains('Preparing the environment for Debugger Extensions Gallery repositories')
+        gallery_waiting = $Text.Contains('Waiting for Debugger Extensions Gallery to Initialize')
+        engine_banner = $Text.Contains('Windows Debugger Version')
+        symbol_path_reported = $Text.Contains('Symbol search path is:')
+        stack_started = [regex]::IsMatch($Text, '(?m)^BG_STACK_BEGIN\r?$')
+        stack_completed = [regex]::IsMatch($Text, '(?m)^BG_STACK_END\r?$')
+    }
+}
+
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Debuggers\x64\cdb.exe'
@@ -142,6 +156,8 @@ try {
         stdout_limit_reached = $capture.streams[0].bytes -ge $output.Length
         stderr_limit_reached = $capture.streams[1].bytes -ge $errors.Length
     }
+    $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
+    $counts.progress = Get-SafeProbeProgress -Text $text
     if (!$capture.completed) {
         $probe.Kill($true)
         $probe.WaitForExit()
@@ -152,7 +168,6 @@ try {
             @{ status = 'debugger-failed'; exit_code = $probe.ExitCode } | ConvertTo-Json -Compress
         } else {
             $stage = 'parse'
-            $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
             $stack = ConvertTo-SafeStartupStack -Text $text
             foreach ($key in $counts.Keys) { $stack[$key] = $counts[$key] }
             $stack | ConvertTo-Json -Compress
