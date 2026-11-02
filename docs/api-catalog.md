@@ -1,0 +1,340 @@
+# D&D Beyond API call catalog
+
+Last reviewed: 2026-11-02. Research issue: [#31][issue-31].
+
+Use this shared index when planning or implementing another issue.
+It catalogs all calls identified in the [API survey](api-survey.md), including candidates
+and known failures. It is not a complete list of D&D Beyond's internal APIs.
+**Cataloged does not mean implemented, supported upstream, or approved for a live test.**
+Production resource reads remain unsupported.
+
+## How to use and maintain this catalog
+
+Reference an entry's stable ID and link to its section from the implementation issue.
+For example, reference `CHAR-01` and
+[character and campaign contracts](#characters-and-campaigns).
+Keep IDs stable when evidence changes. Mark a removed route as retired instead of reusing its ID.
+Record new evidence and failed checks in the survey; update the matching catalog row.
+
+Each section states its service, authentication evidence, source, and common limits.
+Each row adds the method, path, known inputs or output, and unresolved conditions.
+Braced names are placeholders, not actual account or resource identifiers.
+Do not infer missing parameters, access rules, methods, or service bindings.
+
+Before implementing a row, verify its current contract and record the owning issue,
+exact request, response shape, access rules, paging, limits, and error behavior.
+Use synthetic fixtures and local mock services for tests.
+Keep this catalog and the survey consistent when implementation status changes.
+Do not store credentials, signed download URLs, account snapshots, or proprietary text here.
+
+| Evidence | Meaning | Not established |
+|----------|---------|-----------------|
+| Live | A separately approved native request returned the stated result | General access, all failures, or complete production support |
+| Browser | Official browser navigation or safe structural metadata was inspected | Native authentication equivalence |
+| Client | First-party public code declares the call | Current response, access, or complete parameters |
+| Page | A public page or navigation link was inspected | A JSON API contract |
+| Candidate | Pinned third-party source uses the call | Current first-party behavior |
+| Unresolved | Method, service, or read semantics remain unknown | A usable request |
+
+## Services and shared limits
+
+Append each listed path to the complete service base, preserving its version prefix.
+The leading slash is a separator, not an instruction to replace the base's path.
+For example, `CHAR` plus `/characters/list` means
+`https://character-service.dndbeyond.com/character/v5/characters/list`.
+A service ID is documentation shorthand, not a production allowlist entry.
+Do not bind a route to an origin from its name alone.
+
+| Service | Base | Known role |
+|---------|------|------------|
+| AUTH | `https://auth-service.dndbeyond.com` | Fixed protected-session exchange |
+| CHAR | `https://character-service.dndbeyond.com/character/v5` | Character records and builder data |
+| CHAR51 | `https://character-service.dndbeyond.com/character/v5.1` | Explicit item route version |
+| WEB | `https://www.dndbeyond.com` | Campaign APIs, website HTML, config, mobile candidates |
+| GAME | `https://gamedata-service.dndbeyond.com` | Vehicle and infusion definitions |
+| MONSTER | `https://monster-service.dndbeyond.com` | Separate monster candidates |
+| Unbound | No verified base | Client route with an unresolved injected service |
+
+`https://api.dndbeyond.com` and `https://dice-service.dndbeyond.com` appear in the client.
+Their presence does not resolve the Unbound rows.
+`https://media.dndbeyond.com` serves inspected scripts and assets, not an access grant.
+Staging hosts, telemetry, and message services are not resource API candidates.
+
+The existing HTTP defaults remain 1 MiB per response, a 5-second connection deadline,
+a 15-second attempt deadline, a 30-second logical-read deadline, concurrency four,
+and at most two retries. Redirects and proxies remain disabled.
+Research measurements do not change these limits.
+Core resource transport supports GET; fixed authentication exchange is separate.
+Candidate POST reads need their own proven read-only contract and bounded body.
+
+Character/campaign assembly permits at most 100 raw records per page, 10 pages, and
+1,000 raw records in total. Count duplicates before removal. Return complete results or fail.
+Book outlines allow at most 1,000 raw entries. Section results allow at most 4,096 UTF-8 bytes.
+Continuation is explicit, within 16 KiB, and never an access grant or fetch URL.
+Check fresh access before each outline or section read.
+Do not crawl chapters, download full books, or add a book-content cache.
+
+## Authentication
+
+Source: existing product session handling and earlier approved probes in
+[the survey](api-survey.md#character-and-campaign-contracts).
+Browser login remains the agreed credential-entry flow.
+
+| ID | Service | Method and path | Authentication and result | Status |
+|----|---------|-----------------|---------------------------|--------|
+| AUTH-01 | AUTH | POST `/v1/cobalt-token` | Protected `CobaltSession` cookie; accepted response supplies a process-local bearer | Live; implemented for Windows login, validation, and session reuse |
+
+Do not persist the derived bearer. Local credential presence is not upstream validation.
+Do not add pasted credentials, credential environment variables, or credential-bearing MCP inputs.
+This catalog does not authorize credential access.
+
+## Characters and campaigns
+
+Authentication: bearer-only requests succeeded in the approved native probes.
+Evidence: Live, with additional Client and Browser list evidence.
+Sources: [survey contracts](api-survey.md#character-and-campaign-contracts), C1, and L1.
+Implementation issue: [#31][issue-31]. All five resource calls remain unimplemented.
+
+| ID | Service | Method and path | Known inputs and result | Required condition |
+|----|---------|-----------------|-------------------------|--------------------|
+| CHAR-01 | CHAR | GET `/characters/list` | Query `userId={currentAccountId}`; boolean `success`, array `data.characters`, numeric `pagination.skip`, `take`, `total` | Use accepted session identity; require the complete default response within bounds |
+| CHAR-02 | CHAR | GET `/character/{id}` | Query `includeCustomItems=true`; object `data`, null pagination, campaign association | Preserve unknown fields; validate selected ID and failure behavior |
+| CAMP-01 | WEB | GET `/api/campaign/stt/active-campaigns` | String `status`; array `data`; summary `id`, `name`, `playerCount` | No roster fan-out from a list |
+| CAMP-02 | WEB | GET `/api/campaign/stt/user-campaigns` | Same observed summary envelope | Distinction from active campaigns still needs a complete semantic contract |
+| CAMP-03 | WEB | GET `/api/campaign/stt/active-short-characters/{campaignId}` | Array `data`; roster `id`, `name`, `userId` | Fetch only the selected roster |
+
+The `CHAR-01` trial with `skip=0&take=1` failed a combined contract check.
+Do not claim that paging parameters work. The accepted plan requires a complete default
+response or explicit failure. `character_ids: null` means not loaded; `[]` means loaded empty.
+These association decisions still need implementation and tests.
+
+## Character-builder game data
+
+All rows use GET. Evidence: Client. Source: C1.
+Authentication and complete per-route inputs remain unverified.
+The source can add `campaignId`, `sharingSetting`, and `characterId` from current state;
+this does not prove that each row accepts or requires every parameter.
+Shapes, access, paging, size, and complete standalone catalog coverage remain unresolved.
+These are not implemented reads or approved bulk-search contracts.
+
+| ID | Service | Path | Purpose and remaining contract |
+|----|---------|------|--------------------------------|
+| RULE-01 | CHAR | `/game-data/classes` | Class metadata; rules version and access |
+| RULE-02 | CHAR | `/game-data/subclasses` | Subclasses; parent-class selection |
+| RULE-03 | CHAR | `/game-data/backgrounds` | Backgrounds; rules version |
+| RULE-04 | CHAR | `/game-data/races` | Species and legacy races; preserve upstream naming |
+| RULE-05 | CHAR | `/game-data/feats` | Feats; selection, prerequisites, and access |
+| RULE-06 | CHAR | `/game-data/spells` | Character-eligible spells; standalone coverage not proven |
+| RULE-07 | CHAR | `/game-data/always-known-spells` | Class spell support; class, level, and completeness |
+| RULE-08 | CHAR | `/game-data/always-prepared-spells` | Class spell support; class, level, and completeness |
+| RULE-09 | CHAR51 | `/game-data/items` | Equipment and magic items; explicit `v5.1`, not default `v5` |
+| RULE-10 | CHAR | `/game-data/background-starting-equipment` | Background equipment; selection |
+| RULE-11 | CHAR | `/game-data/class-starting-equipment` | Class equipment; selection |
+| RULE-12 | CHAR | `/game-data/monsters` | Builder monster definitions; separate-service coverage not proven |
+| RULE-13 | CHAR | `/game-data/racial-trait/collection` | Species traits; selected IDs and parameters |
+| RULE-14 | CHAR | `/game-data/class-feature/collection` | Class features; selected IDs and parameters |
+| RULE-15 | CHAR | `/game-data/backdrops` | Appearance metadata; access and limits |
+| RULE-16 | CHAR | `/game-data/frames` | Appearance metadata; access and limits |
+| RULE-17 | CHAR | `/game-data/portraits` | Appearance metadata; access and limits |
+| RULE-18 | CHAR | `/game-data/themes` | Appearance metadata; access and limits |
+| RULE-19 | CHAR | `/name/random` | Name support; read semantics not proven |
+| RULE-20 | CHAR | `/name/random/list` | Name support; semantics and limits not proven |
+
+Do not download a whole eligible dataset and describe local filtering as bounded API search.
+
+## Definition collections and vehicles
+
+Evidence: Client. Source: C1. Authentication, inputs, shapes, bounds, and access remain
+unverified. Generic factories are templates, not evidence for every possible substitution.
+
+| ID | Service | Method and path | Known distinction or remaining contract |
+|----|---------|-----------------|-----------------------------------------|
+| DEF-01 | GAME | GET `/vehicles/v3/rule-data` | Explicit rule-data declaration; not vehicle definition `v4` |
+| DEF-02 | GAME | GET `/vehicle/v4/collection` | Vehicle collection; parameters and complete bounds |
+| DEF-03 | GAME | GET `/vehicle/v4/{id}` | Selected vehicle definition |
+| DEF-04 | GAME | GET `/infusion/v1/collection` | Infusion collection; parameters and complete bounds |
+| DEF-05 | GAME | GET `/infusion/v1/{id}` | Selected infusion definition |
+| DEF-06 | GAME | POST `/{entity}/{version}/collection` | Generic factory; body and read-only semantics unresolved |
+| DEF-07 | CHAR | POST `/game-data/{entity}/collection` | Separate factory; body and read-only semantics unresolved |
+
+The inspected separate-service version map contains vehicle `4` and infusion `1`.
+Do not invent versions for `racial-trait` or `class-feature` from the entity-name helper.
+Do not add a generic POST escape hatch.
+
+## Monsters and configuration
+
+Evidence: Candidate. Sources: T1/T2; config forwarding also appears in T6.
+The third-party monster clients use bearer authentication, but these routes were not tested
+with Beyond Gate. Config authentication requirements remain unverified.
+
+| ID | Service | Method and path | Candidate inputs and result | Remaining contract |
+|----|---------|-----------------|-----------------------------|--------------------|
+| MON-01 | MONSTER | GET `/v1/Monster` | `search`, `skip`, `take`, `showHomebrew`, `sources`, repeated `ids`; array `data`, `accessType` map, pagination | Verify bounded search, paging, and numeric access meanings |
+| MON-02 | MONSTER | GET `/v1/Monster/{id}` | Object `data`, scalar `accessType` | Verify selected detail and full-content access |
+| CFG-01 | WEB | GET `/api/config/json` | Rules lookup arrays and source metadata in third-party code | Verify shape, response size, and authentication; not a user library |
+
+Monster pagination candidates include `take`, `skip`, `currentPage`, `pages`, and `total`.
+A visible name, partial record, or HTTP success is not a full-content grant.
+Pinned proxy item code uses `v5`; first-party `RULE-09` explicitly selects `v5.1`.
+Do not replace stronger version evidence with a third-party assumption.
+
+## Website library, outlines, and sections
+
+These are HTML routes, not JSON section APIs.
+Sources: B1 and the [book evidence](api-survey.md#books-sources-and-access-checks).
+Browser requests used the signed-in page context; credential headers were not collected.
+Native probes used only the process-local bearer.
+Book implementation remains separate from [#31][issue-31]; see the
+[library and book work](roadmap.md#implementation-issues).
+
+| ID | Service | Method and path | Evidence and result | Limit |
+|----|---------|-----------------|---------------------|-------|
+| BOOK-01 | WEB | GET `/sources` | Browser redirects to `/en/library`; earlier credential-free fetch failed | Do not enable automatic production redirects |
+| BOOK-02 | WEB | GET `/en/library` | Browser HTML includes selected-source metadata | 2,654,622 decoded bytes exceeds the 1 MiB limit; bounded transport unresolved |
+| BOOK-03 | WEB | GET `/sources/dnd/cos` | Browser HTML 246,103 bytes; native bearer HTML 243,123 bytes; outline markers present | One selected example, not a general book map or access grant |
+| BOOK-04 | WEB | GET `/sources/cos/introduction` | Listed chapter route; browser redirected to the canonical route | Alias applies only to observed navigation |
+| BOOK-05 | WEB | GET `/sources/dnd/cos/introduction` | Browser HTML 257,524 bytes; repeated native HTTP 307 to a marketplace or purchase path | Native guard stopped; cause and native content access unresolved |
+
+The listed section target was `/sources/cos/introduction#RunningtheAdventure`.
+The fragment `#RunningtheAdventure` is local HTML selection, not an HTTP API input.
+The outline selector is `.compendium-toc-full-text`; the article container is
+`.p-article-content`. See the survey for heading boundaries and raw link counts.
+No text extraction, UTF-8 output-limit test, or fresh native entitlement check was completed.
+Other source paths must not be generated from this one example.
+
+## Mobile book API candidates
+
+All rows use WEB, POST, and `application/x-www-form-urlencoded`.
+Evidence: Candidate. Source: T7. Each sends the stored Cobalt value in the form field `token`,
+not the derived bearer. No row was called during this research.
+Beyond Gate has no implemented mobile credential transport.
+
+| ID | Path | Additional form fields | Source-code interpretation and limit |
+|----|------|------------------------|--------------------------------------|
+| MOB-01 | `/mobile/api/v6/available-user-content` | None | Reads `Licenses`, book `EntityTypeID` equal to `496802664`, and `Entities`; source IDs and `isOwned` need verification |
+| MOB-02 | `/mobile/api/v6/get-book-url/{bookId}` | None | Whole-book download URL; outside current bounded-read design |
+| MOB-03 | `/mobile/api/v6/book-codes` | `sources`, JSON array with `sourceID` and `versionID` | Database access material; not a selected-section endpoint or approved test |
+| MOB-04 | `/mobile/api/v6/do-higher-versions-exist` | `sourceVersions`, `manifestVersion` | Downloaded-source version check; client reads `sourceUpdatesAvailable` |
+| MOB-05 | `/mobile/api/v6/user-data` | None | Account information; privacy-sensitive and not needed to prove section access |
+
+The third-party helper checks `status: "success"` and unwraps `data` when present.
+That is parser behavior, not a verified schema.
+Free, owned, shared, denied, expired, oversized, and malformed outcomes remain unresolved.
+An entity without `isOwned` does not prove shared access.
+Do not copy the helper's redirects, full-result logging, or whole-book processing.
+Any metadata-only `MOB-01` test needs separate explicit scope and approval.
+
+## Public listing and navigation pages
+
+These are WEB HTML paths, not JSON API routes.
+Evidence: Page. Sources: P1/P2 and C2.
+The first eight returned HTML without credentials. The last three were found in navigation
+only; their content was not fetched. GET describes normal page navigation, not a tested API.
+See the [public filter inventory](api-survey.md#public-listing-filters) for exact form names.
+No filter selection, next page, or selected record was requested.
+
+| ID | Path | Purpose and limit |
+|----|------|-------------------|
+| PAGE-01 | `/classes` | Public class listing; no JSON contract |
+| PAGE-02 | `/backgrounds` | Public background filters; paging not observed |
+| PAGE-03 | `/species` | Public species listing; upstream API uses `races` |
+| PAGE-04 | `/feats` | Public feat filters; paging not observed |
+| PAGE-05 | `/spells` | Public spell filters and `page` links |
+| PAGE-06 | `/monsters` | Public monster filters and `page` links |
+| PAGE-07 | `/magic-items` | Public item filters and `page` links |
+| PAGE-08 | `/equipment` | Public equipment filters and `page` links |
+| PAGE-09 | `/sources/dnd/br-2024` | Basic Rules navigation only; no content fetched |
+| PAGE-10 | `/sources/dnd/br-2024/rules-glossary` | Rules Glossary navigation only; no content fetched |
+| PAGE-11 | `/sources/dnd/ua` | Unearthed Arcana navigation only; no content fetched |
+
+## Other client routes with incomplete contracts
+
+Source: C1, except the browser timing rows from B1.
+Rows are Client evidence unless marked Browser or Unresolved.
+No row is implemented or approved for a live test by its inclusion here.
+Authentication for CHAR rows and complete parameters remain unverified.
+
+| ID | Service | Method and path | Remaining condition |
+|----|---------|-----------------|---------------------|
+| AUX-01 | CHAR | GET `/party/inventory/{campaignId}` | Campaign access, privacy, and shape |
+| AUX-02 | CHAR | GET `/premade/{characterId}` | Access and read semantics |
+| AUX-03 | CHAR | GET `/rule-data` | Coverage; not a proven full rules catalog |
+| AUX-04 | CHAR | GET `/vehicles` | Selection, paging, and access |
+| AUX-05 | CHAR | GET `/vehicle/components` | Selection, paging, and access |
+| AUX-06 | CHAR | GET `/infusion/items` | Selection and access |
+| AUX-07 | CHAR | GET `/known-infusions` | Selection and access |
+| AUX-08 | CHAR | GET `/roll-result-groups` | Privacy, scope, and paging |
+| AUX-09 | CHAR | GET `/share/url` | Sharing semantics; excluded from v1 until reviewed |
+| AUX-10 | CHAR | GET `/character/rest/short` | Read-only semantics unproven; rest actions excluded |
+| AUX-11 | CHAR | GET `/character/rest/long` | Read-only semantics unproven; rest actions excluded |
+| AUX-12 | Unbound | GET `/campaigns/v1/details/{gameId}` | Client uses bearer and `data`; service base unresolved |
+| AUX-13 | Unbound | GET `/campaigns/v1/{gameId}/characters` | Client uses bearer and `data`; service base unresolved |
+| AUX-14 | Unbound | GET `/dice/v1/getallfamilysets` | No explicit bearer in inspected call; service and access unresolved |
+| AUX-15 | Unbound | GET `/diceuserconfig/v1/get` | Client uses bearer; service and privacy unresolved |
+| AUX-16 | WEB | Unknown `/api/campaign/{campaignId}/character/{characterId}` | Unresolved method and read/write semantics |
+| AUX-17 | WEB | Unknown `/api/vcm/33-15` | Browser timing only; method and purpose unknown |
+| AUX-18 | WEB | Unknown `/api/vcm/41-348` | Browser timing only; method and purpose unknown |
+
+## Third-party intermediary calls
+
+These are integration references, not direct D&D Beyond API candidates.
+Do not send Beyond Gate credentials to a hosted proxy or add a required proxy runtime.
+Sources: T5/T6 and the [importer research](api-survey.md#mrprimate-importer-and-mobile-api-candidates).
+Paths use the selected importer proxy, normally `https://proxy.ddb.mrprimate.co.uk`.
+Public self-hosted source does not prove that hosted book routes are available locally.
+
+| ID | Method and path | Known role and boundary |
+|----|-----------------|-------------------------|
+| PXY-01 | POST `/proxy/auth` | Checks supplied cookie through bearer exchange; not product credential entry |
+| PXY-02 | POST `/proxy/user-data` | Account lookup; not a book-access grant |
+| PXY-03 | GET `/proxy/api/config/json` | Public proxy forwards to `CFG-01` |
+| PXY-04 | POST `/proxy/items` | Eligible item extraction, not a proven bounded search |
+| PXY-05 | POST `/proxy/class/spells` | Class spell extraction, not a complete standalone catalog |
+| PXY-06 | POST `/proxy/character` or `/proxy/v5/character` | Character processing and additional lookups; not the direct record contract |
+| PXY-07 | POST `/proxy/monster` or `/proxy/monsters` | Monster extraction; client filters are not a server-side bounded contract |
+| PXY-08 | POST `/proxy/monstersById` or `/proxy/monsters/ids` | Selected-ID batch extraction; limits unverified |
+| PXY-09 | POST `/proxy/campaigns` | Public proxy campaign lookup |
+| PXY-10 | POST `/proxy/adventure/available-user-content` | Hosted ownership lookup; absent from pinned public proxy |
+| PXY-11 | POST `/proxy/library` | Hosted fallback lookup with `ownedOnly`; absent from pinned public proxy |
+| PXY-12 | POST `/proxy/adventure/book-codes` | Hosted database access material; absent from pinned public proxy |
+| PXY-13 | POST `/proxy/adventure/book-url/{bookId}` | Hosted signed URL and book code; absent from pinned public proxy |
+| PXY-14 | GET `/proxy/maps/metadata/summary` | Foundry enhancement metadata, not D&D Beyond access evidence |
+
+Book acquisition and ownership helpers send `cobalt` and `betaKey` to their selected proxy.
+The importer also uses a configurable CORS proxy, normally
+`https://images.ddb.mrprimate.co.uk/`, for book ZIP delivery.
+The signed URL is runtime data, not a catalog entry or approved fetch target.
+Its dynamic-service origin is configuration, not evidence for another resource route.
+Avrae's DynamoDB entitlements and Discord signing are also integration-specific;
+no reusable personal-account HTTP access endpoint was established from them.
+
+## Exclusions and evidence sources
+
+Character creation, copy, activation, deletion, build, rest, levels, scores, choices,
+preferences, inventory changes, spell changes, vehicle state, campaign joining,
+and dice settings writes remain outside v1.
+Do not infer permission or read-only behavior from an HTTP method.
+Unresolved families are retained to prevent repeated guessing, not to authorize them.
+
+The [survey source index](api-survey.md#sources) supplies the exact source links and builds.
+The [survey](api-survey.md) retains request scopes, failed probes, metadata measurements,
+HTML filter names, and interpretation limits.
+
+| Source ID | Evidence source |
+|-----------|-----------------|
+| C1 | First-party character application build `main.4ccf1602.js` |
+| C2 | First-party mega-menu build `index-CVrwI34f.js`; navigation, not JSON contracts |
+| P1/P2 | Eight public listing pages; HTML filters, not API parameters |
+| T1/T2 | `AlexWorland/dndbeyond-mcp` at `61d6f3caae27b539d5a1ba7b0668074c27672702` |
+| T3/T4 | `avrae/avrae` at `15258cb884c1085582a710a9791f890371afb6c4` |
+| T5 | `MrPrimate/ddb-importer` at `a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5` |
+| T6 | `MrPrimate/ddb-proxy` at `a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a` |
+| T7 | `MrPrimate/ddb-adventure-muncher` at `5d4f8e80554078ad907084885e8d2f73bf7a4355` |
+| B1 | Separately approved three-page selected-book browser inspection |
+| L1 | Separately approved native probes and accepted decisions on [#31][issue-31] |
+
+Recheck version-sensitive decisions against current first-party documentation when available.
+If no public contract exists, record that gap and obtain approval for a bounded live check.
+Stop on access denial. Never treat another issue's old test scope as reusable approval.
+
+[issue-31]: https://github.com/PlagueHO/beyond-gate/issues/31
