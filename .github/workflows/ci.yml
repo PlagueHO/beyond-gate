@@ -10,6 +10,10 @@ on:
         description: Run three fresh Windows runners per browser for startup investigation
         type: boolean
         default: false
+      startup-stacks:
+        description: Collect bounded public stack hints after owned startup failures
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -73,7 +77,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     env:
-      BEYOND_GATE_STARTUP_STACKS: ${{ inputs.startup-sampling && '1' || '0' }}
+      BEYOND_GATE_STARTUP_STACKS: ${{ inputs.startup-stacks && '1' || '0' }}
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +109,7 @@ jobs:
       - name: Install pinned browser development dependencies
         run: npm ci --prefix .\scripts\browser-tests --ignore-scripts --no-audit --no-fund
       - name: Prepare bounded startup stack sampling
-        if: inputs.startup-sampling
+        if: inputs.startup-stacks
         run: .\scripts\browser-tests\install-startup-debugger.ps1
       - name: Check synthetic extension behavior
         run: npm test --prefix .\scripts\browser-tests

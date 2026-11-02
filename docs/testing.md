@@ -633,7 +633,8 @@ This starts three separate Windows runners per browser. Normal push and PR
 checks still use one runner per browser and retain their existing check names.
 Each extra runner retains every required test and deadline. This mode increases
 hosted-runner use; it does not convert an earlier failure into a pass.
-Sampling mode also prepares Microsoft's debugger on the disposable runners.
+A manual run can also select `startup-stacks` to prepare Microsoft's debugger
+on the disposable runners. This option is separate from fresh-runner sampling.
 The [pinned SDK installer](https://learn.microsoft.com/windows/apps/windows-sdk/downloads)
 is checked against its SHA-256 checksum and Microsoft signature. Setup selects
 only Debugging Tools for Windows. It refuses to run on a normal local machine.
@@ -656,7 +657,7 @@ still follow the probe. An owned synthetic Node.js process checks the actual
 probe on the hosted runners and must respond after debugger detach.
 
 ```powershell
-gh workflow run ci.yml --ref <branch> -f startup-sampling=true
+gh workflow run ci.yml --ref <branch> -f startup-sampling=true -f startup-stacks=true
 ```
 
 The [first diagnostic hosted run](https://github.com/PlagueHO/beyond-gate/actions/runs/41420080293)

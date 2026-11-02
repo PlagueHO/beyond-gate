@@ -14,7 +14,7 @@ function ConvertTo-SafeStartupStack {
     param([string]$Text)
 
     $region = [regex]::Match($Text, '(?ms)^BG_STACK_BEGIN\r?\n(.*?)^BG_STACK_END\r?$')
-    if (!$region.Success) { return @{ status = 'unreadable' } }
+    if (!$region.Success) { return @{ status = 'unreadable'; reason = 'markers-not-found' } }
     $allowedModules = @(
         'ntdll', 'kernelbase', 'kernel32', 'chrome', 'chrome_elf', 'msedge',
         'msedge_elf', 'wintrust', 'crypt32', 'cryptbase', 'bcrypt', 'ncrypt',
@@ -32,7 +32,7 @@ function ConvertTo-SafeStartupStack {
     )
     $frames = [regex]::Matches($region.Groups[1].Value,
         '(?mi)^[ \t]*[0-9a-f]{2,3}[ \t]+[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+([a-z0-9_]+)(?:!([a-z0-9_]+))?(?:\+0x[0-9a-f]+)?[ \t]*\r?$')
-    if ($frames.Count -eq 0) { return @{ status = 'unreadable' } }
+    if ($frames.Count -eq 0) { return @{ status = 'unreadable'; reason = 'frames-not-found' } }
     @{
         status = 'read'
         thread = 'debugger-thread-zero'
@@ -61,6 +61,7 @@ $probe = [Diagnostics.Process]::new()
 $started = $false
 $output = [IO.MemoryStream]::new([byte[]]::new(16384), 0, 16384, $true, $true)
 $errors = [IO.MemoryStream]::new([byte[]]::new(4096), 0, 4096, $true, $true)
+$stage = 'identity'
 try {
     # Keep the original process handle open so Windows cannot reuse its PID.
     $null = $browser.Handle
@@ -79,6 +80,7 @@ try {
         @{ status = 'timed-out' } | ConvertTo-Json -Compress
         exit 0
     }
+    $stage = 'start'
     $probe.StartInfo.FileName = $debugger
     $probe.StartInfo.WorkingDirectory = $RunDirectory
     $probe.StartInfo.UseShellExecute = $false
@@ -92,22 +94,33 @@ try {
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
     $started = $probe.Start()
     if (!$started) { throw 'Cannot start the owned stack probe.' }
-    $copyOutput = $probe.StandardOutput.BaseStream.CopyToAsync($output)
-    $copyErrors = $probe.StandardError.BaseStream.CopyToAsync($errors)
+    $stage = 'read'
+    $copyOutput = $probe.StandardOutput.BaseStream.CopyToAsync($output, 1024)
+    $copyErrors = $probe.StandardError.BaseStream.CopyToAsync($errors, 1024)
     if (!$probe.WaitForExit([int]$remaining)) {
         $probe.Kill($true)
         $probe.WaitForExit()
         @{ status = 'timed-out' } | ConvertTo-Json -Compress
     } else {
-        $copyOutput.GetAwaiter().GetResult()
-        $copyErrors.GetAwaiter().GetResult()
+        # Discard .NET's VoidTaskResult so stdout contains only fixed JSON.
+        $null = $copyOutput.GetAwaiter().GetResult()
+        $null = $copyErrors.GetAwaiter().GetResult()
         if ($probe.ExitCode -ne 0) {
-            @{ status = 'debugger-failed' } | ConvertTo-Json -Compress
+            @{ status = 'debugger-failed'; exit_code = $probe.ExitCode } | ConvertTo-Json -Compress
         } else {
+            $stage = 'parse'
             $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
             ConvertTo-SafeStartupStack -Text $text | ConvertTo-Json -Compress
         }
     }
+} catch {
+    $kind = $_.Exception.GetBaseException().GetType().Name
+    if ($kind -cnotin @(
+        'Win32Exception', 'UnauthorizedAccessException', 'NotSupportedException',
+        'IOException', 'InvalidOperationException', 'MethodException', 'ArgumentException'
+    )) { $kind = 'other' }
+    @{ status = 'unreadable'; collector_stage = $stage; collector_exception = $kind } |
+        ConvertTo-Json -Compress
 } finally {
     if ($started -and !$probe.HasExited) { $probe.Kill($true); $probe.WaitForExit() }
     $probe.Dispose()
