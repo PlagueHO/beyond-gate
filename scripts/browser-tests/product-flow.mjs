@@ -8,8 +8,8 @@ import { release } from "node:os";
 import { createInterface } from "node:readline";
 import { promisify } from "node:util";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import puppeteer from "puppeteer-core";
-import { executable, rejectingProxy, registration, cleanupProbe, TEST_ROOT, REPO } from "./run.mjs";
+import { launchBrowser, cleanupActions, withCleanup, safeLaunchCause } from "./browser-launch.mjs";
+import { rejectingProxy, registration, cleanupProbe, TEST_ROOT, REPO } from "./run.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const execute = promisify(execFile);
@@ -143,66 +143,65 @@ async function probe(name, recipe) {
   let proxy;
   let registered = false;
   let stage = "setup";
-  try {
-    await copyFile(join(REPO, "target", "debug", "examples", "windows-login-fixture.exe"),
-      join(directory, "host.exe"));
-    const extension = join(directory, "extension");
-    await mkdir(extension);
-    for (const file of ["manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs"]) {
-      await copyFile(join(REPO, "beyond-gate-browser-extension", file), join(extension, file));
-    }
-    for (const file of ["product-fixture.html", "product-fixture.mjs"]) {
-      await copyFile(join(HERE, file), join(extension, file));
-    }
-    await registration("CheckAbsent", name, host, directory);
-    await writeFile(join(directory, "native-host.json"), JSON.stringify({
-      name: host, description: "Beyond Gate isolated product-flow fixture",
-      path: join(directory, "host.exe"), type: "stdio",
-      allowed_origins: [`chrome-extension://${recipe.extension_id}/`],
-    }));
-    await registration("Register", name, host, directory);
-    registered = true;
-    proxy = await rejectingProxy();
-    stage = "browser-start";
-    browser = await puppeteer.launch({
-      executablePath: await executable(name), userDataDir: join(directory, "profile"),
-      pipe: true, headless: true, enableExtensions: true,
-      timeout: 15000, protocolTimeout: 35000,
-      args: ["--no-first-run", "--disable-background-networking",
-        `--proxy-server=http://127.0.0.1:${proxy.address().port}`, "--proxy-bypass-list=<-loopback>"],
-    });
-    stage = "extension-load";
-    const id = await browser.installExtension(extension);
-    assert.equal(id, recipe.extension_id, "actual package identity must match the native origin");
-    const page = await browser.newPage();
-    await page.goto(`chrome-extension://${id}/product-fixture.html`);
-    await page.waitForFunction(() => typeof globalThis.runProductFixture === "function", { timeout: 5000 });
-    stage = "product-flow";
-    const results = await cases(page, name, directory, host, recipe);
-    const driver = JSON.parse(await readFile(
-      join(HERE, "node_modules", "puppeteer-core", "package.json"), "utf8",
-    ));
-    return { browser: name, browser_version: await browser.version(),
-      browser_flavor: "regular-installed", os_version: release(),
-      node_version: process.version, driver_version: driver.version,
-      native_registration_scope: `HKCU ${name} NativeMessagingHosts; unique test key`,
-      extension_load_method: "DevTools Extensions.loadUnpacked over pipe",
-      headless: true, synthetic_only: true,
-      product_controller: "passed", native_relay: "passed", core_completion: "passed",
-      real_cookie_api_called: false, live_validated: false, native_saved: false,
-      production_cli_terminal: "not-tested", cases: results, cleanup: "passed" };
-  } catch (cause) {
-    throw new Error(`${name}: ${stage} failed`, { cause });
-  } finally {
+  return await withCleanup(async () => {
     try {
-      if (registered) {
-        await registration("StopHost", name, host, directory);
-        await registration("Remove", name, host, directory);
+      await copyFile(join(REPO, "target", "debug", "examples", "windows-login-fixture.exe"),
+        join(directory, "host.exe"));
+      const extension = join(directory, "extension");
+      await mkdir(extension);
+      for (const file of ["manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs"]) {
+        await copyFile(join(REPO, "beyond-gate-browser-extension", file), join(extension, file));
       }
-    } finally {
-      await cleanupProbe(name, browser, proxy, directory);
+      for (const file of ["product-fixture.html", "product-fixture.mjs"]) {
+        await copyFile(join(HERE, file), join(extension, file));
+      }
+      await registration("CheckAbsent", name, host, directory);
+      await writeFile(join(directory, "native-host.json"), JSON.stringify({
+        name: host, description: "Beyond Gate isolated product-flow fixture",
+        path: join(directory, "host.exe"), type: "stdio",
+        allowed_origins: [`chrome-extension://${recipe.extension_id}/`],
+      }));
+      await registration("Register", name, host, directory);
+      registered = true;
+      proxy = await rejectingProxy();
+      stage = "browser-start";
+      browser = await launchBrowser(name, {
+        directory, proxyPort: proxy.address().port, protocolTimeout: 35000,
+      });
+      stage = "extension-load";
+      const id = await browser.installExtension(extension);
+      assert.equal(id, recipe.extension_id, "actual package identity must match the native origin");
+      const page = await browser.newPage();
+      await page.goto(`chrome-extension://${id}/product-fixture.html`);
+      await page.waitForFunction(() => typeof globalThis.runProductFixture === "function", { timeout: 5000 });
+      stage = "product-flow";
+      const results = await cases(page, name, directory, host, recipe);
+      const driver = JSON.parse(await readFile(
+        join(HERE, "node_modules", "puppeteer-core", "package.json"), "utf8",
+      ));
+      return { browser: name, browser_version: await browser.version(),
+        browser_flavor: "regular-installed", os_version: release(),
+        node_version: process.version, driver_version: driver.version,
+        native_registration_scope: `HKCU ${name} NativeMessagingHosts; unique test key`,
+        extension_load_method: "DevTools Extensions.loadUnpacked over pipe",
+        headless: true, synthetic_only: true,
+        product_controller: "passed", native_relay: "passed", core_completion: "passed",
+        real_cookie_api_called: false, live_validated: false, native_saved: false,
+        production_cli_terminal: "not-tested", cases: results, cleanup: "passed" };
+    } catch (cause) {
+      const error = new Error(`${name}: ${stage} failed`, { cause });
+      error.launch = cause.launch;
+      throw error;
     }
-  }
+  }, () => cleanupActions([
+    ["native-host", async () => {
+      if (registered) await registration("StopHost", name, host, directory);
+    }],
+    ["native-registration", async () => {
+      if (registered) await registration("Remove", name, host, directory);
+    }],
+    ["browser-resources", () => cleanupProbe(name, browser, proxy, directory)],
+  ]));
 }
 
 /** Builds with VS 2022 and reports Chrome and Edge evidence separately. */
@@ -223,7 +222,8 @@ async function main() {
       console.log(JSON.stringify({ status: "passed", ...await probe(name, recipe) }));
     } catch (error) {
       console.error(JSON.stringify({ browser: name, status: "failed", error: error.message,
-        fixture_detail: error.cause?.message }));
+        launch: error.launch, cleanup_failures: error.cleanup,
+        fixture_detail: safeLaunchCause(error.cause) }));
       process.exitCode = 1;
     }
   }

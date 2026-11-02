@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { execFile } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { access, copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { release } from "node:os";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
-import puppeteer from "puppeteer-core";
+import { executable, launchBrowser, cleanupActions, withCleanup } from "./browser-launch.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TEST_ROOT = join(HERE, "..", "..", "target", "browser-feasibility");
@@ -137,24 +137,6 @@ async function nativeCases(worker, name, id, directory) {
   return results;
 }
 
-/** Finds only the regular installed browser at explicit Windows executable locations. */
-async function executable(browser) {
-  const roots = [process.env.ProgramFiles, process.env["ProgramFiles(x86)"]].filter(Boolean);
-  const suffix = browser === "chrome"
-    ? ["Google", "Chrome", "Application", "chrome.exe"]
-    : ["Microsoft", "Edge", "Application", "msedge.exe"];
-  for (const root of roots) {
-    const path = join(root, ...suffix);
-    try {
-      await access(path);
-      return path;
-    } catch (error) {
-      if (error.code !== "ENOENT") throw error;
-    }
-  }
-  throw new Error(`required regular ${browser} executable is missing`);
-}
-
 /** Rejects HTTP and CONNECT traffic locally; never forwards a browser request. */
 async function rejectingProxy() {
   const server = createServer((_request, response) => {
@@ -177,32 +159,16 @@ async function removeOwnedDirectory(path) {
 
 /** Attempts all owned cleanup and reports failures without exposing filesystem details. */
 async function cleanupProbe(name, browser, proxy, directory) {
-  const failures = [];
-  if (browser) {
-    try {
-      await browser.close();
-    } catch (cause) {
-      failures.push(new Error("owned browser close failed", { cause }));
-    }
-  }
-  if (proxy) {
-    try {
-      await new Promise((resolve, reject) => {
+  await cleanupActions([
+    ["browser", async () => { if (browser) await browser.close(); }],
+    ["proxy", async () => {
+      if (proxy) await new Promise((resolve, reject) => {
         proxy.close((error) => error ? reject(error) : resolve());
         proxy.closeAllConnections();
       });
-    } catch (cause) {
-      failures.push(new Error("owned proxy close failed", { cause }));
-    }
-  }
-  try {
-    await removeOwnedDirectory(directory);
-  } catch (cause) {
-    failures.push(new Error("owned fixture directory removal failed", { cause }));
-  }
-  if (failures.length) {
-    throw new Error(`${name}: cleanup failed`, { cause: new AggregateError(failures) });
-  }
+    }],
+    ["fixture-directory", () => removeOwnedDirectory(directory)],
+  ]);
 }
 
 /** Loads the synthetic fixture through the supported DevTools pipe extension API. */
@@ -212,66 +178,56 @@ async function probe(name) {
   let proxy;
   let browser;
   let phase = "browser-start";
-  try {
-    proxy = await rejectingProxy();
-    const address = proxy.address();
-    browser = await puppeteer.launch({
-      executablePath: await executable(name),
-      userDataDir: join(directory, "profile"),
-      pipe: true,
-      headless: true,
-      enableExtensions: true,
-      timeout: 15000,
-      protocolTimeout: 15000,
-      args: [
-        "--no-first-run",
-        "--disable-background-networking",
-        `--proxy-server=http://127.0.0.1:${address.port}`,
-        "--proxy-bypass-list=<-loopback>",
-      ],
-    });
-    phase = "extension-load";
-    const id = await browser.installExtension(join(HERE, "extension"));
-    phase = "extension-worker";
-    const target = await browser.waitForTarget(
-      (candidate) => candidate.type() === "service_worker" &&
-        candidate.url() === `chrome-extension://${id}/service_worker.js`,
-      { timeout: 15000 },
-    );
-    const worker = await target.worker();
-    assert.ok(worker, "extension service worker must exist");
-    phase = "cookie-api";
-    const result = await worker.evaluate(() => globalThis.inspectSyntheticCookie());
-    assert.equal(result.cookie_api, "passed");
-    phase = "native-messaging";
-    const cases = await nativeCases(worker, name, id, directory);
-    const driver = JSON.parse(await readFile(
-      join(HERE, "node_modules", "puppeteer-core", "package.json"), "utf8",
-    ));
-    return {
-      browser: name,
-      browser_version: await browser.version(),
-      browser_flavor: "regular-installed",
-      os_version: release(),
-      node_version: process.version,
-      driver_version: driver.version,
-      native_registration_scope: `HKCU ${name} NativeMessagingHosts; unique test key`,
-      extension_load_method: "DevTools Extensions.loadUnpacked over pipe",
-      headless: true,
-      synthetic_only: true,
-      cookie_api: result.cookie_api,
-      native_messaging: "passed",
-      native_cases: cases,
-      application_peer_authentication: "not-tested",
-      account_validation: "not-tested",
-      protected_save: "not-tested",
-      cleanup: "passed",
-    };
-  } catch (cause) {
-    throw new Error(`${name}: ${phase} failed`, { cause });
-  } finally {
-    await cleanupProbe(name, browser, proxy, directory);
-  }
+  return await withCleanup(async () => {
+    try {
+      proxy = await rejectingProxy();
+      const address = proxy.address();
+      browser = await launchBrowser(name, {
+        directory, proxyPort: address.port, protocolTimeout: 15000,
+      });
+      phase = "extension-load";
+      const id = await browser.installExtension(join(HERE, "extension"));
+      phase = "extension-worker";
+      const target = await browser.waitForTarget(
+        (candidate) => candidate.type() === "service_worker" &&
+          candidate.url() === `chrome-extension://${id}/service_worker.js`,
+        { timeout: 15000 },
+      );
+      const worker = await target.worker();
+      assert.ok(worker, "extension service worker must exist");
+      phase = "cookie-api";
+      const result = await worker.evaluate(() => globalThis.inspectSyntheticCookie());
+      assert.equal(result.cookie_api, "passed");
+      phase = "native-messaging";
+      const cases = await nativeCases(worker, name, id, directory);
+      const driver = JSON.parse(await readFile(
+        join(HERE, "node_modules", "puppeteer-core", "package.json"), "utf8",
+      ));
+      return {
+        browser: name,
+        browser_version: await browser.version(),
+        browser_flavor: "regular-installed",
+        os_version: release(),
+        node_version: process.version,
+        driver_version: driver.version,
+        native_registration_scope: `HKCU ${name} NativeMessagingHosts; unique test key`,
+        extension_load_method: "DevTools Extensions.loadUnpacked over pipe",
+        headless: true,
+        synthetic_only: true,
+        cookie_api: result.cookie_api,
+        native_messaging: "passed",
+        native_cases: cases,
+        application_peer_authentication: "not-tested",
+        account_validation: "not-tested",
+        protected_save: "not-tested",
+        cleanup: "passed",
+      };
+    } catch (cause) {
+      const error = new Error(`${name}: ${phase} failed`, { cause });
+      error.launch = cause.launch;
+      throw error;
+    }
+  }, () => cleanupProbe(name, browser, proxy, directory));
 }
 
 /** Reports each required browser separately and fails rather than silently skipping it. */
@@ -288,6 +244,7 @@ async function main() {
     } catch (error) {
       console.error(JSON.stringify({
         browser: name, status: "failed", error: error.message,
+        launch: error.launch, cleanup_failures: error.cleanup,
         native_stage: error.cause?.stage, native_outcome: error.cause?.outcome,
       }));
       process.exitCode = 1;
