@@ -103,6 +103,18 @@ function Get-SafeProbeProgress {
     }
 }
 
+# Reads public gallery-related configuration names from debugger help, not values.
+function Get-PublicGallerySettingNames {
+    param([string]$Text)
+
+    $help = [regex]::Match($Text, '(?ms)^BG_SETTINGS_BEGIN\r?\n(.*?)^BG_SETTINGS_END\r?$')
+    if (!$help.Success) { return @() }
+    @([regex]::Matches($help.Groups[1].Value,
+        '(?m)^[ \t]*([a-zA-Z_][a-zA-Z0-9_.]*)[ \t]*:') |
+        ForEach-Object { $_.Groups[1].Value } |
+        Where-Object { $_ -match 'Gallery|Repositor|Nuget' } | Sort-Object -Unique)
+}
+
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Debuggers\x64\cdb.exe'
@@ -144,7 +156,8 @@ try {
     foreach ($argument in @(
         '-pv', '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell', '-kqm',
         '-netsyms:no', '-y', $RunDirectory, '-c',
-        '.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;qd'
+        ('.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;' +
+        '.echo BG_SETTINGS_BEGIN;.settings help;.echo BG_SETTINGS_END;qd')
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
     $started = $probe.Start()
     if (!$started) { throw 'Cannot start the owned stack probe.' }
@@ -169,6 +182,7 @@ try {
         } else {
             $stage = 'parse'
             $stack = ConvertTo-SafeStartupStack -Text $text
+            $stack.public_gallery_setting_names = @(Get-PublicGallerySettingNames -Text $text)
             foreach ($key in $counts.Keys) { $stack[$key] = $counts[$key] }
             $stack | ConvertTo-Json -Compress
         }
