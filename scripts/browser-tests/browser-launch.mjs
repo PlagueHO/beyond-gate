@@ -1,6 +1,6 @@
 /** Safe startup evidence for isolated regular-browser tests; never prints driver output. */
 import { execFile } from "node:child_process";
-import { access, readFile } from "node:fs/promises";
+import { access, open, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { release } from "node:os";
 import { promisify } from "node:util";
@@ -15,6 +15,51 @@ const STARTUP_METHODS = new Set([
   "Runtime.enable", "Network.enable", "Performance.enable", "Log.enable",
   "Emulation.setDeviceMetricsOverride", "Emulation.setTouchEmulationEnabled",
 ]);
+const LOG_SOURCES = new Set([
+  "chrome_main.cc", "chrome_main_delegate.cc", "chrome_browser_main.cc",
+  "process_singleton_win.cc", "devtools_pipe_handler.cc", "devtools_http_handler.cc",
+  "browser_main_loop.cc", "viz_main_impl.cc", "gpu_process_host.cc",
+  "sandbox_win.cc", "network_service_instance_impl.cc", "headless_shell.cc",
+  "chrome_dll_loader_win.cc", "chrome_exe_main_win.cc",
+]);
+
+/** Reduces an owned browser log to fixed error categories and known source names only. */
+export function safeBrowserLog(text) {
+  const sources = new Set();
+  for (const match of text.matchAll(/[:\\/]([a-z_]+\.cc)\(\d+\)\]/g)) {
+    if (LOG_SOURCES.has(match[1])) sources.add(match[1]);
+  }
+  const reasons = [
+    ["default-profile-debugging-denied", /remote debugging requires a non-default data directory/i],
+    ["debugging-pipe-unavailable", /Remote debugging pipe file descriptors are not open/i],
+    ["profile-singleton-failed", /Failed to create a ProcessSingleton/i],
+    ["gpu-process-unusable", /GPU process isn't usable/i],
+    ["gpu-process-launch-failed", /Failed to launch GPU process/i],
+    ["browser-dll-load-failed", /Failed to load (?:Chrome DLL|chrome\.dll)/i],
+    ["access-denied", /Access is denied/i],
+  ].filter(([, pattern]) => pattern.test(text)).map(([reason]) => reason);
+  return { startup_log_sources: [...sources], startup_log_reasons: reasons };
+}
+
+/** Reads at most 16 KiB from this launch's owned log; never returns its raw contents. */
+async function browserLog(directory) {
+  try {
+    const file = await open(join(directory, "startup.log"), "r");
+    try {
+      const buffer = Buffer.alloc(16384);
+      const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
+      return {
+        startup_log: "read", startup_log_limit_reached: bytesRead === buffer.length,
+        ...safeBrowserLog(buffer.subarray(0, bytesRead).toString("utf8")),
+      };
+    } finally {
+      await file.close();
+    }
+  } catch (error) {
+    if (error.code === "ENOENT") return { startup_log: "not-created" };
+    return { startup_log: "unreadable", startup_log_error: safeLaunchCause(error) };
+  }
+}
 
 /** Finds a regular installed browser without reading personal browser configuration. */
 export async function executable(browser) {
@@ -112,6 +157,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
       executablePath: path, userDataDir: join(options.directory, "profile"),
       pipe: true, headless: true, enableExtensions: true,
       timeout: 15000, protocolTimeout: options.protocolTimeout,
+      env: { ...process.env, CHROME_LOG_FILE: join(options.directory, "startup.log") },
       // The pinned driver logs paths, arguments, and environment data. Never forward its arguments.
       logger: (category) => {
         if (category === "puppeteer:browsers:launcher") return (message) => {
@@ -132,7 +178,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
         };
         return undefined;
       },
-      args: ["--no-first-run", "--disable-background-networking",
+      args: ["--no-first-run", "--disable-background-networking", "--enable-logging",
         `--proxy-server=http://127.0.0.1:${options.proxyPort}`, "--proxy-bypass-list=<-loopback>"],
     });
   } catch (cause) {
@@ -142,6 +188,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
       process_started: processStarted, process_exited: processExited,
       startup_protocol_methods: methods, protocol_messages_received: replies,
       ...safeLaunchCause(cause),
+      ...(stage === "launch" ? await browserLog(options.directory) : {}),
     };
     throw error;
   } finally {

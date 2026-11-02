@@ -1,9 +1,9 @@
 /** Offline checks for the development-only extension's narrow synthetic scope. */
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
-import { launchBrowser, safeLaunchCause, cleanupActions, withCleanup } from "./browser-launch.mjs";
+import { launchBrowser, safeLaunchCause, safeBrowserLog, cleanupActions, withCleanup } from "./browser-launch.mjs";
 import { join } from "node:path";
 import { cleanupProbe, TEST_ROOT } from "./run.mjs";
 
@@ -243,8 +243,9 @@ test("both browser runners retain launch isolation and their exact protocol dead
       assert.equal(options.timeout, 15000);
       assert.equal(options.protocolTimeout, protocolTimeout);
       assert.equal(options.dumpio, undefined);
+      assert.equal(options.env.CHROME_LOG_FILE, join("synthetic-owned-directory", "startup.log"));
       assert.deepEqual(options.args, [
-        "--no-first-run", "--disable-background-networking",
+        "--no-first-run", "--disable-background-networking", "--enable-logging",
         "--proxy-server=http://127.0.0.1:12345", "--proxy-bypass-list=<-loopback>",
       ]);
       return browser;
@@ -292,11 +293,49 @@ test("launch rejection retains safe cause and process evidence but never driver 
     assert.deepEqual(error.launch.startup_protocol_methods, Array(8).fill("Target.setDiscoverTargets"));
     assert.equal(error.launch.protocol_messages_received, 1);
     assert.equal(error.launch.elapsed_ms, 0);
+    assert.equal(error.launch.startup_log, "not-created");
     const output = JSON.stringify(error.launch);
     for (const privateText of ["synthetic-secret", "synthetic-private", "private.invalid", "\\u001b"]) {
       assert.equal(output.includes(privateText), false);
     }
     assert.ok(output.length < 1024);
+    return true;
+  });
+
+});
+
+test("owned startup logs expose only known source names and fixed cause categories", () => {
+  const result = safeBrowserLog(
+    "[1:2:timestamp:ERROR:devtools_pipe_handler.cc(12)] " +
+    "Remote debugging pipe file descriptors are not open. synthetic-secret\n" +
+    "[1:2:timestamp:ERROR:synthetic_secret.cc(99)] " +
+    "https://private.invalid C:\\synthetic-private synthetic-secret\n",
+  );
+  assert.deepEqual(result, {
+    startup_log_sources: ["devtools_pipe_handler.cc"],
+    startup_log_reasons: ["debugging-pipe-unavailable"],
+  });
+  assert.equal(JSON.stringify(result).includes("synthetic"), false);
+  assert.equal(JSON.stringify(result).includes("private"), false);
+});
+
+test("launch failure reads at most 16 KiB of the owned log without printing its payload", async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "chrome-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  await writeFile(join(directory, "startup.log"),
+    "[1:2:time:ERROR:devtools_pipe_handler.cc(12)] " +
+    "Remote debugging pipe file descriptors are not open.\n" +
+    "synthetic-secret".repeat(2000) + "\nAccess is denied.\n");
+  await assert.rejects(launchBrowser("chrome", {
+    directory, proxyPort: 12345, protocolTimeout: 15000,
+  }, launchDependencies(async () => { throw new Error("Target.setDiscoverTargets timed out"); })),
+  (error) => {
+    assert.equal(error.launch.startup_log, "read");
+    assert.equal(error.launch.startup_log_limit_reached, true);
+    assert.deepEqual(error.launch.startup_log_sources, ["devtools_pipe_handler.cc"]);
+    assert.deepEqual(error.launch.startup_log_reasons, ["debugging-pipe-unavailable"]);
+    assert.equal(JSON.stringify(error.launch).includes("synthetic-secret"), false);
     return true;
   });
 });

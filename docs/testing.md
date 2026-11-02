@@ -593,7 +593,12 @@ driver's launch error provides it. Unclassified errors remain failed results.
 
 The runner does not print raw errors, stacks, arbitrary cause chains, browser
 output, full executable or profile paths, command lines, or environment data.
-It does not enable Puppeteer's `dumpio` option. Cleanup still attempts every
+It does not enable Puppeteer's `dumpio` option. Chrome logging goes to an owned
+`startup.log` inside the test directory. On launch failure, the runner reads
+at most 16 KiB and reports only allowed source filenames and fixed error
+categories. Raw log contents are never printed or uploaded. Cleanup removes
+the log with the owned directory. Missing and unreadable logs are explicit.
+Cleanup still attempts every
 owned resource. If both an operation and cleanup fail, the operation remains
 the primary error and `cleanup_failures` reports fixed resource labels.
 Cleanup failure alone also fails the test.
@@ -608,6 +613,13 @@ It reported regular Chrome `156.0.8078.48` with Puppeteer `25.16.0`.
 The original startup failure did not recur. This pass does not establish a
 startup fix or a root cause. The earlier failed jobs do not contain the missing
 launch evidence.
+
+The [next diagnostic run](https://github.com/PlagueHO/beyond-gate/actions/runs/41421876546/job/125199095766)
+reproduced the launch failure with regular Chrome `156.0.8078.80` on image
+`20261030.294`. `Target.setDiscoverTargets` timed out after 15,375 milliseconds
+with no protocol messages received. The process started but had not reported
+exit when the error was captured. Edge passed. This identifies the failed
+startup boundary, not the reason Chrome did not answer.
 
 Cleanup closes the native port, verifies an owned host's executable path and
 start time before stopping its specific PID if necessary, removes only its
