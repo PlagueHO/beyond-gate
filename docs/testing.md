@@ -628,6 +628,16 @@ CI requires three separate feasibility runs with fresh profiles. These are
 mandatory cold-launch cases, not success-on-retry behavior. Any failed run
 fails the step even if a later run passes. Each run must complete its cleanup.
 
+For startup investigation, a manual CI run can select `startup-sampling`.
+This starts three separate Windows runners per browser. Normal push and PR
+checks still use one runner per browser and retain their existing check names.
+Each extra runner retains every required test and deadline. This mode increases
+hosted-runner use; it does not convert an earlier failure into a pass.
+
+```powershell
+gh workflow run ci.yml --ref <branch> -f startup-sampling=true
+```
+
 The [first diagnostic hosted run](https://github.com/PlagueHO/beyond-gate/actions/runs/41420080293)
 passed both browsers' feasibility and product-flow checks at `001a59e`.
 It reported regular Chrome `156.0.8078.48` with Puppeteer `25.16.0`.
