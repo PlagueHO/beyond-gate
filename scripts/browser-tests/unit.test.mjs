@@ -2,8 +2,11 @@
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { test } from "node:test";
+import { channel } from "node:diagnostics_channel";
+import { EventEmitter } from "node:events";
+import { PassThrough } from "node:stream";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
-import { launchBrowser, safeLaunchCause, safeBrowserLog, cleanupActions, withCleanup } from "./browser-launch.mjs";
+import { launchBrowser, safeLaunchCause, safeBrowserLog, observeStartup, cleanupActions, withCleanup } from "./browser-launch.mjs";
 import { join } from "node:path";
 import { cleanupProbe, TEST_ROOT } from "./run.mjs";
 
@@ -317,6 +320,57 @@ test("owned startup logs expose only known source names and fixed cause categori
   });
   assert.equal(JSON.stringify(result).includes("synthetic"), false);
   assert.equal(JSON.stringify(result).includes("private"), false);
+});
+
+test("startup observation waits for spawn and ignores foreign executable or profile", async () => {
+  const directory = join(TEST_ROOT, "chrome-observed");
+  const inspected = [];
+  const observer = observeStartup("owned.exe", directory, async (child) => {
+    inspected.push(child);
+    return { status: "read", chrome_dll_loaded: false };
+  });
+  const children = [];
+  try {
+    for (const [file, profile] of [
+      ["foreign.exe", join(directory, "profile")],
+      ["owned.exe", "foreign-profile"],
+      ["owned.exe", join(directory, "profile")],
+    ]) {
+      const child = new EventEmitter();
+      child.stderr = new PassThrough();
+      children.push(child);
+      channel("child_process").publish({ process: child });
+      child.spawnfile = file;
+      child.spawnargs = [file, `--user-data-dir=${profile}`];
+      child.emit("spawn");
+      child.stderr.write(
+        "Remote debugging pipe file descriptors are not open. synthetic-secret\n" +
+        "synthetic-private".repeat(2000) + "\nAccess is denied.\n",
+      );
+    }
+    const result = await observer.read();
+    assert.deepEqual(inspected, [children[2]]);
+    assert.equal(result.startup_stderr_bytes_read, 16384);
+    assert.equal(result.startup_stderr_limit_reached, true);
+    assert.deepEqual(result.startup_stderr_reasons, ["debugging-pipe-unavailable"]);
+    assert.deepEqual(result.startup_process, { status: "read", chrome_dll_loaded: false });
+    assert.equal(JSON.stringify(result).includes("synthetic"), false);
+    assert.equal(JSON.stringify(result).includes("foreign"), false);
+  } finally {
+    observer.stop();
+  }
+  for (const child of children) assert.equal(child.stderr.listenerCount("data"), 0);
+});
+
+test("startup observer removes pending spawn handlers and reports absent observation", async () => {
+  const observer = observeStartup("owned.exe", TEST_ROOT,
+    () => assert.fail("must not inspect a process that did not spawn"));
+  const child = new EventEmitter();
+  channel("child_process").publish({ process: child });
+  assert.equal(child.listenerCount("spawn"), 1);
+  observer.stop();
+  assert.equal(child.listenerCount("spawn"), 0);
+  assert.equal((await observer.read()).startup_process.status, "not-observed");
 });
 
 test("launch failure reads at most 16 KiB of the owned log without printing its payload", async (context) => {
