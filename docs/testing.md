@@ -660,6 +660,13 @@ Neither limit changes a browser or protocol deadline. Probe failure remains
 explicit and does not clear the launch failure. Browser abort and cleanup
 still follow the probe. An owned synthetic Node.js process checks the actual
 probe on the hosted runners and must respond after debugger detach.
+In this explicit investigation mode, a failed probe check does not skip the
+remaining browser checks. The job still fails. Default checks keep their
+normal step conditions.
+Fixed Boolean fields identify debugger gallery, engine, symbol-path, and
+stack-marker progress. The setup step also reads debugger help without a
+target under a ten-second limit. It reports command-line switch names only.
+Neither check reports raw debugger output.
 
 ```powershell
 gh workflow run ci.yml --ref <branch> -f startup-sampling=true -f startup-stacks=true

@@ -112,6 +112,9 @@ test("mandatory CI cold launches all run and any failure remains a failed step",
   const workflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
   const match = /- name: Exercise regular browser and real native host[\s\S]*?run: \|\r?\n((?: {10}[^\n]*\n)+)/.exec(workflow);
   assert.ok(match, "the required cold-launch step must exist");
+  assert.equal(workflow.includes("continue-on-error"), false);
+  const diagnosticCondition = "if: success() || (inputs.startup-stacks && !cancelled() && steps.browser-dependencies.outcome == 'success')";
+  assert.equal(workflow.split(diagnosticCondition).length - 1, 4);
   const commands = match[1].replace(/^ {10}/gm, "");
   const invocation = "npm run feasibility --prefix .\\scripts\\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER";
   assert.ok(commands.includes(invocation));

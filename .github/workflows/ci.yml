@@ -107,6 +107,7 @@ jobs:
           }
           exit 0
       - name: Install pinned browser development dependencies
+        id: browser-dependencies
         run: npm ci --prefix .\scripts\browser-tests --ignore-scripts --no-audit --no-fund
       - name: Prepare bounded startup stack sampling
         if: inputs.startup-stacks
@@ -114,8 +115,10 @@ jobs:
       - name: Check synthetic extension behavior
         run: npm test --prefix .\scripts\browser-tests
       - name: Lint development-only native host
+        if: success() || (inputs.startup-stacks && !cancelled() && steps.browser-dependencies.outcome == 'success')
         run: .\scripts\cargo.ps1 clippy -p beyond-gate-core --example browser-handoff-fixture --features browser-fixture --locked '--' -D warnings
       - name: Exercise regular browser and real native host
+        if: success() || (inputs.startup-stacks && !cancelled() && steps.browser-dependencies.outcome == 'success')
         env:
           BEYOND_GATE_TEST_BROWSER: ${{ matrix.browser }}
         run: |
@@ -127,8 +130,10 @@ jobs:
           }
           if ($failed) { exit 1 }
       - name: Lint isolated product completion fixture
+        if: success() || (inputs.startup-stacks && !cancelled() && steps.browser-dependencies.outcome == 'success')
         run: .\scripts\cargo.ps1 clippy -p beyond-gate-core --example windows-login-fixture --features windows-login-fixture --locked '--' -D warnings
       - name: Exercise product pairing and completion with invented data
+        if: success() || (inputs.startup-stacks && !cancelled() && steps.browser-dependencies.outcome == 'success')
         env:
           BEYOND_GATE_TEST_BROWSER: ${{ matrix.browser }}
         run: npm run product-flow --prefix .\scripts\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER

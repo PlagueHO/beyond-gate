@@ -394,6 +394,7 @@ test("Windows stack filtering emits only allowed modules and public export hints
 }, async () => {
   const text = [
     "synthetic-private C:\\synthetic-private https://private.invalid",
+    "Preparing the environment for Debugger Extensions Gallery repositories",
     "BG_STACK_BEGIN",
     "00 00000001`00000002 00000003`00000004 ntdll!NtWaitForSingleObject+0x14",
     "01 00000001`00000002 00000003`00000004 KERNELBASE!WaitForSingleObjectEx+0x99",
@@ -406,7 +407,8 @@ test("Windows stack filtering emits only allowed modules and public export hints
   const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
     ". $env:BEYOND_GATE_TEST_STACK_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
     "@((ConvertTo-SafeStartupStack $env:BEYOND_GATE_TEST_STACK), " +
-    "(ConvertTo-SafeStartupStack 'synthetic-private')) | ConvertTo-Json -Compress",
+    "(ConvertTo-SafeStartupStack 'synthetic-private'), " +
+    "(Get-SafeProbeProgress $env:BEYOND_GATE_TEST_STACK)) | ConvertTo-Json -Compress",
   ], {
     env: { ...process.env, BEYOND_GATE_TEST_STACK: text,
       BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
@@ -416,7 +418,10 @@ test("Windows stack filtering emits only allowed modules and public export hints
     status: "read", thread: "debugger-thread-zero", frame_count: 5,
     modules: ["ntdll", "kernelbase", "chrome"],
     export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx"],
-  }, { status: "unreadable", reason: "markers-not-found" }]);
+  }, { status: "unreadable", reason: "markers-not-found" }, {
+    gallery_preparing: true, gallery_waiting: false, engine_banner: false,
+    symbol_path_reported: false, stack_started: true, stack_completed: true,
+  }]);
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
   }
