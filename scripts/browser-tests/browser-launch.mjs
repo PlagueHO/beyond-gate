@@ -70,7 +70,7 @@ async function startupStack(child, path, directory) {
       "-NoProfile", "-File", fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)),
       "-BrowserProcessId", String(child.pid), "-BrowserExecutable", path,
       "-RunDirectory", directory, "-DeadlineUnixMs", String(Date.now() + 6000),
-    ], { timeout: 8000, maxBuffer: 4096, windowsHide: true });
+    ], { timeout: 8000, maxBuffer: 8192, windowsHide: true });
     return JSON.parse(stdout);
   } catch (error) {
     return { status: "unreadable", ...safeLaunchCause(error) };
