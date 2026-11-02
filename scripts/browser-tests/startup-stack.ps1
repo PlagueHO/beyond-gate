@@ -49,6 +49,46 @@ function ConvertTo-SafeStartupStack {
     }
 }
 
+# Drains both pipes after capture limits so a full buffer cannot block debugger exit.
+function Read-BoundedProbeOutput {
+    param(
+        [Diagnostics.Process]$Probe,
+        [IO.MemoryStream]$Output,
+        [IO.MemoryStream]$Errors,
+        [int]$TimeoutMs
+    )
+
+    $clock = [Diagnostics.Stopwatch]::StartNew()
+    $streams = @(
+        @{ source = $Probe.StandardOutput.BaseStream; sink = $Output; bytes = 0L },
+        @{ source = $Probe.StandardError.BaseStream; sink = $Errors; bytes = 0L }
+    )
+    foreach ($stream in $streams) {
+        $stream.buffer = [byte[]]::new(1024)
+        $stream.closed = $false
+        $stream.pending = $stream.source.ReadAsync($stream.buffer, 0, $stream.buffer.Length)
+    }
+    while (@($streams | Where-Object { !$_.closed }).Count) {
+        $active = @($streams | Where-Object { !$_.closed })
+        $wait = [int]($TimeoutMs - $clock.ElapsedMilliseconds)
+        if ($wait -le 0 -or
+            [Threading.Tasks.Task]::WaitAny([Threading.Tasks.Task[]]$active.pending, $wait) -eq -1) {
+            return @{ completed = $false; streams = $streams }
+        }
+        foreach ($stream in $active) {
+            if (!$stream.pending.IsCompleted) { continue }
+            $count = $stream.pending.GetAwaiter().GetResult()
+            if ($count -eq 0) { $stream.closed = $true; continue }
+            $stream.bytes += $count
+            $keep = [int][math]::Min($count, $stream.sink.Length - $stream.sink.Position)
+            if ($keep -gt 0) { $stream.sink.Write($stream.buffer, 0, $keep) }
+            $stream.pending = $stream.source.ReadAsync($stream.buffer, 0, $stream.buffer.Length)
+        }
+    }
+    $wait = [int][math]::Max(0, $TimeoutMs - $clock.ElapsedMilliseconds)
+    @{ completed = $Probe.WaitForExit($wait); streams = $streams }
+}
+
 if ($MyInvocation.InvocationName -eq '.') { return }
 
 $debugger = Join-Path ${env:ProgramFiles(x86)} 'Windows Kits\10\Debuggers\x64\cdb.exe'
@@ -88,29 +128,34 @@ try {
     $probe.StartInfo.RedirectStandardOutput = $true
     $probe.StartInfo.RedirectStandardError = $true
     foreach ($argument in @(
-        '-pv', '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell',
+        '-pv', '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell', '-kqm',
         '-netsyms:no', '-y', $RunDirectory, '-c',
         '.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;qd'
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
     $started = $probe.Start()
     if (!$started) { throw 'Cannot start the owned stack probe.' }
     $stage = 'read'
-    $copyOutput = $probe.StandardOutput.BaseStream.CopyToAsync($output, 1024)
-    $copyErrors = $probe.StandardError.BaseStream.CopyToAsync($errors, 1024)
-    if (!$probe.WaitForExit([int]$remaining)) {
+    $capture = Read-BoundedProbeOutput -Probe $probe -Output $output -Errors $errors -TimeoutMs $remaining
+    $counts = @{
+        stdout_bytes = $capture.streams[0].bytes
+        stderr_bytes = $capture.streams[1].bytes
+        stdout_limit_reached = $capture.streams[0].bytes -ge $output.Length
+        stderr_limit_reached = $capture.streams[1].bytes -ge $errors.Length
+    }
+    if (!$capture.completed) {
         $probe.Kill($true)
         $probe.WaitForExit()
-        @{ status = 'timed-out' } | ConvertTo-Json -Compress
+        $counts.status = 'timed-out'
+        $counts | ConvertTo-Json -Compress
     } else {
-        # Discard .NET's VoidTaskResult so stdout contains only fixed JSON.
-        $null = $copyOutput.GetAwaiter().GetResult()
-        $null = $copyErrors.GetAwaiter().GetResult()
         if ($probe.ExitCode -ne 0) {
             @{ status = 'debugger-failed'; exit_code = $probe.ExitCode } | ConvertTo-Json -Compress
         } else {
             $stage = 'parse'
             $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
-            ConvertTo-SafeStartupStack -Text $text | ConvertTo-Json -Compress
+            $stack = ConvertTo-SafeStartupStack -Text $text
+            foreach ($key in $counts.Keys) { $stack[$key] = $counts[$key] }
+            $stack | ConvertTo-Json -Compress
         }
     }
 } catch {

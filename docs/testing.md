@@ -650,6 +650,8 @@ Process counters are collected first so this suspension cannot change them.
 Network symbol lookup and debugger shell commands are disabled. The probe
 does not create memory dumps, inspect values, or write raw debugger output.
 Its fixed buffers hold at most 16 KiB of output and 4 KiB of stderr.
+Both pipes continue to drain after these storage limits. Excess bytes are
+discarded so they cannot block debugger exit. Quiet mode reduces startup noise.
 Only allowed module names and public export hints leave the collector.
 Export hints can be the nearest export, not the exact waiting function.
 They do not establish a cause without other evidence.

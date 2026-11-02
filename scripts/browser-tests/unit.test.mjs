@@ -437,6 +437,41 @@ test("debugger setup refuses a normal local machine before downloading or instal
   });
 });
 
+test("bounded probe capture drains both pipes after their storage limits", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async () => {
+  const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
+    ". $env:BEYOND_GATE_TEST_STACK_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
+    "$probe = [Diagnostics.Process]::new(); " +
+    "$output = [IO.MemoryStream]::new([byte[]]::new(16384), $true); " +
+    "$errors = [IO.MemoryStream]::new([byte[]]::new(4096), $true); " +
+    "try { " +
+    "$probe.StartInfo.FileName = $env:BEYOND_GATE_TEST_NODE; " +
+    "$probe.StartInfo.UseShellExecute = $false; " +
+    "$probe.StartInfo.RedirectStandardOutput = $true; $probe.StartInfo.RedirectStandardError = $true; " +
+    "$probe.StartInfo.ArgumentList.Add('--eval'); " +
+    "$probe.StartInfo.ArgumentList.Add(\"process.stdout.write('synthetic-private'.repeat(8000)); " +
+    "process.stderr.write('synthetic-private'.repeat(8000));\"); " +
+    "$null = $probe.Start(); " +
+    "$result = Read-BoundedProbeOutput $probe $output $errors 5000; " +
+    "@{ completed = $result.completed; stdout_bytes = $result.streams[0].bytes; " +
+    "stderr_bytes = $result.streams[1].bytes; stdout_stored = $output.Position; " +
+    "stderr_stored = $errors.Position } | ConvertTo-Json -Compress " +
+    "} finally { if (!$probe.HasExited) { $probe.Kill($true); $probe.WaitForExit() }; " +
+    "$probe.Dispose(); $output.Dispose(); $errors.Dispose() }",
+  ], {
+    env: { ...process.env, BEYOND_GATE_TEST_NODE: process.execPath,
+      BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
+    timeout: 8000, maxBuffer: 4096,
+  });
+  assert.deepEqual(JSON.parse(stdout), {
+    completed: true, stdout_bytes: 136000, stderr_bytes: 136000,
+    stdout_stored: 16384, stderr_stored: 4096,
+  });
+  assert.equal(stdout.includes("synthetic"), false);
+  assert.equal(stdout.includes("private"), false);
+});
+
 test("launch failure aborts and waits for its owned browser before directory cleanup", async () => {
   const attempted = [];
   const cause = new Error("Target.setDiscoverTargets timed out");
