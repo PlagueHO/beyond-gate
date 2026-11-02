@@ -11,6 +11,7 @@ import { launchBrowser, safeLaunchCause, safeBrowserLog, observeStartup, cleanup
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
+import puppeteer from "puppeteer-core";
 import { cleanupProbe, TEST_ROOT } from "./run.mjs";
 
 /** Builds invented metadata, not a real browser or account snapshot. */
@@ -479,6 +480,44 @@ test("owned browser termination and directory failures preserve the primary laun
     assert.equal(JSON.stringify(error.launch).includes("synthetic-private"), false);
     return true;
   });
+});
+
+test("a real driver pipe timeout exits its owned synthetic process before directory cleanup", {
+  skip: process.platform !== "win32", timeout: 40000,
+}, async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "chrome-"));
+  let child;
+  context.after(async () => {
+    if (child && child.exitCode === null && child.signalCode === null) {
+      const exited = once(child, "exit", { signal: AbortSignal.timeout(5000) });
+      child.kill();
+      await exited;
+    }
+    await rm(directory, { recursive: true, force: true });
+  });
+  const dependencies = launchDependencies((options) => puppeteer.launch({
+    ...options, ignoreDefaultArgs: true,
+    // Node receives Chrome-only flags as data after "--".
+    args: ["--input-type=module", "--eval", "setInterval(() => {}, 1000)", "--",
+      `--user-data-dir=${options.userDataDir}`],
+  }));
+  dependencies.findExecutable = async () => process.execPath;
+  dependencies.observe = (path, directory) => observeStartup(path, directory, async (owned) => {
+    child = owned;
+    return { status: "read" };
+  });
+  await assert.rejects(withCleanup(() => launchBrowser("chrome", {
+    directory, proxyPort: 12345, protocolTimeout: 15000,
+  }, dependencies), () => rm(directory, { recursive: true })), (error) => {
+    assert.equal(error.launch.cause_kind, "ProtocolError");
+    assert.equal(error.launch.cause_reason, "timed-out");
+    assert.equal(error.launch.protocol_messages_received, 0);
+    assert.equal(error.launch.startup_cleanup, "passed");
+    assert.ok(child && (child.exitCode !== null || child.signalCode !== null));
+    return true;
+  });
+  await assert.rejects(stat(directory), { code: "ENOENT" });
 });
 
 test("Windows startup inspection reports only fixed state for an owned synthetic process", {
