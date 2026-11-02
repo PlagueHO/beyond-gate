@@ -606,6 +606,8 @@ test("Windows stack filtering emits only allowed modules and public export hints
     "03 00000001`00000002 00000003`00000004 foreign!ReadFile+0x99",
     "04 00000001`00000002 00000003`00000004 chrome+0x1234",
     "05 00000001`00000002 00000003`00000004 ntdll!LdrpDrainWorkQueue+0x12",
+    "06 00000001`00000002 00000003`00000004 ntdll!NtSetInformationVirtualMemory+0x12",
+    "07 00000001`00000002 00000003`00000004 KERNELBASE!PrefetchVirtualMemory+0x12",
     "BG_STACK_END",
     "05 00000001`00000002 00000003`00000004 crypt32!CryptQueryObject+0x99",
   ].join("\r\n");
@@ -629,13 +631,14 @@ test("Windows stack filtering emits only allowed modules and public export hints
     timeout: 8000, maxBuffer: 4096,
   });
   assert.deepEqual(JSON.parse(stdout), [{
-    status: "read", thread: "debugger-thread-zero", frame_count: 6,
+    status: "read", thread: "debugger-thread-zero", frame_count: 8,
     modules: ["ntdll", "kernelbase", "chrome"],
-    export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx"],
+    export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx", "PrefetchVirtualMemory"],
     frame_hints: [
       ["ntdll", "NtWaitForSingleObject"], ["kernelbase", "WaitForSingleObjectEx"],
       ["chrome", "other"], ["other", "other"], ["chrome", "other"],
       ["ntdll", "LdrpDrainWorkQueue"],
+      ["ntdll", "NtSetInformationVirtualMemory"], ["kernelbase", "PrefetchVirtualMemory"],
     ],
   }, { status: "unreadable", reason: "markers-not-found" }, {
     gallery_preparing: true, gallery_waiting: false, engine_banner: false,
@@ -647,6 +650,79 @@ test("Windows stack filtering emits only allowed modules and public export hints
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
   }
+});
+
+test("public browser symbol IDs omit PDB paths and reject malformed images", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "symbols-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  // Minimal PE32+ image: one section and one CodeView record with an invented path.
+  const image = Buffer.alloc(1024);
+  const pdbPath = Buffer.from("C:\\synthetic-private\\chrome_elf.dll.pdb\0");
+  image.write("MZ");
+  image.writeUInt32LE(0x80, 0x3c);
+  image.write("PE\0\0", 0x80);
+  image.writeUInt16LE(0x8664, 0x84);
+  image.writeUInt16LE(1, 0x86);
+  image.writeUInt16LE(0xf0, 0x94);
+  image.writeUInt16LE(0x2022, 0x96);
+  image.writeUInt16LE(0x20b, 0x98);
+  image.writeUInt32LE(0x1000, 0xb8);
+  image.writeUInt32LE(0x200, 0xbc);
+  image.writeUInt32LE(0x2000, 0xd0);
+  image.writeUInt32LE(0x200, 0xd4);
+  image.writeUInt32LE(16, 0x104);
+  image.writeUInt32LE(0x1000, 0x138);
+  image.writeUInt32LE(28, 0x13c);
+  image.write(".rdata", 0x188);
+  image.writeUInt32LE(0x200, 0x190);
+  image.writeUInt32LE(0x1000, 0x194);
+  image.writeUInt32LE(0x200, 0x198);
+  image.writeUInt32LE(0x200, 0x19c);
+  image.writeUInt32LE(0x40000040, 0x1ac);
+  image.writeUInt32LE(2, 0x20c);
+  image.writeUInt32LE(24 + pdbPath.length, 0x210);
+  image.writeUInt32LE(0x1040, 0x214);
+  image.writeUInt32LE(0x240, 0x218);
+  image.write("RSDS", 0x240);
+  Buffer.from("67452301ab89efcd0123456789abcdef", "hex").copy(image, 0x244);
+  image.writeUInt32LE(1, 0x254);
+  pdbPath.copy(image, 0x258);
+  const missing = Buffer.from(image);
+  missing.writeUInt32LE(0, 0x138);
+  missing.writeUInt32LE(0, 0x13c);
+  const ambiguous = Buffer.from(image);
+  ambiguous.writeUInt32LE(56, 0x13c);
+  image.copy(ambiguous, 0x21c, 0x200, 0x21c);
+  await Promise.all([
+    writeFile(join(directory, "chrome_elf.dll"), image),
+    writeFile(join(directory, "chrome.exe"), missing),
+    writeFile(join(directory, "msedge_elf.dll"), ambiguous),
+    writeFile(join(directory, "msedge.exe"), "synthetic-private"),
+  ]);
+  const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
+    ". $env:BEYOND_GATE_TEST_PROCESS_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
+    "@('chrome_elf.dll', 'chrome.exe', 'msedge_elf.dll', 'msedge.exe') | ForEach-Object { " +
+    "Get-PublicBrowserSymbolId (Join-Path $env:BEYOND_GATE_TEST_DIRECTORY $_) } | ConvertTo-Json -Compress",
+  ], {
+    env: { ...process.env, BEYOND_GATE_TEST_DIRECTORY: directory,
+      BEYOND_GATE_TEST_PROCESS_SCRIPT: fileURLToPath(new URL("./startup-process.ps1", import.meta.url)) },
+    timeout: 8000, maxBuffer: 4096,
+  });
+  const [valid, noCodeView, multipleCodeViews, invalid] = JSON.parse(stdout);
+  assert.equal(valid.module, "chrome_elf");
+  assert.equal(valid.status, "read");
+  assert.equal(valid.pdb_id, "0123456789ABCDEF0123456789ABCDEF1");
+  assert.deepEqual(noCodeView, { module: "chrome_exe", status: "codeview-unavailable" });
+  assert.deepEqual(multipleCodeViews, { module: "msedge_elf", status: "codeview-unavailable" });
+  assert.deepEqual(invalid, {
+    module: "msedge_exe", status: "unreadable", cause_kind: "BadImageFormatException",
+  });
+  assert.equal(stdout.includes(directory), false);
+  assert.equal(stdout.includes("synthetic-private"), false);
+  assert.equal(stdout.includes(".pdb"), false);
 });
 
 test("missing or ambiguous prepared symbols do not prevent export-only collection", {
@@ -844,6 +920,7 @@ async function checkOwnedStartup(context, keepRunning = false) {
   assert.equal(result.startup_process.status, "read");
   assert.equal(result.startup_process.chrome_dll_loaded, false);
   assert.equal(result.startup_process.chrome_elf_loaded, false);
+  assert.deepEqual(result.startup_process.public_module_symbols, []);
   assert.equal(result.startup_process.profile_created, true);
   assert.equal(result.startup_process.crashpad_created, true);
   assert.equal(result.startup_process.local_state_created, true);

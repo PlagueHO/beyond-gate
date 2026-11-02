@@ -27,7 +27,7 @@ function ConvertTo-SafeStartupStack {
         'NtRemoveIoCompletion', 'NtAlpcSendWaitReceivePort', 'NtQueryInformationFile',
         'WaitForSingleObject', 'WaitForSingleObjectEx', 'WaitForMultipleObjects',
         'WaitForMultipleObjectsEx', 'ReadFile', 'WriteFile', 'CreateFileW',
-        'GetQueuedCompletionStatus', 'GetQueuedCompletionStatusEx',
+        'GetQueuedCompletionStatus', 'GetQueuedCompletionStatusEx', 'PrefetchVirtualMemory',
         'LoadLibraryExW', 'LdrLoadDll', 'WinVerifyTrust', 'CryptQueryObject',
         'ChromeMain', 'BaseThreadInitThunk', 'RtlUserThreadStart'
     )
@@ -38,6 +38,7 @@ function ConvertTo-SafeStartupStack {
         'LdrpMapDllWithSectionHandle', 'LdrpPrepareModuleForExecution',
         'LdrpAcquireLoaderLock', 'LdrLockLoaderLock', 'RtlEnterCriticalSection',
         'RtlAcquireSRWLockExclusive', 'NtCreateSection', 'NtMapViewOfSection',
+        'NtSetInformationVirtualMemory',
         'NtWaitForWorkViaWorkerFactory', 'TppWorkerThread', 'NtRemoveIoCompletionEx',
         'RtlpWaitOnCriticalSection', 'RtlpWaitOnAddress', 'RtlpWaitOnAddressWithTimeout'
     )
