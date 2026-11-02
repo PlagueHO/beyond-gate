@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      startup-sampling:
+        description: Run three fresh Windows runners per browser for startup investigation
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -64,13 +69,14 @@ jobs:
         run: ./scripts/test-e2e-harness.ps1
 
   browser:
-    name: Synthetic native messaging (${{ matrix.browser }}, Windows)
+    name: Synthetic native messaging (${{ matrix.browser }}, Windows)${{ matrix.startup_sample > 1 && format(' - startup {0}', matrix.startup_sample) || '' }}
     runs-on: windows-latest
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
         browser: [chrome, edge]
+        startup_sample: ${{ fromJSON(inputs.startup-sampling && '[1,2,3]' || '[1]') }}
     defaults:
       run:
         shell: pwsh
