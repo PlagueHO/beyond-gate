@@ -5,7 +5,10 @@ The manual extension, native host, and interactive CLI use the
 [version 1 browser handoff](browser-handoff.md). Approved product checks covered
 human pairing, direct-service validation, protected save, restart/status, logout,
 and cleanup. See the [scope and evidence](testing.md#approved-windows-product-login-verification).
-macOS/Linux browser login and reusable authenticated CLI/MCP reads remain deferred.
+Windows session validation and process-local reuse are implemented and tested
+with synthetic services and stores. Live resource reads remain unsupported.
+macOS/Linux browser login and production session use remain deferred.
+Linux implementation is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
 The user accepted the
 [Windows pairing boundary](browser-handoff.md#accepted-windows-pairing-boundary).
@@ -70,7 +73,7 @@ This trust approval does not authorize new account or credential-store tests.
 
 ## Local session commands
 
-The CLI exposes `auth login`, `auth status`, and `auth logout`.
+The CLI exposes `auth login`, `auth status`, `auth validate`, and `auth logout`.
 Local presence and deletion started in
 [#3](https://github.com/PlagueHO/beyond-gate/issues/3).
 Windows browser login now has approved product verification.
@@ -79,6 +82,7 @@ Windows browser login now has approved product verification.
 |---------|----------------|
 | `beyond-gate auth login` | Windows: requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Real Chrome and Edge Dev login/save checks passed. Other platforms retain the unsupported error. |
 | `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. It does not check current upstream usability; expiry is unknown. |
+| `beyond-gate auth validate` | Windows: loads the fixed protected entry and makes one fresh service exchange. Success writes safe validation JSON with code 0. Other platforms fail before credential or service access. |
 | `beyond-gate auth logout` | Exits with code 0 after local deletion or when the entry is already absent. States that upstream revocation is not implemented. |
 
 Storage errors exit with code 1 and use stderr. Invalid command usage exits with
@@ -90,9 +94,10 @@ There is no credential import command. Do not create a credential manually to
 work around failed browser setup. The Windows CLI calls the core write
 boundary after paired submission. Offline tests use synthetic values only.
 No credential argument,
-environment input, password prompt, or MCP input is added. Neither adapter uses
-stored material for an upstream request. The MCP server exposes only read tools,
-which currently return the core's explicit unsupported-operation errors.
+environment input, password prompt, or MCP credential input is added.
+The MCP `auth_validate` tool uses the same core validation as the CLI.
+Both explicit validation operations can contact the fixed authentication service.
+The seven resource read tools still return explicit unsupported-operation errors.
 
 ### Protected-store selection and recovery
 
@@ -136,9 +141,11 @@ opaque storage bound remains unchanged for local presence checks.
 Unknown persistent versions and malformed envelopes fail safely; no migration,
 truncation, split-entry storage, or plaintext fallback is selected.
 
-There is no token cache in this implementation. Logout does not revoke an
-upstream session, log the browser out, or clear credentials held by another
-process. No upstream revocation contract has been established.
+The shared lifecycle holds derived bearers only in a process-local cache.
+Logout clears its owner's evidence before local deletion. Other owners detect
+the deleted entry at their next protected load. Logout does not revoke an
+upstream session, log the browser out, or stop another process's in-flight
+request. No upstream revocation contract has been established.
 
 ### Offline checks and remaining work
 
@@ -156,8 +163,12 @@ A native-store smoke test requires separate explicit credential-access approval.
 
 Windows establishment tests cover cancellation, cookie exchange failures,
 deadlines, service rejection, expired bearer evidence, and uncertain writes.
-Reusable upstream-session states, bounded refresh, and authenticated CLI/MCP
-read parity remain #30 work. The developer probe below remains separate.
+Portable lifecycle checks cover reuse, fresh validation, exact bearer expiry,
+bounded exchange, rejection, store failures, and cache cleanup. A process test
+uses the actual CLI runner and rmcp stdio server with the same invented sessions
+and local services. Their validation data and safe diagnostics agree.
+Live resource reads and approved real lifecycle checks remain separate.
+The developer probe below remains separate.
 
 ## Required user experience
 
@@ -170,7 +181,8 @@ read parity remain #30 work. The developer probe below remains separate.
 
 The CLI does not open or control the browser. Password entry stays in the
 browser. No OAuth callback, credential import, or environment-based fallback
-is implemented. Reuse of the stored session for CLI/MCP reads remains deferred.
+is implemented. Explicit CLI/MCP validation is available on Windows.
+Production resource reads remain unsupported.
 
 ## Browser handoff assessment
 
@@ -477,6 +489,99 @@ outcomes and dates without credentials, token payloads, or raw responses.
 
 ## Session lifecycle
 
+### Validation and evidence
+
+`beyond-gate-core::auth::session::Session` owns the shared lifecycle.
+Its construction does not open storage or contact the service. Production
+validation and reuse are Windows-only. The policy and synthetic tests are
+portable so [Linux support](https://github.com/PlagueHO/beyond-gate/issues/52)
+can use the same rules after its platform contract is implemented.
+
+CLI `auth validate` and MCP `auth_validate` always make one fresh exchange,
+unless loading fails or the owner has already rejected the same material.
+Neither operation accepts credentials or writes the stored cookie again.
+Success is the same JSON object in both adapters:
+
+```json
+{"validation":"service_validated","expiry":"unknown","bearer_expiry":"future"}
+```
+
+This proves accepted direct-service bearer evidence at validation time.
+It is not a content-access grant, independently verified JWT signature,
+protected-save result, or guarantee of future upstream acceptance.
+`auth status` remains local-only and reports `stored-unverified` for presence.
+The browser receipt and `SavedSession` keep their existing distinct meanings.
+
+### Reuse and request bounds
+
+Before each use, the core rereads the fixed protected entry off the async
+executor. It binds cached evidence to the exact cookie envelope. An absent or
+changed entry invalidates the prior bearer. A failed read, failed fresh
+validation, or cancelled exchange cannot restore old bearer evidence.
+
+The core uses both the service-issued wall-clock expiry and an original
+monotonic deadline. A backward clock change cannot extend bearer reuse.
+Exact expiry stops reuse. The next operation can make one new cookie exchange;
+there is no separate refresh endpoint or background refresh worker.
+
+| Boundary | Limit |
+|----------|-------|
+| Whole operation, including queue, storage, exchange, and any read | 30 seconds |
+| Protected-store waiting | 5 seconds |
+| Service connection | 5 seconds |
+| One service request and its body | 15 seconds |
+| Service exchanges per operation | At most one; no automatic retry |
+| Service response | At most 64 KiB; JSON with identity encoding |
+| Derived bearer | At most 8 KiB; memory only |
+| Persistent cookie envelope | At most 2,560 bytes; unchanged BGSE v1 format |
+
+The service transport forbids redirects, proxies, and transport retries.
+`Session::get_json` applies memory-only bearer headers to the existing bounded
+HTTP client after exact origin checks. Its read deadline cannot exceed bearer
+expiry. It adds no production resource host or endpoint. Issues #31, #32, and #33
+still own live source and entitlement contracts.
+
+Core-owned cookie and bearer allocations and temporary header strings are
+cleared on drop. OS, HTTP-header, and transport-owned copies have no complete
+erasure guarantee.
+
+### Failures, cancellation, and logout
+
+| Category | Meaning |
+|----------|---------|
+| `session_absent` | The fixed native entry is missing; human browser login is required |
+| `session_rejected` | The service or an authenticated read rejected credentials; human browser login is required |
+| `session_expired` | Service-issued bearer evidence expired; cookie expiry remains unknown |
+| `invalid_material` / `unsupported_contract` | Invalid bytes or unknown persistent format; no migration or fallback |
+| `storage_access` / `storage_unavailable` / `storage_failure` | Protected storage failed; not absence |
+| `ambiguous_entry` | Multiple matching credentials; no automatic selection |
+| `validation_unavailable` | Transport or service response cannot establish usability |
+| `timed_out` | The operation or protected-store wait reached its bound |
+| `unsupported_platform` | Production validation and reuse are not implemented on this platform |
+
+The owner clears bearer evidence after rejection. It does not exchange the
+same rejected cookie again or delete it automatically. Different material
+saved through human login can begin a new attempt. A new process has no durable
+rejection history and can make one explicit bounded attempt. HTTP 401 does not
+prove cookie expiry. HTTP 403 from a resource read remains content denial and
+does not trigger credential refresh.
+
+CLI Ctrl+C and MCP request cancellation drop pending validation work.
+The [rmcp request context](https://docs.rs/rmcp/3.8.0/rmcp/service/struct.RequestContext.html)
+supplies the MCP cancellation token. The protocol can omit a response to a
+cancelled request. Cancellation never installs a late bearer result.
+A started blocking native read can finish, but cannot install evidence.
+CLI and MCP runtime shutdown do not wait for that worker. This preserves the
+operation timeout, cancellation result, and MCP exit on transport closure even
+if the native credential service stays blocked.
+
+Local logout clears its owner's cache and deletes only the fixed protected
+entry without reading the secret. Missing entries remain successful.
+Failed deletion is an error, not confirmed removal. A started native deletion
+can finish after a timeout or caller cancellation. Another process observes
+removal at its next load, not during an in-flight request.
+Local removal does not revoke upstream credentials or log the browser out.
+
 ### Manual-suite test exception
 
 The [manual capability suite](testing.md) adds an off-by-default
@@ -496,25 +601,19 @@ verified Windows browser login does not enable it.
 
 Windows establishment fixes the selected cookie, direct exchange host, response
 rule, and persistent encoding. It keeps the derived bearer transient and saves
-only the cookie. #30 must define bounded reuse and refresh without assuming that
-the cookie never expires. Other-platform login must use the protected storage
+only the cookie. Shared bounded reuse does not assume that the cookie never
+expires. Other-platform login must use the protected storage
 boundary above, not plaintext when a store is locked or missing.
 
-Future `auth status` output must report usability and expiry only when supported
-evidence exists. Current status reports local presence only. It never displays
-secrets. Current `auth logout` removes the local entry and states that upstream
-revocation is unavailable. Future token caches must also participate in logout.
-Local removal alone is not upstream revocation.
-
-Handle expiry explicitly. Bound token refresh and do not repeatedly retry a
-rejected session. Give the user a clear login action. MCP tools must report that
-human login is needed, not ask an agent to collect a cookie or password.
+The manual suite discovers the new tool and rejects its invalid inputs without
+credential access. Valid production validation stays outside its zero live
+request budget. Synthetic process tests cover validation success and failure.
 
 ## Unresolved questions
 
 - Does upstream permit a suitable local authentication flow?
 - Which resource hosts and access contracts can support authenticated CLI/MCP reads?
-- What reusable-session expiry, refresh, and revocation rules can #30 verify?
+- What additional real lifecycle evidence and upstream revocation contract can be verified?
 - Which secure browser handoff can macOS and Linux support?
 
 Windows login does not resolve these remaining questions. Use the

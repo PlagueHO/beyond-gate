@@ -82,8 +82,9 @@ impl SessionHeaders {
         {
             return Err(HttpError::new(ErrorKind::InvalidInput));
         }
+        let text = Zeroizing::new(format!("Bearer {token}"));
         Ok(Self {
-            authorization: Some(sensitive_header(&format!("Bearer {token}"))?),
+            authorization: Some(sensitive_header(&text)?),
             cookie: None,
         })
     }
@@ -285,14 +286,7 @@ impl HttpClient {
         session: Option<&SessionHeaders>,
     ) -> Result<T, HttpError> {
         let deadline = Instant::now() + self.policy.total;
-        let url = parse_url(url, cfg!(test))?;
-        if !self
-            .origins
-            .iter()
-            .any(|origin| *origin == url.origin().ascii_serialization())
-        {
-            return Err(HttpError::new(ErrorKind::UnapprovedOrigin));
-        }
+        let url = self.check_url(url)?;
         let _permit = timeout_at(deadline, self.permits.acquire())
             .await
             .map_err(HttpError::deadline)?
@@ -304,6 +298,7 @@ impl HttpClient {
                 failure.attempts = attempts;
                 return Err(failure);
             }
+
             attempts += 1;
             let result = timeout_at(deadline, self.attempt(&url, session)).await;
             let mut failure = match result {
@@ -327,6 +322,25 @@ impl HttpClient {
                 return Err(failure);
             }
         }
+    }
+
+    /// Checks origin policy before shared session operations access protected storage.
+    pub(crate) fn check_url(&self, url: &str) -> Result<Url, HttpError> {
+        let url = parse_url(url, cfg!(test))?;
+        if !self
+            .origins
+            .iter()
+            .any(|origin| *origin == url.origin().ascii_serialization())
+        {
+            return Err(HttpError::new(ErrorKind::UnapprovedOrigin));
+        }
+        Ok(url)
+    }
+
+    /// Builds the actual bounded HTTP path against a test-only loopback origin.
+    #[cfg(test)]
+    pub(crate) fn for_test(origin: &str) -> Result<Self, HttpError> {
+        Self::build(&[origin], RequestPolicy::default(), true)
     }
 
     /// Sends one GET and checks status and bounded body before decoding JSON.

@@ -18,6 +18,7 @@ use std::{
     time::Duration,
 };
 
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use serde_json::{Value, json};
 use tokio::{
     runtime::Builder,

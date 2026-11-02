@@ -1,7 +1,7 @@
 # CLI command reference
 
 **Current status:** `beyond-gate` supports help, version output, shell completions,
-local session status and logout, and local MCP start and registration. Windows
+local session status and logout, Windows session validation, and local MCP start and registration. Windows
 login, explicit browser setup, and the native host are implemented.
 Approved Chrome and Edge Dev login/save/restart/logout checks passed.
 Live resource reads are unsupported.
@@ -50,6 +50,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`auth install`](#auth-install-and-auth-uninstall) | Register a native browser host | Windows; explicit directory, preview, and confirmation |
 | [`auth uninstall`](#auth-install-and-auth-uninstall) | Remove matching native setup | Windows; preserves other installations |
 | [`auth status`](#auth-status) | Inspect local credential presence | Implemented; no upstream validation |
+| [`auth validate`](#auth-validate) | Make one fresh session check | Windows; safe JSON, no credential input |
 | [`auth logout`](#auth-logout) | Remove the local credential | Implemented; no upstream revocation |
 | [`character list`](#character-list) | List character summaries | Live read unsupported |
 | [`character show`](#character-show) | Select one character | Live read unsupported |
@@ -64,7 +65,7 @@ operation. The CLI does not infer a source URL from an identifier.
 
 ## Authentication commands
 
-`auth login`, `auth status`, and `auth logout` have no positional arguments or
+`auth login`, `auth status`, `auth validate`, and `auth logout` have no positional arguments or
 action-specific options.
 They do not accept passwords, cookies, tokens, or account identities.
 
@@ -169,6 +170,29 @@ Status does not modify the credential. A locked store or other storage failure
 is an error, not an absent session. Storage errors exit with code 1 and use stderr.
 This command can trigger an OS access or unlock dialog.
 
+### auth validate
+
+```shell
+beyond-gate auth validate
+```
+
+On Windows, reads the fixed protected entry and makes one fresh exchange
+through the shared core. No credential, URL, or account argument is accepted.
+Success writes this JSON object on stdout and exits with code 0:
+
+```json
+{"validation":"service_validated","expiry":"unknown","bearer_expiry":"future"}
+```
+
+Stored presence or earlier cached evidence cannot substitute for fresh validation.
+The result does not establish cookie expiry, content access, or a protected save.
+Errors use safe shared categories on stderr with exit code 1 and no result on
+stdout. Missing or rejected sessions require human `auth login`.
+Ctrl+C cancels pending validation. macOS and Linux return `unsupported_platform`
+before credential or service access. Linux support is tracked in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+See [lifecycle bounds and failures](authentication.md#session-lifecycle).
+
 ### auth logout
 
 **Warning:** This command deletes Beyond Gate's local credential entry.
@@ -182,6 +206,9 @@ is also success. It writes one text line to stdout and exits with code 0 after
 successful deletion or absence. The line states that upstream revocation is not
 implemented and the browser session can remain active.
 
+Logout clears its core owner's cached evidence. Other processes detect deletion
+at their next protected load; an in-flight request is not recalled.
+A started native deletion can finish after a timeout or caller cancellation.
 Logout does not log the browser out or revoke the upstream session. It can remove
 invalid stored local data. Storage failures exit with code 1 and use stderr.
 This command can trigger an OS access or unlock dialog.

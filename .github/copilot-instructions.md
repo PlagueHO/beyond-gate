@@ -8,7 +8,9 @@ Beyond Gate is a native Rust CLI and local MCP server project for authorized
 D&D Beyond reads. Local auth status/logout, completions, and MCP start/install
 and stdio serving exist. Human-controlled Windows browser login and protected
 handoff are implemented and verified with Chrome and Edge Dev.
-Live reads and reusable authenticated-session lifecycle remain unsupported.
+Windows fresh validation and shared process-local session reuse are implemented
+with portable synthetic checks. Live resource reads remain unsupported.
+Linux production login and session use are tracked in #52.
 
 - Keep v1 read-only and local; do not add remote hosting or multiuser services.
 - Do not bypass access controls, paywalls, or bot protection.

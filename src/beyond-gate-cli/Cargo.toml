@@ -38,6 +38,9 @@ tokio = { version = "1.54.1", features = ["rt", "io-std", "net", "time", "signal
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.56", features = ["transactions"] }
 
+[dev-dependencies]
+beyond-gate-core = { workspace = true, features = ["session-fixture"] }
+
 [[test]]
 name = "adapter_process"
 path = "tests/adapter_process.rs"

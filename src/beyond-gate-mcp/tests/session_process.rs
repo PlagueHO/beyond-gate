@@ -1,0 +1,260 @@
+//! Self-spawning CLI/MCP parity checks with actual shared synthetic session exchanges.
+//!
+//! Fixture selectors belong only to this test executable, never product commands.
+
+use std::{
+    io::{BufRead, BufReader, Write},
+    process::{Command, Output, Stdio},
+    sync::mpsc,
+    time::Duration,
+};
+
+use beyond_gate_core::auth::session::fixture::{self, Scenario};
+use rmcp::{ServiceExt, transport::stdio};
+use serde_json::{Value, json};
+
+/// Maps fixed non-secret test labels to compiled invented scenarios.
+fn scenario(name: &str) -> Scenario {
+    match name {
+        "absent" => Scenario::Absent,
+        "rejected" => Scenario::Rejected,
+        "expired" => Scenario::Expired,
+        "invalid" => Scenario::Invalid,
+        "profile" => Scenario::UnknownProfile,
+        "locked" => Scenario::Locked,
+        "unavailable" => Scenario::Unavailable,
+        "ambiguous" => Scenario::Ambiguous,
+        "malformed" => Scenario::Malformed,
+        "rate-limited" => Scenario::RateLimited,
+        "waiting" => Scenario::Waiting,
+        "valid" => Scenario::Valid,
+        _ => panic!("unknown synthetic scenario"),
+    }
+}
+
+/// Runs an actual CLI parser/runner in a separate process using the invented core owner.
+fn cli(name: &str, arguments: &[&str]) -> Output {
+    Command::new(std::env::current_exe().expect("test executable"))
+        .args(["--cli-child", name])
+        .args(arguments)
+        .output()
+        .expect("CLI child")
+}
+
+/// Exchanges protocol messages with the actual rmcp stdio server until validation completes.
+fn mcp(name: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
+    let mut child = Command::new(std::env::current_exe().expect("test executable"))
+        .args(["--mcp-child", name])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("MCP child");
+    let mut stdin = child.stdin.take().expect("stdin");
+    let reader = BufReader::new(child.stdout.take().expect("stdout"));
+    let (send, receive) = mpsc::channel();
+    let reader_worker = std::thread::spawn(move || {
+        for line in reader.lines() {
+            let message: Value = serde_json::from_str(&line.expect("protocol output"))
+                .expect("protocol-only stdout");
+            if send.send(message).is_err() {
+                break;
+            }
+        }
+    });
+    for message in [
+        json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+            "protocolVersion":"2026-07-28","capabilities":{},
+            "clientInfo":{"name":"session-fixture","version":"1"}}}),
+        json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+        json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
+        json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+            "name":"auth_validate","arguments":arguments}}),
+    ] {
+        writeln!(stdin, "{message}").expect("protocol input");
+    }
+    if cancel {
+        writeln!(
+            stdin,
+            "{}",
+            json!({"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":3}})
+        )
+        .expect("cancel notification");
+        writeln!(
+            stdin,
+            "{}",
+            json!({"jsonrpc":"2.0","id":4,"method":"tools/list","params":{}})
+        )
+        .expect("post-cancel request");
+    }
+    stdin.flush().expect("flush");
+    let mut messages = Vec::new();
+    loop {
+        let message = match receive.recv_timeout(Duration::from_secs(10)) {
+            Ok(message) => message,
+            Err(error) => {
+                child.kill().expect("stop this stalled test child");
+                child.wait().expect("reap test child");
+                panic!("bounded MCP response wait failed: {error}");
+            }
+        };
+        let done = message["id"] == if cancel { 4 } else { 3 };
+        messages.push(message);
+        if done {
+            break;
+        }
+    }
+    drop(stdin);
+    loop {
+        match receive.recv_timeout(Duration::from_secs(10)) {
+            Ok(message) => messages.push(message),
+            Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(error) => {
+                child.kill().expect("stop this stalled test child");
+                child.wait().expect("reap test child");
+                panic!("bounded MCP EOF wait failed: {error}");
+            }
+        }
+    }
+    reader_worker.join().expect("protocol reader");
+    let output = child.wait_with_output().expect("MCP EOF");
+    (output, messages)
+}
+
+/// Checks real process success/failure, strict empty inputs, and equal adapter results.
+fn contracts() {
+    for (name, category) in [
+        ("valid", None),
+        ("absent", Some("session_absent")),
+        ("rejected", Some("session_rejected")),
+        ("expired", Some("session_expired")),
+        ("invalid", Some("invalid_material")),
+        ("profile", Some("unsupported_contract")),
+        ("locked", Some("storage_access")),
+        ("unavailable", Some("storage_unavailable")),
+        ("ambiguous", Some("ambiguous_entry")),
+        ("malformed", Some("validation_unavailable")),
+        ("rate-limited", Some("validation_unavailable")),
+    ] {
+        let cli = cli(name, &["auth", "validate"]);
+        let (output, messages) = mcp(name, json!({}), false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|value| value["id"] == 3)
+            .expect("result")["result"];
+        let text = result["content"][0]["text"].as_str().expect("result text");
+        if let Some(category) = category {
+            assert_eq!(cli.status.code(), Some(1));
+            assert!(cli.stdout.is_empty());
+            assert_eq!(result["isError"], true);
+            assert!(text.starts_with(category));
+            assert_eq!(
+                String::from_utf8_lossy(&cli.stderr).trim(),
+                format!("error: {text}")
+            );
+        } else {
+            assert!(cli.status.success());
+            assert!(cli.stderr.is_empty());
+            let data: Value = serde_json::from_str(text).expect("MCP safe data");
+            assert_eq!(
+                data,
+                serde_json::from_slice::<Value>(&cli.stdout).expect("CLI data")
+            );
+            assert_eq!(
+                data,
+                json!({"validation":"service_validated","expiry":"unknown","bearer_expiry":"future"})
+            );
+        }
+        for private in ["invented-session", "invented-private", "c3ludGhldGlj"] {
+            assert!(!text.contains(private));
+            assert!(!String::from_utf8_lossy(&cli.stderr).contains(private));
+            assert!(!String::from_utf8_lossy(&cli.stdout).contains(private));
+        }
+    }
+    let (_, messages) = mcp("valid", json!({"unexpected":true}), false);
+    assert_eq!(
+        messages
+            .iter()
+            .find(|value| value["id"] == 3)
+            .expect("input rejected")["result"]["isError"],
+        true
+    );
+    let listed = &messages
+        .iter()
+        .find(|value| value["id"] == 2)
+        .expect("list")["result"]["tools"];
+    let tool = listed
+        .as_array()
+        .expect("tools")
+        .iter()
+        .find(|tool| tool["name"] == "auth_validate")
+        .expect("auth tool");
+    assert_eq!(tool["inputSchema"]["additionalProperties"], false);
+    assert!(
+        tool["inputSchema"]["properties"]
+            .as_object()
+            .is_none_or(|properties| properties.is_empty())
+    );
+    assert_eq!(
+        cli("valid", &["auth", "validate", "--cookie", "invented"])
+            .status
+            .code(),
+        Some(2)
+    );
+    let logout = cli("valid", &["auth", "logout"]);
+    assert!(logout.status.success());
+    assert!(
+        String::from_utf8_lossy(&logout.stdout).contains("Upstream revocation is not implemented")
+    );
+    let (output, messages) = mcp("waiting", json!({}), true);
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    if let Some(message) = messages.iter().find(|value| value["id"] == 3) {
+        assert_eq!(message["result"]["isError"], true);
+        assert_eq!(message["result"]["content"][0]["text"], "cancelled");
+    }
+    assert!(
+        messages
+            .iter()
+            .any(|value| value["id"] == 4 && value["result"]["tools"].is_array())
+    );
+}
+
+/// Selects a synthetic child before running parent checks; no native entry is accessed.
+fn main() {
+    let mut arguments = std::env::args().skip(1);
+    match arguments.next().as_deref() {
+        Some("--cli-child") => {
+            let session =
+                fixture::session(scenario(&arguments.next().expect("scenario"))).expect("fixture");
+            let args = std::iter::once("beyond-gate".to_owned()).chain(arguments);
+            let code = beyond_gate_cli::run_with_session_input(
+                args,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut std::io::empty(),
+                &mut std::io::stdout().lock(),
+                &mut std::io::stderr().lock(),
+            );
+            std::process::exit(code);
+        }
+        Some("--mcp-child") => {
+            let session =
+                fixture::session(scenario(&arguments.next().expect("scenario"))).expect("fixture");
+            let runtime = tokio::runtime::Builder::new_multi_thread()
+                .enable_all()
+                .build()
+                .expect("runtime");
+            runtime.block_on(async {
+                let service = beyond_gate_mcp::BeyondGateServer::with_session(session)
+                    .serve(stdio())
+                    .await
+                    .expect("serve");
+                service.waiting().await.expect("EOF");
+            });
+        }
+        _ => contracts(),
+    }
+}

@@ -21,7 +21,7 @@ use std::{
 };
 
 use beyond_gate_core::{
-    auth::{self, AuthError, SessionStatus, SessionStore},
+    auth::{self, SessionStatus, SessionStore, session::Session},
     book::{self, BookError, BookOutline, SectionChunk, SectionCursor, SectionRequest},
     character_campaign::{
         self, Campaign, CampaignSnapshot, Character, CharacterCampaignError, CharacterSnapshot,
@@ -178,6 +178,7 @@ enum AuthAction {
     Login,
     Status,
     Logout,
+    Validate,
 }
 
 /// Converts clap's validated nested command into a local auth action.
@@ -186,33 +187,17 @@ fn auth_action(matches: &ArgMatches) -> Option<AuthAction> {
         "login" => Some(AuthAction::Login),
         "status" => Some(AuthAction::Status),
         "logout" => Some(AuthAction::Logout),
+        "validate" => Some(AuthAction::Validate),
         _ => None,
     }
 }
 
-/// Runs local auth operations through injectable storage calls for offline tests.
-///
-/// # Errors
-///
-/// Returns the shared failure rather than a successful status or logout message.
-fn execute_auth(
-    action: AuthAction,
-    status: impl FnOnce() -> Result<SessionStatus, AuthError>,
-    logout: impl FnOnce() -> Result<(), AuthError>,
-) -> Result<&'static str, AuthError> {
-    match action {
-        AuthAction::Login => Err(auth::login_blocker()),
-        AuthAction::Status => Ok(match status()? {
-            SessionStatus::Absent => "absent: no local Beyond Gate session is stored.",
-            SessionStatus::StoredUnverified => {
-                "stored-unverified: local session material exists; upstream usability is not checked; expiry is unknown."
-            }
-        }),
-        AuthAction::Logout => {
-            logout()?;
-            Ok(
-                "Local Beyond Gate session removed or already absent. Upstream revocation is not implemented; the browser session can remain active.",
-            )
+/// Describes local presence without implying upstream usability or expiry.
+fn status_message(status: SessionStatus) -> &'static str {
+    match status {
+        SessionStatus::Absent => "absent: no local Beyond Gate session is stored.",
+        SessionStatus::StoredUnverified => {
+            "stored-unverified: local session material exists; upstream usability is not checked; expiry is unknown."
         }
     }
 }
@@ -222,7 +207,7 @@ fn execute_auth(
 /// Returns 0 on success, 1 on operation/output failure, 2 on invalid usage, or
 /// the child status for `mcp start`.
 /// Help, version, completions, and resource parsing never open native storage.
-/// Only explicit auth status/logout can access the protected credential service.
+/// Only explicit auth status, validate, and logout access protected credentials.
 /// Output failures return 1, including when stderr itself cannot be written.
 pub fn run<I, T>(
     arguments: I,
@@ -245,6 +230,25 @@ where
 pub fn run_with_input<I, T>(
     arguments: I,
     reads: &impl ReadOperations,
+    stdin: &mut impl BufRead,
+    stdout: &mut impl Write,
+    stderr: &mut impl Write,
+) -> i32
+where
+    I: IntoIterator<Item = T>,
+    T: Into<OsString> + Clone,
+{
+    run_with_session_input(arguments, reads, &Session::default(), stdin, stdout, stderr)
+}
+
+/// Runs the shipped parser and presentation with an explicitly owned core session.
+///
+/// Tests can supply a synthetic core session without fixture flags or credentials
+/// in product arguments. Construction does not open storage or contact a service.
+pub fn run_with_session_input<I, T>(
+    arguments: I,
+    reads: &impl ReadOperations,
+    session: &Session,
     stdin: &mut impl BufRead,
     stdout: &mut impl Write,
     stderr: &mut impl Write,
@@ -280,7 +284,7 @@ where
             Err(error) => report(&Failure::BrowserSetup(error), stderr),
         };
     }
-    match execute(&matches, reads).and_then(|bytes| write_output(stdout, &bytes)) {
+    match execute(&matches, reads, session).and_then(|bytes| write_output(stdout, &bytes)) {
         Ok(()) => 0,
         Err(error) => report(&error, stderr),
     }
@@ -302,9 +306,45 @@ fn report(error: &Failure, stderr: &mut impl Write) -> i32 {
     }
 }
 
+/// Runs one session operation without waiting for native workers after timeout or cancellation.
+fn execute_session<T>(
+    operation: impl std::future::Future<Output = Result<T, Failure>>,
+) -> Result<T, Failure> {
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map_err(Failure::Runtime)?;
+    let result = runtime.block_on(operation);
+    runtime.shutdown_background();
+    result
+}
+
 /// Dispatches the validated command before any presentation is written.
-fn execute(matches: &ArgMatches, reads: &impl ReadOperations) -> Result<Vec<u8>, Failure> {
+fn execute(
+    matches: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
     if let Some(action) = auth_action(matches) {
+        if matches!(action, AuthAction::Validate) {
+            let result = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = session.validate() => result.map_err(Failure::Session),
+                }
+            })?;
+            let mut bytes = serde_json::to_vec(&result).map_err(Failure::Json)?;
+            bytes.push(b'\n');
+            return Ok(bytes);
+        }
+        if matches!(action, AuthAction::Logout) {
+            execute_session(async { session.logout().await.map_err(Failure::Session) })?;
+            return Ok(b"Local Beyond Gate session removed or already absent. Upstream revocation is not implemented; the browser session can remain active.\n".to_vec());
+        }
         #[cfg(windows)]
         if matches!(action, AuthAction::Login) {
             let saved = login::login().map_err(Failure::Login)?;
@@ -315,13 +355,18 @@ fn execute(matches: &ArgMatches, reads: &impl ReadOperations) -> Result<Vec<u8>,
             )
             .into_bytes());
         }
-        let message = execute_auth(
-            action,
-            || SessionStore::open()?.status(),
-            || SessionStore::open()?.logout(),
-        )
-        .map_err(Failure::Auth)?;
-        return Ok(format!("{message}\n").into_bytes());
+        return match action {
+            AuthAction::Status => {
+                let status = SessionStore::open()
+                    .and_then(|store| store.status())
+                    .map_err(Failure::Auth)?;
+                Ok(format!("{}\n", status_message(status)).into_bytes())
+            }
+            AuthAction::Login => Err(Failure::Auth(auth::login_blocker())),
+            AuthAction::Logout | AuthAction::Validate => Err(Failure::Usage(
+                "Select a supported authentication operation.",
+            )),
+        };
     }
     let (resource, arguments) = matches.subcommand().ok_or(Failure::Usage(
         "Select an operation; see beyond-gate --help.",

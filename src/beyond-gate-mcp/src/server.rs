@@ -3,6 +3,7 @@
 use std::fmt::Display;
 
 use beyond_gate_core::{
+    auth::session::Session,
     book::{
         self, BookError, BookOutline, MAX_SECTION_BYTES, SectionChunk, SectionCursor,
         SectionRequest,
@@ -11,8 +12,8 @@ use beyond_gate_core::{
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
 };
 use rmcp::{
-    ServerHandler, handler::server::wrapper::Parameters, schemars::JsonSchema, tool, tool_handler,
-    tool_router,
+    RoleServer, ServerHandler, handler::server::wrapper::Parameters, schemars::JsonSchema,
+    service::RequestContext, tool, tool_handler, tool_router,
 };
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -56,10 +57,43 @@ struct BookReadArguments {
 }
 
 /// Routes MCP read tools to Beyond Gate's shared core APIs.
-pub(crate) struct BeyondGateServer;
+#[derive(Default)]
+pub struct BeyondGateServer {
+    /// Shared lazily used owner; discovery and unsupported reads do not access it.
+    session: Session,
+}
 
 #[tool_router]
 impl BeyondGateServer {
+    /// Supplies an explicit core owner without adding fixture selection to product tools.
+    pub fn with_session(session: Session) -> Self {
+        Self { session }
+    }
+
+    /// Makes one fresh validation of the fixed protected session without credential input.
+    #[tool(
+        name = "auth_validate",
+        description = "Validate the stored Windows session with one fresh upstream exchange. No credentials are accepted. This is not a content-access grant; human browser login may be required.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = false,
+            open_world_hint = true
+        )
+    )]
+    async fn auth_validate(
+        &self,
+        Parameters(_arguments): Parameters<EmptyArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        let result = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = self.session.validate() => result.map_err(display_error)?,
+        };
+        serde_json::to_string(&result).map_err(|_| "result JSON could not be encoded".to_owned())
+    }
+
     /// Lists characters with the same fields as the CLI's JSON list.
     #[tool(
         name = "character_list",
@@ -366,7 +400,7 @@ mod tests {
     /// Keeps tool errors explicit when a shared operation has no live source.
     #[tokio::test]
     async fn tools_return_shared_unsupported_errors() {
-        let server = BeyondGateServer;
+        let server = BeyondGateServer::default();
         let character = server
             .character_list(Parameters(EmptyArguments {}))
             .await
@@ -385,7 +419,7 @@ mod tests {
     /// Rejects invalid identifiers before calling the shared operation.
     #[tokio::test]
     async fn tool_identifiers_match_cli_validation() {
-        let error = BeyondGateServer
+        let error = BeyondGateServer::default()
             .character_show(Parameters(IdentifierArguments {
                 id: " padded".into(),
             }))
@@ -401,7 +435,7 @@ mod tests {
     #[tokio::test]
     async fn continuation_input_is_bounded_and_redacted() {
         for token in ["bad-token", &"x".repeat(16_385)] {
-            let error = BeyondGateServer
+            let error = BeyondGateServer::default()
                 .book_read(Parameters(BookReadArguments {
                     book_id: "book".into(),
                     section_id: "section".into(),

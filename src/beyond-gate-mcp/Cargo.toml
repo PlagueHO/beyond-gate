@@ -24,5 +24,14 @@ serde.workspace = true
 serde_json.workspace = true
 tokio.workspace = true
 
+[dev-dependencies]
+beyond-gate-core = { workspace = true, features = ["session-fixture"] }
+beyond-gate-cli = { path = "../beyond-gate-cli" }
+
+[[test]]
+name = "session_process"
+path = "tests/session_process.rs"
+harness = false
+
 [lints]
 workspace = true

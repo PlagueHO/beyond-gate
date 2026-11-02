@@ -8,8 +8,9 @@ provides an offline-tested async HTTP boundary and protected local session
 operations. It can assemble library, character, and campaign metadata from
 explicitly supplied offline pages. The core also provides offline book outlines
 and bounded section chunks with request-scoped access checks. The CLI exposes
-Windows terminal pairing plus local status/logout, resource command parsing and formatting,
-shell completion generation, and local MCP start/install commands. The start
+Windows terminal pairing and session validation plus local status/logout,
+resource command parsing and formatting, shell completion generation, and local
+MCP start/install commands. The start
 command runs the sibling MCP binary. The install command previews user-level
 configuration changes and writes only after confirmation. Its resource commands
 use the core's explicit unsupported live entry points. Synthetic success paths
@@ -17,8 +18,8 @@ exist only in tests.
 There is no built-in resource host list, resource endpoint, or account model.
 Windows browser setup and native/core completion are implemented.
 Approved real Chrome and Edge Dev login and protected-save checks passed.
-The MCP adapter serves local stdio with seven read-only tools;
-their shared core operations currently return explicit unsupported errors.
+The MCP adapter serves local stdio with seven unsupported resource read tools
+and a credential-free Windows `auth_validate` tool.
 Resource reads do not construct an HTTP client or send upstream requests.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
@@ -44,6 +45,11 @@ Local auth uses `keyring-core`, explicit target-specific credential-store crates
 and `zeroize`. Local storage does not use the probe or HTTP client.
 Windows establishment reuses the HTTP module's direct transport and cookie
 header helpers, not its resource-read operation.
+The portable `auth::session::Session` owns protected loading and bounded
+process-local bearer reuse. Both validation adapters use it.
+Production session use is Windows-only; the shared policy has portable
+synthetic coverage. Linux implementation is tracked in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
 ## Intended boundaries
 
@@ -133,7 +139,9 @@ expired, or rejected authentication. Only the native missing-entry result means
 absence; other errors remain failures. Invalid local values are not silently
 deleted. Logout removes the fixed entry without reading the secret and treats
 an already missing entry as success. It does not revoke an upstream session.
-There is no in-memory token cache or long-running authenticated adapter yet.
+The shared session owner caches derived bearers in memory only.
+It reads the fixed entry before each use and clears prior bearer evidence after
+entry removal or replacement, failed loading, or failed fresh validation.
 
 Windows establishment separates browser cookie input, transient bearer evidence,
 and versioned persistent bytes. It trusts the accepted direct TLS response rule,
@@ -155,14 +163,36 @@ The CLI parses and presents these operations. Windows login requires interactive
 streams and one-use browser pairing before validation and protected save.
 Redirected login and other platforms fail before credential access.
 MCP read tools call the same core operations and do not read credentials or
-create a separate session identity. No auth or credential-input tool is exposed.
-Native store calls are blocking, so future async operations must keep them off
-executor threads.
+create a separate session identity. The credential-free `auth_validate` tool
+and CLI `auth validate` make fresh checks through one shared core API.
+Native store loading and deletion run in blocking workers off executor threads.
+Startup, discovery, and unsupported resource operations do not access storage.
 
 Windows browser handoff, direct exchange, rejection, cancellation, and protected
 save have [approved product evidence](testing.md#approved-windows-product-login-verification).
-Reusable upstream-session states, refresh, revocation, and authenticated adapter
-parity remain [#30](https://github.com/PlagueHO/beyond-gate/issues/30) work.
+Shared session reuse and validation parity have synthetic local-service and
+actual CLI/MCP process checks under [#30](https://github.com/PlagueHO/beyond-gate/issues/30).
+No new live account evidence or upstream revocation contract is claimed.
+
+The owner serializes acquisitions and caps queue, storage, exchange, and read
+waiting at thirty seconds. Storage waiting is at most five seconds.
+The accepted fixed exchange keeps five-second connection and fifteen-second
+request bounds, a 64 KiB JSON response limit, and no redirects, proxies, or
+transport retries. One operation makes at most one exchange.
+
+Cached bearer evidence uses service-issued wall-clock expiry and an original
+monotonic deadline. At exact expiry, reuse stops. A later operation can make
+one new cookie exchange; there is no background refresh or refresh endpoint.
+Rejected material requires human recovery and is not retried by the same owner.
+Different material can begin a new attempt. A new process has no persistent
+rejection history. Cookie expiry remains unknown.
+
+`Session::get_json` applies bearer-only headers through the existing exact
+origin policy. It adds no resource host or endpoint. Its outer deadline also
+caps resource retries at bearer expiry. HTTP 401 rejects session evidence;
+HTTP 403 remains content denial. Neither triggers an automatic credential retry.
+Logout clears same-owner evidence and removes the fixed entry. Other processes
+observe removal at their next load, not during in-flight requests.
 
 The [browser contracts](browser-handoff.md) define extension-to-host JSON,
 encrypted host-to-CLI framing, one-use key pairing, logon-restricted Windows

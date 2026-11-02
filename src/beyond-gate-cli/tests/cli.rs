@@ -219,6 +219,7 @@ fn auth_help_describes_local_commands() {
         vec!["auth", "--help"],
         vec!["auth", "login", "--help"],
         vec!["auth", "status", "--help"],
+        vec!["auth", "validate", "--help"],
         vec!["auth", "logout", "--help"],
     ] {
         let output = run(&arguments);
@@ -228,7 +229,7 @@ fn auth_help_describes_local_commands() {
     }
     let output = run(&["auth", "--help"]);
     let help = String::from_utf8_lossy(&output.stdout);
-    for name in ["login", "status", "logout"] {
+    for name in ["login", "status", "logout", "validate"] {
         assert!(help.contains(name));
     }
 }
@@ -258,6 +259,7 @@ fn invalid_auth_usage_fails_before_storage() {
         vec!["auth", "login", "--cookie", "synthetic-only"],
         vec!["auth", "login", "synthetic-only"],
         vec!["auth", "status", "--token", "synthetic-only"],
+        vec!["auth", "validate", "--cookie", "synthetic-only"],
         vec!["auth", "logout", "--all"],
     ] {
         let output = run(&arguments);

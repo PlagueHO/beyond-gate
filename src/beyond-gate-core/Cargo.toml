@@ -12,6 +12,7 @@ publish.workspace = true
 e2e-isolation = []
 browser-fixture = ["tokio/rt", "tokio/io-std"]
 windows-login-fixture = ["browser-fixture"]
+session-fixture = []
 
 [[example]]
 name = "browser-handoff-fixture"
