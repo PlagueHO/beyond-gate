@@ -312,6 +312,42 @@ test("launch rejection retains safe cause and process evidence but never driver 
 
 });
 
+test("late replies and shutdown keep the original failed startup snapshot", async () => {
+  let options;
+  const cause = new Error("Target.setDiscoverTargets timed out");
+  cause.name = "ProtocolError";
+  const dependencies = launchDependencies(async (value) => {
+    options = value;
+    options.logger("puppeteer:browsers:launcher")("Launched 1234");
+    options.logger("puppeteer:protocol:SEND")('{"method":"Target.setDiscoverTargets"}');
+    throw cause;
+  });
+  dependencies.observe = () => ({
+    read: async () => {
+      options.logger("puppeteer:protocol:SEND")('{"method":"Browser.close"}');
+      options.logger("puppeteer:protocol:SEND")('{"method":"Target.setAutoAttach"}');
+      options.logger("puppeteer:protocol:RECV")('{"private":"synthetic-secret"}');
+      options.logger("puppeteer:browsers:launcher")("Browser process 1234 onExit");
+      return {};
+    },
+    waitForExit: async () => {},
+    stop: () => {},
+  });
+  await assert.rejects(launchBrowser("chrome", {
+    directory: "synthetic-owned-directory", proxyPort: 12345, protocolTimeout: 15000,
+  }, dependencies), (error) => {
+    assert.equal(error.cause, cause);
+    assert.deepEqual(error.launch.startup_protocol_methods, ["Target.setDiscoverTargets"]);
+    assert.equal(error.launch.protocol_messages_received, 0);
+    assert.equal(error.launch.late_protocol_replies, 1);
+    assert.equal(error.launch.process_exited, false);
+    assert.equal(error.launch.exited_during_inspection, true);
+    assert.equal(error.launch.driver_close_requested, undefined);
+    assert.equal(JSON.stringify(error.launch).includes("synthetic-secret"), false);
+    return true;
+  });
+});
+
 test("owned startup logs expose only known source names and fixed cause categories", () => {
   const result = safeBrowserLog(
     "[1:2:timestamp:ERROR:devtools_pipe_handler.cc(12)] " +
@@ -395,6 +431,7 @@ test("Windows stack filtering emits only allowed modules and public export hints
   const text = [
     "synthetic-private C:\\synthetic-private https://private.invalid",
     "Preparing the environment for Debugger Extensions Gallery repositories",
+    "Cannot debug pid 1234: Win32 error 0n87",
     "BG_STACK_BEGIN",
     "00 00000001`00000002 00000003`00000004 ntdll!NtWaitForSingleObject+0x14",
     "01 00000001`00000002 00000003`00000004 KERNELBASE!WaitForSingleObjectEx+0x99",
@@ -436,6 +473,9 @@ test("Windows stack filtering emits only allowed modules and public export hints
   }, { status: "unreadable", reason: "markers-not-found" }, {
     gallery_preparing: true, gallery_waiting: false, engine_banner: false,
     symbol_path_reported: false, stack_started: true, stack_completed: true,
+    attach_failure_reported: true, access_denied_reported: false,
+    invalid_parameter_reported: true, process_exit_reported: false,
+    partial_copy_reported: false,
   }, [32, 8]]);
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);

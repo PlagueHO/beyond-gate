@@ -247,6 +247,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
   let processExited = false;
   const methods = [];
   let replies = 0;
+  let driverCloseRequested = false;
   let recording = true;
   let observer;
   try {
@@ -272,6 +273,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
         if (category.startsWith("puppeteer:protocol:SEND")) return (message) => {
           if (!recording || typeof message !== "string") return;
           const method = /^\{"method":"([A-Za-z]+\.[A-Za-z]+)"/.exec(message)?.[1];
+          if (method === "Browser.close") driverCloseRequested = true;
           if (STARTUP_METHODS.has(method)) {
             methods.push(method);
             if (methods.length > 8) methods.shift();
@@ -290,11 +292,18 @@ export async function launchBrowser(name, options, dependencies = {}) {
     error.launch = {
       ...metadata, launch_stage: stage, elapsed_ms: Math.max(0, Math.round(now() - started)),
       process_started: processStarted, process_exited: processExited,
-      startup_protocol_methods: methods, protocol_messages_received: replies,
+      startup_protocol_methods: [...methods], protocol_messages_received: replies,
+      ...(driverCloseRequested ? { driver_close_requested: true } : {}),
       ...safeLaunchCause(cause),
       ...(stage === "launch" ? await browserLog(options.directory) : {}),
       ...(observer ? await observer.read() : {}),
     };
+    if (replies > error.launch.protocol_messages_received) {
+      error.launch.late_protocol_replies = replies - error.launch.protocol_messages_received;
+    }
+    if (processExited && !error.launch.process_exited) {
+      error.launch.exited_during_inspection = true;
+    }
     if (observer) {
       try {
         controller.abort();

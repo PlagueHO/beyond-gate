@@ -590,6 +590,11 @@ can include an allowed startup method name. At most eight allowed startup
 method names and a received-message count identify pipe progress without
 recording protocol payloads. A process exit code is included only when the
 driver's launch error provides it. Unclassified errors remain failed results.
+Observed late replies and process exit add separate inspection fields.
+These fields are absent when no such event was observed.
+They do not replace the original failure snapshot or clear its failure.
+An explicit flag records whether the driver requested browser close before
+inspection. A later stack can reflect that shutdown request.
 
 The runner does not print raw errors, stacks, arbitrary cause chains, browser
 output, full executable or profile paths, command lines, or environment data.
@@ -672,7 +677,8 @@ In this explicit investigation mode, a failed probe check does not skip the
 remaining browser checks. The job still fails. Default checks keep their
 normal step conditions.
 Fixed Boolean fields identify debugger gallery, engine, symbol-path, and
-stack-marker progress. No raw debugger output leaves the collector.
+stack-marker progress, known attach failures, and target exit during the probe.
+No raw debugger output leaves the collector.
 
 ```powershell
 gh workflow run ci.yml --ref <branch> -f startup-sampling=true -f startup-stacks=true

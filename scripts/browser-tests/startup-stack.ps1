@@ -36,7 +36,9 @@ function ConvertTo-SafeStartupStack {
         'LdrpProcessWork', 'LdrpWorkCallback', 'LdrpMapDllNtFileName',
         'LdrpMapDllWithSectionHandle', 'LdrpPrepareModuleForExecution',
         'LdrpAcquireLoaderLock', 'LdrLockLoaderLock', 'RtlEnterCriticalSection',
-        'RtlAcquireSRWLockExclusive', 'NtCreateSection', 'NtMapViewOfSection'
+        'RtlAcquireSRWLockExclusive', 'NtCreateSection', 'NtMapViewOfSection',
+        'NtWaitForWorkViaWorkerFactory', 'TppWorkerThread', 'NtRemoveIoCompletionEx',
+        'RtlpWaitOnCriticalSection', 'RtlpWaitOnAddress', 'RtlpWaitOnAddressWithTimeout'
     )
     $frames = @([regex]::Matches($region.Groups[1].Value,
         '(?mi)^[ \t]*[0-9a-f]{2,3}[ \t]+[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+([a-z0-9_]+)(?:!([a-z0-9_]+))?(?:\+0x[0-9a-f]+)?[ \t]*\r?$') |
@@ -120,6 +122,11 @@ function Get-SafeProbeProgress {
         symbol_path_reported = $Text.Contains('Symbol search path is:')
         stack_started = [regex]::IsMatch($Text, '(?m)^BG_STACK_BEGIN\r?$')
         stack_completed = [regex]::IsMatch($Text, '(?m)^BG_STACK_END\r?$')
+        attach_failure_reported = $Text -match 'Cannot debug pid|Debuggee initialization failed|Unable to attach'
+        access_denied_reported = $Text -match 'Access is denied|Win32 error 0n5\b'
+        invalid_parameter_reported = $Text -match 'The parameter is incorrect|Win32 error 0n87\b'
+        process_exit_reported = $Text -match 'process has exited|process is terminating'
+        partial_copy_reported = $Text -match 'Win32 error 0n299\b'
     }
 }
 
@@ -188,6 +195,7 @@ try {
         stderr_bytes = $capture.streams[1].bytes
         stdout_limit_reached = $capture.streams[0].bytes -ge $output.Length
         stderr_limit_reached = $capture.streams[1].bytes -ge $errors.Length
+        target_exited_during_probe = $browser.HasExited
     }
     $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
     $counts.progress = Get-SafeProbeProgress -Text $text
