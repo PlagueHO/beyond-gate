@@ -23,13 +23,14 @@ const LOG_SOURCES = new Set([
   "process_singleton_win.cc", "devtools_pipe_handler.cc", "devtools_http_handler.cc",
   "browser_main_loop.cc", "viz_main_impl.cc", "gpu_process_host.cc",
   "sandbox_win.cc", "network_service_instance_impl.cc", "headless_shell.cc",
-  "chrome_dll_loader_win.cc", "chrome_exe_main_win.cc",
+  "main_dll_loader_win.cc", "chrome_exe_main_win.cc",
+  "crashpad_client_win.cc", "crash_helper.cc", "chrome_crash_reporter_client_win.cc",
 ]);
 
 /** Reduces an owned browser log to fixed error categories and known source names only. */
 export function safeBrowserLog(text) {
   const sources = new Set();
-  for (const match of text.matchAll(/[:\\/]([a-z_]+\.cc)\(\d+\)\]/g)) {
+  for (const match of text.matchAll(/[:\\/]([a-z_]+\.cc)(?:\(\d+\)|:\d+)\]/g)) {
     if (LOG_SOURCES.has(match[1])) sources.add(match[1]);
   }
   const reasons = [
