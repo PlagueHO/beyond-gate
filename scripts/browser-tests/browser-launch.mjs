@@ -1,6 +1,7 @@
 /** Safe startup evidence for isolated regular-browser tests; never prints driver output. */
 import { execFile } from "node:child_process";
 import { channel } from "node:diagnostics_channel";
+import { once } from "node:events";
 import { access, open, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { release } from "node:os";
@@ -86,13 +87,27 @@ export function observeStartup(path, directory, inspect = startupProcess) {
     /** Returns bounded categories and fixed process state after a failed launch. */
     async read() {
       const log = safeBrowserLog(buffer.subarray(0, bytes).toString("utf8"));
+      const write = owned?.stdio?.[3];
+      const read = owned?.stdio?.[4];
       return {
         startup_stderr_bytes_read: bytes,
         startup_stderr_limit_reached: bytes === buffer.length,
         startup_stderr_sources: log.startup_log_sources,
         startup_stderr_reasons: log.startup_log_reasons,
+        startup_pipe: write && read ? {
+          status: "observed",
+          written_bytes: write.bytesWritten, write_buffered_bytes: write.writableLength,
+          write_destroyed: write.destroyed, write_ended: write.writableEnded,
+          received_bytes: read.bytesRead, read_buffered_bytes: read.readableLength,
+          read_destroyed: read.destroyed, read_ended: read.readableEnded,
+        } : { status: "not-observed" },
         startup_process: owned ? await inspect(owned, path, directory) : { status: "not-observed" },
       };
+    },
+    /** Waits for the owned aborted process before its profile can be removed. */
+    async waitForExit() {
+      if (!owned || owned.exitCode !== null || owned.signalCode !== null) return;
+      await once(owned, "exit", { signal: AbortSignal.timeout(5000) });
     },
     /** Releases constructor, spawn, and stderr listeners on every result. */
     stop() {
@@ -196,10 +211,12 @@ export async function launchBrowser(name, options, dependencies = {}) {
   const {
     findExecutable = executable, inspect = versions,
     launch = (options) => puppeteer.launch(options),
+    observe = observeStartup,
     report = (record) => console.error(JSON.stringify(record)),
     now = () => performance.now(),
   } = dependencies;
   const started = now();
+  const controller = new AbortController();
   const metadata = {
     browser: name, browser_flavor: "regular-installed",
     os_version: release(), node_version: process.version,
@@ -218,11 +235,12 @@ export async function launchBrowser(name, options, dependencies = {}) {
     Object.assign(metadata, await inspect(path));
     stage = "launch";
     report({ status: "starting", ...metadata });
-    observer = observeStartup(path, options.directory);
+    observer = observe(path, options.directory);
     return await launch({
       executablePath: path, userDataDir: join(options.directory, "profile"),
       pipe: true, headless: true, enableExtensions: true,
       timeout: 15000, protocolTimeout: options.protocolTimeout,
+      signal: controller.signal,
       env: { ...process.env, CHROME_LOG_FILE: join(options.directory, "startup.log") },
       // The pinned driver logs paths, arguments, and environment data. Never forward its arguments.
       logger: (category) => {
@@ -257,6 +275,18 @@ export async function launchBrowser(name, options, dependencies = {}) {
       ...(stage === "launch" ? await browserLog(options.directory) : {}),
       ...(observer ? await observer.read() : {}),
     };
+    if (observer) {
+      try {
+        controller.abort();
+        await observer.waitForExit();
+        error.launch.startup_cleanup = "passed";
+      } catch (cleanup) {
+        error.cleanup = ["browser-process"];
+        error.cleanupCause = cleanup;
+        error.launch.startup_cleanup = "failed";
+        error.launch.startup_cleanup_error = safeLaunchCause(cleanup);
+      }
+    }
     throw error;
   } finally {
     recording = false;
@@ -296,7 +326,9 @@ export async function withCleanup(operation, cleanup) {
       await cleanup();
     } catch (error) {
       if (!failure) throw error;
-      failure.cleanup = error.cleanup ?? ["owned-resources"];
+      failure.cleanup = [...new Set([
+        ...(failure.cleanup ?? []), ...(error.cleanup ?? ["owned-resources"]),
+      ])];
     }
   }
 }

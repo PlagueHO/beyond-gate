@@ -226,6 +226,7 @@ async function probe(name) {
     } catch (cause) {
       const error = new Error(`${name}: ${phase} failed`, { cause });
       error.launch = cause.launch;
+      error.cleanup = cause.cleanup;
       throw error;
     }
   }, () => cleanupProbe(name, browser, proxy, directory));

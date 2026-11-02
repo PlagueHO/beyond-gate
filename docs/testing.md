@@ -601,6 +601,8 @@ the log with the owned directory. Missing and unreadable logs are explicit.
 The runner also bounds captured startup stderr to 16 KiB and returns only the
 same safe categories. A failed launch can report fixed process counters,
 known child-process types, Chrome module presence, and owned profile milestones.
+Fixed pipe byte counters, buffer lengths, and end/close flags distinguish
+transport progress without reading or retaining a protocol payload.
 The observer waits for Node.js's `spawn` event before checking the exact executable
 and owned profile. It releases all observation listeners after each launch.
 Process inspection has a separate five-second diagnostic limit after failure;
@@ -613,6 +615,11 @@ on the hosted runner without starting another browser or reading account data.
 Cleanup still attempts every owned resource. If both an operation and cleanup fail, the operation remains
 the primary error and `cleanup_failures` reports fixed resource labels.
 Cleanup failure alone also fails the test.
+After collecting failed-launch evidence, the runner aborts the owned browser
+through Puppeteer's launch signal and waits for process exit before directory
+cleanup. A five-second exit-wait limit reports a cleanup failure, not success.
+The driver can return a launch error while its asynchronous browser close is
+still pending. Removing the profile at that point can fail while files are open.
 
 The shared launcher keeps the fifteen-second launch timeout and the existing
 per-runner protocol deadlines. It does not retry, skip a browser, change browser
@@ -641,6 +648,13 @@ and no startup log. Its third launch passed all five native cases, but the
 step correctly remained failed. A local initialized Chrome created its owned
 startup log, and twelve separate local cold launches passed. This narrows the
 hosted investigation to early startup without establishing its cause.
+
+The [next instrumented run](https://github.com/PlagueHO/beyond-gate/actions/runs/41436385092/job/125247052790)
+passed Chrome but exposed this cleanup race in Edge. The first Edge launch
+had zero protocol replies, an active process with renderer and GPU children,
+and a failed directory cleanup. Its later cases passed but did not clear the
+failure. The driver's `profile-in-use` category does not prove that a foreign
+browser used the unique profile. The startup cause remains unknown.
 
 Cleanup closes the native port, verifies an owned host's executable path and
 start time before stopping its specific PID if necessary, removes only its

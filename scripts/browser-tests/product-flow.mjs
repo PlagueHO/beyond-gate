@@ -191,6 +191,7 @@ async function probe(name, recipe) {
     } catch (cause) {
       const error = new Error(`${name}: ${stage} failed`, { cause });
       error.launch = cause.launch;
+      error.cleanup = cause.cleanup;
       throw error;
     }
   }, () => cleanupActions([
