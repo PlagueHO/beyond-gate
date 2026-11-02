@@ -108,12 +108,14 @@ function Assert-PackagedProtocol {
   $listed = @($responses | Where-Object { $_.id -eq 2 })
   Assert-Package ($listed.Count -eq 1) 'MCP tool discovery response is missing.'
   $tools = $listed[0].result.tools
-  $expectedNames = @($operations.name | Sort-Object)
+  $expectedNames = @(@($operations.name) + @('auth_validate') | Sort-Object)
   $names = @($tools.name | Sort-Object)
   Assert-Package (($names -join ',') -ceq ($expectedNames -join ',')) 'Packaged MCP tool names differ from the CLI contract.'
   foreach ($tool in $tools) {
     Assert-Package ($tool.annotations.readOnlyHint -eq $true -and $tool.annotations.destructiveHint -eq $false) 'Packaged MCP tools must be read-only.'
   }
+  $authValidate = $tools | Where-Object { $_.name -ceq 'auth_validate' }
+  Assert-Package ($authValidate.annotations.idempotentHint -eq $false -and $authValidate.annotations.openWorldHint -eq $true) 'Packaged session validation annotations differ from the CLI contract.'
   $bookRead = $tools | Where-Object { $_.name -ceq 'book_read' }
   Assert-Package ($bookRead.inputSchema.properties.continuation.maxLength -eq 16384) 'MCP continuation input must remain bounded.'
   for ($id = 3; $id -le 9; $id++) {
