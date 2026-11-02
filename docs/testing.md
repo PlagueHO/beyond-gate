@@ -620,6 +620,9 @@ through Puppeteer's launch signal and waits for process exit before directory
 cleanup. A five-second exit-wait limit reports a cleanup failure, not success.
 The driver can return a launch error while its asynchronous browser close is
 still pending. Removing the profile at that point can fail while files are open.
+A controlled offline test also runs the real driver against an owned synthetic
+process that never replies to its pipe. The original protocol timeout must
+remain a failure. The process must exit before its directory is removed.
 
 The shared launcher keeps the fifteen-second launch timeout and the existing
 per-runner protocol deadlines. It does not retry, skip a browser, change browser
