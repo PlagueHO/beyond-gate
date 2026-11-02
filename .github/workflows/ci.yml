@@ -103,7 +103,14 @@ jobs:
       - name: Exercise regular browser and real native host
         env:
           BEYOND_GATE_TEST_BROWSER: ${{ matrix.browser }}
-        run: npm run feasibility --prefix .\scripts\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER
+        run: |
+          $failed = $false
+          foreach ($case in 1..3) {
+            Write-Output "Required isolated browser launch $case of 3"
+            npm run feasibility --prefix .\scripts\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER
+            if ($LASTEXITCODE -ne 0) { $failed = $true }
+          }
+          if ($failed) { exit 1 }
       - name: Lint isolated product completion fixture
         run: .\scripts\cargo.ps1 clippy -p beyond-gate-core --example windows-login-fixture --features windows-login-fixture --locked '--' -D warnings
       - name: Exercise product pairing and completion with invented data
