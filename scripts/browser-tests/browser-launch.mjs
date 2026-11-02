@@ -1,12 +1,15 @@
 /** Safe startup evidence for isolated regular-browser tests; never prints driver output. */
 import { execFile } from "node:child_process";
+import { channel } from "node:diagnostics_channel";
 import { access, open, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { release } from "node:os";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import puppeteer from "puppeteer-core";
 
 const execute = promisify(execFile);
+const CHILD_PROCESSES = channel("child_process");
 const STARTUP_METHODS = new Set([
   "Browser.getVersion", "Browser.getBrowserCommandLine", "Browser.setDownloadBehavior",
   "Target.getBrowserContexts", "Target.setDiscoverTargets", "Target.setAutoAttach",
@@ -39,6 +42,65 @@ export function safeBrowserLog(text) {
     ["access-denied", /Access is denied/i],
   ].filter(([, pattern]) => pattern.test(text)).map(([reason]) => reason);
   return { startup_log_sources: [...sources], startup_log_reasons: reasons };
+}
+
+/** Reads fixed process counters and startup milestones for the owned browser only. */
+async function startupProcess(child, path, directory) {
+  if (child.exitCode !== null || child.signalCode !== null) return { status: "exited" };
+  try {
+    const { stdout } = await execute("pwsh", [
+      "-NoProfile", "-File", fileURLToPath(new URL("./startup-process.ps1", import.meta.url)),
+      "-BrowserProcessId", String(child.pid), "-BrowserExecutable", path,
+      "-RunDirectory", directory,
+    ], { timeout: 5000, maxBuffer: 16384, windowsHide: true });
+    return JSON.parse(stdout);
+  } catch (error) {
+    return { status: "unreadable", ...safeLaunchCause(error) };
+  }
+}
+
+/** Observes only the exact owned launch; never forwards raw stderr or process details. */
+export function observeStartup(path, directory, inspect = startupProcess) {
+  const pending = new Map();
+  const buffer = Buffer.alloc(16384);
+  let bytes = 0;
+  let owned;
+  const onData = (chunk) => {
+    const data = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    bytes += data.copy(buffer, bytes, 0, Math.min(data.length, buffer.length - bytes));
+  };
+  const onConstruct = ({ process: child }) => {
+    const onSpawn = () => {
+      pending.delete(child);
+      if (child.spawnfile !== path ||
+        !child.spawnargs.includes(`--user-data-dir=${join(directory, "profile")}`)) return;
+      owned = child;
+      child.stderr?.on("data", onData);
+    };
+    pending.set(child, onSpawn);
+    child.once("spawn", onSpawn);
+  };
+  CHILD_PROCESSES.subscribe(onConstruct);
+  return {
+    /** Returns bounded categories and fixed process state after a failed launch. */
+    async read() {
+      const log = safeBrowserLog(buffer.subarray(0, bytes).toString("utf8"));
+      return {
+        startup_stderr_bytes_read: bytes,
+        startup_stderr_limit_reached: bytes === buffer.length,
+        startup_stderr_sources: log.startup_log_sources,
+        startup_stderr_reasons: log.startup_log_reasons,
+        startup_process: owned ? await inspect(owned, path, directory) : { status: "not-observed" },
+      };
+    },
+    /** Releases constructor, spawn, and stderr listeners on every result. */
+    stop() {
+      CHILD_PROCESSES.unsubscribe(onConstruct);
+      for (const [child, handler] of pending) child.off("spawn", handler);
+      pending.clear();
+      owned?.stderr?.off("data", onData);
+    },
+  };
 }
 
 /** Reads at most 16 KiB from this launch's owned log; never returns its raw contents. */
@@ -148,12 +210,14 @@ export async function launchBrowser(name, options, dependencies = {}) {
   const methods = [];
   let replies = 0;
   let recording = true;
+  let observer;
   try {
     const path = await findExecutable(name);
     stage = "version-metadata";
     Object.assign(metadata, await inspect(path));
     stage = "launch";
     report({ status: "starting", ...metadata });
+    observer = observeStartup(path, options.directory);
     return await launch({
       executablePath: path, userDataDir: join(options.directory, "profile"),
       pipe: true, headless: true, enableExtensions: true,
@@ -190,10 +254,12 @@ export async function launchBrowser(name, options, dependencies = {}) {
       startup_protocol_methods: methods, protocol_messages_received: replies,
       ...safeLaunchCause(cause),
       ...(stage === "launch" ? await browserLog(options.directory) : {}),
+      ...(observer ? await observer.read() : {}),
     };
     throw error;
   } finally {
     recording = false;
+    observer?.stop();
   }
 }
 

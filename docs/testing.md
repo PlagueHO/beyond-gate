@@ -598,8 +598,16 @@ It does not enable Puppeteer's `dumpio` option. Chrome logging goes to an owned
 at most 16 KiB and reports only allowed source filenames and fixed error
 categories. Raw log contents are never printed or uploaded. Cleanup removes
 the log with the owned directory. Missing and unreadable logs are explicit.
-Cleanup still attempts every
-owned resource. If both an operation and cleanup fail, the operation remains
+The runner also bounds captured startup stderr to 16 KiB and returns only the
+same safe categories. A failed launch can report fixed process counters,
+known child-process types, Chrome module presence, and owned profile milestones.
+The observer waits for Node.js's `spawn` event before checking the exact executable
+and owned profile. It releases all observation listeners after each launch.
+Process inspection has a separate five-second diagnostic limit after failure;
+it does not extend a browser or protocol deadline. No raw process paths,
+command lines, module lists, or stderr leave the collector.
+
+Cleanup still attempts every owned resource. If both an operation and cleanup fail, the operation remains
 the primary error and `cleanup_failures` reports fixed resource labels.
 Cleanup failure alone also fails the test.
 
@@ -623,6 +631,13 @@ reproduced the launch failure with regular Chrome `156.0.8078.80` on image
 with no protocol messages received. The process started but had not reported
 exit when the error was captured. Edge passed. This identifies the failed
 startup boundary, not the reason Chrome did not answer.
+
+The [repeated hosted run](https://github.com/PlagueHO/beyond-gate/actions/runs/41425928582/job/125218197284)
+failed its first two mandatory launches with the same silent protocol boundary
+and no startup log. Its third launch passed all five native cases, but the
+step correctly remained failed. A local initialized Chrome created its owned
+startup log, and twelve separate local cold launches passed. This narrows the
+hosted investigation to early startup without establishing its cause.
 
 Cleanup closes the native port, verifies an owned host's executable path and
 start time before stopping its specific PID if necessary, removes only its
