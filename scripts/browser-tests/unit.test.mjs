@@ -415,10 +415,25 @@ test("Windows stack filtering emits only allowed modules and public export hints
     status: "read", thread: "debugger-thread-zero", frame_count: 5,
     modules: ["ntdll", "kernelbase", "chrome"],
     export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx"],
-  }, { status: "unreadable" }]);
+  }, { status: "unreadable", reason: "markers-not-found" }]);
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
   }
+});
+
+test("debugger setup refuses a normal local machine before downloading or installing tools", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async () => {
+  await assert.rejects(promisify(execFile)("pwsh", ["-NoProfile", "-File",
+    fileURLToPath(new URL("./install-startup-debugger.ps1", import.meta.url)),
+  ], {
+    env: { ...process.env, GITHUB_ACTIONS: "false", RUNNER_TEMP: "" },
+    timeout: 8000, maxBuffer: 4096,
+  }), (error) => {
+    assert.equal(error.code, 1);
+    assert.ok(error.stderr.includes("Debugger setup requires"));
+    return true;
+  });
 });
 
 test("launch failure aborts and waits for its owned browser before directory cleanup", async () => {
@@ -507,7 +522,7 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
   assert.equal(JSON.stringify(result).includes(directory), false);
   assert.equal(JSON.stringify(result).includes(process.execPath), false);
   if (process.env.BEYOND_GATE_STARTUP_STACKS === "1") {
-    assert.equal(result.startup_stack.status, "read");
+    assert.equal(result.startup_stack.status, "read", JSON.stringify(result.startup_stack));
     assert.ok(result.startup_stack.frame_count > 0 && result.startup_stack.frame_count <= 32);
     assert.ok(result.startup_stack.modules.includes("ntdll"));
   } else {
