@@ -62,7 +62,7 @@ async function startupProcess(child, path, directory) {
 }
 
 /** Collects bounded public stack hints only in explicitly selected hosted sampling runs. */
-async function startupStack(child, path, directory) {
+async function startupStack(child, path, directory, { keepRunning = false } = {}) {
   if (process.env.BEYOND_GATE_STARTUP_STACKS !== "1") return { status: "not-requested" };
   if (child.exitCode !== null || child.signalCode !== null) return { status: "exited" };
   try {
@@ -70,6 +70,7 @@ async function startupStack(child, path, directory) {
       "-NoProfile", "-File", fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)),
       "-BrowserProcessId", String(child.pid), "-BrowserExecutable", path,
       "-RunDirectory", directory, "-DeadlineUnixMs", String(Date.now() + 6000),
+      ...(keepRunning ? ["-KeepRunning"] : []),
     ], { timeout: 8000, maxBuffer: 8192, windowsHide: true });
     return JSON.parse(stdout);
   } catch (error) {
@@ -100,8 +101,8 @@ export function observeStartup(path, directory, inspect = startupProcess, inspec
   };
   CHILD_PROCESSES.subscribe(onConstruct);
   return {
-    /** Returns bounded categories and fixed process state after a failed launch. */
-    async read() {
+    /** Returns bounded categories and fixed state during pending or failed startup. */
+    async read({ keepRunning = false } = {}) {
       const log = safeBrowserLog(buffer.subarray(0, bytes).toString("utf8"));
       const write = owned?.stdio?.[3];
       const read = owned?.stdio?.[4];
@@ -113,7 +114,8 @@ export function observeStartup(path, directory, inspect = startupProcess, inspec
         read_destroyed: read.destroyed, read_ended: read.readableEnded,
       } : { status: "not-observed" };
       const processState = owned ? await inspect(owned, path, directory) : { status: "not-observed" };
-      const stack = owned ? await inspectStack(owned, path, directory) : { status: "not-observed" };
+      const stack = owned ? await inspectStack(owned, path, directory, { keepRunning }) :
+        { status: "not-observed" };
       return {
         startup_stderr_bytes_read: bytes,
         startup_stderr_limit_reached: bytes === buffer.length,
@@ -234,6 +236,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
     observe = observeStartup,
     report = (record) => console.error(JSON.stringify(record)),
     now = () => performance.now(),
+    earlyDiagnostics = process.env.BEYOND_GATE_STARTUP_STACKS === "1",
   } = dependencies;
   const started = now();
   const controller = new AbortController();
@@ -250,6 +253,20 @@ export async function launchBrowser(name, options, dependencies = {}) {
   let driverCloseRequested = false;
   let recording = true;
   let observer;
+  let earlyTimer;
+  let earlyObservation;
+  /** Settles typed inspection failures without replacing the browser's launch result. */
+  const inspectStartup = (keepRunning = false) => {
+    const began = Math.max(0, Math.round(now() - started));
+    return Promise.allSettled([Promise.resolve().then(() => observer.read({ keepRunning }))
+      .then((value) => keepRunning ? {
+        ...value,
+        startup_snapshot: {
+          phase: "pending-launch", started_ms: began,
+          completed_ms: Math.max(0, Math.round(now() - started)),
+        },
+      } : value)]);
+  };
   try {
     const path = await findExecutable(name);
     stage = "version-metadata";
@@ -257,7 +274,12 @@ export async function launchBrowser(name, options, dependencies = {}) {
     stage = "launch";
     report({ status: "starting", ...metadata });
     observer = observe(path, options.directory);
-    return await launch({
+    if (earlyDiagnostics) {
+      earlyTimer = setTimeout(() => {
+        if (replies === 0) earlyObservation = inspectStartup(true);
+      }, 10000);
+    }
+    const browser = await launch({
       executablePath: path, userDataDir: join(options.directory, "profile"),
       pipe: true, headless: true, enableExtensions: true,
       timeout: 15000, protocolTimeout: options.protocolTimeout,
@@ -287,7 +309,18 @@ export async function launchBrowser(name, options, dependencies = {}) {
       args: ["--no-first-run", "--disable-background-networking", "--enable-logging",
         `--proxy-server=http://127.0.0.1:${options.proxyPort}`, "--proxy-bypass-list=<-loopback>"],
     });
+    clearTimeout(earlyTimer);
+    if (earlyObservation) {
+      const [inspection] = await earlyObservation;
+      report(inspection.status === "fulfilled" ? {
+        status: "startup-observation", browser: name, ...inspection.value,
+      } : {
+        status: "startup-observation-failed", browser: name, ...safeLaunchCause(inspection.reason),
+      });
+    }
+    return browser;
   } catch (cause) {
+    clearTimeout(earlyTimer);
     const error = new Error("regular browser launch failed", { cause });
     error.launch = {
       ...metadata, launch_stage: stage, elapsed_ms: Math.max(0, Math.round(now() - started)),
@@ -296,8 +329,16 @@ export async function launchBrowser(name, options, dependencies = {}) {
       ...(driverCloseRequested ? { driver_close_requested: true } : {}),
       ...safeLaunchCause(cause),
       ...(stage === "launch" ? await browserLog(options.directory) : {}),
-      ...(observer ? await observer.read() : {}),
     };
+    if (observer) {
+      const [inspection] = await (earlyObservation ?? inspectStartup());
+      if (inspection.status === "fulfilled") {
+        Object.assign(error.launch, inspection.value);
+      } else {
+        error.observationCause = inspection.reason;
+        error.launch.startup_inspection_error = safeLaunchCause(inspection.reason);
+      }
+    }
     if (replies > error.launch.protocol_messages_received) {
       error.launch.late_protocol_replies = replies - error.launch.protocol_messages_received;
     }
@@ -318,6 +359,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
     }
     throw error;
   } finally {
+    clearTimeout(earlyTimer);
     recording = false;
     observer?.stop();
   }

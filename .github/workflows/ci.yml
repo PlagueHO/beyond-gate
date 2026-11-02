@@ -11,7 +11,7 @@ on:
         type: boolean
         default: false
       startup-stacks:
-        description: Collect bounded public stack hints after owned startup failures
+        description: Collect bounded public stack hints during pending or failed owned startup
         type: boolean
         default: false
 

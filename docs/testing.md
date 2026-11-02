@@ -593,8 +593,8 @@ driver's launch error provides it. Unclassified errors remain failed results.
 Observed late replies and process exit add separate inspection fields.
 These fields are absent when no such event was observed.
 They do not replace the original failure snapshot or clear its failure.
-An explicit flag records whether the driver requested browser close before
-inspection. A later stack can reflect that shutdown request.
+An explicit flag records whether the driver had requested browser close when
+the launch error was caught. A later stack can reflect that shutdown request.
 
 The runner does not print raw errors, stacks, arbitrary cause chains, browser
 output, full executable or profile paths, command lines, or environment data.
@@ -610,7 +610,7 @@ Fixed pipe byte counters, buffer lengths, and end/close flags distinguish
 transport progress without reading or retaining a protocol payload.
 The observer waits for Node.js's `spawn` event before checking the exact executable
 and owned profile. It releases all observation listeners after each launch.
-Process inspection has a separate five-second diagnostic limit after failure;
+Process inspection has a separate five-second diagnostic limit;
 it does not extend a browser or protocol deadline. No raw process paths,
 command lines, module lists, or stderr leave the collector.
 An offline Windows test checks this collector against an owned synthetic
@@ -652,11 +652,11 @@ to prepare matching `ntdll.dll` symbols from the
 This separate preparation has a thirty-second limit and retains only verified
 public Windows symbols. It does not read or preload Chrome files.
 
-After a launch failure, an optional [noninvasive stack probe](https://learn.microsoft.com/windows-hardware/drivers/debugger/noninvasive-debugging--user-mode-)
+An optional [noninvasive stack probe](https://learn.microsoft.com/windows-hardware/drivers/debugger/noninvasive-debugging--user-mode-)
 checks the exact executable and owned profile argument. It holds the process
 handle open to prevent PID reuse. It reads at most 32 frames from debugger
 thread zero and eight frames from each of the next four threads, then detaches.
-This temporarily suspends the already failed target.
+The after-failure probe temporarily suspends the already failed target.
 Process counters are collected first so this suspension cannot change them.
 Network symbol lookup and debugger shell commands are disabled. The probe
 does not create memory dumps, inspect values, or write raw debugger output.
@@ -678,7 +678,28 @@ remaining browser checks. The job still fails. Default checks keep their
 normal step conditions.
 Fixed Boolean fields identify debugger gallery, engine, symbol-path, and
 stack-marker progress, known attach failures, and target exit during the probe.
-No raw debugger output leaves the collector.
+No raw debugger output leaves the collector. A nonzero debugger exit retains
+these fixed progress fields and its exit code.
+
+In `startup-stacks` mode only, a launch that still has no protocol replies
+after ten seconds starts one early observation. The early probe uses
+[CDB's `-pvr` option](https://learn.microsoft.com/windows-hardware/drivers/debugger/cdb-command-line-options)
+to leave the target running. The fifteen-second launch timeout and each
+protocol timeout remain unchanged. The timer is canceled when launch ends.
+An observed reply prevents this early capture. This trigger is not a sleep,
+retry, browser prewarm, or startup workaround. Diagnostic work can affect
+timing, and running-thread stacks are less reliable than suspended stacks.
+
+The early record identifies its pending-launch phase and its actual start
+and completion times. It must not be treated as an atomic snapshot or assumed
+to have completed before shutdown. On launch failure, this observation is
+joined and reported instead of starting another stack probe. The original
+failure count and protocol-method snapshot stay separate. If launch succeeds,
+the observation is a separate stderr record, not another passed test.
+Both launch outcomes join any pending collector before removing listeners or
+allowing profile cleanup. Unexpected inspection errors keep a typed cause
+and report only its safe category; they do not replace the original launch
+failure. Separate owned-process tests check both debugger modes.
 
 ```powershell
 gh workflow run ci.yml --ref <branch> -f startup-sampling=true -f startup-stacks=true

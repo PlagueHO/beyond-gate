@@ -348,6 +348,165 @@ test("late replies and shutdown keep the original failed startup snapshot", asyn
   });
 });
 
+test("manual early evidence precedes driver shutdown without changing the failed deadline", async (context) => {
+  context.mock.timers.enable({ apis: ["setTimeout"] });
+  const entered = Promise.withResolvers();
+  const inspected = Promise.withResolvers();
+  const completed = Promise.withResolvers();
+  const cause = Object.assign(new Error("Target.setDiscoverTargets timed out"), { name: "ProtocolError" });
+  let clock = 0;
+  let reads = 0;
+  let stopped = 0;
+  let closed = false;
+  const dependencies = launchDependencies((options) => {
+    options.logger("puppeteer:browsers:launcher")("Launched 1234");
+    options.logger("puppeteer:protocol:SEND")('{"method":"Target.setDiscoverTargets"}');
+    entered.resolve(options);
+    return completed.promise;
+  });
+  dependencies.earlyDiagnostics = true;
+  dependencies.now = () => clock;
+  dependencies.observe = () => ({
+    read: async ({ keepRunning }) => {
+      reads++;
+      assert.equal(keepRunning, true);
+      assert.equal(closed, false);
+      inspected.resolve();
+      return { startup_stack: { status: "read", capture_mode: "non-suspending" } };
+    },
+    waitForExit: async () => assert.equal(closed, true),
+    stop: () => { stopped++; },
+  });
+  const pending = launchBrowser("chrome", {
+    directory: "synthetic-owned-directory", proxyPort: 12345, protocolTimeout: 15000,
+  }, dependencies);
+  const options = await entered.promise;
+  assert.equal(options.timeout, 15000);
+  assert.equal(options.protocolTimeout, 15000);
+  clock = 9999;
+  context.mock.timers.tick(9999);
+  assert.equal(reads, 0);
+  clock = 10000;
+  context.mock.timers.tick(1);
+  await inspected.promise;
+  await new Promise(setImmediate);
+  clock = 15000;
+  closed = true;
+  options.logger("puppeteer:protocol:SEND")('{"method":"Browser.close"}');
+  completed.reject(cause);
+  await assert.rejects(pending, (error) => {
+    assert.equal(error.cause, cause);
+    assert.equal(error.launch.elapsed_ms, 15000);
+    assert.equal(error.launch.driver_close_requested, true);
+    assert.equal(error.launch.protocol_messages_received, 0);
+    assert.deepEqual(error.launch.startup_protocol_methods, ["Target.setDiscoverTargets"]);
+    assert.deepEqual(error.launch.startup_snapshot, {
+      phase: "pending-launch", started_ms: 10000, completed_ms: 10000,
+    });
+    assert.equal(error.launch.startup_stack.capture_mode, "non-suspending");
+    assert.equal(error.launch.startup_cleanup, "passed");
+    return true;
+  });
+  context.mock.timers.tick(30000);
+  assert.equal(reads, 1);
+  assert.equal(stopped, 1);
+});
+
+for (const replied of [false, true]) {
+  test(`early inspection is ${replied ? "skipped after a reply" : "canceled on a fast success"}`, async (context) => {
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    const entered = Promise.withResolvers();
+    const completed = Promise.withResolvers();
+    const browser = {};
+    let stopped = 0;
+    const dependencies = launchDependencies((options) => {
+      if (replied) options.logger("puppeteer:protocol:RECV")('{"private":"synthetic-secret"}');
+      entered.resolve();
+      return completed.promise;
+    });
+    dependencies.earlyDiagnostics = true;
+    dependencies.observe = () => ({
+      read: () => assert.fail("must not inspect a completed or responsive launch"),
+      stop: () => { stopped++; },
+    });
+    const pending = launchBrowser("chrome", {
+      directory: "synthetic-owned-directory", proxyPort: 12345, protocolTimeout: 15000,
+    }, dependencies);
+    await entered.promise;
+    context.mock.timers.tick(replied ? 10000 : 9999);
+    completed.resolve(browser);
+    assert.equal(await pending, browser);
+    context.mock.timers.tick(30000);
+    assert.equal(stopped, 1);
+  });
+}
+
+for (const outcome of ["success", "observation-error", "launch-error"]) {
+  test(`pending early inspection joins before its ${outcome} result`, async (context) => {
+    context.mock.timers.enable({ apis: ["setTimeout"] });
+    const entered = Promise.withResolvers();
+    const inspecting = Promise.withResolvers();
+    const captured = Promise.withResolvers();
+    const completed = Promise.withResolvers();
+    const browser = {};
+    const cause = Object.assign(new Error("Target.setDiscoverTargets timed out"), { name: "ProtocolError" });
+    const observationCause = new Error("synthetic-secret C:\\synthetic-private");
+    const records = [];
+    const failed = outcome === "launch-error";
+    let finished = false;
+    let settled = false;
+    let reads = 0;
+    const dependencies = launchDependencies(() => {
+      entered.resolve();
+      return completed.promise;
+    }, records);
+    dependencies.earlyDiagnostics = true;
+    dependencies.observe = () => ({
+      read: () => {
+        reads++;
+        inspecting.resolve();
+        return captured.promise;
+      },
+      waitForExit: async () => assert.equal(finished, true),
+      stop: () => assert.equal(finished, true),
+    });
+    const pending = launchBrowser("chrome", {
+      directory: "synthetic-owned-directory", proxyPort: 12345, protocolTimeout: 15000,
+    }, dependencies);
+    pending.then(() => { settled = true; }, () => { settled = true; });
+    await entered.promise;
+    context.mock.timers.tick(10000);
+    await inspecting.promise;
+    if (failed) completed.reject(cause);
+    else completed.resolve(browser);
+    await new Promise(setImmediate);
+    assert.equal(settled, false);
+    finished = true;
+    if (outcome === "success") {
+      captured.resolve({ startup_stack: { status: "read", capture_mode: "non-suspending" } });
+    } else {
+      captured.reject(observationCause);
+    }
+    if (failed) {
+      await assert.rejects(pending, (error) => {
+        assert.equal(error.cause, cause);
+        assert.equal(error.observationCause, observationCause);
+        assert.equal(error.launch.startup_inspection_error.cause_kind, "Error");
+        assert.equal(error.launch.startup_cleanup, "passed");
+        assert.equal(JSON.stringify(error.launch).includes("synthetic-"), false);
+        return true;
+      });
+    } else {
+      assert.equal(await pending, browser);
+      assert.equal(records[1].status, outcome === "success" ?
+        "startup-observation" : "startup-observation-failed");
+      if (outcome === "success") assert.equal(records[1].startup_snapshot.phase, "pending-launch");
+      assert.equal(JSON.stringify(records).includes("synthetic-"), false);
+    }
+    assert.equal(reads, 1);
+  });
+}
+
 test("owned startup logs expose only known source names and fixed cause categories", () => {
   const result = safeBrowserLog(
     "[1:2:timestamp:ERROR:devtools_pipe_handler.cc(12)] " +
@@ -368,11 +527,19 @@ test("owned startup logs expose only known source names and fixed cause categori
 test("startup observation waits for spawn and ignores foreign executable or profile", async () => {
   const directory = join(TEST_ROOT, "chrome-observed");
   const inspected = [];
-  const observer = observeStartup("owned.exe", directory, async (child) => {
-    inspected.push(child);
-    child.stdio[3].bytesWritten = 128;
-    return { status: "read", chrome_dll_loaded: false };
-  });
+  const observer = observeStartup("owned.exe", directory,
+    async (child) => {
+      inspected.push(child);
+      child.stdio[3].bytesWritten = 128;
+      return { status: "read", chrome_dll_loaded: false };
+    },
+    async (child, path, ownedDirectory, options) => {
+      assert.equal(child, inspected[0]);
+      assert.equal(path, "owned.exe");
+      assert.equal(ownedDirectory, directory);
+      assert.deepEqual(options, { keepRunning: true });
+      return { status: "read", capture_mode: "non-suspending" };
+    });
   const children = [];
   try {
     for (const [file, profile] of [
@@ -395,7 +562,7 @@ test("startup observation waits for spawn and ignores foreign executable or prof
         "synthetic-private".repeat(2000) + "\nAccess is denied.\n",
       );
     }
-    const result = await observer.read();
+    const result = await observer.read({ keepRunning: true });
     assert.deepEqual(inspected, [children[2]]);
     assert.equal(result.startup_stderr_bytes_read, 16384);
     assert.equal(result.startup_stderr_limit_reached, true);
@@ -615,9 +782,8 @@ test("a real driver pipe timeout exits its owned synthetic process before direct
   await assert.rejects(stat(directory), { code: "ENOENT" });
 });
 
-test("Windows startup inspection reports only fixed state for an owned synthetic process", {
-  skip: process.platform !== "win32", timeout: 20000,
-}, async (context) => {
+/** Checks owned process fields, bounded real stacks, and target response for either probe mode. */
+async function checkOwnedStartup(context, keepRunning = false) {
   await mkdir(TEST_ROOT, { recursive: true });
   const directory = await mkdtemp(join(TEST_ROOT, "chrome-"));
   const observer = observeStartup(process.execPath, directory);
@@ -642,7 +808,7 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
     once(child, "error").then(([error]) => { throw error; }),
   ]);
   assert.equal(ready.toString().trim(), "ready");
-  const result = await observer.read();
+  const result = await observer.read({ keepRunning });
   assert.equal(result.startup_process.status, "read");
   assert.equal(result.startup_process.chrome_dll_loaded, false);
   assert.equal(result.startup_process.chrome_elf_loaded, false);
@@ -658,6 +824,7 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
   if (process.env.BEYOND_GATE_STARTUP_STACKS === "1") {
     context.diagnostic(JSON.stringify(result.startup_stack));
     assert.equal(result.startup_stack.status, "read", JSON.stringify(result.startup_stack));
+    assert.equal(result.startup_stack.capture_mode, keepRunning ? "non-suspending" : "suspended");
     assert.ok(result.startup_stack.frame_count > 0 && result.startup_stack.frame_count <= 32);
     assert.ok(result.startup_stack.modules.includes("ntdll"));
     assert.equal(result.startup_stack.os_symbols_loaded, true);
@@ -673,7 +840,15 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
   const resumed = once(child.stdout, "data", { signal: AbortSignal.timeout(3000) });
   child.stdin.write("continue");
   assert.equal((await resumed)[0].toString().trim(), "resumed");
-});
+}
+
+test("Windows startup inspection reports only fixed state for an owned synthetic process", {
+  skip: process.platform !== "win32", timeout: 20000,
+}, (context) => checkOwnedStartup(context));
+
+test("Windows non-suspending startup capture keeps its owned target usable", {
+  skip: process.platform !== "win32" || process.env.BEYOND_GATE_STARTUP_STACKS !== "1", timeout: 20000,
+}, (context) => checkOwnedStartup(context, true));
 
 test("launch failure reads at most 16 KiB of the owned log without printing its payload", async (context) => {
   await mkdir(TEST_ROOT, { recursive: true });
