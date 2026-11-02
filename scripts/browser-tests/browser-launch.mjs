@@ -49,7 +49,8 @@ async function browserLog(directory) {
       const buffer = Buffer.alloc(16384);
       const { bytesRead } = await file.read(buffer, 0, buffer.length, 0);
       return {
-        startup_log: "read", startup_log_limit_reached: bytesRead === buffer.length,
+        startup_log: "read", startup_log_bytes_read: bytesRead,
+        startup_log_limit_reached: bytesRead === buffer.length,
         ...safeBrowserLog(buffer.subarray(0, bytesRead).toString("utf8")),
       };
     } finally {

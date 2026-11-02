@@ -332,6 +332,7 @@ test("launch failure reads at most 16 KiB of the owned log without printing its 
   }, launchDependencies(async () => { throw new Error("Target.setDiscoverTargets timed out"); })),
   (error) => {
     assert.equal(error.launch.startup_log, "read");
+    assert.equal(error.launch.startup_log_bytes_read, 16384);
     assert.equal(error.launch.startup_log_limit_reached, true);
     assert.deepEqual(error.launch.startup_log_sources, ["devtools_pipe_handler.cc"]);
     assert.deepEqual(error.launch.startup_log_reasons, ["debugging-pipe-unavailable"]);

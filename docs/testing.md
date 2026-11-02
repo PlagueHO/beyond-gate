@@ -606,6 +606,9 @@ Cleanup failure alone also fails the test.
 The shared launcher keeps the fifteen-second launch timeout and the existing
 per-runner protocol deadlines. It does not retry, skip a browser, change browser
 flavor, or change any native-messaging or product-flow assertion.
+CI requires three separate feasibility runs with fresh profiles. These are
+mandatory cold-launch cases, not success-on-retry behavior. Any failed run
+fails the step even if a later run passes. Each run must complete its cleanup.
 
 The [first diagnostic hosted run](https://github.com/PlagueHO/beyond-gate/actions/runs/41420080293)
 passed both browsers' feasibility and product-flow checks at `001a59e`.

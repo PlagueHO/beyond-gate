@@ -5,6 +5,7 @@ import { PassThrough } from "node:stream";
 import { test } from "node:test";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
+import { readFile } from "node:fs/promises";
 import { startCli } from "./product-flow.mjs";
 
 const CONTEXT = "bg-windows-product-fixture-v1";
@@ -82,6 +83,7 @@ test("both runner entry points preserve failure exit codes and safe launch diagn
           const error = new Error("chrome: browser-start failed", {
             cause: new Error("synthetic-secret C:\\\\synthetic-private https://private.invalid"),
           });
+
           error.launch = { cause_reason: "timed-out", protocol_method: "Target.setAutoAttach" };
           error.cleanup = ["fixture-directory"];
           throw error;
@@ -103,5 +105,28 @@ test("both runner entry points preserve failure exit codes and safe launch diagn
       }
       return true;
     });
+  }
+});
+
+test("mandatory CI cold launches all run and any failure remains a failed step", async () => {
+  const workflow = await readFile(new URL("../../.github/workflows/ci.yml", import.meta.url), "utf8");
+  const match = /- name: Exercise regular browser and real native host[\s\S]*?run: \|\r?\n((?: {10}[^\n]*\n)+)/.exec(workflow);
+  assert.ok(match, "the required cold-launch step must exist");
+  const commands = match[1].replace(/^ {10}/gm, "");
+  const invocation = "npm run feasibility --prefix .\\scripts\\browser-tests -- --browser $env:BEYOND_GATE_TEST_BROWSER";
+  assert.ok(commands.includes(invocation));
+  for (const failedCase of [0, 1, 2, 3]) {
+    const script = commands.replace(invocation,
+      `& '${process.execPath.replaceAll("'", "''")}' -e "process.exit($case === ${failedCase} ? 1 : 0)"`);
+    try {
+      const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command", script],
+        { timeout: 10000, maxBuffer: 4096 });
+      assert.equal(failedCase, 0, "a failed cold launch must not become success");
+      assert.equal(stdout.trim().split(/\r?\n/).length, 3);
+    } catch (error) {
+      assert.notEqual(failedCase, 0);
+      assert.equal(error.code, 1);
+      assert.equal(error.stdout.trim().split(/\r?\n/).length, 3);
+    }
   }
 });
