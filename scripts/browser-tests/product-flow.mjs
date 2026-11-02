@@ -204,8 +204,16 @@ async function probe(name, recipe) {
   ]));
 }
 
+/** Builds the isolated product fixture through the repository's VS 2022 wrapper. */
+async function buildHost() {
+  await execute("pwsh", ["-NoProfile", "-File", join(REPO, "scripts", "cargo.ps1"),
+    "build", "-p", "beyond-gate-core", "--example", "windows-login-fixture",
+    "--features", "windows-login-fixture", "--locked", "--quiet"],
+  { cwd: REPO, timeout: 600000, maxBuffer: 1024 * 1024 });
+}
+
 /** Builds with VS 2022 and reports Chrome and Edge evidence separately. */
-async function main() {
+export async function main({ build = buildHost, run = probe } = {}) {
   assert.equal(process.platform, "win32", "Windows product-flow fixture only");
   const args = process.argv.slice(2);
   assert.ok(args.length === 0 || (args.length === 2 && args[0] === "--browser"));
@@ -213,13 +221,10 @@ async function main() {
   assert.ok(names.every((name) => ["chrome", "edge"].includes(name)));
   const recipe = JSON.parse(await readFile(join(REPO, "docs", "fixtures", "windows-login-v1.json"), "utf8"));
   assert.equal(recipe.synthetic_only, true);
-  await execute("pwsh", ["-NoProfile", "-File", join(REPO, "scripts", "cargo.ps1"),
-    "build", "-p", "beyond-gate-core", "--example", "windows-login-fixture",
-    "--features", "windows-login-fixture", "--locked", "--quiet"],
-  { cwd: REPO, timeout: 600000, maxBuffer: 1024 * 1024 });
+  await build();
   for (const name of names) {
     try {
-      console.log(JSON.stringify({ status: "passed", ...await probe(name, recipe) }));
+      console.log(JSON.stringify({ status: "passed", ...await run(name, recipe) }));
     } catch (error) {
       console.error(JSON.stringify({ browser: name, status: "failed", error: error.message,
         launch: error.launch, cleanup_failures: error.cleanup,

@@ -572,7 +572,42 @@ each browser. It pins Node.js 26.12.1 and
 [`actions/setup-node` v7.1.0](https://github.com/actions/setup-node/releases/tag/v7.1.0).
 It retains all existing Rust OS jobs and uses no account secret or uploaded
 transcript. Missing required infrastructure fails the job. These new Actions
-jobs have not run; local passes are not hosted-runner evidence.
+jobs have passed on earlier revisions. A later repeated Chrome startup failure
+is tracked in [#55](https://github.com/PlagueHO/beyond-gate/issues/55).
+Local passes do not prove that a hosted failure is fixed.
+
+### Safe startup diagnostics
+
+Both browser runners emit a `starting` JSON record on stderr before the launch attempt.
+It reports the installed executable's version without starting another browser,
+plus the browser flavor, OS, Node.js, and pinned driver versions. This record
+does not indicate a successful launch or a passed test.
+
+A launch failure adds a bounded `launch` object to the failed JSON record.
+It includes the launch stage, elapsed milliseconds, a fixed cause category,
+and whether the driver observed process start or exit. Known protocol errors
+can include an allowed startup method name. At most eight allowed startup
+method names and a received-message count identify pipe progress without
+recording protocol payloads. A process exit code is included only when the
+driver's launch error provides it. Unclassified errors remain failed results.
+
+The runner does not print raw errors, stacks, arbitrary cause chains, browser
+output, full executable or profile paths, command lines, or environment data.
+It does not enable Puppeteer's `dumpio` option. Cleanup still attempts every
+owned resource. If both an operation and cleanup fail, the operation remains
+the primary error and `cleanup_failures` reports fixed resource labels.
+Cleanup failure alone also fails the test.
+
+The shared launcher keeps the fifteen-second launch timeout and the existing
+per-runner protocol deadlines. It does not retry, skip a browser, change browser
+flavor, or change any native-messaging or product-flow assertion.
+
+The [first diagnostic hosted run](https://github.com/PlagueHO/beyond-gate/actions/runs/41420080293)
+passed both browsers' feasibility and product-flow checks at `001a59e`.
+It reported regular Chrome `156.0.8078.48` with Puppeteer `25.16.0`.
+The original startup failure did not recur. This pass does not establish a
+startup fix or a root cause. The earlier failed jobs do not contain the missing
+launch evidence.
 
 Cleanup closes the native port, verifies an owned host's executable path and
 start time before stopping its specific PID if necessary, removes only its

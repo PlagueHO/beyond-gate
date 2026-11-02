@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { EventEmitter } from "node:events";
 import { PassThrough } from "node:stream";
 import { test } from "node:test";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { startCli } from "./product-flow.mjs";
 
 const CONTEXT = "bg-windows-product-fixture-v1";
@@ -65,5 +67,41 @@ test("completion before readiness and malformed namespaces fail safely", async (
     const pending = startCli("saved", () => process);
     process.stdout.write(JSON.stringify(message) + "\n");
     await assert.rejects(pending, /invalid public metadata/);
+  }
+});
+
+test("both runner entry points preserve failure exit codes and safe launch diagnostics", async () => {
+  for (const script of ["run.mjs", "product-flow.mjs"]) {
+    const url = new URL(script, import.meta.url).href;
+    await assert.rejects(promisify(execFile)(process.execPath, ["--input-type=module", "-e", `
+      import { main } from ${JSON.stringify(url)};
+      process.argv = [process.execPath, "synthetic-runner", "--browser", "chrome"];
+      await main({
+        build: async () => {},
+        run: async () => {
+          const error = new Error("chrome: browser-start failed", {
+            cause: new Error("synthetic-secret C:\\\\synthetic-private https://private.invalid"),
+          });
+          error.launch = { cause_reason: "timed-out", protocol_method: "Target.setAutoAttach" };
+          error.cleanup = ["fixture-directory"];
+          throw error;
+        },
+      });
+    `], { timeout: 10000, maxBuffer: 4096 }), (error) => {
+      assert.equal(error.code, 1);
+      assert.equal(error.stdout, "");
+      const record = JSON.parse(error.stderr);
+      assert.equal(record.browser, "chrome");
+      assert.equal(record.status, "failed");
+      assert.equal(record.error, "chrome: browser-start failed");
+      assert.deepEqual(record.launch, {
+        cause_reason: "timed-out", protocol_method: "Target.setAutoAttach",
+      });
+      assert.deepEqual(record.cleanup_failures, ["fixture-directory"]);
+      for (const privateText of ["synthetic-secret", "synthetic-private", "private.invalid"]) {
+        assert.equal(error.stderr.includes(privateText), false);
+      }
+      return true;
+    });
   }
 });
