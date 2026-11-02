@@ -649,6 +649,38 @@ test("Windows stack filtering emits only allowed modules and public export hints
   }
 });
 
+test("missing or ambiguous prepared symbols do not prevent export-only collection", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "symbols-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
+    ". $env:BEYOND_GATE_TEST_STACK_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
+    "$cache = Join-Path $env:BEYOND_GATE_TEST_DIRECTORY cache; " +
+    "$owned = Join-Path $env:BEYOND_GATE_TEST_DIRECTORY owned; " +
+    "$null = New-Item -ItemType Directory -Path $owned; $states = @(); " +
+    "$states += Copy-PreparedStartupSymbols $cache $owned; " +
+    "$null = New-Item -ItemType Directory -Path $cache; " +
+    "$states += Copy-PreparedStartupSymbols $cache $owned; " +
+    "$first = Join-Path $cache first; $null = New-Item -ItemType Directory -Path $first; " +
+    "[IO.File]::WriteAllText((Join-Path $first ntdll.pdb), 'invented'); " +
+    "$states += Copy-PreparedStartupSymbols $cache $owned; " +
+    "$second = Join-Path $cache second; $null = New-Item -ItemType Directory -Path $second; " +
+    "[IO.File]::WriteAllText((Join-Path $second ntdll.pdb), 'not-selected'); " +
+    "$states += Copy-PreparedStartupSymbols $cache $owned; " +
+    "@{ states = $states; copied = [IO.File]::ReadAllText((Join-Path $owned ntdll.pdb)) -ceq 'invented' } " +
+    "| ConvertTo-Json -Compress",
+  ], {
+    env: { ...process.env, BEYOND_GATE_TEST_DIRECTORY: directory,
+      BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
+    timeout: 8000, maxBuffer: 4096,
+  });
+  assert.deepEqual(JSON.parse(stdout), {
+    states: ["missing", "missing", "copied", "ambiguous"], copied: true,
+  });
+});
+
 test("debugger setup refuses a normal local machine before downloading or installing tools", {
   skip: process.platform !== "win32", timeout: 10000,
 }, async () => {
@@ -819,6 +851,12 @@ async function checkOwnedStartup(context, keepRunning = false) {
   assert.ok(result.startup_process.thread_count > 0);
   assert.ok(result.startup_process.cpu_ms >= 0);
   assert.ok(result.startup_process.wait_reasons.every(Number.isInteger));
+  assert.ok(result.startup_process.thread_states.length > 0 &&
+    result.startup_process.thread_states.length <= 5);
+  for (const [state, reason] of result.startup_process.thread_states) {
+    assert.ok(Number.isInteger(state));
+    assert.ok(reason === null || Number.isInteger(reason));
+  }
   assert.equal(JSON.stringify(result).includes(directory), false);
   assert.equal(JSON.stringify(result).includes(process.execPath), false);
   if (process.env.BEYOND_GATE_STARTUP_STACKS === "1") {

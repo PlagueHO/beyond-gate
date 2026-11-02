@@ -606,6 +606,9 @@ the log with the owned directory. Missing and unreadable logs are explicit.
 The runner also bounds captured startup stderr to 16 KiB and returns only the
 same safe categories. A failed launch can report fixed process counters,
 known child-process types, Chrome module presence, and owned profile milestones.
+At most five ordered thread-state/wait-reason tuples distinguish individual
+waits without exposing thread IDs. These enumeration indices do not prove
+debugger-thread identity.
 Fixed pipe byte counters, buffer lengths, and end/close flags distinguish
 transport progress without reading or retaining a protocol payload.
 The observer waits for Node.js's `spawn` event before checking the exact executable
@@ -651,6 +654,10 @@ to prepare matching `ntdll.dll` symbols from the
 [Microsoft public symbol server](https://learn.microsoft.com/windows-hardware/drivers/debugger/microsoft-public-symbols).
 This separate preparation has a thirty-second limit and retains only verified
 public Windows symbols. It does not read or preload Chrome files.
+If preparation fails, the failed setup verdict stays. A later probe reports
+missing or ambiguous symbols and can still collect export-only hints.
+It does not select an arbitrary PDB, download symbols during capture, or
+report that missing symbols loaded.
 
 An optional [noninvasive stack probe](https://learn.microsoft.com/windows-hardware/drivers/debugger/noninvasive-debugging--user-mode-)
 checks the exact executable and owned profile argument. It holds the process
