@@ -78,7 +78,8 @@ function Get-E2eCases {
         }
     }
     foreach ($mode in @('direct', 'start')) {
-        foreach ($name in @('lifecycle', 'discovery', 'invalid-input', 'invalid-token', 'unknown-tool', 'cancellation')) {
+        $cases.Add((New-E2eCase "live.mcp.$mode.$($Inventory.session_validation.tool)" 'live'))
+        foreach ($name in @('lifecycle', 'discovery', 'invalid-input', 'invalid-validation-input', 'invalid-token', 'unknown-tool', 'cancellation')) {
             $cases.Add((New-E2eCase "mcp.$mode.$name" "mcp-$mode"))
         }
         foreach ($read in $Inventory.reads) {
@@ -86,6 +87,7 @@ function Get-E2eCases {
             $cases.Add((New-E2eCase "live.mcp.$mode.$($read.tool)" 'live'))
         }
     }
+    $cases.Add((New-E2eCase 'live.cli.auth.validate' 'live'))
     foreach ($name in @('absent', 'stored-unverified', 'logout', 'repeated-logout')) {
         $cases.Add((New-E2eCase "native.auth.$name" 'native'))
     }
@@ -315,11 +317,12 @@ function Invoke-E2eProtocol {
         Send-E2eInput $child ('{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' + "`n")
         $response = Invoke-E2eRequest $child @{ jsonrpc = '2.0'; id = 2; method = 'tools/list'; params = @{} }
         $names = @($response.result.tools.name | Sort-Object)
-        Assert-E2e (($names -join ',') -ceq (($Inventory.reads.tool | Sort-Object) -join ',')) 'inventory_invalid'
+        $expectedTools = @($Inventory.reads.tool) + $Inventory.session_validation.tool
+        Assert-E2e (($names -join ',') -ceq (($expectedTools | Sort-Object) -join ',')) 'inventory_invalid'
         foreach ($tool in $response.result.tools) {
             Assert-E2e ($tool.annotations.readOnlyHint -eq $true -and $tool.annotations.destructiveHint -eq $false)
             Assert-E2e ($tool.inputSchema.additionalProperties -eq $false)
-            $read = $Inventory.reads | Where-Object { $_.tool -ceq $tool.name }
+            $read = (@($Inventory.reads) + $Inventory.session_validation) | Where-Object { $_.tool -ceq $tool.name }
             $properties = @($read.arguments.Keys)
             if ($tool.name -ceq 'book_read') { $properties += 'continuation' }
             $actualProperties = if ($tool.inputSchema.ContainsKey('properties')) { @($tool.inputSchema.properties.Keys | Sort-Object) } else { @() }
@@ -341,6 +344,7 @@ function Invoke-E2eProtocol {
         }
         foreach ($check in @(
             @{ name = 'invalid-input'; tool = 'character_show'; arguments = @{ id = 'synthetic'; extra = $true } }
+            @{ name = 'invalid-validation-input'; tool = $Inventory.session_validation.tool; arguments = @{ extra = $true } }
             @{ name = 'invalid-token'; tool = 'book_read'; arguments = @{ book_id = 'synthetic'; section_id = 'opening'; continuation = 'invalid' } }
             @{ name = 'unknown-tool'; tool = 'not_a_tool'; arguments = @{} }
         )) {

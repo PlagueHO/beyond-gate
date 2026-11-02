@@ -3,7 +3,7 @@
 use std::{error::Error, fmt, io};
 
 use beyond_gate_core::{
-    auth::AuthError,
+    auth::{AuthError, session::SessionError},
     book::BookError,
     character_campaign::CharacterCampaignError,
     http::{ErrorKind, HttpError},
@@ -16,6 +16,10 @@ pub(crate) enum Failure {
     #[cfg(windows)]
     Login(crate::login::LoginError),
     Auth(AuthError),
+    Session(SessionError),
+    Runtime(io::Error),
+    Cancelled,
+    Signal(io::Error),
     Character(CharacterCampaignError),
     Library(LibraryError),
     Book(BookError),
@@ -55,6 +59,10 @@ impl fmt::Display for Failure {
             #[cfg(windows)]
             Self::Login(error) => write!(formatter, "{error}")?,
             Self::Auth(error) => write!(formatter, "{error}")?,
+            Self::Session(error) => write!(formatter, "{error}")?,
+            Self::Runtime(_) => formatter.write_str("Session runtime could not start.")?,
+            Self::Cancelled => formatter.write_str("cancelled")?,
+            Self::Signal(_) => formatter.write_str("Session cancellation handler failed.")?,
             Self::Character(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
@@ -95,6 +103,10 @@ impl Error for Failure {
             #[cfg(windows)]
             Self::Login(error) => Some(error),
             Self::Auth(error) => Some(error),
+            Self::Session(error) => Some(error),
+            Self::Runtime(error) => Some(error),
+            Self::Signal(error) => Some(error),
+            Self::Cancelled => None,
             Self::Character(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),

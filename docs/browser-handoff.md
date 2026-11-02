@@ -613,8 +613,9 @@ async fn establish_session(
 
 The core owns exchange, validation, and one protected save. The host and extension
 do not exchange cookies for bearer tokens. Adapters do not implement session
-logic. The derived bearer remains transient process memory and is dropped after
-validation. It is not persisted. Browser profile selection is implemented in
+logic. The derived bearer remains transient process memory. Establishment drops it
+after validation; the shared reuse owner can retain it until its evidence
+expires. It is never persisted. Browser profile selection is implemented in
 the extension; the cookie constructor does not prove consent, scope, or provenance.
 
 The user accepted the [strict direct-service rule](#accepted-windows-service-rule).
@@ -640,13 +641,18 @@ The eight-byte header and value must fit the native 2,560-byte limit.
 invalid lengths, trailing data, and invalid cookie syntax. It does not migrate
 old opaque entries, truncate values, split entries, or use files.
 Local status remains `stored-unverified`; creation-time validation is not a
-permanent access grant. Loading and refresh for live operations remain #30 work.
+permanent access grant. The
+[shared lifecycle](authentication.md#session-lifecycle) now loads this same
+envelope, makes fresh checks, and manages bounded process-local bearer reuse.
 
 CLI login success requires `SavedSession`; a handoff receipt or
-`StoredUnverified` cannot substitute for it. MCP must later consume #30's shared
-session lifecycle using the same fixed entry, not accept a cookie in a tool.
-This boundary adds neither a second credential protocol for MCP nor new tools.
-Refresh, authenticated resource reads, and upstream revocation remain #30 work.
+`StoredUnverified` cannot substitute for it. MCP `auth_validate` consumes the
+shared lifecycle using the same fixed entry. It cannot accept a cookie in a tool.
+MCP adds no credential-input protocol or tool.
+Reuse is bounded to one cookie exchange per operation after bearer expiry.
+There is no background refresh or upstream revocation contract.
+Live resource reads remain #31-#33 work. Linux production session use and
+human-controlled login are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
 ### Safe errors
 

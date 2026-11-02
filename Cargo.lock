@@ -307,6 +307,7 @@ dependencies = [
 name = "beyond-gate-mcp"
 version = "0.1.0"
 dependencies = [
+ "beyond-gate-cli",
  "beyond-gate-core",
  "clap",
  "rmcp",

@@ -35,6 +35,35 @@ selected contract cannot produce full success.
 
 ## Browser handoff offline checks
 
+### Shared session lifecycle checks
+
+Portable core tests use isolated in-memory credential entries, actual loopback
+exchanges, and controlled clocks. They cover fresh validation, cached reuse,
+exact bearer expiry, rejection without retry, invalid formats, storage failures,
+concurrent acquisitions, cancellation, deadlines, logout, replacement, and
+redacted error chains. A synthetic resource server checks bearer-only headers
+and distinct HTTP 401/403 meanings through the bounded HTTP client.
+
+The `session_process` test starts actual CLI and rmcp stdio child processes.
+Both use the same compiled invented scenarios and shared core implementation.
+It checks equal validation data and diagnostics, exit codes, strict empty tool
+input, MCP cancellation, and EOF cleanup. Protocol waits are bounded. The
+`session-fixture` development feature has no product argument, environment
+selector, or MCP input. It cannot accept a live cookie or service URL.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::session --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+No native credential-store entry or real account is accessed. Windows
+production validation and reuse are implemented; Linux/macOS calls fail before
+credential or service access. Linux implementation is tracked in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+These checks do not prove live resource access or upstream revocation.
+The manual suite discovers `auth_validate` and tests rejected extra fields.
+It does not call valid production validation within its zero live request budget.
+
 ### Windows runtime completion checks
 
 The actual native host now has

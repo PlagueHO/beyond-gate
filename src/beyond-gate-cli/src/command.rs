@@ -18,6 +18,7 @@ pub fn command() -> Command {
                 .subcommand(browser_setup("install", "Preview and register the Windows browser native host"))
                 .subcommand(browser_setup("uninstall", "Preview and remove matching Windows browser native-host setup"))
                 .subcommand(Command::new("status").about("Report local presence only, without checking upstream usability"))
+                .subcommand(Command::new("validate").about("Check the stored Windows session with one fresh service exchange; never accepts credentials"))
                 .subcommand(Command::new("logout").about("Remove the local credential without upstream revocation")),
         )
         .subcommand(

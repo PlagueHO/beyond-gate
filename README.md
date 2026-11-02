@@ -9,6 +9,9 @@ purchased or shared books.
 **Status: verified Windows login, local sessions, and offline-tested CLI/MCP adapters.**
 The CLI and MCP binaries provide `--help` and `--version`.
 The CLI also provides local `auth status` and `auth logout`.
+Windows `auth validate` and MCP `auth_validate` now make one fresh service check
+through the same protected-session lifecycle. Synthetic stores, local services,
+and actual adapter process tests cover validation and bounded bearer reuse.
 Windows `auth login` now starts one-use terminal pairing and calls shared
 completion after a bound submit. Windows setup, real human-controlled login,
 protected save, restart/status, and logout passed with Chrome and Edge Dev.
@@ -16,7 +19,8 @@ Other platforms retain the unsupported error.
 The CLI also generates shell completions. The MCP server uses stdio
 and exposes matching read tools. Character, campaign, and book reads return
 explicit unsupported-operation errors through both adapters.
-Live data access and reusable authenticated-session lifecycle are not implemented.
+Live data access remains unsupported. Linux production login and session use
+are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful
@@ -30,7 +34,8 @@ cannot pass until production live prerequisites exist.
 The core has an offline-tested [HTTP boundary](docs/architecture.md#http-boundary).
 It provides bounded async JSON reads and typed, redacted errors. It has no built-in
 D&D Beyond hosts or resource endpoints. Resource reads send no requests.
-Windows paired login uses a separate fixed validation exchange.
+Windows paired login and explicit validation share one fixed service exchange.
+The shared lifecycle keeps derived bearers in process memory only.
 
 The core also has offline [library metadata assembly](docs/architecture.md#offline-library-boundary).
 It validates supplied pages, keeps purchase and sharing evidence separate, and
@@ -78,8 +83,8 @@ unauthorized automated access. The
 [2026-10-27 feasibility assessment](docs/architecture.md#feasibility-assessment)
 did not establish a permitted integration path. At the maintainer's request,
 the project no longer uses that assessment as a blanket development stop gate.
-This policy change is not upstream approval. Live reads still need reusable
-session handling, source contracts, and adapter implementation. Live account tests and credential
+This policy change is not upstream approval. Live reads still need verified
+source contracts and adapter implementation. Live account tests and credential
 access need separate explicit approval. Windows browser login has approved
 product evidence; other platforms remain deferred.
 Do not bypass paywalls, access controls, or bot

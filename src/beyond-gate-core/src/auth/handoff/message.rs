@@ -405,7 +405,7 @@ fn material(mut value: ProtectedText, profile: Profile) -> Result<SessionSecret,
     let within_profile = match profile {
         Profile::SyntheticV1 => value.0.len() <= 8192 && value.0.starts_with("synthetic-"),
         #[cfg(windows)]
-        Profile::CobaltSessionV1 => value.0.len() <= crate::auth::establishment::MAX_COOKIE_BYTES,
+        Profile::CobaltSessionV1 => value.0.len() <= crate::auth::service::MAX_COOKIE_BYTES,
     };
     if !within_profile
         || value.0.is_empty()

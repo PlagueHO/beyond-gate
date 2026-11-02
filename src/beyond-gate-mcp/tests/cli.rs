@@ -203,6 +203,7 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
     assert_eq!(
         names,
         [
+            "auth_validate",
             "book_list",
             "book_outline",
             "book_read",

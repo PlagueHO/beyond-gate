@@ -3,11 +3,16 @@
 //! Both adapters must use this fixed entry, not their own credential identities.
 //! Stored presence does not establish current usability or expiry.
 //! Windows paired CLI login calls shared validation and protected saving.
-//! Windows browser login is implemented; resource reads remain unsupported.
+//! Windows browser login and explicit CLI/MCP validation are implemented.
+//! Shared process-local reuse has portable synthetic coverage; resource reads remain unsupported.
 //! The off-by-default `e2e-isolation` feature requires an approved test context
 //! and selects a separate test identity instead of the product entry.
 
 mod error;
+mod service;
+
+/// Loads and validates the fixed local session with bounded process-local reuse.
+pub mod session;
 
 /// Provides bounded messages, authenticated pairing, and Windows login completion.
 pub mod handoff;
@@ -176,20 +181,30 @@ impl SessionStore {
     /// Returns storage failures or `InvalidSecret` for empty or oversized data.
     /// Only an explicit native `NoEntry` result means the session is absent.
     pub fn status(&self) -> Result<SessionStatus, AuthError> {
+        self.load().map(|secret| match secret {
+            Some(_) => SessionStatus::StoredUnverified,
+            None => SessionStatus::Absent,
+        })
+    }
+
+    /// Loads only the fixed entry without validating it or guessing its format.
+    ///
+    /// # Errors
+    ///
+    /// Returns typed storage or invalid-size failures. Only `NoEntry` means absent.
+    pub(super) fn load(&self) -> Result<Option<SessionSecret>, AuthError> {
         match self.entry.get_secret() {
-            Ok(bytes) => {
-                let _secret = SessionSecret::new(bytes)?;
-                Ok(SessionStatus::StoredUnverified)
-            }
-            Err(keyring_core::Error::NoEntry) => Ok(SessionStatus::Absent),
+            Ok(bytes) => SessionSecret::new(bytes).map(Some),
+            Err(keyring_core::Error::NoEntry) => Ok(None),
             Err(error) => Err(AuthError::storage(error)),
         }
     }
 
     /// Deletes only this entry, including malformed data, without reading its secret.
     ///
-    /// An already absent entry is a successful local logout. There is no token
-    /// cache in this implementation. Local removal does not revoke an upstream
+    /// An already absent entry is a successful local logout. Shared session owners
+    /// clear cached evidence before calling this or at their next load.
+    /// Local removal does not revoke an upstream
     /// session or affect credentials held by another process.
     ///
     /// # Errors

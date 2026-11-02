@@ -249,10 +249,14 @@ VS Code uses Copilot Global settings. VS Code and Copilot CLI share
 No entry contains a secret, remote URL, Python command, or Node.js command.
 
 Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
-`claude mcp list` in Claude Code. The server exposes seven read-only tools:
+`claude mcp list` in Claude Code. The server exposes seven resource read tools:
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
 `book_outline`, and `book_read`. Valid reads currently return explicit tool
-errors. Do not interpret discovery as successful login or live read access.
+errors. The additional credential-free `auth_validate` tool makes one fresh
+Windows session check; it does not grant content access.
+Do not interpret discovery as successful login or live read access.
+Linux production login and session use are tracked in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
 To remove registration, stop the server in the client. Remove only the
 `beyond-gate` entry from the settings file's `mcpServers` object. Keep unrelated

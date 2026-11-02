@@ -6,44 +6,47 @@
 //! Browser cookie attributes and consent must be checked before this boundary.
 
 use std::{
-    error::Error,
     fmt,
     sync::{
         Arc, Weak,
         atomic::{AtomicBool, AtomicU8, Ordering},
     },
-    time::{Duration, SystemTime, UNIX_EPOCH},
+    time::Duration,
 };
 
-use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-use reqwest::{Client, StatusCode};
-use serde::{Deserialize, Serialize, de::Visitor};
+use reqwest::Client;
+use serde::Serialize;
 use tokio::{sync::Notify, time::Instant};
-use zeroize::Zeroizing;
 
 use super::{
     AuthError, AuthErrorKind, SessionSecret, SessionStore,
     handoff::{ErrorCode, pairing::check_pending_deadline, slot::PendingLoginSlot},
+    service::{Cause, SERVICE_URL, exchange},
 };
-use crate::http::{HttpError, SessionHeaders, direct_client_builder, validate_cookie};
+#[cfg(any(test, feature = "windows-login-fixture"))]
+use crate::http::direct_client_builder;
+
+pub use super::service::{BrowserSessionCookie, EstablishmentError};
+
+#[cfg(test)]
+use super::service::{
+    MAX_COOKIE_BYTES, MAX_RESPONSE_BYTES, MAX_STORED_BYTES, MAX_TOKEN_BYTES, validate_response,
+};
+#[cfg(test)]
+use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+#[cfg(test)]
+use std::{
+    error::Error,
+    time::{SystemTime, UNIX_EPOCH},
+};
+#[cfg(test)]
+use zeroize::Zeroizing;
 
 /// Runs only compiled invented material through isolated development processes.
 #[cfg(feature = "windows-login-fixture")]
 #[path = "windows_login_fixture.rs"]
 pub mod fixture;
 
-/// Fixes the only production exchange origin and path.
-const SERVICE_URL: &str = "https://auth-service.dndbeyond.com/v1/cobalt-token";
-/// Includes the eight-byte format header in Windows' native blob limit.
-const MAX_STORED_BYTES: usize = 2_560;
-/// Leaves room for magic, version, profile, and little-endian value length.
-pub(crate) const MAX_COOKIE_BYTES: usize = MAX_STORED_BYTES - 8;
-/// Bounds both the upstream response and every decoded allocation within it.
-const MAX_RESPONSE_BYTES: usize = 64 * 1024;
-/// Caps the transient token independently of the response.
-const MAX_TOKEN_BYTES: usize = 8 * 1024;
-/// Identifies the portable persistent-cookie encoding.
-const MAGIC: &[u8; 4] = b"BGSE";
 /// Separates a write not started, a started write, and a permanently stopped write.
 const READY: u8 = 0;
 /// Marks the linearization point immediately before the native write.
@@ -52,68 +55,6 @@ const WRITING: u8 = 1;
 const SAVED: u8 = 2;
 /// Prevents a queued worker from starting a write after cancellation or timeout.
 const STOPPED: u8 = 3;
-
-/// Owns one RFC 6265 value that fits the versioned Windows credential entry.
-pub struct BrowserSessionCookie(Zeroizing<Vec<u8>>);
-
-impl BrowserSessionCookie {
-    /// Takes and clears owned input; no URL, cookie name, or header bag is accepted.
-    ///
-    /// # Errors
-    ///
-    /// Returns `InvalidMaterial` for invalid syntax or a value above 2,552 bytes.
-    pub fn new(bytes: Vec<u8>) -> Result<Self, EstablishmentError> {
-        let bytes = Zeroizing::new(bytes);
-        if bytes.len() > MAX_COOKIE_BYTES {
-            return Err(EstablishmentError::new(ErrorCode::InvalidMaterial));
-        }
-        let value = std::str::from_utf8(&bytes)
-            .map_err(|_| EstablishmentError::new(ErrorCode::InvalidMaterial))?;
-        validate_cookie("CobaltSession", value).map_err(|error| {
-            EstablishmentError::caused(ErrorCode::InvalidMaterial, Cause::Http(error))
-        })?;
-        Ok(Self(bytes))
-    }
-
-    /// Encodes only the reusable cookie, never account claims or a derived bearer.
-    fn encode(&self) -> SessionSecret {
-        let mut bytes = Zeroizing::new(Vec::with_capacity(8 + self.0.len()));
-        bytes.extend_from_slice(MAGIC);
-        bytes.extend_from_slice(&[1, 1]);
-        // The constructor proves this length fits both u16 and the native blob.
-        bytes.extend_from_slice(&(self.0.len() as u16).to_le_bytes());
-        bytes.extend_from_slice(&self.0);
-        SessionSecret(bytes)
-    }
-
-    /// Consumes a stored envelope without guessing an old opaque format.
-    ///
-    /// # Errors
-    ///
-    /// Returns `UnsupportedContract` for unknown magic, version, or profile.
-    /// Returns `InvalidMaterial` for size, length, trailing data, or cookie syntax.
-    pub fn from_persisted(secret: SessionSecret) -> Result<Self, EstablishmentError> {
-        let bytes = &secret.0;
-        if bytes.len() < 8 || bytes.len() > MAX_STORED_BYTES {
-            return Err(EstablishmentError::new(ErrorCode::InvalidMaterial));
-        }
-        if &bytes[..4] != MAGIC || bytes[4..6] != [1, 1] {
-            return Err(EstablishmentError::new(ErrorCode::UnsupportedContract));
-        }
-        let length = usize::from(u16::from_le_bytes([bytes[6], bytes[7]]));
-        if length != bytes.len() - 8 {
-            return Err(EstablishmentError::new(ErrorCode::InvalidMaterial));
-        }
-        Self::new(bytes[8..].to_vec())
-    }
-}
-
-impl fmt::Debug for BrowserSessionCookie {
-    /// Omits value, format, and length.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str("BrowserSessionCookie { value: [REDACTED] }")
-    }
-}
 
 /// Owns the sole accepted service profile's cookie after browser-side checks.
 #[derive(Debug)]
@@ -293,267 +234,6 @@ impl fmt::Debug for LoginCancellation {
     }
 }
 
-/// Preserves dependency types behind an inaccessible, redacted source boundary.
-enum Cause {
-    /// Retains direct TLS and bounded-body failures.
-    Transport(reqwest::Error),
-    /// Retains shared header validation failures.
-    Http(HttpError),
-    /// Retains parser failures without reflected fields.
-    Json(serde_json::Error),
-    /// Retains encoding failures without the token.
-    Encoding(base64::DecodeError),
-    /// Retains the native store's already redacted classification.
-    Storage(AuthError),
-    /// Retains worker failure without task panic text.
-    Worker(tokio::task::JoinError),
-}
-
-impl fmt::Display for Cause {
-    /// Inspects only safe categories; never formats a raw dependency error.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(match self {
-            Self::Transport(error) if error.is_timeout() => "service request timed out",
-            Self::Transport(_) => "service transport failed",
-            Self::Http(error) => return fmt::Display::fmt(error, formatter),
-            Self::Json(error) => match error.classify() {
-                serde_json::error::Category::Data => "service fields are invalid",
-                _ => "service JSON is invalid",
-            },
-            Self::Encoding(_error) => "service token encoding is invalid",
-            Self::Storage(error) => return fmt::Display::fmt(error, formatter),
-            Self::Worker(error) if error.is_cancelled() => "storage worker was cancelled",
-            Self::Worker(_) => "storage worker failed",
-        })
-    }
-}
-
-impl fmt::Debug for Cause {
-    /// Uses only the safe category description.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, formatter)
-    }
-}
-
-impl Error for Cause {}
-
-/// Carries one fixed error code and, when needed, a redacted typed cause.
-pub struct EstablishmentError {
-    /// Uses the same categories as the host and CLI handoff.
-    code: ErrorCode,
-    /// Never exposes a raw transport, JSON, or native-store source.
-    cause: Option<Cause>,
-}
-
-impl EstablishmentError {
-    /// Builds a semantic failure without external text.
-    fn new(code: ErrorCode) -> Self {
-        Self { code, cause: None }
-    }
-
-    /// Retains a typed failure with a safe source boundary.
-    fn caused(code: ErrorCode, cause: Cause) -> Self {
-        Self {
-            code,
-            cause: Some(cause),
-        }
-    }
-
-    /// Returns the fixed category for consistent adapter results.
-    pub fn code(&self) -> ErrorCode {
-        self.code
-    }
-}
-
-impl fmt::Display for EstablishmentError {
-    /// Emits only the fixed code.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        formatter.write_str(self.code.as_str())
-    }
-}
-
-impl fmt::Debug for EstablishmentError {
-    /// Does not expose dependency or credential data.
-    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, formatter)
-    }
-}
-
-impl Error for EstablishmentError {
-    /// Ends the standard source chain at the safe typed wrapper.
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        self.cause.as_ref().map(|cause| cause as &dyn Error)
-    }
-}
-
-/// Borrows only the bounded service token; unknown response fields are discarded.
-#[derive(Deserialize)]
-struct ServiceResponse<'a> {
-    /// Absence is a rejected session, not HTTP-success evidence.
-    #[serde(borrow)]
-    token: Option<&'a str>,
-}
-
-/// Keeps only a Boolean classification, never an account identifier allocation.
-#[derive(Default)]
-struct PositiveIdentifier(bool);
-
-impl<'de> Deserialize<'de> for PositiveIdentifier {
-    /// Classifies positive numeric or decimal-string identifiers without retaining values.
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        /// Accepts only the approved numeric representations.
-        struct IdentifierVisitor;
-        impl<'de> Visitor<'de> for IdentifierVisitor {
-            type Value = PositiveIdentifier;
-
-            /// Gives a fixed expectation without reflecting input.
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("a numeric identifier")
-            }
-
-            /// Accepts a positive unsigned numeric identifier.
-            fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
-                Ok(PositiveIdentifier(value > 0))
-            }
-
-            /// Rejects negative or zero numeric identifiers.
-            fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Self::Value, E> {
-                Ok(PositiveIdentifier(value > 0))
-            }
-
-            /// Accepts bounded decimal digits only, with a positive representable value.
-            fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
-                Ok(PositiveIdentifier(
-                    !value.is_empty()
-                        && value.bytes().all(|byte| byte.is_ascii_digit())
-                        && value.parse::<u64>().is_ok_and(|number| number > 0),
-                ))
-            }
-        }
-        deserializer.deserialize_any(IdentifierVisitor)
-    }
-}
-
-/// Selects exactly the accepted authentication and expiry evidence from a TLS response.
-#[derive(Deserialize)]
-struct Claims {
-    /// Missing or nonpositive identifiers cannot validate an account session.
-    #[serde(
-        default,
-        rename = "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier"
-    )]
-    identifier: PositiveIdentifier,
-    /// Required future bearer expiry; not persisted as cookie expiry.
-    exp: Option<u64>,
-}
-
-/// Applies the accepted direct-service rule without independently verifying a signature.
-fn validate_response(bytes: &[u8], now: SystemTime) -> Result<(), EstablishmentError> {
-    let response: ServiceResponse<'_> = serde_json::from_slice(bytes).map_err(|error| {
-        EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Json(error))
-    })?;
-    let token = response
-        .token
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| EstablishmentError::new(ErrorCode::SessionRejected))?;
-    if token.len() > MAX_TOKEN_BYTES {
-        return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable));
-    }
-    let mut parts = token.split('.');
-    let [Some(header), Some(encoded_payload), Some(signature), None] =
-        [parts.next(), parts.next(), parts.next(), parts.next()]
-    else {
-        return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable));
-    };
-    let mut payload = None;
-    for (index, part) in [header, encoded_payload, signature].iter().enumerate() {
-        if part.is_empty() {
-            return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable));
-        }
-        let decoded = Zeroizing::new(URL_SAFE_NO_PAD.decode(part).map_err(|error| {
-            EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Encoding(error))
-        })?);
-        if index == 1 {
-            payload = Some(decoded);
-        }
-    }
-    let payload =
-        payload.ok_or_else(|| EstablishmentError::new(ErrorCode::ValidationUnavailable))?;
-    let claims: Claims = serde_json::from_slice(&payload).map_err(|error| {
-        EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Json(error))
-    })?;
-    if !claims.identifier.0 {
-        return Err(EstablishmentError::new(ErrorCode::SessionRejected));
-    }
-    let expiry = claims
-        .exp
-        .ok_or_else(|| EstablishmentError::new(ErrorCode::SessionRejected))?;
-    let expiry = UNIX_EPOCH
-        .checked_add(Duration::from_secs(expiry))
-        .ok_or_else(|| EstablishmentError::new(ErrorCode::ValidationUnavailable))?;
-    if expiry <= now {
-        return Err(EstablishmentError::new(ErrorCode::SessionExpired));
-    }
-    Ok(())
-}
-
-/// Sends exactly one bounded direct POST and drops the transient bearer after validation.
-async fn exchange(
-    cookie: &BrowserSessionCookie,
-    client: &Client,
-    url: &str,
-) -> Result<(), EstablishmentError> {
-    let value = std::str::from_utf8(&cookie.0)
-        .map_err(|_| EstablishmentError::new(ErrorCode::InvalidMaterial))?;
-    let headers = SessionHeaders::cookie("CobaltSession", value).map_err(|error| {
-        EstablishmentError::caused(ErrorCode::InvalidMaterial, Cause::Http(error))
-    })?;
-    let request = client
-        .post(url)
-        .header("accept", "application/json")
-        .header("content-type", "application/json")
-        .header("accept-encoding", "identity");
-    let mut response = headers.apply(request).send().await.map_err(|error| {
-        EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Transport(error))
-    })?;
-    match response.status() {
-        StatusCode::OK => {}
-        StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
-            return Err(EstablishmentError::new(ErrorCode::SessionRejected));
-        }
-        _ => return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable)),
-    }
-    let json_content = response
-        .headers()
-        .get(reqwest::header::CONTENT_TYPE)
-        .and_then(|header| header.to_str().ok())
-        .and_then(|header| header.split(';').next())
-        .is_some_and(|media| media.trim().eq_ignore_ascii_case("application/json"));
-    let identity_encoding = response
-        .headers()
-        .get(reqwest::header::CONTENT_ENCODING)
-        .is_none_or(|header| header.as_bytes().eq_ignore_ascii_case(b"identity"));
-    if !json_content || !identity_encoding {
-        return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable));
-    }
-    if response
-        .content_length()
-        .is_some_and(|length| length > MAX_RESPONSE_BYTES as u64)
-    {
-        return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable));
-    }
-    let mut body = Zeroizing::new(Vec::new());
-    while let Some(chunk) = response.chunk().await.map_err(|error| {
-        EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Transport(error))
-    })? {
-        if chunk.len() > MAX_RESPONSE_BYTES - body.len() {
-            return Err(EstablishmentError::new(ErrorCode::ValidationUnavailable));
-        }
-        body.extend_from_slice(&chunk);
-    }
-    validate_response(&body, SystemTime::now())
-}
-
 /// Maps failures before write admission without changing the prior credential.
 fn setup_error(error: AuthError) -> EstablishmentError {
     let code = match error.kind() {
@@ -631,7 +311,7 @@ where
         biased;
         _ = control.0.notification.notified() => return Err(control.0.stop(ErrorCode::Cancelled)),
         _ = tokio::time::sleep_until(control.0.deadline) => return Err(control.0.stop(ErrorCode::TimedOut)),
-        result = exchange(&input.cookie, &client, url) => result?,
+        result = exchange(&input.cookie, &client, url) => { result?; },
     }
     save(secret, &control.0, open).await
 }
@@ -652,14 +332,7 @@ pub async fn establish_session(
     input: SessionEstablishmentInput,
     control: LoginControl,
 ) -> Result<SavedSession, EstablishmentError> {
-    let client = direct_client_builder()
-        .https_only(true)
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(15))
-        .build()
-        .map_err(|error| {
-            EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Transport(error))
-        })?;
+    let client = super::service::client()?;
     establish_with(input, control, client, SERVICE_URL, || {
         SessionStore::open().map(Arc::new)
     })

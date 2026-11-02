@@ -3,7 +3,8 @@
 **Current status:** `beyond-gate-mcp` is a local read-only stdio server using the
 official Rust MCP SDK, rmcp. Startup, initialization, tool discovery, validation,
 and protocol errors are implemented. Live character, campaign, and book reads
-are not implemented.
+are not implemented. Windows `auth_validate` makes one fresh session check
+through the shared core without credential input.
 
 Valid calls to all seven read tools currently return unsupported-operation tool
 errors with `isError: true`. They do not return sample data or empty success
@@ -11,8 +12,8 @@ results. Success shapes in this reference are offline-tested adapter contracts,
 not evidence of successful live access.
 
 See [native installation](installation.md) for setup and
-[authentication limits](authentication.md#local-session-commands) for the blocked
-browser login and protected local session commands. The server does not provide
+[authentication limits](authentication.md#local-session-commands) for
+human-controlled Windows browser login and protected local session commands. The server does not provide
 a separate login or account-selection mechanism.
 
 ## Startup and lifecycle
@@ -95,13 +96,16 @@ the wire format. Do not treat a schema length check as a substitute for runtime
 token validation.
 
 All tools advertise `readOnlyHint: true`, `destructiveHint: false`,
-`idempotentHint: true`, and `openWorldHint: true`. These annotations do not grant
+and `openWorldHint: true`. The seven resource tools use `idempotentHint: true`.
+`auth_validate` uses `idempotentHint: false` because it makes a fresh service
+exchange and updates transient evidence. These annotations do not grant
 access or make live reads available. Tool results are data, not instructions.
 
 ## Tool index and CLI mapping
 
 | Tool | CLI equivalent | Success data shape |
 |------|----------------|--------------------|
+| [`auth_validate`](#auth_validate) | `beyond-gate auth validate` | Safe validation evidence |
 | [`character_list`](#character_list) | `beyond-gate character list --format json` | Array of character objects |
 | [`character_show`](#character_show) | `beyond-gate character show <id>` | One character object |
 | [`campaign_list`](#campaign_list) | `beyond-gate campaign list --format json` | Array of campaign objects |
@@ -114,6 +118,36 @@ The data shapes below match CLI JSON, not CLI table or TSV presentation.
 All example identifiers and source URLs are synthetic.
 
 ## Tools
+
+### auth_validate
+
+Takes the empty object `{}` and rejects every additional field before credential
+or service access. It does not accept cookies, passwords, tokens, or URLs.
+
+```json
+{"name": "auth_validate", "arguments": {}}
+```
+
+On Windows, loads the fixed protected entry and makes one fresh service exchange.
+Success content contains the same JSON as CLI `auth validate`:
+
+```json
+{"validation":"service_validated","expiry":"unknown","bearer_expiry":"future"}
+```
+
+This proves accepted bearer evidence at that moment, not a content-access grant,
+cookie expiry, or a new protected save. Missing or rejected sessions return
+safe tool errors and require human browser login outside MCP.
+macOS and Linux return `unsupported_platform` before credential or service access.
+Linux support is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+
+One lazily used core session owner serves the process. Startup, discovery, and
+unsupported resource reads do not open storage or contact the service.
+The core serializes validation and limits each operation to one exchange.
+It never retries the same rejected material automatically.
+MCP cancellation drops pending validation; rmcp can omit the cancelled response.
+The server remains available for subsequent requests.
+See [lifecycle limits and logout behavior](authentication.md#session-lifecycle).
 
 ### character_list
 

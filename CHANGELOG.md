@@ -7,6 +7,15 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Shared protected-session lifecycle with Windows CLI `auth validate` and
+  credential-free MCP `auth_validate`. Explicit checks make one fresh fixed-service
+  exchange. A process-local bearer cache uses service-issued expiry, rereads the
+  protected entry before reuse, stops after rejection, and never persists tokens.
+  Portable synthetic tests and actual CLI/MCP process checks cover validation
+  parity, bounded exchange, cancellation, denied access, and logout cleanup.
+  Local status remains stored-unverified. Cookie expiry and upstream revocation
+  remain unknown. Live resource reads remain unsupported; Linux implementation
+  is tracked in #52.
 - Completed Windows human-controlled browser login and protected handoff.
   Approved Chrome and Edge Dev tests passed actual product-console login,
   direct-service validation, native protected save, restart/status, logout,

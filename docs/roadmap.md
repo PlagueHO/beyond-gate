@@ -35,7 +35,8 @@ Authentication follow-up work remains open:
 | Issue | Scope | Current dependency |
 |-------|-------|--------------------|
 | [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | Windows implementation and #46 integration verified. Hosted CI and approved Chrome/Edge Dev login/save/restart/logout passed. Shared core contract agreed with #30. Code is on the feature branch, not merged. |
-| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Establishment boundary agreed with #29. Reusable session use and refresh remain separate; local presence is not upstream validation. No reciprocal completion dependency. |
+| [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Windows fresh validation and bounded process-local reuse implemented locally with portable synthetic and CLI/MCP process checks. Uses the agreed #29 establishment contract. Local presence is not upstream validation; live reads remain separate. |
+| [#52](https://github.com/PlagueHO/beyond-gate/issues/52) | Human-controlled Linux login and shared production session use | Reuse #30's portable core policy. Define Linux native-host and local-communication contracts; coordinate #34 and #46. Does not block #30's Windows work. |
 | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Windows product integration and separate browser CI passed against the accepted #29 contracts. Review and merge remain separate. |
 
 The user reported one successful
@@ -54,7 +55,8 @@ pairing, the cookie profile, direct-service validation, and trusted installed
 registration. The host, setup commands, and synthetic browser integration are
 implemented. Account observations and credential-store tests still need separate
 approval. The user agreed to the shared establishment boundary with #30;
-reusable session lifecycle remains #30 work.
+shared lifecycle now has portable synthetic checks and Windows production entry
+points under #30. Other-platform production login and session use remain deferred.
 
 Implement the HTTP boundary before full session exchange. Simple login remains
 an early required milestone, not an optional fallback. Library discovery and
@@ -80,7 +82,8 @@ operations, request budgets, stop conditions, and cleanup before such tests.
 
 The [Windows browser-login handoff](testing.md#approved-windows-product-login-verification)
 has approved product evidence. Live resource endpoints, schemas, entitlement
-checks, and reusable authenticated-session handling are not implemented.
+checks, and production resource adapters are not implemented. Shared Windows
+session validation and reuse have synthetic coverage, not new live-account evidence.
 Those technical limits still prevent
 working live reads in #4 through #6, dependent adapters, and a usable release.
 Offline work does not resolve them.
@@ -149,8 +152,11 @@ and hosted CI passed. Other platforms retain unsupported login.
 usability or expiry. `auth logout` removes the local entry but cannot revoke
 upstream sessions. Native-store runtime checks need separate approval; automated
 tests use synthetic stores. Windows establishment covers exchange failures,
-expired bearer evidence, and browser cancellation. Reusable session expiry,
-bounded refresh, and real CLI/MCP read parity remain deferred.
+expired bearer evidence, and browser cancellation.
+Issue #30 adds fresh CLI/MCP validation and process-local bearer reuse with
+one bounded exchange after bearer expiry. Cookie expiry and upstream revocation
+remain unknown. Synthetic process checks prove validation parity, not live
+resource reads. Linux support is tracked in #52.
 
 v1 is local-only and read-only. It needs simple authentication, consistent CLI/MCP
 results, source URLs, bounded book reads, and clear errors before a usable release.
