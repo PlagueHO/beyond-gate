@@ -633,6 +633,27 @@ This starts three separate Windows runners per browser. Normal push and PR
 checks still use one runner per browser and retain their existing check names.
 Each extra runner retains every required test and deadline. This mode increases
 hosted-runner use; it does not convert an earlier failure into a pass.
+Sampling mode also prepares Microsoft's debugger on the disposable runners.
+The [pinned SDK installer](https://learn.microsoft.com/windows/apps/windows-sdk/downloads)
+is checked against its SHA-256 checksum and Microsoft signature. Setup selects
+only Debugging Tools for Windows. It refuses to run on a normal local machine.
+
+After a launch failure, an optional [noninvasive stack probe](https://learn.microsoft.com/windows-hardware/drivers/debugger/noninvasive-debugging--user-mode-)
+checks the exact executable and owned profile argument. It holds the process
+handle open to prevent PID reuse. It reads at most 32 frames from debugger
+thread zero, then detaches. This temporarily suspends the already failed target.
+Process counters are collected first so this suspension cannot change them.
+Network symbol lookup and debugger shell commands are disabled. The probe
+does not create memory dumps, inspect values, or write raw debugger output.
+Its fixed buffers hold at most 16 KiB of output and 4 KiB of stderr.
+Only allowed module names and public export hints leave the collector.
+Export hints can be the nearest export, not the exact waiting function.
+They do not establish a cause without other evidence.
+The debugger has a three-second limit. Its wrapper has an eight-second limit.
+Neither limit changes a browser or protocol deadline. Probe failure remains
+explicit and does not clear the launch failure. Browser abort and cleanup
+still follow the probe. An owned synthetic Node.js process checks the actual
+probe on the hosted runners and must respond after debugger detach.
 
 ```powershell
 gh workflow run ci.yml --ref <branch> -f startup-sampling=true
