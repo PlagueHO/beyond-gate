@@ -609,6 +609,11 @@ known child-process types, Chrome module presence, and owned profile milestones.
 At most five ordered thread-state/wait-reason tuples distinguish individual
 waits without exposing thread IDs. These enumeration indices do not prove
 debugger-thread identity.
+During observation only, the collector can read public CodeView build IDs
+from an already loaded browser executable or ELF module. These IDs select
+public symbols, not accounts or profiles. At most two fixed module labels
+and hexadecimal build IDs leave the collector. PDB paths, image bytes, and
+process-memory values do not. This does not read browser files before launch.
 Fixed pipe byte counters, buffer lengths, and end/close flags distinguish
 transport progress without reading or retaining a protocol payload.
 The observer waits for Node.js's `spawn` event before checking the exact executable
