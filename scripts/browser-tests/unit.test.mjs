@@ -4,11 +4,13 @@ import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises"
 import { test } from "node:test";
 import { channel } from "node:diagnostics_channel";
 import { EventEmitter, once } from "node:events";
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
 import { launchBrowser, safeLaunchCause, safeBrowserLog, observeStartup, cleanupActions, withCleanup } from "./browser-launch.mjs";
 import { join } from "node:path";
+import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { cleanupProbe, TEST_ROOT } from "./run.mjs";
 
 /** Builds invented metadata, not a real browser or account snapshot. */
@@ -331,6 +333,7 @@ test("startup observation waits for spawn and ignores foreign executable or prof
   const inspected = [];
   const observer = observeStartup("owned.exe", directory, async (child) => {
     inspected.push(child);
+    child.stdio[3].bytesWritten = 128;
     return { status: "read", chrome_dll_loaded: false };
   });
   const children = [];
@@ -385,6 +388,39 @@ test("startup observer removes pending spawn handlers and reports absent observa
   assert.equal((await observer.read()).startup_process.status, "not-observed");
 });
 
+test("Windows stack filtering emits only allowed modules and public export hints", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async () => {
+  const text = [
+    "synthetic-private C:\\synthetic-private https://private.invalid",
+    "BG_STACK_BEGIN",
+    "00 00000001`00000002 00000003`00000004 ntdll!NtWaitForSingleObject+0x14",
+    "01 00000001`00000002 00000003`00000004 KERNELBASE!WaitForSingleObjectEx+0x99",
+    "02 00000001`00000002 00000003`00000004 chrome!synthetic_private+0x99",
+    "03 00000001`00000002 00000003`00000004 foreign!ReadFile+0x99",
+    "04 00000001`00000002 00000003`00000004 chrome+0x1234",
+    "BG_STACK_END",
+    "05 00000001`00000002 00000003`00000004 crypt32!CryptQueryObject+0x99",
+  ].join("\r\n");
+  const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
+    ". $env:BEYOND_GATE_TEST_STACK_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
+    "@((ConvertTo-SafeStartupStack $env:BEYOND_GATE_TEST_STACK), " +
+    "(ConvertTo-SafeStartupStack 'synthetic-private')) | ConvertTo-Json -Compress",
+  ], {
+    env: { ...process.env, BEYOND_GATE_TEST_STACK: text,
+      BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
+    timeout: 8000, maxBuffer: 4096,
+  });
+  assert.deepEqual(JSON.parse(stdout), [{
+    status: "read", thread: "debugger-thread-zero", frame_count: 5,
+    modules: ["ntdll", "kernelbase", "chrome"],
+    export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx"],
+  }, { status: "unreadable" }]);
+  for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
+    assert.equal(stdout.includes(privateText), false);
+  }
+});
+
 test("launch failure aborts and waits for its owned browser before directory cleanup", async () => {
   const attempted = [];
   const cause = new Error("Target.setDiscoverTargets timed out");
@@ -431,7 +467,7 @@ test("owned browser termination and directory failures preserve the primary laun
 });
 
 test("Windows startup inspection reports only fixed state for an owned synthetic process", {
-  skip: process.platform !== "win32", timeout: 15000,
+  skip: process.platform !== "win32", timeout: 20000,
 }, async (context) => {
   await mkdir(TEST_ROOT, { recursive: true });
   const directory = await mkdtemp(join(TEST_ROOT, "chrome-"));
@@ -448,9 +484,10 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
   await mkdir(join(directory, "profile", "Crashpad"), { recursive: true });
   await writeFile(join(directory, "profile", "Local State"), "{}");
   child = spawn(process.execPath, [
-    "--input-type=module", "--eval", "console.log('ready'); setInterval(() => {}, 1000)",
+    "--input-type=module", "--eval",
+    "console.log('ready'); process.stdin.once('data', () => console.log('resumed')); setInterval(() => {}, 1000)",
     "--", `--user-data-dir=${join(directory, "profile")}`,
-  ], { stdio: ["ignore", "pipe", "pipe"] });
+  ], { stdio: ["pipe", "pipe", "pipe"] });
   const [ready] = await Promise.race([
     once(child.stdout, "data"),
     once(child, "error").then(([error]) => { throw error; }),
@@ -469,6 +506,16 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
   assert.ok(result.startup_process.wait_reasons.every(Number.isInteger));
   assert.equal(JSON.stringify(result).includes(directory), false);
   assert.equal(JSON.stringify(result).includes(process.execPath), false);
+  if (process.env.BEYOND_GATE_STARTUP_STACKS === "1") {
+    assert.equal(result.startup_stack.status, "read");
+    assert.ok(result.startup_stack.frame_count > 0 && result.startup_stack.frame_count <= 32);
+    assert.ok(result.startup_stack.modules.includes("ntdll"));
+  } else {
+    assert.deepEqual(result.startup_stack, { status: "not-requested" });
+  }
+  const resumed = once(child.stdout, "data", { signal: AbortSignal.timeout(3000) });
+  child.stdin.write("continue");
+  assert.equal((await resumed)[0].toString().trim(), "resumed");
 });
 
 test("launch failure reads at most 16 KiB of the owned log without printing its payload", async (context) => {

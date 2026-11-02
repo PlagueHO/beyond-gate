@@ -72,6 +72,8 @@ jobs:
     name: Synthetic native messaging (${{ matrix.browser }}, Windows)${{ matrix.startup_sample > 1 && format(' - startup {0}', matrix.startup_sample) || '' }}
     runs-on: windows-latest
     timeout-minutes: 20
+    env:
+      BEYOND_GATE_STARTUP_STACKS: ${{ inputs.startup-sampling && '1' || '0' }}
     strategy:
       fail-fast: false
       matrix:
@@ -102,6 +104,9 @@ jobs:
           exit 0
       - name: Install pinned browser development dependencies
         run: npm ci --prefix .\scripts\browser-tests --ignore-scripts --no-audit --no-fund
+      - name: Prepare bounded startup stack sampling
+        if: inputs.startup-sampling
+        run: .\scripts\browser-tests\install-startup-debugger.ps1
       - name: Check synthetic extension behavior
         run: npm test --prefix .\scripts\browser-tests
       - name: Lint development-only native host

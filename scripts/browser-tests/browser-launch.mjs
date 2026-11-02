@@ -61,8 +61,24 @@ async function startupProcess(child, path, directory) {
   }
 }
 
+/** Collects bounded public stack hints only in explicitly selected hosted sampling runs. */
+async function startupStack(child, path, directory) {
+  if (process.env.BEYOND_GATE_STARTUP_STACKS !== "1") return { status: "not-requested" };
+  if (child.exitCode !== null || child.signalCode !== null) return { status: "exited" };
+  try {
+    const { stdout } = await execute("pwsh", [
+      "-NoProfile", "-File", fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)),
+      "-BrowserProcessId", String(child.pid), "-BrowserExecutable", path,
+      "-RunDirectory", directory, "-DeadlineUnixMs", String(Date.now() + 6000),
+    ], { timeout: 8000, maxBuffer: 4096, windowsHide: true });
+    return JSON.parse(stdout);
+  } catch (error) {
+    return { status: "unreadable", ...safeLaunchCause(error) };
+  }
+}
+
 /** Observes only the exact owned launch; never forwards raw stderr or process details. */
-export function observeStartup(path, directory, inspect = startupProcess) {
+export function observeStartup(path, directory, inspect = startupProcess, inspectStack = startupStack) {
   const pending = new Map();
   const buffer = Buffer.alloc(16384);
   let bytes = 0;
@@ -89,19 +105,23 @@ export function observeStartup(path, directory, inspect = startupProcess) {
       const log = safeBrowserLog(buffer.subarray(0, bytes).toString("utf8"));
       const write = owned?.stdio?.[3];
       const read = owned?.stdio?.[4];
+      const pipe = write && read ? {
+        status: "observed",
+        written_bytes: write.bytesWritten, write_buffered_bytes: write.writableLength,
+        write_destroyed: write.destroyed, write_ended: write.writableEnded,
+        received_bytes: read.bytesRead, read_buffered_bytes: read.readableLength,
+        read_destroyed: read.destroyed, read_ended: read.readableEnded,
+      } : { status: "not-observed" };
+      const processState = owned ? await inspect(owned, path, directory) : { status: "not-observed" };
+      const stack = owned ? await inspectStack(owned, path, directory) : { status: "not-observed" };
       return {
         startup_stderr_bytes_read: bytes,
         startup_stderr_limit_reached: bytes === buffer.length,
         startup_stderr_sources: log.startup_log_sources,
         startup_stderr_reasons: log.startup_log_reasons,
-        startup_pipe: write && read ? {
-          status: "observed",
-          written_bytes: write.bytesWritten, write_buffered_bytes: write.writableLength,
-          write_destroyed: write.destroyed, write_ended: write.writableEnded,
-          received_bytes: read.bytesRead, read_buffered_bytes: read.readableLength,
-          read_destroyed: read.destroyed, read_ended: read.readableEnded,
-        } : { status: "not-observed" },
-        startup_process: owned ? await inspect(owned, path, directory) : { status: "not-observed" },
+        startup_pipe: pipe,
+        startup_process: processState,
+        startup_stack: stack,
       };
     },
     /** Waits for the owned aborted process before its profile can be removed. */
