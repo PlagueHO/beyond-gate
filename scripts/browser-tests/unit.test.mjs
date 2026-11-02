@@ -7,7 +7,10 @@ import { EventEmitter, once } from "node:events";
 import { execFile, spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
-import { launchBrowser, safeLaunchCause, safeBrowserLog, observeStartup, cleanupActions, withCleanup } from "./browser-launch.mjs";
+import {
+  launchBrowser, reportPublicBrowserSymbols, safeLaunchCause, safeBrowserLog,
+  observeStartup, cleanupActions, withCleanup,
+} from "./browser-launch.mjs";
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { fileURLToPath } from "node:url";
@@ -649,6 +652,48 @@ test("Windows stack filtering emits only allowed modules and public export hints
   }, [32, 8]]);
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
+  }
+});
+
+test("post-case public symbol reporting is explicit, bounded, and manual-only", async () => {
+  const records = [];
+  const child = { spawnfile: "synthetic-private.exe" };
+  const browser = { process: () => child };
+  const symbols = [{ module: "chrome_elf", status: "read", pdb_id: "0123456789ABCDEF0123456789ABCDEF1" }];
+  const report = (record) => records.push(record);
+  await reportPublicBrowserSymbols("chrome", {
+    process: () => assert.fail("default runs must not inspect post-case metadata"),
+  }, TEST_ROOT, { enabled: false, report });
+  assert.deepEqual(records, []);
+  await reportPublicBrowserSymbols("chrome", browser, TEST_ROOT, {
+    enabled: true, report,
+    inspect: async (...args) => {
+      assert.deepEqual(args, [child, child.spawnfile, TEST_ROOT]);
+      return { status: "read", public_module_symbols: symbols, unrelated: "synthetic-private" };
+    },
+  });
+  assert.deepEqual(records.pop(), {
+    status: "public-build-identities", browser: "chrome", phase: "after-browser-cases",
+    inspection: { status: "read", public_module_symbols: symbols },
+  });
+  for (const [target, state] of [
+    [browser, { status: "unreadable", cause_reason: "access-denied" }],
+    [{ process: () => null }, { status: "not-observed" }],
+  ]) {
+    await reportPublicBrowserSymbols("chrome", target, TEST_ROOT, {
+      enabled: true, report, inspect: async () => state,
+    });
+    assert.deepEqual(records.pop(), {
+      status: "public-build-identities-unavailable", browser: "chrome",
+      phase: "after-browser-cases", inspection: state,
+    });
+  }
+  for (const [file, completed] of [
+    ["run.mjs", "const cases = await nativeCases("],
+    ["product-flow.mjs", "const results = await cases("],
+  ]) {
+    const source = await readFile(new URL(file, import.meta.url), "utf8");
+    assert.ok(source.indexOf("await reportPublicBrowserSymbols(") > source.indexOf(completed));
   }
 });
 
