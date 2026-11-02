@@ -1,10 +1,11 @@
 /** Offline checks for the development-only extension's narrow synthetic scope. */
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, stat } from "node:fs/promises";
 import { test } from "node:test";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
 import { launchBrowser, safeLaunchCause, cleanupActions, withCleanup } from "./browser-launch.mjs";
 import { join } from "node:path";
+import { cleanupProbe, TEST_ROOT } from "./run.mjs";
 
 /** Builds invented metadata, not a real browser or account snapshot. */
 function cookie() {
@@ -320,12 +321,14 @@ test("missing executable and version failures never attempt browser launch", asy
 test("known startup errors are classified without copying arbitrary causes or identifiers", () => {
   for (const [error, reason, method, code] of [
     [Object.assign(new Error("Waiting for target failed"), { name: "TimeoutError" }), "timed-out"],
+    [Object.assign(new Error("Connection closed."), { name: "ConnectionClosedError" }), "connection-closed"],
     [new Error("Target.setAutoAttach timed out. private diagnostic"), "timed-out", "Target.setAutoAttach"],
     [new Error("The browser is already running for C:\\private"), "profile-in-use"],
     [new Error("The browser cannot write to C:\\private"), "profile-not-writable"],
     [Object.assign(new Error("private diagnostic"), { code: "EPERM" }), "access-denied"],
     [new Error("Failed to launch the browser process:  Code: 21\nstderr: private"), "process-launch-failed", undefined, 21],
     [Object.assign(new Error("Protocol error (Private.secret): private"), { name: "ProtocolError" }), "protocol-error"],
+    [new Error("Protocol error (Target.setAutoAttach): private"), "protocol-error", "Target.setAutoAttach"],
     [new Error("synthetic-secret".repeat(10000)), "unclassified"],
     [null, "unclassified"],
   ]) {
@@ -364,4 +367,23 @@ test("cleanup-only failure rejects success and successful cleanup preserves oper
     assert.deepEqual(error.cleanup, ["fixture-directory"]);
     return true;
   });
+});
+
+test("browser and proxy cleanup failures do not prevent owned directory removal", async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "chrome-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  let connectionsClosed = false;
+  await assert.rejects(cleanupProbe("chrome", {
+    close: async () => { throw new Error("synthetic-private browser"); },
+  }, {
+    close: (callback) => callback(new Error("synthetic-private proxy")),
+    closeAllConnections: () => { connectionsClosed = true; },
+  }, directory), (error) => {
+    assert.deepEqual(error.cleanup, ["browser", "proxy"]);
+    assert.equal(error.message, "owned fixture cleanup failed");
+    return true;
+  });
+  assert.equal(connectionsClosed, true);
+  await assert.rejects(stat(directory), { code: "ENOENT" });
 });

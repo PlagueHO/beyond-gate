@@ -61,7 +61,7 @@ export function safeLaunchCause(error) {
   const message = typeof error?.message === "string" ? error.message.slice(0, 8192) : "";
   const method = /^\(?([A-Za-z]+\.[A-Za-z]+)\)?(?: timed out|:)/.exec(message)?.[1] ??
     /^Protocol error \(([A-Za-z]+\.[A-Za-z]+)\):/.exec(message)?.[1];
-  const kind = ["TimeoutError", "ProtocolError", "TargetCloseError"].includes(error?.name)
+  const kind = ["TimeoutError", "ProtocolError", "TargetCloseError", "ConnectionClosedError"].includes(error?.name)
     ? error.name : "Error";
   let reason = "unclassified";
   if (error?.code === "ENOENT") reason = "executable-missing";
@@ -70,10 +70,10 @@ export function safeLaunchCause(error) {
   else if (message.startsWith("The browser is already running for ")) reason = "profile-in-use";
   else if (kind === "TimeoutError" || message.includes("timed out") ||
     message.startsWith("Timed out")) reason = "timed-out";
-  else if (kind === "TargetCloseError" || message.includes("Target closed") ||
+  else if (kind === "TargetCloseError" || kind === "ConnectionClosedError" || message.includes("Target closed") ||
     message.includes("Connection closed")) reason = "connection-closed";
   else if (message.startsWith("Failed to launch the browser process:")) reason = "process-launch-failed";
-  else if (kind === "ProtocolError") reason = "protocol-error";
+  else if (kind === "ProtocolError" || message.startsWith("Protocol error (")) reason = "protocol-error";
   const exit = /^Failed to launch the browser process:\s+Code: (-?\d{1,10})\b/.exec(message);
   return {
     cause_kind: kind, cause_reason: reason,
@@ -87,7 +87,7 @@ export async function launchBrowser(name, options, dependencies = {}) {
   const {
     findExecutable = executable, inspect = versions,
     launch = (options) => puppeteer.launch(options),
-    report = (record) => console.log(JSON.stringify(record)),
+    report = (record) => console.error(JSON.stringify(record)),
     now = () => performance.now(),
   } = dependencies;
   const started = now();

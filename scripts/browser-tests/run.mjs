@@ -177,11 +177,12 @@ async function probe(name) {
   const directory = await mkdtemp(join(TEST_ROOT, `${name}-`));
   let proxy;
   let browser;
-  let phase = "browser-start";
+  let phase = "proxy-start";
   return await withCleanup(async () => {
     try {
       proxy = await rejectingProxy();
       const address = proxy.address();
+      phase = "browser-start";
       browser = await launchBrowser(name, {
         directory, proxyPort: address.port, protocolTimeout: 15000,
       });
@@ -231,16 +232,16 @@ async function probe(name) {
 }
 
 /** Reports each required browser separately and fails rather than silently skipping it. */
-async function main() {
+export async function main({ build = buildHost, run = probe } = {}) {
   assert.equal(process.platform, "win32", "this feasibility test supports Windows only");
   const args = process.argv.slice(2);
   assert.ok(args.length === 0 || (args.length === 2 && args[0] === "--browser"));
   const names = args.length === 0 ? ["chrome", "edge"] : [args[1]];
   assert.ok(names.every((name) => name === "chrome" || name === "edge"));
-  await buildHost();
+  await build();
   for (const name of names) {
     try {
-      console.log(JSON.stringify({ status: "passed", ...await probe(name) }));
+      console.log(JSON.stringify({ status: "passed", ...await run(name) }));
     } catch (error) {
       console.error(JSON.stringify({
         browser: name, status: "failed", error: error.message,

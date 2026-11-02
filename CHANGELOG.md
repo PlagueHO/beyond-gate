@@ -290,6 +290,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Synthetic Chrome/Edge runners now report safe installed-browser startup
+  metadata and bounded launch-cause categories. Primary failures remain visible
+  if cleanup also fails, and all owned cleanup actions are attempted. These
+  diagnostics do not establish the hosted Chrome startup cause tracked in #55.
 - Windows synthetic login service now restores blocking mode on accepted
   sockets before bounded HTTP reads. Delayed or fragmented requests no longer
   fail with `WouldBlock`. Fixed fixture diagnostics identify safe I/O categories
