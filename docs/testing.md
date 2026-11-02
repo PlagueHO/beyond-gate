@@ -606,6 +606,9 @@ and owned profile. It releases all observation listeners after each launch.
 Process inspection has a separate five-second diagnostic limit after failure;
 it does not extend a browser or protocol deadline. No raw process paths,
 command lines, module lists, or stderr leave the collector.
+An offline Windows test checks this collector against an owned synthetic
+Node.js process and invented profile markers. It checks actual process access
+on the hosted runner without starting another browser or reading account data.
 
 Cleanup still attempts every owned resource. If both an operation and cleanup fail, the operation remains
 the primary error and `cleanup_failures` reports fixed resource labels.

@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { test } from "node:test";
 import { channel } from "node:diagnostics_channel";
-import { EventEmitter } from "node:events";
+import { EventEmitter, once } from "node:events";
+import { spawn } from "node:child_process";
 import { PassThrough } from "node:stream";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
 import { launchBrowser, safeLaunchCause, safeBrowserLog, observeStartup, cleanupActions, withCleanup } from "./browser-launch.mjs";
@@ -311,12 +312,14 @@ test("owned startup logs expose only known source names and fixed cause categori
   const result = safeBrowserLog(
     "[1:2:timestamp:ERROR:devtools_pipe_handler.cc(12)] " +
     "Remote debugging pipe file descriptors are not open. synthetic-secret\n" +
+    "[1:2:timestamp:ERROR:chrome\\app\\main_dll_loader_win.cc:42] " +
+    "Failed to load Chrome DLL from C:\\synthetic-private\n" +
     "[1:2:timestamp:ERROR:synthetic_secret.cc(99)] " +
     "https://private.invalid C:\\synthetic-private synthetic-secret\n",
   );
   assert.deepEqual(result, {
-    startup_log_sources: ["devtools_pipe_handler.cc"],
-    startup_log_reasons: ["debugging-pipe-unavailable"],
+    startup_log_sources: ["devtools_pipe_handler.cc", "main_dll_loader_win.cc"],
+    startup_log_reasons: ["debugging-pipe-unavailable", "browser-dll-load-failed"],
   });
   assert.equal(JSON.stringify(result).includes("synthetic"), false);
   assert.equal(JSON.stringify(result).includes("private"), false);
@@ -371,6 +374,47 @@ test("startup observer removes pending spawn handlers and reports absent observa
   observer.stop();
   assert.equal(child.listenerCount("spawn"), 0);
   assert.equal((await observer.read()).startup_process.status, "not-observed");
+});
+
+test("Windows startup inspection reports only fixed state for an owned synthetic process", {
+  skip: process.platform !== "win32", timeout: 15000,
+}, async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "chrome-"));
+  const observer = observeStartup(process.execPath, directory);
+  let child;
+  context.after(async () => {
+    observer.stop();
+    if (child && child.exitCode === null && child.signalCode === null) {
+      child.kill();
+      await once(child, "exit");
+    }
+    await rm(directory, { recursive: true, force: true });
+  });
+  await mkdir(join(directory, "profile", "Crashpad"), { recursive: true });
+  await writeFile(join(directory, "profile", "Local State"), "{}");
+  child = spawn(process.execPath, [
+    "--input-type=module", "--eval", "console.log('ready'); setInterval(() => {}, 1000)",
+    "--", `--user-data-dir=${join(directory, "profile")}`,
+  ], { stdio: ["ignore", "pipe", "pipe"] });
+  const [ready] = await Promise.race([
+    once(child.stdout, "data"),
+    once(child, "error").then(([error]) => { throw error; }),
+  ]);
+  assert.equal(ready.toString().trim(), "ready");
+  const result = await observer.read();
+  assert.equal(result.startup_process.status, "read");
+  assert.equal(result.startup_process.chrome_dll_loaded, false);
+  assert.equal(result.startup_process.chrome_elf_loaded, false);
+  assert.equal(result.startup_process.profile_created, true);
+  assert.equal(result.startup_process.crashpad_created, true);
+  assert.equal(result.startup_process.local_state_created, true);
+  assert.deepEqual(result.startup_process.child_kinds, []);
+  assert.ok(result.startup_process.thread_count > 0);
+  assert.ok(result.startup_process.cpu_ms >= 0);
+  assert.ok(result.startup_process.wait_reasons.every(Number.isInteger));
+  assert.equal(JSON.stringify(result).includes(directory), false);
+  assert.equal(JSON.stringify(result).includes(process.execPath), false);
 });
 
 test("launch failure reads at most 16 KiB of the owned log without printing its payload", async (context) => {
