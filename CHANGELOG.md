@@ -7,6 +7,20 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Shared API call catalog with stable IDs, service bases, authentication evidence,
+  known inputs and outputs, limits, and unresolved contracts. Links from the README,
+  roadmap, and survey make the research reusable across implementation issues.
+- Sourced D&D Beyond API survey covering the observed Rules menu, character-builder
+  game data, character/campaign reads, and related services. It separates approved
+  live observations, public client routes, third-party candidates, and unresolved
+  book contracts. A later approved three-page inspection records library metadata
+  and selected-book HTML outline/section structure. A separate native probe accepts
+  source HTML but stops at a chapter redirect. A user-requested repeat identifies
+  a marketplace or purchase target without following it. Pinned MrPrimate importer,
+  public proxy, and adventure companion research adds mobile book-access and
+  download candidates. It distinguishes whole-book delivery from bounded reads.
+  Library-size, native chapter, and fresh-access contracts remain unresolved.
+  No production resource reads are added.
 - Shared protected-session lifecycle with Windows CLI `auth validate` and
   credential-free MCP `auth_validate`. Explicit checks make one fresh fixed-service
   exchange. A process-local bearer cache uses service-issued expiry, rereads the

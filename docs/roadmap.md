@@ -87,6 +87,18 @@ session validation and reuse have synthetic coverage, not new live-account evide
 Those technical limits still prevent
 working live reads in #4 through #6, dependent adapters, and a usable release.
 Offline work does not resolve them.
+The [API survey](api-survey.md) records earlier approved character/campaign observations,
+public Rules listing metadata, client-derived routes, and selected-book HTML structure.
+The [shared API call catalog](api-catalog.md) indexes these calls with stable IDs,
+authentication evidence, known contracts, limits, and gaps for reuse by other issues.
+A separate native probe accepted source HTML with bearer-only authentication but stopped
+at a chapter redirect. A user-requested repeat identified a marketplace or purchase target.
+Native chapter reads, fresh access, and bounded library transport
+remain unresolved.
+Pinned MrPrimate importer and companion source identifies a separate mobile book-download
+channel and candidate access-metadata routes. These were not live-tested and do not provide
+a bounded section API. Whole-book download and content caching remain outside the design.
+This evidence does not add production resource operations or approve bulk collection.
 The [HTTP boundary](architecture.md#http-boundary) implements offline request
 policy with no built-in upstream hosts or resource endpoints.
 The [interactive-use evaluation](architecture.md#interactive-use-and-evaluation-assumption)

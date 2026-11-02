@@ -200,6 +200,9 @@ See the [roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and
 [authentication design](docs/authentication.md). See [AGENTS.md](AGENTS.md) for
 agent operations and [.github/copilot-instructions.md](.github/copilot-instructions.md)
 for Rust authoring rules.
+Use the [shared API call catalog](docs/api-catalog.md) to plan resource work.
+It separates implemented authentication, observed reads, unverified candidates, and
+excluded integration calls. The [API survey](docs/api-survey.md) retains supporting evidence.
 
 ## License
 
