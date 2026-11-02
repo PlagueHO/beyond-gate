@@ -667,6 +667,9 @@ Fixed Boolean fields identify debugger gallery, engine, symbol-path, and
 stack-marker progress. The setup step also reads debugger help without a
 target under a ten-second limit. It reports command-line switch names only.
 Neither check reports raw debugger output.
+After stack capture, the debugger also lists public settings help within
+the same three-second limit. Only gallery-related configuration names
+from that help can leave the collector. No setting values are reported.
 
 ```powershell
 gh workflow run ci.yml --ref <branch> -f startup-sampling=true -f startup-stacks=true

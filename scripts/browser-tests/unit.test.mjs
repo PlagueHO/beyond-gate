@@ -402,13 +402,18 @@ test("Windows stack filtering emits only allowed modules and public export hints
     "03 00000001`00000002 00000003`00000004 foreign!ReadFile+0x99",
     "04 00000001`00000002 00000003`00000004 chrome+0x1234",
     "BG_STACK_END",
+    "BG_SETTINGS_BEGIN",
+    "Extensions.AllowNugetExeUpdate: Enables updates",
+    "Extensions.ExtensionSearchPath: C:\\synthetic-privateGallery\\secret",
+    "BG_SETTINGS_END",
     "05 00000001`00000002 00000003`00000004 crypt32!CryptQueryObject+0x99",
   ].join("\r\n");
   const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
     ". $env:BEYOND_GATE_TEST_STACK_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
     "@((ConvertTo-SafeStartupStack $env:BEYOND_GATE_TEST_STACK), " +
     "(ConvertTo-SafeStartupStack 'synthetic-private'), " +
-    "(Get-SafeProbeProgress $env:BEYOND_GATE_TEST_STACK)) | ConvertTo-Json -Compress",
+    "(Get-SafeProbeProgress $env:BEYOND_GATE_TEST_STACK), " +
+    "@(Get-PublicGallerySettingNames $env:BEYOND_GATE_TEST_STACK)) | ConvertTo-Json -Compress",
   ], {
     env: { ...process.env, BEYOND_GATE_TEST_STACK: text,
       BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
@@ -421,7 +426,7 @@ test("Windows stack filtering emits only allowed modules and public export hints
   }, { status: "unreadable", reason: "markers-not-found" }, {
     gallery_preparing: true, gallery_waiting: false, engine_banner: false,
     symbol_path_reported: false, stack_started: true, stack_completed: true,
-  }]);
+  }, ["Extensions.AllowNugetExeUpdate"]]);
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
   }
@@ -601,6 +606,7 @@ test("Windows startup inspection reports only fixed state for an owned synthetic
   assert.equal(JSON.stringify(result).includes(directory), false);
   assert.equal(JSON.stringify(result).includes(process.execPath), false);
   if (process.env.BEYOND_GATE_STARTUP_STACKS === "1") {
+    context.diagnostic(JSON.stringify(result.startup_stack));
     assert.equal(result.startup_stack.status, "read", JSON.stringify(result.startup_stack));
     assert.ok(result.startup_stack.frame_count > 0 && result.startup_stack.frame_count <= 32);
     assert.ok(result.startup_stack.modules.includes("ntdll"));
