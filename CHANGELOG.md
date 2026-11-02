@@ -295,6 +295,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   startup state. Primary failures remain visible
   if cleanup also fails, and all owned cleanup actions are attempted. These
   diagnostics do not establish the hosted Chrome startup cause tracked in #55.
+  Manual stack-diagnostic runs can take one early, non-suspending observation
+  before driver shutdown. Its timing and phase stay separate from the failure.
+  Existing browser deadlines and normal CI behavior remain unchanged.
 - Failed synthetic browser launches now abort and await their owned browser
   process before removing the profile. This prevents directory cleanup from
   racing Puppeteer's asynchronous failure shutdown. Cleanup failures still

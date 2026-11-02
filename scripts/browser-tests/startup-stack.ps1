@@ -4,7 +4,8 @@ param(
     [Parameter(Mandatory)][int]$BrowserProcessId,
     [Parameter(Mandatory)][string]$BrowserExecutable,
     [Parameter(Mandatory)][string]$RunDirectory,
-    [long]$DeadlineUnixMs = [long]::MaxValue
+    [long]$DeadlineUnixMs = [long]::MaxValue,
+    [switch]$KeepRunning
 )
 
 $ErrorActionPreference = 'Stop'
@@ -182,7 +183,8 @@ try {
     }
     $commands += '.echo BG_SYMBOLS_BEGIN;lm m ntdll;.echo BG_SYMBOLS_END;qd'
     foreach ($argument in @(
-        '-pv', '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell', '-kqm',
+        $(if ($KeepRunning) { '-pvr' } else { '-pv' }),
+        '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell', '-kqm',
         '-netsyms:no', '-y', $RunDirectory, '-c',
         $commands
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
@@ -196,6 +198,7 @@ try {
         stdout_limit_reached = $capture.streams[0].bytes -ge $output.Length
         stderr_limit_reached = $capture.streams[1].bytes -ge $errors.Length
         target_exited_during_probe = $browser.HasExited
+        capture_mode = $(if ($KeepRunning) { 'non-suspending' } else { 'suspended' })
     }
     $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
     $counts.progress = Get-SafeProbeProgress -Text $text
@@ -206,7 +209,9 @@ try {
         $counts | ConvertTo-Json -Compress
     } else {
         if ($probe.ExitCode -ne 0) {
-            @{ status = 'debugger-failed'; exit_code = $probe.ExitCode } | ConvertTo-Json -Compress
+            $counts.status = 'debugger-failed'
+            $counts.exit_code = $probe.ExitCode
+            $counts | ConvertTo-Json -Compress
         } else {
             $stage = 'parse'
             $stack = ConvertTo-SafeStartupStack -Text $text
