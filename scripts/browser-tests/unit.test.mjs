@@ -246,6 +246,7 @@ test("both browser runners retain launch isolation and their exact protocol dead
       assert.equal(options.enableExtensions, true);
       assert.equal(options.timeout, 15000);
       assert.equal(options.protocolTimeout, protocolTimeout);
+      assert.equal(options.signal.aborted, false);
       assert.equal(options.dumpio, undefined);
       assert.equal(options.env.CHROME_LOG_FILE, join("synthetic-owned-directory", "startup.log"));
       assert.deepEqual(options.args, [
@@ -341,6 +342,9 @@ test("startup observation waits for spawn and ignores foreign executable or prof
     ]) {
       const child = new EventEmitter();
       child.stderr = new PassThrough();
+      child.stdio = [undefined, undefined, child.stderr,
+        { bytesWritten: 64, writableLength: 64, destroyed: false, writableEnded: false },
+        { bytesRead: 0, readableLength: 0, destroyed: false, readableEnded: false }];
       children.push(child);
       channel("child_process").publish({ process: child });
       child.spawnfile = file;
@@ -357,6 +361,11 @@ test("startup observation waits for spawn and ignores foreign executable or prof
     assert.equal(result.startup_stderr_limit_reached, true);
     assert.deepEqual(result.startup_stderr_reasons, ["debugging-pipe-unavailable"]);
     assert.deepEqual(result.startup_process, { status: "read", chrome_dll_loaded: false });
+    assert.deepEqual(result.startup_pipe, {
+      status: "observed", written_bytes: 64, write_buffered_bytes: 64,
+      write_destroyed: false, write_ended: false, received_bytes: 0,
+      read_buffered_bytes: 0, read_destroyed: false, read_ended: false,
+    });
     assert.equal(JSON.stringify(result).includes("synthetic"), false);
     assert.equal(JSON.stringify(result).includes("foreign"), false);
   } finally {
@@ -374,6 +383,51 @@ test("startup observer removes pending spawn handlers and reports absent observa
   observer.stop();
   assert.equal(child.listenerCount("spawn"), 0);
   assert.equal((await observer.read()).startup_process.status, "not-observed");
+});
+
+test("launch failure aborts and waits for its owned browser before directory cleanup", async () => {
+  const attempted = [];
+  const cause = new Error("Target.setDiscoverTargets timed out");
+  const dependencies = launchDependencies(async (options) => {
+    options.signal.addEventListener("abort", () => attempted.push("abort"), { once: true });
+    throw cause;
+  });
+  dependencies.observe = () => ({
+    read: async () => { attempted.push("inspect"); return {}; },
+    waitForExit: async () => { attempted.push("exit"); },
+    stop: () => attempted.push("release"),
+  });
+  await assert.rejects(withCleanup(() => launchBrowser("chrome", {
+    directory: TEST_ROOT, proxyPort: 12345, protocolTimeout: 15000,
+  }, dependencies), async () => { attempted.push("directory"); }), (error) => {
+    assert.equal(error.cause, cause);
+    assert.equal(error.launch.startup_cleanup, "passed");
+    return true;
+  });
+  assert.deepEqual(attempted, ["inspect", "abort", "exit", "release", "directory"]);
+});
+
+test("owned browser termination and directory failures preserve the primary launch cause", async () => {
+  const cause = new Error("Target.setDiscoverTargets timed out");
+  const cleanup = new Error("synthetic-private process details");
+  const dependencies = launchDependencies(async () => { throw cause; });
+  dependencies.observe = () => ({
+    read: async () => ({}),
+    waitForExit: async () => { throw cleanup; },
+    stop: () => {},
+  });
+  await assert.rejects(withCleanup(() => launchBrowser("chrome", {
+    directory: TEST_ROOT, proxyPort: 12345, protocolTimeout: 15000,
+  }, dependencies), () => cleanupActions([
+    ["fixture-directory", async () => { throw new Error("synthetic-private directory"); }],
+  ])), (error) => {
+    assert.equal(error.cause, cause);
+    assert.equal(error.cleanupCause, cleanup);
+    assert.equal(error.launch.startup_cleanup, "failed");
+    assert.deepEqual(error.cleanup, ["browser-process", "fixture-directory"]);
+    assert.equal(JSON.stringify(error.launch).includes("synthetic-private"), false);
+    return true;
+  });
 });
 
 test("Windows startup inspection reports only fixed state for an owned synthetic process", {

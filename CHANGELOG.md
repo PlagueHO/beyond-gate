@@ -295,6 +295,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   startup state. Primary failures remain visible
   if cleanup also fails, and all owned cleanup actions are attempted. These
   diagnostics do not establish the hosted Chrome startup cause tracked in #55.
+- Failed synthetic browser launches now abort and await their owned browser
+  process before removing the profile. This prevents directory cleanup from
+  racing Puppeteer's asynchronous failure shutdown. Cleanup failures still
+  fail the run and preserve the original launch cause.
 - Windows synthetic login service now restores blocking mode on accepted
   sockets before bounded HTTP reads. Delayed or fragmented requests no longer
   fail with `WouldBlock`. Fixed fixture diagnostics identify safe I/O categories
