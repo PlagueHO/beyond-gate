@@ -5,6 +5,7 @@ import { test } from "node:test";
 import { channel } from "node:diagnostics_channel";
 import { EventEmitter, once } from "node:events";
 import { execFile, spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { PassThrough } from "node:stream";
 import { checkSyntheticCookie, syntheticHandoff, SYNTHETIC } from "./extension/service_worker.js";
 import {
@@ -611,6 +612,9 @@ test("Windows stack filtering emits only allowed modules and public export hints
     "05 00000001`00000002 00000003`00000004 ntdll!LdrpDrainWorkQueue+0x12",
     "06 00000001`00000002 00000003`00000004 ntdll!NtSetInformationVirtualMemory+0x12",
     "07 00000001`00000002 00000003`00000004 KERNELBASE!PrefetchVirtualMemory+0x12",
+    "08 00000001`00000002 00000003`00000004 chrome_exe!base::PreReadFile+0x12",
+    "09 00000001`00000002 00000003`00000004 chrome_elf!third_party_dlls::Init+0x12",
+    "0a 00000001`00000002 00000003`00000004 chrome_elf!synthetic_private::function<private value>+0x99",
     "BG_STACK_END",
     "05 00000001`00000002 00000003`00000004 crypt32!CryptQueryObject+0x99",
   ].join("\r\n");
@@ -634,14 +638,16 @@ test("Windows stack filtering emits only allowed modules and public export hints
     timeout: 8000, maxBuffer: 4096,
   });
   assert.deepEqual(JSON.parse(stdout), [{
-    status: "read", thread: "debugger-thread-zero", frame_count: 8,
-    modules: ["ntdll", "kernelbase", "chrome"],
+    status: "read", thread: "debugger-thread-zero", frame_count: 11,
+    modules: ["ntdll", "kernelbase", "chrome", "chrome_exe", "chrome_elf"],
     export_hints: ["NtWaitForSingleObject", "WaitForSingleObjectEx", "PrefetchVirtualMemory"],
     frame_hints: [
       ["ntdll", "NtWaitForSingleObject"], ["kernelbase", "WaitForSingleObjectEx"],
       ["chrome", "other"], ["other", "other"], ["chrome", "other"],
       ["ntdll", "LdrpDrainWorkQueue"],
       ["ntdll", "NtSetInformationVirtualMemory"], ["kernelbase", "PrefetchVirtualMemory"],
+      ["chrome_exe", "base::PreReadFile"], ["chrome_elf", "third_party_dlls::Init"],
+      ["chrome_elf", "other"],
     ],
   }, { status: "unreadable", reason: "markers-not-found" }, {
     gallery_preparing: true, gallery_waiting: false, engine_banner: false,
@@ -653,6 +659,75 @@ test("Windows stack filtering emits only allowed modules and public export hints
   for (const privateText of ["synthetic", "private", "foreign", "00000001", "0x99", "CryptQueryObject"]) {
     assert.equal(stdout.includes(privateText), false);
   }
+});
+
+test("browser symbol status requires matched module rows within its markers", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async () => {
+  const rows = [
+    "BG_BROWSER_SYMBOLS_BEGIN",
+    "00000001`00000002 00000003`00000004 chrome (private pdb symbols) C:\\synthetic-private\\chrome.exe.pdb",
+    "00000001`00000002 00000003`00000004 chrome_elf (pdb symbols) C:\\synthetic-private\\chrome_elf.dll.pdb",
+    "BG_BROWSER_SYMBOLS_END",
+  ].join("\r\n");
+  const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
+    ". $env:BEYOND_GATE_TEST_STACK_SCRIPT -BrowserProcessId 1 -BrowserExecutable fake -RunDirectory fake; " +
+    "@((Get-SafeBrowserSymbolStatus $env:BEYOND_GATE_TEST_STACK), " +
+    "(Get-SafeBrowserSymbolStatus ($env:BEYOND_GATE_TEST_STACK.Replace('pdb symbols', 'export symbols'))), " +
+    "(Get-SafeBrowserSymbolStatus ($env:BEYOND_GATE_TEST_STACK.Replace('chrome (', 'foreign (').Replace('chrome_elf (', 'foreign ('))), " +
+    "(Get-SafeBrowserSymbolStatus ($env:BEYOND_GATE_TEST_STACK.Replace('chrome.exe.pdb', 'chrome_elf.dll.pdb'))), " +
+    "(Get-SafeBrowserSymbolStatus ($env:BEYOND_GATE_TEST_STACK.Replace('BG_BROWSER_SYMBOLS_END', 'missing')))) " +
+    "| ConvertTo-Json -Compress",
+  ], {
+    env: { ...process.env, BEYOND_GATE_TEST_STACK: rows,
+      BEYOND_GATE_TEST_STACK_SCRIPT: fileURLToPath(new URL("./startup-stack.ps1", import.meta.url)) },
+    timeout: 8000, maxBuffer: 4096,
+  });
+  assert.deepEqual(JSON.parse(stdout), [
+    { chrome_exe: true, chrome_elf: true },
+    ...Array.from({ length: 2 }, () => ({ chrome_exe: false, chrome_elf: false })),
+    { chrome_exe: false, chrome_elf: true },
+    { chrome_exe: false, chrome_elf: false },
+  ]);
+  assert.equal(stdout.includes("synthetic-private"), false);
+  assert.equal(stdout.includes(".pdb"), false);
+  assert.equal(stdout.includes("00000001"), false);
+});
+
+test("public startup symbol verification rejects changed bytes and oversized files", {
+  skip: process.platform !== "win32", timeout: 10000,
+}, async (context) => {
+  await mkdir(TEST_ROOT, { recursive: true });
+  const directory = await mkdtemp(join(TEST_ROOT, "symbols-"));
+  context.after(() => rm(directory, { recursive: true, force: true }));
+  const path = join(directory, "invented.pdb");
+  await writeFile(path, "invented");
+  const hash = createHash("sha256").update("invented").digest("hex").toUpperCase();
+  const { stdout } = await promisify(execFile)("pwsh", ["-NoProfile", "-Command",
+    ". $env:BEYOND_GATE_TEST_SETUP_SCRIPT; " +
+    "Assert-PublicStartupSymbol $env:BEYOND_GATE_TEST_SYMBOL $env:BEYOND_GATE_TEST_HASH; " +
+    "$states = @('verified'); " +
+    "try { Assert-PublicStartupSymbol $env:BEYOND_GATE_TEST_SYMBOL ('0' * 64); throw 'accepted changed bytes' } " +
+    "catch { $states += $_.Exception.Message }; " +
+    "$file = [IO.File]::OpenWrite($env:BEYOND_GATE_TEST_SYMBOL); " +
+    "try { $file.SetLength(134217728) } finally { $file.Dispose() }; " +
+    "$boundaryHash = (Get-FileHash -LiteralPath $env:BEYOND_GATE_TEST_SYMBOL -Algorithm SHA256).Hash; " +
+    "Assert-PublicStartupSymbol $env:BEYOND_GATE_TEST_SYMBOL $boundaryHash; $states += 'boundary-verified'; " +
+    "$file = [IO.File]::OpenWrite($env:BEYOND_GATE_TEST_SYMBOL); " +
+    "try { $file.SetLength(134217729) } finally { $file.Dispose() }; " +
+    "try { Assert-PublicStartupSymbol $env:BEYOND_GATE_TEST_SYMBOL $env:BEYOND_GATE_TEST_HASH; throw 'accepted oversized file' } " +
+    "catch { $states += $_.Exception.Message }; $states | ConvertTo-Json -Compress",
+  ], {
+    env: { ...process.env, BEYOND_GATE_TEST_SYMBOL: path, BEYOND_GATE_TEST_HASH: hash,
+      BEYOND_GATE_TEST_SETUP_SCRIPT: fileURLToPath(new URL("./install-startup-debugger.ps1", import.meta.url)) },
+    timeout: 8000, maxBuffer: 4096,
+  });
+  assert.deepEqual(JSON.parse(stdout), [
+    "verified",
+    "Public browser symbol checksum or size verification failed.",
+    "boundary-verified",
+    "Public browser symbol checksum or size verification failed.",
+  ]);
 });
 
 test("post-case public symbol reporting is explicit, bounded, and manual-only", async () => {
@@ -693,6 +768,7 @@ test("post-case public symbol reporting is explicit, bounded, and manual-only", 
     ["product-flow.mjs", "const results = await cases("],
   ]) {
     const source = await readFile(new URL(file, import.meta.url), "utf8");
+    assert.ok(source.includes(completed));
     assert.ok(source.indexOf("await reportPublicBrowserSymbols(") > source.indexOf(completed));
   }
 });

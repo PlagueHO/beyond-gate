@@ -1,8 +1,21 @@
 # Installs only the pinned debugger on a disposable GitHub Actions Windows runner.
 [CmdletBinding()]
-param()
+param([ValidateSet('chrome', 'edge')][string]$Browser = 'chrome')
 
 $ErrorActionPreference = 'Stop'
+
+# Verifies public symbol bytes without returning a cache path or raw tool output.
+function Assert-PublicStartupSymbol {
+    param([string]$Path, [string]$ExpectedHash)
+
+    if ((Get-Item -LiteralPath $Path).Length -gt 134217728 -or
+        (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash -cne $ExpectedHash) {
+        throw 'Public browser symbol checksum or size verification failed.'
+    }
+}
+
+if ($MyInvocation.InvocationName -eq '.') { return }
+
 if (!$IsWindows -or $env:GITHUB_ACTIONS -ne 'true' -or !$env:RUNNER_TEMP) {
     throw 'Debugger setup requires a disposable GitHub Actions Windows runner.'
 }
@@ -69,3 +82,33 @@ try {
     $errors.Dispose()
 }
 Write-Output 'Startup debugger and verified Windows loader symbols are available; probe network symbol lookup remains disabled.'
+if ($Browser -eq 'chrome') {
+    $curlVersion = & curl.exe --disable --version
+    if ($LASTEXITCODE -ne 0 -or $curlVersion[0] -notmatch '^curl (\d+\.\d+\.\d+)' -or
+        [version]$Matches[1] -lt [version]'8.4.0') {
+        throw 'Bounded public symbol preparation requires curl 8.4.0 or later.'
+    }
+    $browserCache = Join-Path $env:RUNNER_TEMP 'beyond-gate-startup-chrome-symbols'
+    $null = [IO.Directory]::CreateDirectory($browserCache)
+    # These public identities were observed after completed Chrome 156.0.8078.80 cases.
+    # No installed browser file is read during this network-only preparation.
+    foreach ($entry in @(
+        @{ file = 'chrome.exe.pdb'; id = '5E4C58B1741C6F834C4C44205044422E1'
+           hash = '407BC1B7B5A33DEA7D036488BF36E9D48E5141D35B4ACEBE1E8C17876429757B' },
+        @{ file = 'chrome_elf.dll.pdb'; id = '2C1043DE62C22AE14C4C44205044422E1'
+           hash = 'B30757F72CEAACD6C073FFCB7947F3BCB709D01170E9E771670709A31072CFE5' }
+    )) {
+        $path = Join-Path $browserCache $entry.file
+        try {
+            $url = 'https://chromium-browser-symsrv.commondatastorage.googleapis.com/' +
+                "$($entry.file)/$($entry.id)/$($entry.file)"
+            & curl.exe --disable --silent --fail --max-time 30 --max-filesize 134217728 --proto '=https' --output $path $url 2>$null
+            if ($LASTEXITCODE -ne 0) { throw 'Public browser symbol download failed.' }
+            Assert-PublicStartupSymbol -Path $path -ExpectedHash $entry.hash
+        } catch {
+            if (Test-Path -LiteralPath $path -PathType Leaf) { Remove-Item -LiteralPath $path }
+            throw
+        }
+    }
+    Write-Output 'Two pinned public Chrome 156.0.8078.80 symbol files are available; other builds must still match in the debugger.'
+}

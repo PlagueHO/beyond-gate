@@ -111,7 +111,7 @@ jobs:
         run: npm ci --prefix .\scripts\browser-tests --ignore-scripts --no-audit --no-fund
       - name: Prepare bounded startup stack sampling
         if: inputs.startup-stacks
-        run: .\scripts\browser-tests\install-startup-debugger.ps1
+        run: .\scripts\browser-tests\install-startup-debugger.ps1 -Browser '${{ matrix.browser }}'
       - name: Check synthetic extension behavior
         run: npm test --prefix .\scripts\browser-tests
       - name: Lint development-only native host

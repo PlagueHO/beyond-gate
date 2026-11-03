@@ -670,6 +670,18 @@ missing or ambiguous symbols and can still collect export-only hints.
 It does not select an arbitrary PDB, download symbols during capture, or
 report that missing symbols loaded.
 
+On Chrome runners, this manual preparation also downloads two pinned public
+PDBs from the [official Chrome symbol server](https://www.chromium.org/developers/how-tos/debugging-on-windows/#symbol-server).
+Their public build IDs were observed after Chrome `156.0.8078.80` completed
+its required cases. Each download has a thirty-second limit and a 128 MiB
+size limit. SHA-256 checks verify the pinned bytes. This network-only step
+does not read installed browser files or run Chrome. Other browser builds
+can have different IDs. With these local files available, CDB requires
+exact symbol matching. Separate flags report actual PDB-loaded module rows,
+not just prepared files. Missing or unmatched symbols are not a cause finding.
+Fixed C++ hints cover early DLL initialization and file preread. Unknown C++
+functions keep their frame position but leave only an `other` hint.
+
 An optional [noninvasive stack probe](https://learn.microsoft.com/windows-hardware/drivers/debugger/noninvasive-debugging--user-mode-)
 checks the exact executable and owned profile argument. It holds the process
 handle open to prevent PID reuse. It reads at most 32 frames from debugger
