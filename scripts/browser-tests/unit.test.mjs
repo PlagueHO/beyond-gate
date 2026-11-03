@@ -694,6 +694,13 @@ test("browser symbol status requires matched module rows within its markers", {
   assert.equal(stdout.includes("00000001"), false);
 });
 
+test("symbol policy preserves CodeView checks and Windows export fallback", async () => {
+  const source = await readFile(new URL("./startup-stack.ps1", import.meta.url), "utf8");
+  assert.ok(source.includes("$commands = '.symopt-0x4c0;.reload /f ntdll.dll;.echo BG_STACK_BEGIN;"));
+  assert.equal(source.includes("ArgumentList.Add('-ses')"), false);
+  assert.equal(source.includes(".reload /i"), false);
+});
+
 test("public startup symbol verification rejects changed bytes and oversized files", {
   skip: process.platform !== "win32", timeout: 10000,
 }, async (context) => {
@@ -1064,6 +1071,14 @@ async function checkOwnedStartup(context, keepRunning = false) {
     assert.ok(result.startup_stack.frame_count > 0 && result.startup_stack.frame_count <= 32);
     assert.ok(result.startup_stack.modules.includes("ntdll"));
     assert.equal(result.startup_stack.os_symbols_loaded, true);
+    assert.equal(result.startup_stack.symbol_match_policy, "codeview-required");
+    const frames = [
+      ...result.startup_stack.frame_hints,
+      ...result.startup_stack.secondary_threads.flatMap((thread) => thread.frame_hints),
+    ];
+    assert.ok(frames.some(([module, symbol]) =>
+      module === "kernel32" && symbol === "BaseThreadInitThunk"),
+    "Windows export fallback must remain available without a kernel32 PDB");
     assert.ok(result.startup_stack.secondary_threads.length > 0 &&
       result.startup_stack.secondary_threads.length <= 4);
     for (const thread of result.startup_stack.secondary_threads) {
