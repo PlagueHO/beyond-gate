@@ -227,7 +227,9 @@ try {
     $probe.StartInfo.CreateNoWindow = $true
     $probe.StartInfo.RedirectStandardOutput = $true
     $probe.StartInfo.RedirectStandardError = $true
-    $commands = '.reload /f ntdll.dll;.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;'
+    # Keep CodeView matching, but allow exports when a module has no PDB.
+    # Clear EXACT_SYMBOLS, IGNORE_CVREC, and LOAD_ANYTHING before loading symbols.
+    $commands = '.symopt-0x4c0;.reload /f ntdll.dll;.echo BG_STACK_BEGIN;~0s;kn 0n32;.echo BG_STACK_END;'
     for ($index = 1; $index -le [math]::Min(4, $browser.Threads.Count - 1); $index++) {
         $commands += ".echo BG_STACK_${index}_BEGIN;~${index}s;kn 0n8;.echo BG_STACK_${index}_END;"
     }
@@ -239,7 +241,6 @@ try {
         '-netsyms:no', '-y', $symbolPath, '-c',
         $commands
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
-    if ($browserSymbolFiles) { $probe.StartInfo.ArgumentList.Add('-ses') }
     $started = $probe.Start()
     if (!$started) { throw 'Cannot start the owned stack probe.' }
     $stage = 'read'
@@ -253,7 +254,7 @@ try {
         capture_mode = $(if ($KeepRunning) { 'non-suspending' } else { 'suspended' })
         symbol_preparation = $symbolPreparation
         browser_symbol_files = $browserSymbolFiles
-        exact_symbol_matching = [bool]$browserSymbolFiles
+        symbol_match_policy = 'codeview-required'
     }
     $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
     $counts.progress = Get-SafeProbeProgress -Text $text

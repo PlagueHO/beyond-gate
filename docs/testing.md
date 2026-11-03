@@ -676,9 +676,14 @@ Their public build IDs were observed after Chrome `156.0.8078.80` completed
 its required cases. Each download has a thirty-second limit and a 128 MiB
 size limit. SHA-256 checks verify the pinned bytes. This network-only step
 does not read installed browser files or run Chrome. Other browser builds
-can have different IDs. With these local files available, CDB requires
-exact symbol matching. Separate flags report actual PDB-loaded module rows,
-not just prepared files. Missing or unmatched symbols are not a cause finding.
+can have different IDs. CDB must honor CodeView records and cannot use
+mismatched-PDB overrides. Its normal export fallback remains available for
+modules without PDBs. The stricter global `SYMOPT_EXACT_SYMBOLS` option is
+disabled because it also removes useful Windows export hints.
+See [symbol options](https://learn.microsoft.com/windows-hardware/drivers/debugger/symbol-options)
+and [module reload matching](https://learn.microsoft.com/windows-hardware/drivers/debuggercmds/-reload--reload-module-).
+Separate flags report actual PDB-loaded module rows, not just prepared files.
+Missing or unmatched symbols are not a cause finding.
 Fixed C++ hints cover early DLL initialization and file preread. Unknown C++
 functions keep their frame position but leave only an `other` hint.
 
