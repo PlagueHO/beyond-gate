@@ -17,8 +17,8 @@ function ConvertTo-SafeStartupStack {
     $region = [regex]::Match($Text, '(?ms)^BG_STACK_BEGIN\r?\n(.*?)^BG_STACK_END\r?$')
     if (!$region.Success) { return @{ status = 'unreadable'; reason = 'markers-not-found' } }
     $allowedModules = @(
-        'ntdll', 'kernelbase', 'kernel32', 'chrome', 'chrome_elf', 'msedge',
-        'msedge_elf', 'wintrust', 'crypt32', 'cryptbase', 'bcrypt', 'ncrypt',
+        'ntdll', 'kernelbase', 'kernel32', 'chrome', 'chrome_exe', 'chrome_elf', 'msedge',
+        'msedge_exe', 'msedge_elf', 'wintrust', 'crypt32', 'cryptbase', 'bcrypt', 'ncrypt',
         'rpcrt4', 'combase', 'advapi32', 'user32', 'win32u', 'node'
     )
     $allowedExports = @(
@@ -42,8 +42,18 @@ function ConvertTo-SafeStartupStack {
         'NtWaitForWorkViaWorkerFactory', 'TppWorkerThread', 'NtRemoveIoCompletionEx',
         'RtlpWaitOnCriticalSection', 'RtlpWaitOnAddress', 'RtlpWaitOnAddressWithTimeout'
     )
+    $allowedBrowserFunctions = @(
+        'DllMain', '_DllMainCRTStartup', 'SignalInitializeCrashReporting',
+        'elf_security::EarlyBrowserSecurity', 'elf_crash::InitializeCrashReporting',
+        'third_party_dlls::LeaveSetupBeacon', 'third_party_dlls::Init',
+        'third_party_dlls::InitFromFile', 'third_party_dlls::InitLogs',
+        'third_party_dlls::ApplyHook',
+        'install_static::InitializeProductDetailsForPrimaryModule',
+        'install_static::InitializeProcessType',
+        'MainDllLoader::Launch', 'base::PreReadFile', 'base::MemoryMappedFile::Initialize'
+    )
     $frames = @([regex]::Matches($region.Groups[1].Value,
-        '(?mi)^[ \t]*[0-9a-f]{2,3}[ \t]+[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+([a-z0-9_]+)(?:!([a-z0-9_]+))?(?:\+0x[0-9a-f]+)?[ \t]*\r?$') |
+        '(?mi)^[ \t]*[0-9a-f]{2,3}[ \t]+[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+([a-z0-9_]+)(?:!([^\r\n]*?))?(?:\+0x[0-9a-f]+)?[ \t]*\r?$') |
         Select-Object -First $MaxFrames)
     if ($frames.Count -eq 0) { return @{ status = 'unreadable'; reason = 'frames-not-found' } }
     @{
@@ -65,12 +75,32 @@ function ConvertTo-SafeStartupStack {
             if ($module -cnotin $allowedModules) { $module = 'other' }
             if ($module -eq 'other' -or
                 ($symbol -cnotin $allowedExports -and
-                !($module -eq 'ntdll' -and $symbol -cin $allowedLoaderFunctions))) {
+                !($module -eq 'ntdll' -and $symbol -cin $allowedLoaderFunctions) -and
+                !($module -cin @('chrome', 'chrome_exe', 'chrome_elf', 'msedge', 'msedge_exe', 'msedge_elf') -and
+                    $symbol -cin $allowedBrowserFunctions))) {
                 $symbol = 'other'
             }
             ,@($module, $symbol)
         })
     }
+}
+
+# Requires a PDB-loaded row, not a filename elsewhere in the debugger output.
+function Get-SafeBrowserSymbolStatus {
+    param([string]$Text)
+
+    $region = [regex]::Match($Text, '(?ms)^BG_BROWSER_SYMBOLS_BEGIN\r?\n(.*?)^BG_BROWSER_SYMBOLS_END\r?$')
+    $result = @{}
+    foreach ($entry in @(
+        @{ label = 'chrome_exe'; module = 'chrome(?:_exe)?'; file = 'chrome.exe.pdb' },
+        @{ label = 'chrome_elf'; module = 'chrome_elf'; file = 'chrome_elf.dll.pdb' }
+    )) {
+        $result[$entry.label] = $region.Success -and [regex]::IsMatch($region.Groups[1].Value,
+            '(?mi)^[ \t]*[0-9a-f`]+[ \t]+[0-9a-f`]+[ \t]+' + $entry.module + '[ \t]+' +
+            '\((?:private )?pdb symbols\)[ \t]+[^\r\n]*[\\/]' +
+            [regex]::Escape($entry.file) + '[ \t]*\r?$')
+    }
+    return $result
 }
 
 # Drains both pipes after capture limits so a full buffer cannot block debugger exit.
@@ -171,9 +201,18 @@ try {
     }
     $stage = 'symbols'
     $symbolPreparation = 'not-prepared'
+    $symbolPath = $RunDirectory
+    $browserSymbolFiles = 0
     if ($env:GITHUB_ACTIONS -eq 'true' -and $env:RUNNER_TEMP) {
         $symbolCache = Join-Path $env:RUNNER_TEMP 'beyond-gate-startup-ntdll-symbols'
         $symbolPreparation = Copy-PreparedStartupSymbols -Cache $symbolCache -Directory $RunDirectory
+        $browserCache = Join-Path $env:RUNNER_TEMP 'beyond-gate-startup-chrome-symbols'
+        if (Test-Path -LiteralPath $browserCache -PathType Container) {
+            $browserSymbolFiles = @('chrome.exe.pdb', 'chrome_elf.dll.pdb' | Where-Object {
+                Test-Path -LiteralPath (Join-Path $browserCache $_) -PathType Leaf
+            }).Count
+            if ($browserSymbolFiles) { $symbolPath += ";$browserCache" }
+        }
     }
     $remaining = [math]::Min(3000,
         $DeadlineUnixMs - [DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds() - 1000)
@@ -192,13 +231,15 @@ try {
     for ($index = 1; $index -le [math]::Min(4, $browser.Threads.Count - 1); $index++) {
         $commands += ".echo BG_STACK_${index}_BEGIN;~${index}s;kn 0n8;.echo BG_STACK_${index}_END;"
     }
-    $commands += '.echo BG_SYMBOLS_BEGIN;lm m ntdll;.echo BG_SYMBOLS_END;qd'
+    $commands += '.echo BG_SYMBOLS_BEGIN;lm m ntdll;.echo BG_SYMBOLS_END;'
+    $commands += '.echo BG_BROWSER_SYMBOLS_BEGIN;lm m chrome*;.echo BG_BROWSER_SYMBOLS_END;qd'
     foreach ($argument in @(
         $(if ($KeepRunning) { '-pvr' } else { '-pv' }),
         '-p', "$BrowserProcessId", '-sins', '-nosqm', '-noshell', '-kqm',
-        '-netsyms:no', '-y', $RunDirectory, '-c',
+        '-netsyms:no', '-y', $symbolPath, '-c',
         $commands
     )) { $probe.StartInfo.ArgumentList.Add($argument) }
+    if ($browserSymbolFiles) { $probe.StartInfo.ArgumentList.Add('-ses') }
     $started = $probe.Start()
     if (!$started) { throw 'Cannot start the owned stack probe.' }
     $stage = 'read'
@@ -211,6 +252,8 @@ try {
         target_exited_during_probe = $browser.HasExited
         capture_mode = $(if ($KeepRunning) { 'non-suspending' } else { 'suspended' })
         symbol_preparation = $symbolPreparation
+        browser_symbol_files = $browserSymbolFiles
+        exact_symbol_matching = [bool]$browserSymbolFiles
     }
     $text = [Text.Encoding]::UTF8.GetString($output.GetBuffer(), 0, [int]$output.Position)
     $counts.progress = Get-SafeProbeProgress -Text $text
@@ -230,6 +273,7 @@ try {
             $symbols = [regex]::Match($text, '(?ms)^BG_SYMBOLS_BEGIN\r?\n(.*?)^BG_SYMBOLS_END\r?$')
             $stack.os_symbols_loaded = $symbols.Success -and
                 $symbols.Groups[1].Value -match '\bntdll[ \t]+\((?:private )?pdb symbols\)'
+            $stack.browser_symbols_loaded = Get-SafeBrowserSymbolStatus -Text $text
             $stack.secondary_threads = @(foreach ($index in 1..4) {
                 $region = [regex]::Match($text, "(?ms)^BG_STACK_${index}_BEGIN\r?\n(.*?)^BG_STACK_${index}_END\r?$")
                 if ($region.Success) {
