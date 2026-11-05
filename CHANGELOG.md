@@ -7,6 +7,40 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Windows live `book list` and MCP `book_list` discovery through the shared session.
+  Fixed public configuration, catalog, and ownership GETs have no retries, redirects, or automatic
+  continuation. Complete discovery is bounded to 30 seconds and 1 MiB per response.
+  A separate 1,000-record raw catalog cap preserves the 100-record ownership cap.
+  Validated supplied marketplace URLs provide metadata attribution only when
+  book paths are absent. Account-level `shared_with_account` evidence remains
+  separate from purchase and context-specific sharing. Missing ownership stays
+  unknown. Synthetic transport and actual CLI/MCP processes check parity,
+  sharing loss, denied access, malformed data, limits, and safe failures.
+  Public category IDs exclude only the named `Hidden Sources` category; ownership
+  IDs and evidence still validate against public configuration. The user-approved
+  Web-catalog result scope excludes configured ownership-only sources without
+  inventing book metadata or reporting access denial. Invalid visible
+  title whitespace is cleaned before strict validation. Valid titles and URL rules
+  remain unchanged; configuration supplies no replacement titles or links.
+  Earlier native CLI acceptance failed catalog validation; MCP was skipped.
+  Later metadata diagnostics passed. Fresh native CLI acceptance passed catalog
+  preparation but failed ownership/catalog matching; MCP was skipped.
+  A later diagnostic classified seven configured ownership-only IDs; the approved
+  Web scope is now implemented and checked offline. Unconfigured IDs and invalid
+  evidence still fail. Fresh native CLI/MCP acceptance passed with matching metadata
+  and evidence for 169 Web-catalog books: 36 purchased and 133 unknown.
+  No live sharing was observed; content reads stay unsupported.
+  Unsupported platforms stop before any network request. Help and MCP
+  instructions report the implemented Web-catalog scope.
+- First-party library JSON route evidence for source metadata and current-account
+  ownership. A separately approved three-attempt native check accepted both JSON
+  responses within 1 MiB. An ignored, acknowledgment-gated Windows probe has
+  synthetic checks for redaction, byte/request caps, and no retries or redirects.
+  A separately approved follow-up verified the source count but stopped at the
+  existing 100-record page cap and reported unmatched book-path rules.
+  The user then approved the separate catalog cap, supplied marketplace attribution,
+  and account-level sharing without an invented context. Neither probe scope
+  authorizes another request. The 1 MiB cap is unchanged.
 - Shared API call catalog with stable IDs, service bases, authentication evidence,
   known inputs and outputs, limits, and unresolved contracts. Links from the README,
   roadmap, and survey make the research reusable across implementation issues.

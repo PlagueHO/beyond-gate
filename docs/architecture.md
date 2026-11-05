@@ -12,15 +12,15 @@ Windows terminal pairing and session validation plus local status/logout,
 resource command parsing and formatting, shell completion generation, and local
 MCP start/install commands. The start
 command runs the sibling MCP binary. The install command previews user-level
-configuration changes and writes only after confirmation. Its resource commands
-use the core's explicit unsupported live entry points. Synthetic success paths
-exist only in tests.
-There is no built-in resource host list, resource endpoint, or account model.
+configuration changes and writes only after confirmation. Library discovery
+uses fixed public classification and two protected metadata routes. Other resource
+commands use explicit unsupported live entry points. Synthetic source selection
+exists only in compiled tests. No account-content model or content cache is added.
 Windows browser setup and native/core completion are implemented.
 Approved real Chrome and Edge Dev login and protected-save checks passed.
-The MCP adapter serves local stdio with seven unsupported resource read tools
+The MCP adapter serves local stdio with `book_list`, six unsupported resource read tools,
 and a credential-free Windows `auth_validate` tool.
-Resource reads do not construct an HTTP client or send upstream requests.
+Other resource reads do not construct an HTTP client or send upstream requests.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -166,7 +166,8 @@ MCP read tools call the same core operations and do not read credentials or
 create a separate session identity. The credential-free `auth_validate` tool
 and CLI `auth validate` make fresh checks through one shared core API.
 Native store loading and deletion run in blocking workers off executor threads.
-Startup, discovery, and unsupported resource operations do not access storage.
+Startup, MCP tool discovery, and unsupported resource operations do not access storage.
+Explicit library discovery uses the same protected-session lifecycle.
 
 Windows browser handoff, direct exchange, rejection, cancellation, and protected
 save have [approved product evidence](testing.md#approved-windows-product-login-verification).
@@ -301,15 +302,83 @@ These tests establish policy behavior only, not a D&D Beyond data contract.
 The core `library` module implements partial offline work for
 [#4](https://github.com/PlagueHO/beyond-gate/issues/4).
 `assemble_library` validates explicitly supplied normalized pages and returns a
-`LibrarySnapshot` only when the complete sequence succeeds. `discover_library`
-always returns `LibraryError::UnsupportedDiscovery` before any HTTP client
-construction, network request, or credential access. The CLI's `book list`
-reports that failure. No live book discovery or MCP tool is enabled.
+`LibrarySnapshot` only when the complete sequence succeeds. Live `discover_library`
+uses the separate verified JSON contract described below. Both paths reuse
+metadata validation, duplicate merging, and conflict handling.
 
 These are Beyond Gate's internal types, not an upstream response schema or an
 import-file format. They do not establish that the caller's observations are
-fresh, truthful, or authorized. No runtime host, discovery endpoint, JSON parser,
-credential input, automatic page fetch, or persistent library is added.
+fresh, truthful, or authorized. Offline assembly performs no fetches. Neither path
+accepts credential input or creates a persistent library.
+
+### Live library discovery
+
+Windows `discover_library(&Session)` first reads credential-free GET
+`https://www.dndbeyond.com/api/config/json`, then GET
+`https://api.dndbeyond.com/library/sources?platform=Web` and GET
+`https://api.dndbeyond.com/library/sources/me`. The shared lifecycle loads the
+fixed protected session before each authenticated GET and keeps the derived bearer in memory.
+The whole operation has a 30-second deadline. Each GET has no retries and a
+1 MiB response cap. There are at most five HTTP attempts: three GETs and at most
+one exchange for each authenticated GET. Normal bearer reuse needs four attempts.
+No redirects, proxy, compression, automatic continuation, or content fetches occur.
+
+Public configuration supplies only source and category identities. Both arrays
+have a 1,000-record cap. IDs must be positive and unique, categories must have
+valid names, and each source must reference a known category. Exactly one category
+must match `Hidden Sources`, ignoring ASCII case. Every library ID must match
+configuration. Within the Web catalog, only that explicit category is excluded from output.
+Missing links, release flags, and ownership are not selection rules.
+
+The complete unpaged catalog has its own 1,000-raw-record cap. Ownership retains
+the 100-record cap. Both require `items` and numeric `totalCount`, with exact
+count equality. Known continuation fields are rejected. Catalog metadata and
+conflicts are checked before the ownership GET. Every ownership ID must match
+validated public configuration; unknown evidence types fail even for excluded
+or ownership-only sources. The complete Web catalog defines the output scope.
+Configured sources absent from that catalog do not create books, even when
+ownership grants purchase or sharing. Their absence is not an access denial.
+This follows the user-approved scope after the
+[ownership diagnostic and public-client comparison](api-survey.md#approved-web-catalog-result-scope).
+Raw evidence and output observations each
+have a 1,000-entry cap before duplicate removal. Responses are not split into
+invented normalized pages.
+
+Invalid visible titles have whitespace trimmed and collapsed before strict
+validation. Valid titles remain unchanged. Empty titles and non-whitespace
+control characters still fail. Configuration titles and links are never substitutes.
+Conflicting hidden-source records also fail. All limits apply before selection.
+
+`owned` supplies purchase evidence; `shared` supplies account-level sharing
+without a campaign/context identifier. Catalog ownership and free flags are
+ignored as grants. Missing or empty current-account ownership remains unknown.
+Source attribution uses a validated `relativeSlugPath` or `sources/dnd/{slug}`.
+When the path is absent, a supplied validated HTTPS `marketplace.dndbeyond.com`
+URL can provide metadata attribution. Malformed paths do not trigger that fallback.
+No attribution URL is fetched or used as an access grant.
+
+Each discovery starts empty. Transport, session, metadata, evidence, continuation,
+count, conflict, and limit failures return no partial snapshot.
+CLI Ctrl+C and MCP request cancellation stop pending work. Compiled loopback
+fixtures exercise the real session and HTTP paths in separate CLI/MCP processes.
+They expose no fixture selector in product commands.
+See [verified route evidence](api-survey.md#approved-native-library-metadata-check).
+Earlier native CLI acceptance failed catalog validation; MCP was skipped.
+A released-only diagnostic also failed. Later category and title diagnostics
+validated a candidate mapping for all 169 non-hidden records out of 177.
+The user then approved the classification and title cleanup above, without
+widening URL rules. The implementation passes offline checks. Fresh native CLI
+acceptance passed catalog preparation, then failed `UnmatchedOwnership`: at least
+one ownership ID was absent from the full raw catalog. MCP was skipped.
+See [acceptance evidence](api-survey.md#native-selected-library-acceptance).
+A later diagnostic found seven configured ownership-only IDs: two hidden and
+five visible. The user then approved the Web result scope above, instead of
+inventing entries for those sources. Unconfigured ownership still fails.
+Fresh native acceptance passed through both adapters with matching metadata and
+evidence for 169 books: 36 purchased and 133 unknown. See
+[native Web acceptance](api-survey.md#native-web-catalog-adapter-acceptance).
+All live scopes are consumed.
+Real shared-access coverage remains unverified.
 
 ### Metadata and access evidence
 
@@ -324,6 +393,7 @@ origin. The normalized result returns the parsed URL with each book.
 |-------------|---------|
 | `CatalogOnly` | The book is visible; entitlement is unknown. |
 | `Purchased { state }` | Evidence about purchase access for this account. |
+| `SharedWithAccount { state }` | Account-level sharing evidence; no context identity is asserted. |
 | `Shared { context_id, state }` | Evidence about one opaque sharing context. No campaign schema is assumed. |
 
 `AccessState` is `Granted`, `Unavailable`, or `Unknown`. A grant must come from
@@ -380,7 +450,8 @@ Input data never chooses a source URL or access state by last-write-wins.
 
 `LibraryError` distinguishes invalid metadata or evidence, conflicting metadata
 or evidence, invalid pagination, incomplete discovery, exceeded limits, and
-unsupported live discovery. A supplied failed page produces `PageRead(HttpError)`
+operation timeout, unmatched ownership, and typed shared-session failure.
+A supplied failed page produces `PageRead(HttpError)`
 and retains the original typed, redacted HTTP cause. Rejected sessions remain
 distinct from denied access; a 401 is not reclassified as proven expiry.
 Failures contain no partial snapshot. Error formatting and metadata Debug
@@ -428,7 +499,7 @@ before parsing or constructing records.
 `list_characters`, `get_character`, `list_campaigns`, and `get_campaign` always
 return an explicit unsupported-operation error. They do not construct a client
 or access credentials. CLI commands expose those explicit failures; synthetic
-adapter tests cover successful formatting. No live CLI or MCP read is enabled. Live reads remain
+adapter tests cover successful formatting. Live character and campaign reads remain
 unimplemented until runtime hosts, response schemas, pagination,
 access rules, and session handling are established. Synthetic tests validate
 internal behavior only; they do not prove an upstream contract.
@@ -548,8 +619,9 @@ The CLI library owns one clap builder, a command runner, safe error presentation
 and result formatting. Its binary only supplies OS arguments, stdout/stderr, and
 `LiveReads`. The narrow `ReadOperations` trait is an actual offline test boundary,
 not an upstream abstraction or plugin API. Its seven operations use existing
-shared result and error types. `LiveReads` calls the existing unsupported live
-functions. Auth uses its existing protected-store operations and is not part of
+shared result and error types. Library discovery is async and receives the existing
+session owner. `LiveReads` calls shared discovery; the other reads remain unsupported.
+Auth uses its existing protected-store operations and is not part of
 the read trait.
 
 The command patterns are `character list/show`, `campaign list/show`, and

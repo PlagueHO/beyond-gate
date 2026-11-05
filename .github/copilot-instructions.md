@@ -9,7 +9,14 @@ D&D Beyond reads. Local auth status/logout, completions, and MCP start/install
 and stdio serving exist. Human-controlled Windows browser login and protected
 handoff are implemented and verified with Chrome and Edge Dev.
 Windows fresh validation and shared process-local session reuse are implemented
-with portable synthetic checks. Live resource reads remain unsupported.
+with portable synthetic checks. Windows Web-library discovery uses fixed public
+configuration and two protected JSON routes. It excludes the named Hidden Sources
+category and cleans invalid title whitespace without widening URL rules.
+The Web catalog defines output scope. All raw ownership still validates against
+public configuration; configured ownership-only sources do not create books.
+Approved native CLI/MCP checks returned matching Web-library metadata and evidence.
+Real sharing was not observed; sharing checks remain synthetic.
+Other live resource reads remain unsupported. Do not silently discard invalid sources.
 Linux production login and session use are tracked in #52.
 
 - Keep v1 read-only and local; do not add remote hosting or multiuser services.

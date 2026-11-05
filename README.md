@@ -6,7 +6,7 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns, and
 purchased or shared books.
 
-**Status: verified Windows login, local sessions, and offline-tested CLI/MCP adapters.**
+**Status: verified Windows login and Web-library discovery; other live reads remain unsupported.**
 The CLI and MCP binaries provide `--help` and `--version`.
 The CLI also provides local `auth status` and `auth logout`.
 Windows `auth validate` and MCP `auth_validate` now make one fresh service check
@@ -17,9 +17,13 @@ completion after a bound submit. Windows setup, real human-controlled login,
 protected save, restart/status, and logout passed with Chrome and Edge Dev.
 Other platforms retain the unsupported error.
 The CLI also generates shell completions. The MCP server uses stdio
-and exposes matching read tools. Character, campaign, and book reads return
-explicit unsupported-operation errors through both adapters.
-Live data access remains unsupported. Linux production login and session use
+and exposes matching read tools. Windows `book list` and MCP `book_list` now
+have bounded live metadata transport through the shared stored session.
+Category selection and title cleanup are implemented and checked offline.
+The Web catalog defines the result scope. Native CLI/MCP acceptance passed with
+matching metadata and evidence for 169 books.
+Character, campaign, outline, and section reads remain unsupported.
+Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
@@ -33,15 +37,24 @@ cannot pass until production live prerequisites exist.
 
 The core has an offline-tested [HTTP boundary](docs/architecture.md#http-boundary).
 It provides bounded async JSON reads and typed, redacted errors. It has no built-in
-D&D Beyond hosts or resource endpoints. Resource reads send no requests.
+D&D Beyond hosts in the generic client. Library discovery selects one fixed public
+configuration route and two fixed protected API routes.
 Windows paired login and explicit validation share one fixed service exchange.
 The shared lifecycle keeps derived bearers in process memory only.
 
 The core also has offline [library metadata assembly](docs/architecture.md#offline-library-boundary).
 It validates supplied pages, keeps purchase and sharing evidence separate, and
 rejects incomplete or conflicting results. Catalog visibility never grants
-access. This is not a data import command or live book discovery. The CLI's
-`book list` reports this limit. No library cache or proprietary catalog fixture is included.
+access. Live discovery uses a complete catalog capped at 1,000 raw records and
+current-account ownership capped at 100 records. Each response stays within 1 MiB.
+Account sharing has no invented campaign identifier. Missing ownership remains
+unknown. Public configuration excludes the explicit `Hidden Sources` category;
+all raw ownership IDs and evidence still validate against public configuration.
+Configured ownership-only sources outside the Web catalog do not create books.
+Their absence from the Web result is not an access denial. Invalid visible title
+whitespace is cleaned before strict metadata validation. Valid titles and URL rules
+remain unchanged. No invalid visible records are silently dropped.
+No library cache or proprietary fixture is included.
 
 The core also provides offline
 [character and campaign record assembly](docs/architecture.md#offline-character-and-campaign-boundary).
@@ -171,9 +184,15 @@ The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
 `campaign list/show`, and `book list/outline/read`.
 
-**Live reads remain unsupported.** Valid reads exit with code 1, write a
-diagnostic to stderr, and leave stdout empty. Offline tests check successful
-output with synthetic inputs; the product has no fixture mode.
+**Windows Web-library discovery is implemented and verified through both adapters.**
+`book list` uses public category classification and the fixed protected session.
+An earlier native check stopped on ownership-only sources outside the Web catalog.
+The user then approved Web-scoped results with validation of all account evidence.
+The approved native check returned matching results: 36 purchased and 133 unknown.
+No live sharing was observed; sharing behavior has synthetic coverage.
+Other live reads remain unsupported. Failures exit with code 1, write a diagnostic
+to stderr, and leave stdout empty. Offline tests use synthetic services through
+the real shared transport and adapters; the product has no fixture mode.
 See [output contracts](docs/cli.md#output-contracts) for table, JSON, and TSV
 fields, escaping, source attribution, and bounded explicit continuation.
 
@@ -187,8 +206,8 @@ supported shells and Bash/PowerShell examples.
 
 Start `beyond-gate-mcp` directly or use `beyond-gate mcp start` with both binaries
 in the same directory. The server uses local stdio only; stdout is reserved for
-MCP protocol messages. Its seven read-only tools currently return explicit
-unsupported-operation errors.
+MCP protocol messages. `book_list` uses shared Windows library discovery.
+The other six read-only resource tools return explicit unsupported-operation errors.
 
 See the [MCP tool reference](docs/mcp.md) for startup, client registration, strict
 input schemas, output envelopes, errors, and CLI mappings.

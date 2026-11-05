@@ -1,7 +1,7 @@
 //! CLI parsing and presentation for shared reads, with an offline test boundary.
 //!
-//! The production read implementation delegates to unsupported live core entry
-//! points. Synthetic success paths belong only to test processes.
+//! Library discovery uses the shared core session. Other live reads remain
+//! unsupported. Synthetic source selection belongs only to test processes.
 
 mod browser_setup;
 mod command;
@@ -70,7 +70,10 @@ pub trait ReadOperations {
     /// # Errors
     ///
     /// Returns the shared discovery failure without partial results.
-    fn discover_library(&self) -> Result<LibrarySnapshot, LibraryError>;
+    fn discover_library(
+        &self,
+        session: &Session,
+    ) -> impl std::future::Future<Output = Result<LibrarySnapshot, LibraryError>>;
     /// Reads navigation for one book after its source checks current access.
     ///
     /// # Errors
@@ -157,8 +160,8 @@ impl ReadOperations for LiveReads {
     }
 
     /// Uses the library boundary without inventing account data or access.
-    fn discover_library(&self) -> Result<LibrarySnapshot, LibraryError> {
-        library::discover_library()
+    async fn discover_library(&self, session: &Session) -> Result<LibrarySnapshot, LibraryError> {
+        library::discover_library(session).await
     }
 
     /// Uses the core outline entry point without granting synthetic access.
@@ -207,7 +210,7 @@ fn status_message(status: SessionStatus) -> &'static str {
 /// Returns 0 on success, 1 on operation/output failure, 2 on invalid usage, or
 /// the child status for `mcp start`.
 /// Help, version, completions, and resource parsing never open native storage.
-/// Only explicit auth status, validate, and logout access protected credentials.
+/// Explicit authentication commands and book list can access protected credentials.
 /// Output failures return 1, including when stderr itself cannot be written.
 pub fn run<I, T>(
     arguments: I,
@@ -385,7 +388,7 @@ fn execute(
     match resource {
         "character" => execute_character(action, arguments, reads),
         "campaign" => execute_campaign(action, arguments, reads),
-        "book" => execute_book(action, arguments, reads),
+        "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
     }
 }
@@ -449,11 +452,21 @@ fn execute_book(
     action: &str,
     arguments: &ArgMatches,
     reads: &impl ReadOperations,
+    session: &Session,
 ) -> Result<Vec<u8>, Failure> {
     match action {
         "list" => {
             let options = ListOptions::parse(arguments)?;
-            let snapshot = reads.discover_library().map_err(Failure::Library)?;
+            let snapshot = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.discover_library(session) => result.map_err(Failure::Library),
+                }
+            })?;
             let rows: Vec<_> = snapshot.books().iter().map(output::book).collect();
             render_list(&options, &["id", "title", "access", "source_url"], rows)
         }

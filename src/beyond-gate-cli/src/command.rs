@@ -32,8 +32,8 @@ pub fn command() -> Command {
                 .subcommand(Command::new("show").about("Show campaign metadata, associations, and raw JSON; live reads are unsupported").arg(identifier("id"))),
         )
         .subcommand(
-            resource("book", "Book reads (live source is not implemented)")
-                .subcommand(list_options(Command::new("list").about("List book metadata and access evidence; live discovery is unsupported")))
+            resource("book", "Bounded Web-catalog discovery; content reads unsupported")
+                .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
                 .subcommand(list_options(Command::new("outline").about("List section navigation; live reads are unsupported").arg(identifier("book-id"))))
                 .subcommand(
                     Command::new("read")

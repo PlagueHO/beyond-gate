@@ -6,7 +6,9 @@ The manual extension, native host, and interactive CLI use the
 human pairing, direct-service validation, protected save, restart/status, logout,
 and cleanup. See the [scope and evidence](testing.md#approved-windows-product-login-verification).
 Windows session validation and process-local reuse are implemented and tested
-with synthetic services and stores. Live resource reads remain unsupported.
+with synthetic services and stores. Windows library metadata discovery now uses
+that lifecycle for bounded Web-catalog reads. Approved native CLI/MCP checks
+returned matching metadata and evidence. Other live resource reads remain unsupported.
 macOS/Linux browser login and production session use remain deferred.
 Linux implementation is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
@@ -155,7 +157,8 @@ storage, missing backends, native failures, ambiguous entries, repeated logout,
 and redacted error chains. CLI tests check local output and failures with injected
 operations. Process tests exercise redirected-login refusal, help, and rejected input without
 accessing real credentials. MCP process tests check local stdio serving and
-explicit unsupported live-read errors.
+library discovery parity through invented local services and unsupported errors
+for other live reads.
 
 No native credential-store round trip or live account test is part of these
 checks. Platform CI checks build compatibility, not real credential-service access.
@@ -167,7 +170,7 @@ Portable lifecycle checks cover reuse, fresh validation, exact bearer expiry,
 bounded exchange, rejection, store failures, and cache cleanup. A process test
 uses the actual CLI runner and rmcp stdio server with the same invented sessions
 and local services. Their validation data and safe diagnostics agree.
-Live resource reads and approved real lifecycle checks remain separate.
+Live library adapter acceptance and approved real lifecycle checks remain separate.
 The developer probe below remains separate.
 
 ## Required user experience

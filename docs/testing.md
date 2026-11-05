@@ -1,8 +1,13 @@
 # Manual capability tests
 
-**Infrastructure only: live account reads remain blocked.** The shared suite runs
+**Full live capability coverage remains blocked.** The shared suite runs
 the real CLI and MCP executables. It does not replace their read operations with
-fixtures. Current resource commands and tools return unsupported errors.
+fixtures. Windows library discovery includes category selection and title cleanup;
+the approved Web-catalog scope now handles configured ownership-only sources.
+Fresh native CLI/MCP acceptance passed. Other resource reads remain unsupported.
+The suite keeps a zero live-request budget.
+Its credential-free contracts reject extra input for `book list` and `book_list`
+before session access. They do not call those operations with valid input.
 
 The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits this
 blocked-first stage. It does not implement production authentication or live
@@ -22,7 +27,7 @@ CLI parser tests and real MCP discovery detect inventory changes.
 | `blocked` | A prerequisite is absent, or the case did not run. |
 | `not_applicable` | A partial selection explicitly excludes the case. |
 
-A `contract.*` pass proves the current unsupported-error contract only.
+A `contract.*` pass proves unsupported errors or strict-input rejection only.
 Corresponding `live.*` cases remain blocked. Help, successful authentication
 probes, unsupported errors, and empty results do not prove live read coverage.
 Testing redirected-login refusal does not prove a working browser handoff.
@@ -34,6 +39,79 @@ excludes native storage and live reads. It can pass but always reports
 selected contract cannot produce full success.
 
 ## Browser handoff offline checks
+
+### Library discovery checks
+
+Core tests use invented public configuration, catalog, and ownership JSON through actual loopback HTTP
+and shared synthetic sessions. They cover purchase, account sharing, both,
+catalog-only unknown access, source attribution, raw caps, complete counts,
+continuation refusal, conflicts, unmatched IDs, sharing loss, no retry or redirect,
+and safe failures. Real CLI/MCP child processes compare JSON evidence and errors,
+TSV and table formatting, malformed and oversized data, session failures, strict
+input rejection, and MCP cancellation. Product commands expose no fixture selector.
+
+Production selection tests reject invalid or duplicate configuration IDs, unknown
+categories, missing library-ID joins, malformed visible metadata, and conflicting
+hidden records. Every ownership ID must match public configuration. All evidence,
+including hidden and ownership-only records, validates before selection.
+Raw limits apply before selection. Title tests
+preserve valid internal spacing, clean invalid whitespace, and reject blank names,
+non-whitespace controls, and unsafe links. Actual adapter process tests verify
+normalized output, hidden-source exclusion, and safe configuration/title/evidence
+failures. Configured hidden and visible IDs outside the Web catalog create no
+books or grants for another ID. Unconfigured IDs still fail `UnmatchedOwnership`
+through both real adapters. Invalid ownership types outside the Web catalog
+also fail. Invalid public configuration prevents protected-session access.
+
+Run the focused checks with the required Cargo wrapper:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core library:: --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+Live CLI/MCP acceptance needs a separate approved request budget. The two
+[metadata probe scopes](#library-metadata-probe) are consumed. They do not
+authorize valid production book-list calls. No shared ownership was observed
+live; synthetic sharing checks do not establish real-account coverage.
+
+Later approved native acceptance failed catalog validation and skipped MCP.
+Two additional catalog diagnostics found missing attribution and rejected the
+proposed released-only source rule. All scopes are consumed.
+See [native rejection evidence](api-survey.md#native-adapter-rejection-and-catalog-diagnostics).
+The ignored core tests `approved_live_catalog_diagnostic` and
+`approved_live_released_catalog_contract` require separate acknowledgment strings.
+An acknowledgment does not itself grant fresh permission. The second test's
+native guard failure is not a passing discovery check. Normal workspace tests
+ignore both entries.
+
+The user later approved production category selection and title cleanup after
+the [failure-class diagnostic](api-survey.md#approved-metadata-failure-class-diagnostic).
+That implementation passes the synthetic discovery and actual adapter process
+checks. It does not reuse any earlier live scope. A separately approved fresh
+native CLI check passed catalog preparation but failed `UnmatchedOwnership`;
+MCP was skipped. See [acceptance evidence](api-survey.md#native-selected-library-acceptance).
+That scope is consumed. The manual capability suite was not rerun for this change; its earlier
+unrelated `cli.auth.login-blocker` failure is not a successful full-suite result.
+
+The separately approved ownership membership diagnostic then found 44 unique
+ownership IDs: 37 matched the Web catalog, two unmatched IDs were hidden, and five
+were visible. All seven unmatched IDs existed in public configuration.
+The user approved Web-scoped results after the public-client comparison.
+Fresh native acceptance for that scope then passed separately from synthetic success.
+See [scope evidence](api-survey.md#approved-web-catalog-result-scope).
+
+The [native Web-catalog acceptance](api-survey.md#native-web-catalog-adapter-acceptance)
+used one newly approved CLI run and one MCP run. Both returned 169 books, with
+matching IDs, titles, source URLs, access summaries, and evidence. The result had
+36 purchased and 133 unknown books. No shared access was observed. This does not
+replace real-sharing validation or claim full manual-suite coverage.
+The one-use scope is consumed; no raw metadata was retained.
+
+The ignored `approved_live_ownership_membership_diagnostic` uses the non-secret
+acknowledgment `issue-32-ownership-membership-five-attempts`. Its native scope is
+also consumed. The acknowledgment is a guard, not reusable permission.
+Normal workspace tests ignore it.
 
 ### Shared session lifecycle checks
 
@@ -1082,7 +1160,105 @@ redirects, or bot protection. Do not change permissions or provoke upstream
 failures. Keep rejection, unavailable-service, malformed-data, and expiry tests
 deterministic and offline. Do not automatically refresh or retry authentication.
 
+## Library metadata probe
+
+The ignored Windows unit tests in `auth::session::library_probe` are separate
+from the #27 suite and its zero request budget.
+It requires separate explicit approval for protected credential access and the exact
+three-attempt scope. Ordinary tests and CI skip it.
+A non-secret `BEYOND_GATE_LIBRARY_PROBE_APPROVAL` acknowledgment is an execution guard,
+not independent permission. The schema-only test `approved_live_library_metadata`
+requires `issue-32-metadata-three-attempts`. The separately approved follow-up test
+`approved_live_library_contract_checks` requires
+`issue-32-metadata-contract-three-attempts`; the earlier acknowledgment cannot admit it.
+Do not run the test just because that acknowledgment is known or set.
+Isolated `e2e-isolation` builds are rejected before native storage access.
+
+The fixed sequence is one `AUTH-01` exchange, GET `LIB-01`, then GET `LIB-02`.
+The probe makes no storage writes or deletes. It keeps secrets and raw responses
+in process memory only. Transport has no redirects, retries, proxies, or compression.
+It uses a 5-second connection cap, 15-second request cap, and 60-second complete
+probe cap. The existing exchange caps its body at 64 KiB; each metadata body is
+capped at 1 MiB. Structural inspection is capped at 1,000 records per collection.
+Any failure stops the sequence. No source URL, continuation, or book text is fetched.
+
+Output is restricted to fixed schema names and JSON types, response byte counts,
+and safe ownership-type presence classifications. Unknown keys become a marker.
+It never prints scalar values, headers, account or source records, or raw responses.
+The acknowledgment must be removed from the launching process after the run.
+The fixed credential entry is left unchanged.
+
+The separately approved schema-only run on 2026-11-04 succeeded in exactly three attempts.
+The separately approved follow-up stopped after two attempts with a failed contract
+check: the source response exceeded the existing 100-record page cap.
+It also reported that not every source matched the conservative book-path rule.
+It skipped the ownership request instead of continuing after failure.
+Both scopes are consumed. See the [safe results](api-survey.md#approved-native-library-metadata-check).
+The result does not prove complete library discovery, sharing contexts, or
+successful production CLI/MCP reads.
+
+Run only the synthetic checks without approval or credentials:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib library_probe --locked
+```
+
+These checks use invented responses and loopback HTTP. They verify approval gating,
+redaction, malformed shapes, count equality, source joins, source paths, record caps,
+byte and attempt caps, and no retry or redirect behavior.
+They do not load protected storage or contact live services.
+
 ## Offline validation
+
+The ignored Windows `library::discovery::tests::approved_live_metadata_comparison`
+checks fixed `CFG-01` and `LIB-01` routes, not ownership or book content.
+It requires separate approval for at most three HTTP attempts, including the
+protected exchange, with a 60-second complete deadline and 1 MiB catalog caps.
+Its current acknowledgment is `issue-32-corrected-config-comparison-three-attempts`;
+knowing the value is not permission. The earlier
+`issue-32-config-comparison-three-attempts` acknowledgment is rejected.
+Both comparison scopes are consumed. The original run found complete ID matches,
+but its diagnostic did not support a relative source-link form.
+The separately approved corrected run validated metadata for 170 of 177 library
+records. It did not resolve the four records lacking attribution. See the
+[comparison evidence](api-survey.md#alternative-configuration-catalog-comparison).
+
+Run its approval, synthetic metadata-join, and safe-link guards without credentials:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib metadata_comparison_guards_use_synthetic_records --locked
+```
+
+The separate ignored `library::discovery::tests::approved_live_category_comparison`
+checks named-category membership before strict metadata validity. Its earlier acknowledgment
+was `issue-32-hidden-category-three-attempts`; that scope is consumed, not reusable
+permission. The user approved at most three attempts on 2026-11-06: public
+configuration, protected exchange, then bearer-only catalog. It kept the 60-second
+total deadline, existing response caps, and no retries, redirects, ownership calls,
+book reads, credential changes, or raw retention.
+
+The check found eight hidden records among 177 library records, including all
+four without attribution. Two of the remaining 169 records still failed both
+metadata mappings. It stopped with `InvalidMetadata`. No production behavior
+changed. See the [category comparison evidence](api-survey.md#approved-hidden-category-comparison).
+Run its synthetic approval, category-join, completeness, and metadata guards:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib category_comparison --locked
+```
+
+The same ignored entry now rejects that acknowledgment. Its separately approved
+failure-class scope uses `issue-32-category-failure-classes-three-attempts`.
+That scope is also consumed. It reports fixed failure classes and tests only the
+proposed whitespace and supplied legacy-link trials in memory. It does not enable
+production changes. All 169 non-hidden records passed the trial mappings; the two
+remaining current failures were title formatting. See the
+[failure-class evidence](api-survey.md#approved-metadata-failure-class-diagnostic).
+Run all discovery and failure-class guards offline, with live entries ignored:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib library::discovery::tests --locked
+```
 
 ```powershell
 pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1
@@ -1092,7 +1268,8 @@ pwsh -NoProfile -File .\scripts\cargo.ps1 test --workspace --all-features --lock
 ```
 
 Ordinary Rust tests use synthetic stores and loopback fixtures, not native
-storage or live accounts. The script checks bounded output and input, protocol
+storage or live accounts. Library missing-session and cancellation checks also
+use local public-classification fixtures. The script checks bounded output and input, protocol
 errors, process and suite deadlines, cleanup, report redaction, inventory
 omissions, failure propagation, readiness, and submission lifecycle failures.
 It does not dispatch a workflow or upload a secret.

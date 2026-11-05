@@ -28,4 +28,4 @@ pub mod library;
 ///
 /// assert!(FOUNDATION_NOTICE.contains("not implemented"));
 /// ```
-pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Live resource reads are not implemented; Linux production login and session use remain deferred.";
+pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list and MCP book_list discover bounded Web-catalog metadata and access evidence through the shared session. Other live reads are not implemented; Linux production login and session use remain deferred.";

@@ -4,9 +4,11 @@
 local session status and logout, Windows session validation, and local MCP start and registration. Windows
 login, explicit browser setup, and the native host are implemented.
 Approved Chrome and Edge Dev login/save/restart/logout checks passed.
-Live resource reads are unsupported.
+Windows `book list` has bounded live metadata transport through the shared stored session.
+Web-catalog scope, category selection, and title cleanup are implemented and verified natively.
+Other live resource reads remain unsupported.
 
-Valid resource reads currently exit with code 1, write an unsupported-operation
+Other valid resource reads currently exit with code 1, write an unsupported-operation
 diagnostic to stderr, and leave stdout empty. They do not return sample data or
 empty success results. The success contracts below are tested with synthetic
 inputs in offline tests. They are not evidence of live access.
@@ -56,7 +58,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`character show`](#character-show) | Select one character | Live read unsupported |
 | [`campaign list`](#campaign-list) | List campaigns and associations | Live read unsupported |
 | [`campaign show`](#campaign-show) | Select one campaign | Live read unsupported |
-| [`book list`](#book-list) | List book metadata and access evidence | Live discovery unsupported |
+| [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Live read unsupported |
 | [`book read`](#book-read) | Read one bounded section chunk | Live read unsupported |
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
@@ -220,9 +222,9 @@ for the fixed entry identity, backend requirements, and failure recovery.
 
 ## Resource commands
 
-All seven actions below currently fail as unsupported live operations after valid
-input is accepted. Their documented success outputs are offline-tested contracts.
-None of these commands currently reads credentials or sends an upstream request.
+`book list` reads the fixed protected session and two bounded metadata routes.
+The other six actions fail as unsupported after valid input is accepted.
+Their success outputs are offline-tested contracts.
 
 ### List options
 
@@ -306,16 +308,48 @@ failures use code 1. No upstream not-found behavior is implemented.
 beyond-gate book list [--format <FORMAT>] [--no-headers]
 ```
 
-Lists book metadata and separate access observations. No positional arguments are
+Lists Web-catalog book metadata and separate access observations. No positional arguments are
 required. Table and TSV columns are `id`, `title`, `access`, and `source_url`, in
 that order. JSON is an array of [book objects](#book-objects), including `evidence`.
 Catalog visibility and prior purchase or sharing observations do not grant access
 to a later read.
 
-Current result: unsupported live-library discovery diagnostic, exit code 1, and
-empty stdout. Invalid list options fail with code 2. Offline assembly rejects
-invalid metadata or evidence, conflicting observations, incomplete or invalid
-pagination, and exceeded page or entry limits instead of returning partial data.
+Windows discovery uses fixed public configuration, source, and ownership GETs without retries or
+automatic continuation. The complete operation has a 30-second deadline. Each
+response has a 1 MiB cap. The unpaged catalog has a 1,000-record cap; ownership
+has a 100-record cap. Raw evidence and output observations each have a 1,000-entry
+cap before duplicate removal. `totalCount` must equal the returned collection
+size. Known continuation markers, malformed data, conflicting metadata,
+ownership IDs absent from public configuration, or exceeded limits fail the entire operation.
+
+Public configuration excludes only the named `Hidden Sources` category.
+All raw ownership IDs must match validated public configuration. Configured
+ownership-only sources outside the Web catalog do not create entries.
+They are not reported as unavailable. Unknown evidence on any source still fails.
+Invalid visible title
+whitespace is trimmed and collapsed; valid titles remain unchanged.
+Empty titles, non-whitespace controls, and invalid links still fail.
+Configuration titles and links are not fallback metadata.
+
+Purchase comes only from `ownership[].type: "owned"`; account sharing comes from
+`"shared"`. Free and catalog flags are not grants. Missing or empty ownership
+remains `unknown`, not `unavailable`. Source attribution uses a validated book
+path, or a supplied validated D&D Beyond marketplace URL when the path is absent.
+Metadata links are never fetched.
+
+Success returns complete data with code 0. Discovery and session failures use
+code 1 and empty stdout. Invalid options use code 2. Ctrl+C cancels the operation.
+Non-Windows production session use remains unsupported.
+Earlier native CLI acceptance failed `InvalidMetadata`; MCP was skipped.
+Later diagnostics validated category selection and title cleanup without broader
+URL rules. That mapping is now implemented and checked offline. Fresh native CLI
+acceptance passed catalog preparation but failed `UnmatchedOwnership`: ownership
+referenced a source absent from the full raw catalog. MCP was skipped.
+The user then approved Web-scoped results after a diagnostic classified seven
+ownership-only IDs, all present in configuration. Fresh native acceptance passed:
+CLI and MCP returned matching metadata and evidence for 169 books, including
+36 purchased and 133 unknown. All live scopes are consumed.
+Real shared-access observations remain unverified.
 
 ### book outline
 
@@ -397,6 +431,7 @@ evidence prevents an `unavailable` summary.
 |-----------------|--------------|
 | `catalog_only` | None |
 | `purchased` | `state`: `granted`, `unavailable`, or `unknown` |
+| `shared_with_account` | `state`: `granted`, `unavailable`, or `unknown`; no context identifier |
 | `shared` | `context_id`: string; `state`: `granted`, `unavailable`, or `unknown` |
 
 These fields describe supplied observations. They are not permanent permissions.

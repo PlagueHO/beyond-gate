@@ -209,6 +209,8 @@ pub struct HttpClient {
     permits: Arc<Semaphore>,
     /// Keeps local request limits private.
     policy: RequestPolicy,
+    /// Enables HTTP loopback only for compiled synthetic fixtures.
+    loopback: bool,
 }
 
 impl fmt::Debug for HttpClient {
@@ -230,6 +232,18 @@ impl HttpClient {
     /// resolver initialization fails.
     pub fn new(allowed_origins: &[&str]) -> Result<Self, HttpError> {
         Self::build(allowed_origins, RequestPolicy::default(), false)
+    }
+
+    /// Keeps discovery's fixed GET sequence from retrying denial or rate limiting.
+    pub(crate) fn single_attempt(allowed_origins: &[&str]) -> Result<Self, HttpError> {
+        Self::build(
+            allowed_origins,
+            RequestPolicy {
+                retries: 0,
+                ..RequestPolicy::default()
+            },
+            false,
+        )
     }
 
     /// Validates configuration and keeps the loopback HTTP exception test-only.
@@ -263,6 +277,7 @@ impl HttpClient {
             origins: origins.into(),
             permits: Arc::new(Semaphore::new(policy.concurrency)),
             policy,
+            loopback: test_loopback,
         })
     }
 
@@ -326,7 +341,7 @@ impl HttpClient {
 
     /// Checks origin policy before shared session operations access protected storage.
     pub(crate) fn check_url(&self, url: &str) -> Result<Url, HttpError> {
-        let url = parse_url(url, cfg!(test))?;
+        let url = parse_url(url, self.loopback)?;
         if !self
             .origins
             .iter()
@@ -341,6 +356,19 @@ impl HttpClient {
     #[cfg(test)]
     pub(crate) fn for_test(origin: &str) -> Result<Self, HttpError> {
         Self::build(&[origin], RequestPolicy::default(), true)
+    }
+
+    /// Supplies the real single-attempt transport to compiled synthetic source fixtures.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) fn for_fixture(origin: &str) -> Result<Self, HttpError> {
+        Self::build(
+            &[origin],
+            RequestPolicy {
+                retries: 0,
+                ..RequestPolicy::default()
+            },
+            true,
+        )
     }
 
     /// Sends one GET and checks status and bounded body before decoding JSON.
@@ -390,7 +418,7 @@ impl HttpClient {
 /// requires DNS to establish whether it is local.
 fn parse_url(input: &str, test_loopback: bool) -> Result<Url, HttpError> {
     let url = Url::parse(input).map_err(|_| HttpError::new(ErrorKind::InvalidInput))?;
-    let loopback = cfg!(test)
+    let loopback = cfg!(any(test, feature = "session-fixture"))
         && test_loopback
         && url.scheme() == "http"
         && matches!(url.host_str(), Some("127.0.0.1" | "[::1]"));

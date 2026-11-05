@@ -237,5 +237,6 @@ pub fn session(scenario: Scenario) -> Result<Session, SessionError> {
         backend: Backend::Synthetic(store),
         exchange: Some((client, url)),
         fixture: Some(fixture),
+        library_fixture: None,
     })
 }

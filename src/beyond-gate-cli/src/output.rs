@@ -62,6 +62,9 @@ pub(crate) fn book(value: &Book) -> Value {
             AccessEvidence::Purchased { state } => {
                 json!({"kind": "purchased", "state": state_name(*state)})
             }
+            AccessEvidence::SharedWithAccount { state } => {
+                json!({"kind": "shared_with_account", "state": state_name(*state)})
+            }
             AccessEvidence::Shared { context_id, state } => {
                 json!({"kind": "shared", "context_id": context_id, "state": state_name(*state)})
             }
