@@ -67,7 +67,7 @@ fn help_reports_local_server_scope() {
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Local read-only MCP server for Beyond Gate"));
-    assert!(stdout.contains("Live reads are not implemented"));
+    assert!(stdout.contains("Other live reads are not implemented"));
 }
 
 /// Checks that version output uses the shared workspace package version.
@@ -158,7 +158,7 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
             "jsonrpc": "2.0",
             "id": 9,
             "method": "tools/call",
-            "params": {"name": "book_list", "arguments": {}}
+            "params": {"name": "book_list", "arguments": {"unexpected": true}}
         }),
         json!({
             "jsonrpc": "2.0",
@@ -187,6 +187,11 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
         .find(|message| message["id"] == 1)
         .expect("initialize response");
     assert!(initialized["result"]["capabilities"]["tools"].is_object());
+    let instructions = initialized["result"]["instructions"]
+        .as_str()
+        .expect("server instructions");
+    assert!(instructions.contains("Web-catalog metadata"));
+    assert!(!instructions.contains("blocked"));
 
     let listed = responses
         .iter()
@@ -252,7 +257,12 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
         .find(|message| message["id"] == 6)
         .expect("unknown argument response");
     assert_eq!(extra_field["result"]["isError"], true);
-    for id in [7, 8, 9, 10, 11] {
+    let strict_library = responses
+        .iter()
+        .find(|message| message["id"] == 9)
+        .expect("strict library input");
+    assert_eq!(strict_library["result"]["isError"], true);
+    for id in [7, 8, 10, 11] {
         let response = responses
             .iter()
             .find(|message| message["id"] == id)

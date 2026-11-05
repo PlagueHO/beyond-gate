@@ -1,6 +1,12 @@
 # D&D Beyond API survey
 
 Recorded on 2026-11-02 for [issue #31][issue-31].
+Library JSON client evidence was added on 2026-11-04 for [issue #32][issue-32].
+The public library rendering boundary was traced on 2026-11-05.
+Independent source-picker implementations and public category metadata were
+checked on the same date.
+A separately approved hidden-category comparison ran on 2026-11-06.
+A new failure-class diagnostic ran later that day.
 
 This survey covers every area observed in the Rules menu and the related API families found
 in the site's public client. It includes earlier approved character and campaign inspections.
@@ -245,7 +251,7 @@ established a library route and HTML outline/section structure for one selected 
 The later native probe accepted the protected-session exchange and source HTML, but stopped
 at a chapter redirect. A user-requested repeat identified a marketplace or purchase target.
 Fresh access, bounded discovery, and general book support remain
-unresolved. No book JSON endpoint or source-to-license mapping was established.
+unresolved. No book-content JSON endpoint or source-to-license mapping was established.
 The earlier failed credential-free `/sources` fetch was not proof of an access denial.
 
 ### Selected book browser evidence
@@ -321,6 +327,533 @@ Do not treat an introduction or a successful HTML response as proof of full-book
 
 Production redirects remain disabled. The observed canonical routes are evidence for this
 source only, not permission to follow arbitrary redirects or guess aliases for other books.
+
+### First-party library JSON routes
+
+Public source inspection for [issue #32][issue-32] on 2026-11-04 found library JSON
+routes in the [first-party mega-menu application][menu-client].
+The inspected script returned HTTP 200 and contained 629,971 bytes, within the
+1 MiB inspection cap. No signed-in request, credential access, library API request,
+or book-content request was made for this inspection.
+
+The production host helper `Is` selects `api.dndbeyond.com`. The `Nf` helper uses
+GET and parses JSON. The signed-in search flow obtains the authentication result
+through `Rf`, then calls the source and ownership helpers.
+These declarations are Client evidence. A later separately approved native check
+is recorded below; it does not establish every response or access condition.
+
+| Helper | Method and URL | Observed client use |
+|--------|----------------|---------------------|
+| `MR` | GET `https://api.dndbeyond.com/library/sources?platform=Web` | Source metadata candidate |
+| `OR` | GET `https://api.dndbeyond.com/library/sources/me` | Account ownership candidate; the search flow reads `items` |
+
+The `JD` search helper joins source metadata to ownership records by `sourceId`.
+It reads `name`, `ruleset.label`, `publisher.isThirdParty`, and `isFree` from sources.
+It tests each ownership record's `ownership` array for `type` equal to `owned`
+or `shared`. It combines these states with free-source metadata into one
+`isOwnedOrShared` search-filter flag.
+That combined flag cannot preserve Beyond Gate's separate purchase and sharing evidence.
+The helper also has fallback IDs and error-to-empty behavior; neither belongs in
+production discovery.
+
+The source-link helpers `NN` and `F_` use `relativeSlugPath` when present, otherwise
+the `Hw` helper builds `/sources/dnd/{slug}` from `slug`.
+This is first-party URL-building evidence, not proof that every source supplies a
+valid path. The probe below did not inspect `relativeSlugPath`.
+Do not silently discard sources with missing paths or substitute a homepage URL.
+
+This resolves the service binding and identifies a JSON alternative to the oversized
+`BOOK-02` document. Complete discovery, per-response record bounds, source-URL field
+coverage, sharing-context fields, and revocation semantics remain unverified.
+Do not infer unavailable access from an absent ownership record or invent a sharing
+context from an account-level flag.
+
+The browser request helper can use `AwsWafIntegration.fetch`. Its presence does not
+establish that native access works or authorize a bot-protection workaround.
+Stop on native denial or bot protection; do not copy browser fallback behavior.
+No production host is enabled by this source inspection or the probe below.
+
+The [official My Library announcement][library-announcement] confirms the user-facing
+Owned, Owned & Shared, and All filters. It does not document these JSON schemas.
+Issue #32 keeps the 1 MiB response limit. Bounded native responses and complete
+evidence semantics must be established before implementation.
+Prefer these first-party GET candidates over the unverified mobile credential-body
+transport; do not call either route without the required live-check approval.
+
+### Approved native library metadata check
+
+The user separately approved the three-attempt scope on 2026-11-04 after autopilot
+was disabled. The check used the fixed protected Windows entry, one existing
+cookie-to-bearer exchange, and bearer-only GETs to the two exact library routes.
+It did not save, replace, or delete credentials.
+It made exactly three HTTP attempts, with no redirects, retries, proxies,
+pagination, book reads, or other resource calls.
+The one-use request scope is consumed; it does not approve another run.
+
+| Request | Result | Safe observation |
+|---------|--------|------------------|
+| POST `AUTH-01` | Accepted | Existing shared exchange validation accepted the protected session |
+| GET `LIB-01` | 200; 123,198 bytes | Root object with `items` array and numeric `totalCount` |
+| GET `LIB-02` | 200; 2,104 bytes | Root object with `items` array and numeric `totalCount` |
+
+Both metadata responses were uncompressed JSON within 1 MiB.
+The metadata records had numeric `sourceId`, string `name`, boolean `isFree`,
+object `publisher` and `ruleset`, and an `ownership` array.
+`slug` and `marketplaceUrl` were either string or null.
+Ownership records had numeric `sourceId` and an `ownership` array of objects with
+string `type`. The check observed `owned`, no `shared`, and no unknown ownership
+type in the account ownership response. This is not proof that sharing is unsupported
+or that all shared access was enumerated.
+
+Output contained only fixed structural paths, JSON types, response byte counts,
+and safe presence classifications. Unknown field names were replaced with a marker.
+No headers, identifiers, titles, URLs, response values, or raw responses were saved.
+The probe did not compare `totalCount` with the returned record count, validate
+terminal completeness, or establish paging parameters. It did not establish the
+meaning of absent ownership, sharing-context identity, or sharing loss.
+Those are still contract blockers for full production discovery.
+
+The user then separately approved one follow-up with the same three-attempt maximum.
+It compared counts, raw-record thresholds, and source paths using safe pass/fail
+classifications only. It stopped after the exchange and source GET: two attempts.
+The source response again contained 123,198 bytes. Its `totalCount` equaled the
+returned record count, and source identifiers were unique positive integers.
+The response stayed within 1,000 records but exceeded the existing 100-record page cap.
+Not every record matched the probe's conservative canonical book-path rule.
+This does not prove that the unmatched records have no valid website location;
+their path mapping still needs a contract.
+
+The follow-up reported a failed contract check and skipped the ownership GET.
+It did not verify ownership completeness or the source-to-ownership join.
+No retry or policy change occurred. Its scope is also consumed, including the
+stop condition; the unused attempt does not authorize another request.
+Do not silently raise the page cap, split the response into invented pages, or
+discard unmatched sources to turn this result into successful discovery.
+
+The user subsequently approved three explicit contract choices: a separate
+1,000-record raw cap for the complete catalog, a supplied validated marketplace
+URL when a book path is absent, and account-level sharing without an invented
+context. Ownership keeps the 100-record cap. Missing ownership stays unknown,
+not unavailable. These choices are implemented in
+[shared discovery](architecture.md#live-library-discovery), with synthetic
+transport and actual CLI/MCP process checks. Runtime count equality and source
+joins must pass before any complete result. Live adapter acceptance, real shared
+observations, and schema-change compatibility remain unverified.
+
+The ignored [metadata probe](../src/beyond-gate-core/src/auth/session/library_probe.rs)
+has synthetic checks for explicit approval, redaction, malformed shapes, byte and
+attempt boundaries, count and source-join checks, and stopping without retries
+or redirects. Both live entry points are ignored and separately acknowledgment-gated.
+See [probe operation](testing.md#library-metadata-probe) for its safety limits.
+Neither probe is CLI/MCP production acceptance.
+
+### Native adapter rejection and catalog diagnostics
+
+A later separately approved CLI/MCP acceptance scope stopped during the CLI
+catalog validation with `InvalidMetadata`. MCP and ownership were not requested.
+Only one exchange and one catalog GET occurred. Raw results stayed in memory.
+The scope was consumed; no unused attempt was reused.
+
+A separately approved catalog-only diagnostic then made two attempts. It found
+invalid titles, missing book/marketplace attribution, and marketplace links on
+`www.dndbeyond.com`. It printed fixed class flags only.
+
+The user also approved public browser inspection. The signed-out library page
+exposed released-source UI models, nonblank names with padding/control formatting,
+and legacy WWW marketplace links. No login, source-content navigation, or
+credential transfer was used. Client filtering and attribution were inspected in
+the public library page and its
+[page script](https://www.dndbeyond.com/_next/static/chunks/app/%5Blocale%5D/library/page-794b0c736763f2f7.js).
+Rendered UI models do not prove a safe selection rule for the raw API catalog.
+
+The user approved a conditional diagnostic/fix/acceptance scope with at most ten
+native attempts. The two-attempt diagnostic verified Boolean `isReleased` on all
+records, but rejected both required conditions: missing attribution was not
+limited to unreleased records, and the proposed title/legacy-link mapping did not
+validate every released record. The test failed explicitly. No conditional parser
+changes or CLI/MCP rerun occurred. The whole scope is consumed.
+
+There were 11 explicit native attempts across these first five scopes. Public asset and
+browser requests are separate from this native count. No source values, names,
+account snapshots, or credentials were saved. Complete live discovery remains
+blocked by source selection and attribution contracts. Do not drop invalid
+records, invent names or URLs, or treat the rejected release rule as verified.
+
+### Alternative configuration catalog comparison
+
+The user approved a separate three-attempt comparison on 2026-11-04 in interactive
+mode. It requested `CFG-01` without credentials, used the existing protected
+exchange, then requested `LIB-01` with the derived bearer. The overall deadline
+was 60 seconds. Both catalogs retained the 1 MiB cap. There were no retries,
+redirects, ownership requests, book-content reads, or credential changes.
+Only counts and fixed flags were printed; raw records stayed in memory.
+
+The configuration response contained 268 sources and 50 categories. All 177
+library source IDs matched configuration IDs. Seven library records failed the
+existing metadata mapping; four had no supplied path, slug, or marketplace link.
+This proves ID coverage for this response, not valid attribution or book eligibility.
+
+The comparison reported zero valid configuration records and failed
+`InvalidMetadata`. Subsequent public-code inspection found a diagnostic defect:
+it accepted absolute URLs and slash-prefixed paths, but rejected the relative
+`sources/dnd/...` form used by the importer's
+[page-path helper][importer-page-import]. The zero result does not establish that
+the configuration catalog lacks usable links.
+
+The test-only diagnostic now handles those supplied relative source paths through
+the existing strict path validator. Synthetic guards cover relative, rooted, and
+absolute source links and reject unsafe paths. No production metadata mapping
+changed.
+
+The user then approved one corrected comparison under a fresh three-attempt
+scope with the same limits. It found 209 valid configuration metadata records,
+266 valid titles, and 211 nonblank relative source paths among the 268 sources.
+All 177 library IDs still matched configuration IDs, but only 170 had valid
+configuration metadata. None of the four library records with missing attribution
+obtained valid replacement metadata from this mapping. The diagnostic failed
+`InvalidMetadata` and stopped without ownership or content requests.
+
+The two comparisons add six native attempts: 17 total across seven consumed
+scopes. The corrected mapping is tested live, but does not establish a complete
+library. No further live request is approved. The configuration catalog does not
+resolve the observed missing attribution through this mapping. The remaining
+contract must establish which source records are books and where their links
+come from. Complete CLI/MCP acceptance and ownership joins remain unverified.
+Category exclusions from another application are not a complete-library contract.
+
+### Public library rendering boundary
+
+The user approved a public-code trace on 2026-11-05, not another account probe.
+The [library page client][library-client] and [mega-menu client][menu-client]
+were inspected without executing their code. No protected credentials, account
+API calls, source pages, or book content were used. The oversized library HTML
+document was not downloaded for this trace. The native attempt count remains 17;
+the seven earlier account-request scopes remain consumed.
+
+The page chunk's module `97398` exports `SourcesContents`. It accepts a prepared
+`sources` array, copies it into local state, and passes those records to the list.
+The following behavior is visible in that client boundary:
+
+| Area | Verified client behavior | Limit |
+|------|--------------------------|-------|
+| Initial records | `SourcesContents` uses its supplied `sources` prop | No raw `LIB-01` deserialization or record-to-book mapping is shown |
+| List filters | Ownership, ruleset, type, publisher, and title search act on prepared records | These user filters do not establish which raw source records belong in the library |
+| Type | Selected filters test `type` for `adventure` or `sourcebook`; the default accepts either and other supplied types | No universal raw-source book predicate is established |
+| Release state | The displayed list filter has no `isReleased` condition | Earlier released-only rendered models do not prove a release-only selection rule |
+| Source link | The card uses the supplied `relativePath` as its link | This component does not derive that field from `slug` or `relativeSlugPath` |
+| Marketplace button | Uses supplied `marketplaceUrl`, but hides the button for owned, legacy, or SKU-less records | Marketplace attribution is not a universal card fallback |
+| Title | The card displays its supplied `name` | No title-whitespace normalization is shown in this component |
+| Fallback status | An error banner can display `staticSourcesFallback` | The fallback loader and its selection rules are not shown; the flag's presence does not prove it was active |
+
+The module also declares server references for favorites, wishlist, and recently
+opened changes. None was invoked. Clicking source links can record recently
+opened state; no such link was opened during this trace.
+
+The raw-to-rendered mapping occurs before the inspected component. Its
+implementation was not found in these public assets. This is a limit of the
+inspected code, not proof that the implementation is unavailable everywhere.
+In particular, this trace did not establish why the earlier rendered models
+had attribution while some native catalog records did not.
+
+The menu's `F_` helper serves a different purpose: it joins favorites and recently
+opened entries to source metadata. It skips unmatched entries or entries without
+a usable path. Its callers limit favorites to 15 and recent entries to three.
+It is not the complete library renderer and does not justify discarding raw
+catalog records. The separate search helper `JD` combines free and owned/shared
+observations into a search flag; that flag remains unsuitable as purchase evidence.
+
+The inspected menu asset was 629,971 bytes, within 1 MiB. Its SHA-256 was
+`304e83268a7d349eef6d436f02ec25eba65fdc9ed03058c17dcb6c533f7906a0`.
+No new production filter, title normalization, or URL fallback was enabled.
+Complete library discovery remains blocked by the upstream selection and
+attribution contract, not by an untested client-side filter found in this trace.
+
+### Independent source-picker and category evidence
+
+The user selected continued public contract research with strict output unchanged.
+This bounded pass inspected three independent pinned implementations. It did not
+repeat the library-page trace, execute third-party code, or read book content.
+
+| Implementation | Verified behavior | Limit for Beyond Gate |
+|----------------|-------------------|-----------------------|
+| [Scraper source picker][scraper-source-filter] | Resolves category IDs from the case-insensitive name `Hidden Sources`, then excludes matching sources | This is its picker policy, not proof of the complete `LIB-01` selection rule |
+| [Scraper configuration client][scraper-source-catalog] | Reads `CFG-01` source IDs, names, descriptions, and category IDs; does not retain source URLs | Cannot supply missing attribution; skips malformed IDs and keeps the first duplicate |
+| [TypeScript source parser][sdk-source-parser] | Parses a selected source page's title, breadcrumbs, and article body from supplied DOM | Not library discovery, a JSON source model, or an account-access check |
+| [Sources userscript][sources-userscript] | Reads old page CSS classes, derives title-based keys, and stores owned/shared selections in browser storage | No verified numeric source-ID join; local defaults and DOM heuristics do not meet the strict contract |
+
+The scraper's [endpoint notes][scraper-endpoint-notes] report a first-party
+`Hidden Sources` category intended to hide entries from source selections and
+listings. This was a useful lead, not permission to discard the four unresolved
+library records. Its unresolved entitlement implementation also does not negate
+the stronger native evidence for `LIB-02`. Do not adopt its show-all fallback,
+silent duplicate removal, or weaker metadata requirements.
+
+A separate public-metadata check made exactly one credential-free GET to
+[CFG-01][public-config] on 2026-11-05. It disabled cookies, proxies, redirects,
+and retries, with a 5-second connection deadline, a 15-second overall deadline,
+and a 1 MiB body cap. It stopped on non-200 status, unexpected content encoding,
+invalid JSON, an invalid array shape, or more than 1,000 sources or categories.
+Only fixed flags and counts were printed. No raw response was saved.
+
+| Public configuration observation | Result |
+|----------------------------------|--------|
+| Response bytes | 713,202 |
+| Sources / categories | 268 / 50 |
+| Categories named `Hidden Sources` | One |
+| Expected description phrases | Contains `hidden` and `source selections/listings` |
+| Sources assigned to that category | 72 |
+| Sources with a null or empty `sourceURL` | 57 |
+| Such sources in `Hidden Sources` | 51 |
+| Such sources outside `Hidden Sources` | Six |
+
+This confirms the category and expected description phrases in current
+first-party metadata. It does not prove that the earlier four library records
+belong to that category. Those account-request records were not retained or
+requested again. The six other missing links also disprove a general assumption
+that every source without a link belongs to `Hidden Sources`.
+
+The remaining specific hypothesis is a category-ID join between `CFG-01` and
+`LIB-01`. A future separately approved check must establish which library records
+the category covers and whether every remaining book has valid metadata.
+It must also establish how excluded source observations interact with the complete
+ownership join. Do not silently drop ownership evidence, use missing links as the
+selection rule, or treat a hidden category as an access denial.
+Neither current public evidence nor the inspected projects establishes that full
+contract. No production filter, title normalization, or URL fallback was enabled.
+
+The earlier seven protected/mixed scopes remain consumed at 17 attempts.
+This separate one-request public scope is also complete: 18 direct native
+authentication, library, and configuration attempts in total for issue #32.
+Public script, browser, and GitHub requests are outside that count.
+No new protected-storage access, exchange, account API call, or login occurred.
+This research does not authorize another account check.
+
+### Approved hidden-category comparison
+
+The user separately approved a diagnostic on 2026-11-06 in interactive mode.
+It made exactly three attempts: credential-free `CFG-01`, the existing protected
+exchange, and bearer-only `LIB-01`. The overall deadline was 60 seconds, with
+1 MiB catalog caps and the existing authentication response cap.
+No retry, redirect, proxy, ownership call, book read, login, credential change,
+or raw-response retention occurred.
+
+Before protected-session access, the diagnostic required bounded configuration
+arrays, unique positive source/category IDs, valid category names, exactly one
+case-insensitive `Hidden Sources` category, and known category references for
+every configuration source. It then required exact library counts and unique,
+positive IDs that all joined to configuration. Synthetic tests cover those
+guards and reject unresolved metadata even when all missing links are hidden.
+
+| Observation | Result |
+|-------------|--------|
+| Configuration sources / hidden sources | 268 / 72 |
+| Library records / hidden library records | 177 / eight |
+| Library records without attribution | Four |
+| Such records in `Hidden Sources` | Four |
+| Remaining library records | 169 |
+| Remaining records failing existing library metadata validation | Two |
+| Remaining records failing configuration metadata validation | Two |
+| Remaining records with neither valid mapping | Two |
+
+This confirms category membership for all four currently missing-link records.
+It does not establish their identity across earlier requests, because source IDs
+were not retained. The category alone is not a complete fix: two other records
+still fail both strict mappings. The diagnostic did not report their titles,
+URLs, or specific failure classes. Do not infer the cause or assume that display
+normalization would repair them.
+
+The check returned `InvalidMetadata` and stopped. No production category filter,
+metadata fallback, or adapter acceptance rerun was approved or performed.
+The complete ownership join and real sharing coverage also remain unverified.
+This scope is consumed. Its three attempts bring the issue #32 native
+authentication/library/configuration total to 21, including the earlier separate
+public-only configuration read. A further account request needs fresh approval.
+
+### Approved metadata failure-class diagnostic
+
+The user approved one new diagnostic-only scope on 2026-11-06 in interactive
+mode. It reused the category comparison entry with a fresh acknowledgment and
+rejected the consumed category-scope acknowledgment. Synthetic tests checked
+fixed failure labels, redaction, whitespace-only title cleanup, unsafe links,
+missing titles, and preservation of malformed-path rejection before live access.
+
+The diagnostic made three attempts: public `CFG-01`, the existing protected
+exchange, and bearer-only `LIB-01`. It kept the earlier 60-second total deadline,
+catalog and authentication response caps, and no retry, redirect, proxy,
+ownership call, book read, automatic login, credential change, or raw retention.
+Only counts and fixed failure-class labels were printed.
+
+| Observation | Result |
+|-------------|--------|
+| Library records / hidden library records | 177 / eight |
+| Records without attribution / such records in `Hidden Sources` | Four / four |
+| Remaining records failing both current metadata mappings | Two |
+| Remaining library titles with padding | Two |
+| Remaining library titles with control characters | One |
+| Corresponding configuration title failures | Same padding and control-character counts |
+| Link-validation failure classes for those remaining records | None reported |
+| Remaining failures after the proposed library mapping | Zero |
+| Remaining failures after configuration-title whitespace cleanup | Zero |
+
+The proposed library mapping uses the earlier whitespace cleanup and supplied
+legacy-marketplace-link trial. The configuration trial changes only its supplied
+title's whitespace; it leaves the supplied URL unchanged. Both trials validated
+metadata for all 169 non-hidden records. The library failure classes were limited
+to title formatting; this result does not justify a broader URL allowlist.
+Neither trial invents a title or link or removes an unresolved visible record.
+
+The diagnostic passed. This establishes a concrete metadata-mapping candidate,
+not complete native discovery. Production selection and title normalization were
+not approved by this diagnostic scope and remain unchanged. The ownership join,
+native CLI/MCP acceptance, and real sharing coverage still need verification.
+This scope is consumed. Its three attempts bring the issue #32 native
+authentication/library/configuration total to 24.
+
+### Approved production category and title mapping
+
+The user subsequently approved implementation on 2026-11-06. Production now
+reads credential-free `CFG-01` before protected library requests. It uses only
+source/category IDs and category names, not configuration titles or links.
+It resolves exactly one `Hidden Sources` category by case-insensitive name and
+excludes those sources only after validating their raw ownership observations.
+Ownership IDs must match the full `LIB-01` catalog, not merely configuration.
+Invalid visible title whitespace is trimmed and collapsed before strict
+validation. Valid titles remain unchanged. URL rules are not widened.
+
+Synthetic checks cover invalid classification, missing joins, hidden ownership,
+unknown hidden evidence, hidden conflicts, raw limits, title cleanup, and strict
+URL rejection. Actual CLI/MCP process checks cover the same selected output and
+safe failures. Fresh native adapter acceptance is pending and requires separate
+approval. No new account request is included in implementation approval.
+The consumed native authentication/library/configuration total remains 24.
+
+### Native selected-library acceptance
+
+The user separately approved one CLI run followed by one MCP run only if CLI
+passed. The one-use scope permitted at most ten HTTP attempts: five per adapter,
+using only public `CFG-01`, the existing protected exchange, `LIB-01`, and
+`LIB-02`. Each discovery retained its 30-second deadline; the overall check had
+a 90-second deadline. It allowed no retry, automatic login, credential changes,
+book-content reads, or raw retention. The harness passed an offline self-check
+before native execution.
+
+The native CLI passed public classification and catalog preparation, then returned
+`UnmatchedOwnership`. This proves that at least one valid ownership ID was absent
+from the full raw catalog, not merely absent from selected output. It does not
+identify that record's category, title, access context, or reason for omission.
+The failure is not a login rejection. No raw metadata or IDs were printed or
+saved. MCP was skipped and the owned CLI process ended.
+
+The scope is consumed. At this checkpoint, the production guard remained strict; neither configuration
+membership nor a granted observation supplies missing catalog metadata. A new
+synthetic scenario checks the same refusal through actual CLI/MCP processes,
+including empty CLI stdout and MCP `isError: true`.
+No further account request is approved.
+
+The earlier 24 measured native attempts remain the exact historical count.
+The latest CLI run used at most five further attempts; its exact HTTP count was
+not instrumented. The cumulative ceiling is therefore 29, not an asserted exact
+count. All unused attempts from the failed scope are discarded.
+
+### Approved ownership membership diagnostic
+
+The user approved one new diagnostic-only scope on 2026-11-06, in interactive
+mode. It allowed public `CFG-01`, protected `LIB-01` and `LIB-02`, and at most
+one existing exchange before each protected GET: five HTTP attempts at most.
+The whole diagnostic had a 60-second limit. Existing body limits, no retries,
+no redirects, and no content reads or credential changes remained in force.
+The diagnostic printed fixed labels and counts only. Three synthetic tests
+checked classification, strict failure handling, redaction, and a fresh approval
+gate before native access. All older acknowledgments were rejected.
+
+| Observation | Result |
+|-------------|--------|
+| Raw / unique Web catalog records | 177 / 177 |
+| Visible Web catalog IDs | 169 |
+| Raw ownership records / unique IDs / raw observations | 44 / 44 / 44 |
+| Ownership IDs present in the raw Web catalog | 37 |
+| Ownership-only IDs in configured hidden categories | Two |
+| Ownership-only IDs in configured visible categories | Five |
+| Ownership-only IDs absent from public configuration | Zero |
+| Production snapshot valid under the then-current strict join | No |
+
+The diagnostic passed as a classification check, not as discovery acceptance.
+Production did not change during the run. No raw metadata, IDs, titles, URLs,
+or credentials were printed or retained. The scope is consumed. Hidden-only
+ownership exclusion is insufficient because five ownership-only IDs are visible.
+This result does not establish why those sources are absent from the Web catalog.
+
+The earlier cumulative ceiling was 29. This diagnostic adds at most five attempts;
+the cumulative ceiling is now 34. Exact HTTP counts for these later shared-session
+runs were not instrumented. The earlier measured count of 24 is unchanged.
+
+### Approved Web-catalog result scope
+
+A credential-free follow-up inspected the same [public menu client][menu-client]:
+629,971 bytes, SHA-256
+`304e83268a7d349eef6d436f02ec25eba65fdc9ed03058c17dcb6c533f7906a0`.
+Two bounded public-script reads were used because the first lookup expected
+function declarations; the actual helpers are variable assignments. No script
+was executed or persisted. These public-script reads are outside native
+authentication/library/configuration accounting.
+
+The `JD` search helper builds an ownership-ID set, then maps the supplied source
+records to result entries. Ownership-only IDs do not create entries. `MR` selects
+the Web catalog while `OR` reads account ownership without a platform parameter.
+This is first-party search behavior, not proof that the full-account library and
+Web catalog have identical scope. No fallback IDs, free-source grants,
+error-to-empty results, or bot-protection integration were adopted.
+
+The user explicitly selected **Use the Web catalog as the result scope**.
+Production now requires every raw ownership ID to exist in validated public
+configuration, and validates all ownership types, counts, and limits.
+Configured ownership-only sources, hidden or visible, do not create Web result
+entries or imply access denial. Visible Web catalog records still require strict
+metadata. All catalog IDs must match configuration. Hidden-category and title
+rules remain unchanged; configuration supplies no replacement titles or URLs.
+Ownership for one ID never grants access to another.
+
+Synthetic and actual CLI/MCP process checks cover both configured ownership-only
+classes, unconfigured IDs, invalid out-of-scope evidence, raw caps, complete
+empty Web catalogs, and unchanged in-scope grants. Fresh native acceptance is
+pending and needs separate approval. This scope decision authorized production
+changes, not another account request.
+
+### Native Web-catalog adapter acceptance
+
+The user separately approved a fresh one-use CLI/MCP check on 2026-11-06, in
+interactive mode. CLI ran first; MCP could run only if CLI passed. The scope
+permitted at most ten attempts total, five per adapter, using only public
+`CFG-01`, the existing protected exchange, `LIB-01`, and `LIB-02`.
+Each discovery retained its 30-second limit; the full check had a 90-second limit.
+The first access, expiry, redirect, rate-limit, bot-protection, data-validation,
+timeout, or result-check failure would stop the run. No retry, automatic login,
+credential change, content read, or raw retention was permitted.
+
+The memory-only harness passed its offline self-check. Both real native binaries
+then passed. The check compared all IDs, titles, source URLs, access summaries,
+and evidence in memory. CLI returned valid JSON with empty stderr. MCP completed
+initialization and `book_list`, then exited cleanly with no extra output.
+
+| Result | Observation |
+|--------|-------------|
+| CLI / MCP books | 169 / 169 |
+| Metadata and evidence parity | Passed |
+| Purchased books | 36 |
+| Shared books | Zero |
+| Unknown books | 133 |
+| Raw metadata, IDs, URLs, credentials, or responses retained | None |
+
+This verifies the approved Web-catalog scope, not full-account discovery,
+live sharing, other-platform session use, later content access, packaged-client
+installation, or full manual-suite coverage. Sharing remains covered by
+synthetic successful reads, loss-of-sharing checks, and adapter parity.
+
+The owned processes ended and the temporary launcher was removed. The scope is
+consumed, including unused attempts. No further account request is approved.
+The earlier cumulative ceiling was 34; this run adds at most ten attempts,
+for a ceiling of 44. Exact later HTTP counts were not instrumented.
+The earlier measured total of 24 is unchanged.
 
 ### Native session probe
 
@@ -604,7 +1137,10 @@ denied access. Leave unknown contracts explicitly unsupported.
 | ID | Source | Use |
 |----|--------|-----|
 | C1 | [First-party character application][character-client] | Source route builders, HTTP helpers, versions, and production origin strings |
-| C2 | [First-party mega-menu application][menu-client] | Public navigation client and origin strings |
+| C2 | [First-party mega-menu application][menu-client] | Public navigation, origin strings, and library JSON request helpers |
+| C3 | [Official My Library announcement][library-announcement] | User-facing library filters, not an API schema |
+| C4 | [First-party library page client][library-client] | Prepared-record rendering, user filters, and source-link consumption; raw-source mapping not shown |
+| C5 | [First-party public configuration][public-config] | Credential-free category definition and counts; not account-library eligibility or access evidence |
 | P1 | [Classes][classes-page], [backgrounds][backgrounds-page], [species][species-page], [feats][feats-page] | Public listing metadata |
 | P2 | [Spells][spells-page], [monsters][monsters-page], [magic items][items-page], [equipment][equipment-page] | Public filter names and paging links |
 | T1 | [Pinned endpoint definitions][candidate-endpoints] | Third-party monster and config candidates; not authoritative |
@@ -614,8 +1150,12 @@ denied access. Leave unknown contracts explicitly unsupported.
 | T5 | [Pinned importer book client][importer-book-data] and [ownership helper][importer-adventures] | Hosted proxy book flow, not direct upstream routes |
 | T6 | [Pinned public proxy routes][mrprimate-proxy-routes] and [configuration][mrprimate-proxy-config] | Config forwarding and limits of the public self-hosted implementation |
 | T7 | [Pinned adventure companion transport][adventure-mobile-api] | Direct mobile book API candidates and different credential transport; not live-tested |
+| T8 | [Pinned scraper picker][scraper-source-filter] and [configuration client][scraper-source-catalog] | Hidden-category candidate; incomplete attribution and weaker validation |
+| T9 | [Pinned TypeScript source parser][sdk-source-parser] | Selected-page DOM parsing, not complete library discovery |
+| T10 | [Pinned sources userscript][sources-userscript] | Historical DOM ownership/sharing heuristics, not a numeric-ID contract |
 | B1 | [Library][library-page], [selected source][selected-book], and [selected chapter][selected-chapter] | Separately approved three-page browser inspection; structure and metadata only |
 | L1 | [Issue #31][issue-31] | Earlier bounded approved probes and accepted character/campaign decisions, preserved in the issue artifacts |
+| L2 | [Issue #32][issue-32] | Separately approved three-attempt native library metadata check; partial contract evidence only |
 
 First-party script filenames identify the inspected builds. Their availability and contents
 can change. Third-party links are pinned to exact commits.
@@ -623,8 +1163,11 @@ Recheck important contracts against current first-party evidence before producti
 No search-result claim is used as endpoint evidence without source inspection.
 
 [issue-31]: https://github.com/PlagueHO/beyond-gate/issues/31
+[issue-32]: https://github.com/PlagueHO/beyond-gate/issues/32
 [character-client]: https://media.dndbeyond.com/character-app/static/js/main.4ccf1602.js
 [menu-client]: https://media.dndbeyond.com/mega-menu/assets/index-CVrwI34f.js
+[library-client]: https://www.dndbeyond.com/_next/static/chunks/app/%5Blocale%5D/library/page-794b0c736763f2f7.js
+[public-config]: https://www.dndbeyond.com/api/config/json
 [classes-page]: https://www.dndbeyond.com/classes
 [backgrounds-page]: https://www.dndbeyond.com/backgrounds
 [species-page]: https://www.dndbeyond.com/species
@@ -634,6 +1177,7 @@ No search-result claim is used as endpoint evidence without source inspection.
 [items-page]: https://www.dndbeyond.com/magic-items
 [equipment-page]: https://www.dndbeyond.com/equipment
 [library-page]: https://www.dndbeyond.com/en/library
+[library-announcement]: https://www.dndbeyond.com/posts/2122-find-filter-and-favorite-your-content-with-the-new
 [selected-book]: https://www.dndbeyond.com/sources/dnd/cos
 [selected-chapter]: https://www.dndbeyond.com/sources/dnd/cos/introduction#RunningtheAdventure
 [candidate-endpoints]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/api/endpoints.ts
@@ -644,8 +1188,14 @@ No search-result claim is used as endpoint evidence without source inspection.
 [importer-adventures]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/muncher/DDBAdventures.ts
 [importer-native-book]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/muncher/adventure/native/NativeAdventureMunch.ts
 [importer-config]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/hooks/ready/ddbConfig.ts
+[importer-page-import]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/muncher/PageImport.ts
 [mrprimate-proxy-routes]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/index.js
 [mrprimate-proxy-readme]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/README.md
 [mrprimate-proxy-config]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/config.js
 [mrprimate-proxy-lookup]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/lookup.js
 [adventure-mobile-api]: https://github.com/MrPrimate/ddb-adventure-muncher/blob/5d4f8e80554078ad907084885e8d2f73bf7a4355/munch/data/ddb.js
+[scraper-source-filter]: https://github.com/theunschut/ddb-scraper/blob/54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b/DdbScraper.Repository/Ddb/SourcePickerFilter.cs
+[scraper-source-catalog]: https://github.com/theunschut/ddb-scraper/blob/54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b/DdbScraper.Repository/Ddb/DdbSourceCatalogClient.cs
+[scraper-endpoint-notes]: https://github.com/theunschut/ddb-scraper/blob/54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b/docs/ddb-api/endpoints.md
+[sdk-source-parser]: https://github.com/astermoline/dndbeyond-parser/blob/3a667c78ba832cd87f76817fad6407a8a5b05e9a/src/parsers/source.ts
+[sources-userscript]: https://github.com/petrgon/beyond-my-sources/blob/7dcfa621323d354e661ce8c6de7b915bde809170/script.js

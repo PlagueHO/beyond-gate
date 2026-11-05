@@ -36,7 +36,7 @@
     { "path": "character show", "tool": "character_show", "arguments": { "id": "synthetic" }, "list": false },
     { "path": "campaign list", "tool": "campaign_list", "arguments": {}, "list": true },
     { "path": "campaign show", "tool": "campaign_show", "arguments": { "id": "synthetic" }, "list": false },
-    { "path": "book list", "tool": "book_list", "arguments": {}, "list": true },
+    { "path": "book list", "tool": "book_list", "arguments": {}, "list": true, "requires_session": true },
     { "path": "book outline", "tool": "book_outline", "arguments": { "book_id": "synthetic" }, "list": true },
     { "path": "book read", "tool": "book_read", "arguments": { "book_id": "synthetic", "section_id": "opening" }, "list": false }
   ],

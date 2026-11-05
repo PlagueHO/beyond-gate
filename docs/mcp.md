@@ -2,11 +2,14 @@
 
 **Current status:** `beyond-gate-mcp` is a local read-only stdio server using the
 official Rust MCP SDK, rmcp. Startup, initialization, tool discovery, validation,
-and protocol errors are implemented. Live character, campaign, and book reads
-are not implemented. Windows `auth_validate` makes one fresh session check
+and protocol errors are implemented. Windows `book_list` has bounded live
+metadata transport with Web-catalog scope, category selection, and title cleanup.
+Native CLI/MCP acceptance passed with matching Web-catalog results.
+Character, campaign, outline, and section reads remain unsupported.
+Windows `auth_validate` makes one fresh session check
 through the shared core without credential input.
 
-Valid calls to all seven read tools currently return unsupported-operation tool
+Valid calls to the other six read tools return unsupported-operation tool
 errors with `isError: true`. They do not return sample data or empty success
 results. Success shapes in this reference are offline-tested adapter contracts,
 not evidence of successful live access.
@@ -235,7 +238,7 @@ No upstream not-found contract is implemented.
 
 ### book_list
 
-Lists visible book metadata and separate purchase, sharing, or catalog evidence.
+Lists visible Web-catalog book metadata and separate purchase, sharing, or catalog evidence.
 These observations do not authorize a later outline or section read.
 
 | Input | Type | Required | Validation |
@@ -250,9 +253,33 @@ Synthetic `tools/call` parameters:
 
 The success data is an array of [book objects](#book-data), with `id`, `title`,
 `source_url`, `access`, and `evidence`. Empty data would be `[]`.
-Current calls return the unsupported live-library discovery tool error.
-Offline metadata, evidence, conflict, pagination, limit, and page-read failures
-are errors, not partial successful results.
+Windows calls use the same fixed protected session and bounded three-GET operation
+as [CLI discovery](cli.md#book-list). The operation has a 30-second deadline and
+1 MiB response caps. It requires complete count equality, at most 1,000 catalog
+records, 100 ownership records, and 1,000 raw evidence/output observations.
+It follows no continuation, retries no failure, and fetches no attribution URL.
+Public configuration selects sources outside the named `Hidden Sources` category.
+Every raw ownership ID must match validated public configuration, and all evidence
+types and bounds are checked. Configured ownership-only sources outside the Web
+catalog do not create entries or imply access denial.
+Invalid visible title whitespace is trimmed and collapsed before strict validation;
+valid titles and URL rules remain unchanged. Configuration supplies no replacement
+titles or links.
+Request cancellation stops pending work. Tool discovery does not open storage.
+
+Session, transport, metadata, evidence, completeness, conflict, and limit failures
+return `isError: true`, not partial data or empty fallback results. An empty array
+requires complete validated responses with no selected books. Non-Windows
+production session use remains unsupported. Earlier native CLI acceptance failed
+catalog validation; MCP was skipped. Later category and title diagnostics passed.
+The approved mapping is implemented and checked offline. Fresh native CLI
+acceptance passed catalog preparation but failed ownership/catalog matching;
+MCP was skipped. The user later approved the Web-catalog result scope above.
+Unconfigured ownership and invalid visible records still fail.
+Fresh native CLI/MCP acceptance passed with matching metadata and evidence for
+169 books: 36 purchased and 133 unknown. No real sharing was observed.
+All live scopes are consumed.
+Synthetic checks do not prove live success.
 
 ### book_outline
 
@@ -429,7 +456,8 @@ show tools return one object.
 | `evidence` | Array of objects | Context-specific observations |
 
 Evidence objects contain `kind: "catalog_only"` with no other fields,
-`kind: "purchased"` with `state`, or `kind: "shared"` with `context_id` (string)
+`kind: "purchased"` with `state`, `kind: "shared_with_account"` with `state`
+and no context identifier, or `kind: "shared"` with `context_id` (string)
 and `state`. State is `granted`, `unavailable`, or `unknown`.
 The summary retains independent grants; it does not convert an unrelated denial
 into universal denial. Catalog-only visibility is not a grant. These observations

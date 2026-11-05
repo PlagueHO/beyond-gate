@@ -480,11 +480,17 @@ fn metadata_and_validation_diagnostics_are_redacted() {
     assert!(error.source().is_none());
 }
 
-/// Keeps live discovery explicitly unavailable instead of returning an empty list.
-#[test]
-fn live_discovery_reports_its_blocker_without_inputs_or_side_effects() {
-    let error = discover_library().expect_err("live discovery remains blocked");
-    assert!(matches!(error, LibraryError::UnsupportedDiscovery));
-    assert!(error.to_string().contains("source contract"));
-    assert!(error.source().is_none());
+/// Rejects absent synthetic sessions before sending a resource request.
+#[tokio::test]
+async fn live_discovery_requires_the_shared_session() {
+    use crate::auth::session::{SessionErrorKind, fixture as auth_fixture};
+    let session = fixture::session(fixture::Scenario::Absent).expect("synthetic session");
+    let error = discover_library(&session)
+        .await
+        .expect_err("missing session");
+    assert!(
+        matches!(&error, LibraryError::SessionRead(error) if error.kind() == SessionErrorKind::Absent)
+    );
+    assert!(error.source().is_some());
+    assert_eq!(auth_fixture::request_count(&session), 0);
 }

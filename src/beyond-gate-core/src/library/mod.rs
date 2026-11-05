@@ -1,12 +1,16 @@
-//! Offline book metadata assembly with explicit evidence and bounded pagination.
+//! Bounded live library discovery and offline assembly with explicit access evidence.
 //!
-//! These normalized inputs are not a verified upstream schema. No operation in
-//! this module fetches a page, reads credentials, or persists a library. Live
-//! discovery is explicitly unsupported until source contracts and login exist.
+//! Catalog visibility never grants content access. Snapshots are not persisted;
+//! outline and section operations must establish fresh access independently.
 
+mod discovery;
 mod error;
 mod model;
 
+#[cfg(any(test, feature = "session-fixture"))]
+pub mod fixture;
+
+pub use discovery::discover_library;
 pub use error::LibraryError;
 pub use model::{AccessEvidence, AccessState, Book, BookAccess, BookRecord};
 
@@ -118,11 +122,7 @@ pub fn assemble_library(
         }
         entries += page.entries.len();
         for record in page.entries {
-            let book = Book::from_record(record)?;
-            match books.iter_mut().find(|existing| existing.id() == book.id()) {
-                Some(existing) => existing.merge(book)?,
-                None => books.push(book),
-            }
+            append_record(&mut books, record)?;
         }
         complete = page.next_cursor.is_none();
         expected_cursor = page.next_cursor;
@@ -133,17 +133,16 @@ pub fn assemble_library(
     Ok(LibrarySnapshot { books })
 }
 
-/// Reports the blocked live boundary without network or credential access.
-///
-/// Use [`assemble_library`] for explicit offline metadata observations. That
-/// operation is not a replacement for a live discovery interface.
-///
-/// # Errors
-///
-/// Always returns [`LibraryError::UnsupportedDiscovery`]. No endpoint contract,
-/// runtime origin, or usable browser-login flow is established for discovery.
-pub fn discover_library() -> Result<LibrarySnapshot, LibraryError> {
-    Err(LibraryError::UnsupportedDiscovery)
+/// Shares duplicate and conflict handling between offline and live observations.
+fn append_record(books: &mut Vec<Book>, record: BookRecord) -> Result<(), LibraryError> {
+    let book = Book::from_record(record)?;
+    match books.iter_mut().find(|existing| existing.id() == book.id()) {
+        Some(existing) => existing.merge(book),
+        None => {
+            books.push(book);
+            Ok(())
+        }
+    }
 }
 
 #[cfg(test)]

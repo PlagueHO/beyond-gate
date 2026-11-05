@@ -1,12 +1,13 @@
 # Native installation and first-run checks
 
-**Status: offline foundation, not a usable v1 D&D Beyond client.**
+**Status: Windows login and Web-library discovery; other live reads remain unsupported.**
 There is no published release yet. The packaging workflow produces test archives.
 Windows login and native-host setup are implemented.
 Approved real Chrome and Edge Dev login/save/restart/logout checks passed.
-Live reads are not
-implemented. Local MCP serving and registration work, but discovery does not
-establish access to account data.
+Approved native CLI/MCP Web-library checks passed in the development checkout.
+They do not verify a packaged release or authorize later content reads.
+Local MCP serving and registration work; tool discovery alone does not establish
+access to account data.
 
 ## Package matrix
 
@@ -212,6 +213,10 @@ These are implementation limits, not verified missing-session or expiry errors.
 Do not supply a password, cookie, or token. Do not create a credential manually.
 Do not run `auth status` or `auth logout` as an automated package check:
 they access the real OS store.
+On Windows, valid `book list` and MCP `book_list` requests also use the real
+OS store and can contact D&D Beyond. Package checks reject unknown CLI options
+and MCP input fields before discovery instead. Synthetic process tests check
+successful discovery and session failures without a real account.
 Do not run interactive `auth login` as an account-free check. After human pairing
 and consent, it reads the selected browser cookie, validates it, and replaces the
 protected local entry. Separate explicit approval is required for real account
@@ -291,10 +296,10 @@ An offline package check is not a v1 acceptance decision.
 | Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
 | Runtime-independent native startup | Checked with a restricted child PATH. Clean desktop installation and OS trust prompts remain untested. |
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
-| CLI/MCP errors and output contracts, source attribution, book bounds | Existing offline suites use synthetic records. Live parity and source contracts remain blocked. |
-| Missing, expired, or rejected upstream session errors | Blocked by missing session-aware live operations. Unsupported errors are not substitutes. |
+| CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library CLI/MCP metadata and evidence parity passed separately from packaging. Synthetic errors, attribution, and bounded book checks pass. Content reads remain unsupported. |
+| Missing, expired, or rejected upstream session errors | Shared-session library discovery has synthetic failure checks. Other live operations remain unsupported. Live evidence is separate. |
 | Simple browser login and native credential-store operation | Approved Windows Chrome and Edge Dev product checks passed separately from packaging. Other-platform login remains deferred. New real-store tests need explicit approval. |
-| Live reads and client walkthrough | Not tested by packaging or Windows login checks. Require explicit approval and a permitted access path. Stop on access denial. |
+| Live reads and client walkthrough | Native Web-library acceptance passed separately from packaging. Real sharing, other live reads, and actual client walkthrough remain unverified. New account checks need explicit approval. Stop on access denial. |
 | Version, lockfile, dated changelog, assets, evidence, and draft release | Require maintainer review before publication. No tag or publication is authorized by issue #10 alone. |
 
 Manual packaging uploads artifacts only. A maintainer-approved version tag can

@@ -2,6 +2,7 @@
 
 use std::{error::Error, fmt};
 
+use crate::auth::session::SessionError;
 use crate::http::HttpError;
 
 /// Explains why no complete library snapshot can be returned.
@@ -28,11 +29,20 @@ pub enum LibraryError {
     UnsupportedDiscovery,
     /// A supplied page failed; the underlying HTTP classification is preserved.
     PageRead(HttpError),
+    /// A protected session or authenticated resource read failed.
+    SessionRead(SessionError),
+    /// The complete operation reached its fixed deadline.
+    TimedOut,
+    /// Ownership names a source absent from validated public configuration.
+    UnmatchedOwnership,
 }
 
 impl fmt::Display for LibraryError {
     /// Gives a fixed diagnostic without displaying untrusted page values.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Self::SessionRead(error) = self {
+            return write!(formatter, "Library discovery failed: {error}");
+        }
         let message = match self {
             Self::InvalidMetadata => "Library metadata is invalid.",
             Self::InvalidEvidence => "Library access evidence is invalid.",
@@ -47,6 +57,9 @@ impl fmt::Display for LibraryError {
                 "Live library discovery is unsupported: a source contract and usable login are not implemented."
             }
             Self::PageRead(_) => "A library page read failed; no snapshot is available.",
+            Self::SessionRead(_) => "Library discovery failed.",
+            Self::TimedOut => "Library discovery reached its operation deadline.",
+            Self::UnmatchedOwnership => "Library ownership has no matching source metadata.",
         };
         formatter.write_str(message)
     }
@@ -57,6 +70,7 @@ impl Error for LibraryError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::PageRead(error) => Some(error),
+            Self::SessionRead(error) => Some(error),
             _ => None,
         }
     }

@@ -1,6 +1,6 @@
 # D&D Beyond API call catalog
 
-Last reviewed: 2026-11-02. Research issue: [#31][issue-31].
+Last reviewed: 2026-11-06. Research issues: [#31][issue-31] and [#32][issue-32].
 
 Use this shared index when planning or implementing another issue.
 It catalogs all calls identified in the [API survey](api-survey.md), including candidates
@@ -57,6 +57,10 @@ Do not bind a route to an origin from its name alone.
 
 `https://api.dndbeyond.com` and `https://dice-service.dndbeyond.com` appear in the client.
 Their presence does not resolve the Unbound rows.
+First-party library helpers separately bind `LIB-01` and `LIB-02` to
+`https://api.dndbeyond.com`. Approved native CLI/MCP checks verified bounded
+Web-catalog discovery. Real shared-access observations and book-content access
+remain unverified.
 `https://media.dndbeyond.com` serves inspected scripts and assets, not an access grant.
 Staging hosts, telemetry, and message services are not resource API candidates.
 
@@ -163,15 +167,51 @@ Do not add a generic POST escape hatch.
 
 ## Monsters and configuration
 
-Evidence: Candidate. Sources: T1/T2; config forwarding also appears in T6.
-The third-party monster clients use bearer authentication, but these routes were not tested
-with Beyond Gate. Config authentication requirements remain unverified.
+Evidence: Candidate for monsters; native metadata comparison for configuration.
+Sources: T1/T2; config forwarding also appears in T6.
+The third-party monster clients use bearer authentication, but the monster routes were not
+tested with Beyond Gate. A separately approved credential-free `CFG-01` read succeeded.
 
 | ID | Service | Method and path | Candidate inputs and result | Remaining contract |
 |----|---------|-----------------|-----------------------------|--------------------|
 | MON-01 | MONSTER | GET `/v1/Monster` | `search`, `skip`, `take`, `showHomebrew`, `sources`, repeated `ids`; array `data`, `accessType` map, pagination | Verify bounded search, paging, and numeric access meanings |
 | MON-02 | MONSTER | GET `/v1/Monster/{id}` | Object `data`, scalar `accessType` | Verify selected detail and full-content access |
-| CFG-01 | WEB | GET `/api/config/json` | Rules lookup arrays and source metadata in third-party code | Verify shape, response size, and authentication; not a user library |
+| CFG-01 | WEB | GET `/api/config/json` | Credential-free JSON accepted within 1 MiB; 268 sources and 50 categories; all 177 `LIB-01` IDs matched; named `Hidden Sources` category selects eight library records for exclusion | Source/category identity only; configured ownership-only IDs are valid outside Web results, not replacement books or ownership grants; native adapter parity passed |
+
+The [configuration comparison](api-survey.md#alternative-configuration-catalog-comparison)
+stopped at failed diagnostics. Its initial URL mapping rejected a relative form
+used by the importer. A separately approved corrected comparison validated 170 of
+177 library records, but did not resolve the four records lacking attribution.
+Neither run establishes complete live discovery. Do not use the initial
+zero-valid-record count as evidence that the configuration catalog lacks links.
+
+The later [public category check](api-survey.md#independent-source-picker-and-category-evidence)
+used one separate credential-free `CFG-01` request. It confirmed one `Hidden Sources`
+category and the expected description phrases. Of 57 sources without links, 51
+belonged to that category and six did not. This does not establish category
+membership for the four unresolved `LIB-01` records or a complete book-selection
+rule. No production category filter was enabled. Sources: C5 and T8-T10.
+
+The separately approved [hidden-category comparison](api-survey.md#approved-hidden-category-comparison)
+on 2026-11-06 matched all 177 library IDs. Eight were hidden, including all four
+records without attribution. Two of the remaining 169 records still failed both
+metadata mappings. The check returned `InvalidMetadata` after three attempts.
+The scope is consumed; no production filter or ownership request followed.
+The two remaining failure classes and complete ownership handling remain unresolved.
+
+A subsequent separately approved
+[failure-class diagnostic](api-survey.md#approved-metadata-failure-class-diagnostic)
+found padded titles on both remaining records and a control character on one.
+No link-validation failure class was reported for those records. The proposed
+library mapping and configuration-title whitespace cleanup each validated all
+169 non-hidden records. The three-request diagnostic passed and its scope is
+consumed. The user subsequently approved production category selection and title
+cleanup. That initial mapping used strict URLs and full raw-catalog
+ownership matching. Fresh native CLI acceptance later passed metadata preparation
+but failed ownership/catalog matching; MCP was skipped. No wider URL allowlist is justified.
+The later [approved Web scope](api-survey.md#approved-web-catalog-result-scope)
+keeps full raw ownership validation against configuration without emitting
+ownership-only sources.
 
 Monster pagination candidates include `take`, `skip`, `currentPage`, `pages`, and `total`.
 A visible name, partial record, or HTTP success is not a full-content grant.
@@ -201,6 +241,70 @@ The outline selector is `.compendium-toc-full-text`; the article container is
 `.p-article-content`. See the survey for heading boundaries and raw link counts.
 No text extraction, UTF-8 output-limit test, or fresh native entitlement check was completed.
 Other source paths must not be generated from this one example.
+
+## Library JSON client routes
+
+Evidence: Client and approved native metadata checks on 2026-11-04.
+Sources: C2/C4/L2.
+Implementation issue: [#32][issue-32].
+See the [source inspection](api-survey.md#first-party-library-json-routes).
+Fixed-route production discovery includes the approved category selection and
+title cleanup and the user-approved Web-catalog result scope. Fresh native
+acceptance passed through both adapters with matching 169-book results. All live
+scopes are consumed; another live run needs separate approval.
+The production client explicitly selects `https://api.dndbeyond.com`, not WEB.
+Its signed-in search flow obtains authentication through `AUTH-01`.
+Bearer-only native requests returned JSON within 1 MiB in that check.
+The follow-up proved source count equality but rejected the source response at
+the existing per-page record cap. At that checkpoint, ownership completeness
+and paging remained unverified. Later diagnostic and native adapter checks
+accepted count equality and terminal collections under the implemented caps.
+
+| ID | Service base | Method and path | Client evidence and remaining contract |
+|----|--------------|-----------------|----------------------------------------|
+| LIB-01 | `https://api.dndbeyond.com` | GET `/library/sources?platform=Web` | Native 200; 123,198 bytes; `items` count equals `totalCount`; within 1,000 records but exceeds 100-record page cap; some source paths fail the conservative rule |
+| LIB-02 | `https://api.dndbeyond.com` | GET `/library/sources/me` | Native 200; 2,104 bytes; `items`, numeric `totalCount`, `sourceId`, `ownership[].type`; `owned` observed but no `shared`; contexts, absence, and revocation unresolved |
+
+The search client combines ownership and free-source observations into one filter flag.
+Do not use that flag as purchase evidence or a content-access grant.
+Do not copy fallback source IDs, error-to-empty behavior, or bot-protection integration.
+Keep the 1 MiB response cap. The user approved a separate 1,000-record complete
+catalog cap, while ownership retains 100 records. Runtime discovery requires
+count equality for both routes and rejects continuation or ownership IDs absent
+from validated public configuration. Configured ownership-only sources do not
+create result entries outside the Web catalog.
+Missing ownership remains unknown. `shared` becomes account-level sharing
+without an invented context. A supplied validated marketplace link is permitted
+only when a book path is absent. See [live discovery](architecture.md#live-library-discovery).
+See the [native check](api-survey.md#approved-native-library-metadata-check).
+The first structural check did not verify count equality. The approved follow-up
+verified it only for sources, then stopped at the page cap before the ownership read.
+Production implementation has synthetic transport and process checks.
+Do not turn partial probe evidence into live adapter acceptance or a fresh-content
+access claim. Neither consumed scope authorizes another request.
+Later native acceptance failed catalog metadata validation. Catalog-only
+diagnostics found missing attribution and rejected released-only filtering.
+The earlier proposed legacy-link and title-normalization changes were not applied
+at that checkpoint.
+See [native rejection evidence](api-survey.md#native-adapter-rejection-and-catalog-diagnostics).
+Later diagnostics established the category/title mapping now implemented without
+wider URL rules. Fresh native CLI acceptance passed catalog preparation, then
+failed `UnmatchedOwnership`; MCP was skipped. See the
+[acceptance evidence](api-survey.md#native-selected-library-acceptance).
+A later diagnostic found seven configured ownership-only IDs: two hidden and
+five visible. The user approved the Web result scope rather than inventing book
+metadata for them. That change is checked offline; fresh native acceptance is
+complete: both adapters returned matching metadata and evidence for 169 books,
+with 36 purchased, zero shared, and 133 unknown. See the
+[fresh native acceptance](api-survey.md#native-web-catalog-adapter-acceptance).
+All live scopes are consumed.
+
+The [public library client trace](api-survey.md#public-library-rendering-boundary)
+on 2026-11-05 found a prepared `sources` prop, user filters, and cards that consume
+supplied `relativePath` values. It did not expose the raw-source book-selection
+or link-mapping implementation. The menu's path-skipping helper serves bounded
+favorites and recent lists, not complete discovery. No account request or
+production behavior change resulted from this trace.
 
 ## Mobile book API candidates
 
@@ -323,18 +427,26 @@ HTML filter names, and interpretation limits.
 | Source ID | Evidence source |
 |-----------|-----------------|
 | C1 | First-party character application build `main.4ccf1602.js` |
-| C2 | First-party mega-menu build `index-CVrwI34f.js`; navigation, not JSON contracts |
+| C2 | First-party mega-menu build `index-CVrwI34f.js`; navigation and library JSON helpers, not verified native contracts |
+| C3 | Official My Library announcement; user-facing filters, not an API schema |
+| C4 | First-party library page build `page-794b0c736763f2f7.js`; consumes prepared records, not a raw-source contract |
+| C5 | Credential-free `CFG-01` category metadata checked on 2026-11-05; no account-library join |
 | P1/P2 | Eight public listing pages; HTML filters, not API parameters |
 | T1/T2 | `AlexWorland/dndbeyond-mcp` at `61d6f3caae27b539d5a1ba7b0668074c27672702` |
 | T3/T4 | `avrae/avrae` at `15258cb884c1085582a710a9791f890371afb6c4` |
 | T5 | `MrPrimate/ddb-importer` at `a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5` |
 | T6 | `MrPrimate/ddb-proxy` at `a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a` |
 | T7 | `MrPrimate/ddb-adventure-muncher` at `5d4f8e80554078ad907084885e8d2f73bf7a4355` |
+| T8 | `theunschut/ddb-scraper` at `54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b` |
+| T9 | `astermoline/dndbeyond-parser` at `3a667c78ba832cd87f76817fad6407a8a5b05e9a` |
+| T10 | `petrgon/beyond-my-sources` at `7dcfa621323d354e661ce8c6de7b915bde809170` |
 | B1 | Separately approved three-page selected-book browser inspection |
 | L1 | Separately approved native probes and accepted decisions on [#31][issue-31] |
+| L2 | Separately approved three-attempt native library metadata check on [#32][issue-32] |
 
 Recheck version-sensitive decisions against current first-party documentation when available.
 If no public contract exists, record that gap and obtain approval for a bounded live check.
 Stop on access denial. Never treat another issue's old test scope as reusable approval.
 
 [issue-31]: https://github.com/PlagueHO/beyond-gate/issues/31
+[issue-32]: https://github.com/PlagueHO/beyond-gate/issues/32

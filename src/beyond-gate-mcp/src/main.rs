@@ -25,7 +25,7 @@ fn main() -> ExitCode {
         .version(env!("CARGO_PKG_VERSION"))
         .about("Local read-only MCP server for Beyond Gate")
         .after_help(
-            "Uses stdio for MCP messages. Live reads are not implemented; valid read tools report explicit unsupported errors.",
+            "Uses stdio for MCP messages. Windows book_list uses bounded public category classification and metadata transport through the shared stored session. Other live reads are not implemented and report explicit unsupported errors.",
         )
         .get_matches();
 

@@ -651,7 +651,9 @@ shared lifecycle using the same fixed entry. It cannot accept a cookie in a tool
 MCP adds no credential-input protocol or tool.
 Reuse is bounded to one cookie exchange per operation after bearer expiry.
 There is no background refresh or upstream revocation contract.
-Live resource reads remain #31-#33 work. Linux production session use and
+Windows Web-library discovery is implemented in #32 with synthetic checks.
+Approved native CLI/MCP acceptance returned matching metadata and evidence.
+Other live resource reads remain #31 and #33 work. Linux production session use and
 human-controlled login are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
 ### Safe errors

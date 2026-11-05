@@ -321,7 +321,7 @@ async fn portable_service_contract_rejects_expiry_and_malformed_material() {
     }
 }
 
-/// Normal non-Windows validation never opens a native credential service.
+/// Non-Windows validation and discovery stop before credential or public service access.
 #[cfg(not(windows))]
 #[tokio::test]
 async fn production_platform_guard_precedes_native_access() {
@@ -333,6 +333,14 @@ async fn production_platform_guard_precedes_native_access() {
             .kind(),
         SessionErrorKind::UnsupportedPlatform
     );
+    let error = crate::library::discover_library(&Session::default())
+        .await
+        .expect_err("unsupported discovery");
+    assert!(matches!(
+        error,
+        crate::library::LibraryError::SessionRead(error)
+            if error.kind() == SessionErrorKind::UnsupportedPlatform
+    ));
 }
 
 /// Applies bearer-only headers to bounded reads, never retries denial, and distinguishes 403.

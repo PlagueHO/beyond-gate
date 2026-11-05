@@ -15,7 +15,7 @@ function Get-E2eInventory {
 }
 
 function Assert-E2eLiveReady {
-    # No production session or endpoint contract exists. There is deliberately no override.
+    # Other resource contracts and full-suite live approval remain absent. No override exists.
     throw [InvalidOperationException]::new('live_prerequisites')
 }
 
@@ -66,8 +66,12 @@ function Get-E2eCases {
                 if ($mode.EndsWith('-no-headers')) { $selected += '--no-headers' }
             }
             $name = $read.path.Replace(' ', '.')
+            $requiresSession = $read.ContainsKey('requires_session') -and $read.requires_session
+            if ($requiresSession) { $selected += '--unexpected' }
             $cases.Add((New-E2eCase "contract.cli.$name.$mode" 'cli' @{
-                arguments = $selected; code = 1; error = 'unsupported'
+                arguments = $selected
+                code = $(if ($requiresSession) { 2 } else { 1 })
+                error = $(if ($requiresSession) { 'unexpected' } else { 'unsupported' })
             }))
             $cases.Add((New-E2eCase "live.cli.$name.$mode" 'live'))
         }
@@ -333,12 +337,16 @@ function Invoke-E2eProtocol {
         $verified.Add('discovery')
         $id = 3
         foreach ($read in $Inventory.reads) {
+            $requiresSession = $read.ContainsKey('requires_session') -and $read.requires_session
             $response = Invoke-E2eRequest $child @{
                 jsonrpc = '2.0'; id = $id; method = 'tools/call'
-                params = @{ name = $read.tool; arguments = $read.arguments }
+                params = @{
+                    name = $read.tool
+                    arguments = $(if ($requiresSession) { @{ unexpected = $true } } else { $read.arguments })
+                }
             }
             Assert-E2e ($response.result.isError -eq $true)
-            Assert-E2e ($response.result.content[0].text -cmatch 'unsupported')
+            Assert-E2e ($response.result.content[0].text -cmatch $(if ($requiresSession) { 'unknown field' } else { 'unsupported' }))
             $verified.Add($read.tool)
             $id++
         }

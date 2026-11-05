@@ -125,7 +125,10 @@ impl ReadOperations for Fixtures {
     }
 
     /// Assembles independent purchase and sharing evidence without a later grant.
-    fn discover_library(&self) -> Result<LibrarySnapshot, LibraryError> {
+    async fn discover_library(
+        &self,
+        _session: &beyond_gate_core::auth::session::Session,
+    ) -> Result<LibrarySnapshot, LibraryError> {
         if self.scenario == "malformed" {
             return Err(LibraryError::InvalidMetadata);
         }

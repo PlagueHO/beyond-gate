@@ -284,6 +284,9 @@ pub struct Session {
     /// Keeps only this owner's local synthetic service alive.
     #[cfg(any(test, feature = "session-fixture"))]
     fixture: Option<fixture::Service>,
+    /// Keeps only compiled synthetic library services alive; native owners have none.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) library_fixture: Option<crate::library::fixture::Source>,
 }
 
 impl Default for Session {
@@ -296,6 +299,8 @@ impl Default for Session {
             exchange: None,
             #[cfg(any(test, feature = "session-fixture"))]
             fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            library_fixture: None,
         }
     }
 }
@@ -309,7 +314,7 @@ impl fmt::Debug for Session {
 
 impl Session {
     /// Prevents unsupported production platforms from opening storage or networking.
-    fn supported(&self) -> Result<(), SessionError> {
+    pub(crate) fn supported(&self) -> Result<(), SessionError> {
         match &self.backend {
             #[cfg(any(test, feature = "session-fixture"))]
             Backend::Synthetic(_) => Ok(()),
@@ -554,3 +559,7 @@ pub mod fixture;
 #[cfg(test)]
 #[path = "session_tests.rs"]
 mod tests;
+
+#[cfg(all(test, windows))]
+#[path = "session/library_probe.rs"]
+mod library_probe;

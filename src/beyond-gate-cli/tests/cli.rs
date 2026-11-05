@@ -28,7 +28,21 @@ fn help_reports_foundation_scope() {
     assert!(stdout.contains("Usage: beyond-gate"));
     assert!(stdout.contains(beyond_gate_core::FOUNDATION_NOTICE));
     assert!(stdout.contains("local MCP serving are available"));
+    assert!(stdout.contains("Web-catalog metadata"));
+    assert!(!stdout.contains("discovery remains blocked"));
     assert!(!stdout.contains("MCP serving are not implemented"));
+}
+
+/// Reports implemented library discovery without claiming live book-content support.
+#[test]
+fn book_help_reports_web_catalog_scope() {
+    let output = run(&["book", "--help"]);
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(stdout.contains("Bounded Web-catalog discovery"));
+    assert!(stdout.contains("content reads unsupported"));
+    assert!(!stdout.contains("discovery blocked"));
 }
 
 /// Checks that version output uses the shared workspace package version.
@@ -64,7 +78,6 @@ fn live_resource_reads_are_explicitly_unsupported() {
         vec!["character", "show", "invented"],
         vec!["campaign", "list"],
         vec!["campaign", "show", "invented"],
-        vec!["book", "list"],
         vec!["book", "outline", "invented"],
         vec!["book", "read", "invented", "opening"],
         vec!["character", "list", "--format", "json"],

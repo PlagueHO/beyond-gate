@@ -30,6 +30,11 @@ pub enum AccessEvidence {
         /// Records the observed purchase state, not a permanent entitlement.
         state: AccessState,
     },
+    /// An account-level sharing observation with no asserted campaign context.
+    SharedWithAccount {
+        /// Records only the current account's observed sharing state.
+        state: AccessState,
+    },
     /// An observation about one independent sharing context.
     Shared {
         /// Identifies the context opaquely; it is not a verified campaign schema.
@@ -54,7 +59,8 @@ impl AccessEvidence {
     pub(super) fn same_context(&self, other: &Self) -> bool {
         match (self, other) {
             (Self::CatalogOnly, Self::CatalogOnly)
-            | (Self::Purchased { .. }, Self::Purchased { .. }) => true,
+            | (Self::Purchased { .. }, Self::Purchased { .. })
+            | (Self::SharedWithAccount { .. }, Self::SharedWithAccount { .. }) => true,
             (
                 Self::Shared { context_id, .. },
                 Self::Shared {
@@ -74,6 +80,10 @@ impl fmt::Debug for AccessEvidence {
             Self::CatalogOnly => formatter.write_str("CatalogOnly"),
             Self::Purchased { state } => formatter
                 .debug_struct("Purchased")
+                .field("state", state)
+                .finish(),
+            Self::SharedWithAccount { state } => formatter
+                .debug_struct("SharedWithAccount")
                 .field("state", state)
                 .finish(),
             Self::Shared { state, .. } => formatter
@@ -207,6 +217,8 @@ impl Book {
                 AccessEvidence::Shared {
                     state: AccessState::Granted,
                     ..
+                } | AccessEvidence::SharedWithAccount {
+                    state: AccessState::Granted
                 }
             )
         });
@@ -223,6 +235,8 @@ impl Book {
                         } | AccessEvidence::Shared {
                             state: AccessState::Unavailable,
                             ..
+                        } | AccessEvidence::SharedWithAccount {
+                            state: AccessState::Unavailable
                         }
                     )
                 }) {

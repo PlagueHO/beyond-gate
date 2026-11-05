@@ -2,11 +2,12 @@
 
 The CLI and MCP binaries provide help and version output. The CLI has verified Windows
 browser login, local auth status/logout, and shell completions. Resource command parsing and
-formatting have offline process tests; live reads fail explicitly.
+formatting have offline process tests. Windows Web-library discovery has approved
+native CLI/MCP parity; other live resource reads fail explicitly.
 Protected-store operations have synthetic offline
 tests; Windows login creates the protected entry after service validation.
-The core HTTP read boundary has offline policy tests, but no live resource
-endpoints or adapter wiring. Authenticated resource operations
+The core HTTP read boundary has offline policy tests and fixed Web-library
+routes through the shared protected session. Other authenticated resource operations
 below remain pending. The core can also assemble explicitly supplied offline
 library metadata with context-specific evidence and bounded pagination. This is
 not live discovery. The core also validates supplied book outlines and reads
@@ -22,10 +23,10 @@ dependencies, tests, and documentation requirements.
 | [#1](https://github.com/PlagueHO/beyond-gate/issues/1) | Access and technical feasibility assessment | None; assessment recorded; blanket permission stop gate removed |
 | [#2](https://github.com/PlagueHO/beyond-gate/issues/2) | Typed HTTP client and bounded request policy; offline boundary implemented | #1; approved hosts and endpoint contracts still unresolved |
 | [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Windows human login and local storage/status/logout implemented; reusable sessions and other-platform login remain deferred | #1, #2 |
-| [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library metadata, evidence, and page assembly implemented; live discovery blocked | #1, #2, #3 |
+| [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library assembly implemented; #32 adds verified Windows Web-library discovery through both adapters | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
 | [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Offline outlines and bounded section reads implemented; live reads not implemented | #4 |
-| [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | Offline CLI adapter, output formats, bounded wire continuation, and completions implemented; live reads blocked | #5, #6 |
+| [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | CLI output, continuation, and completions implemented; #32 adds verified Windows Web-library reads; other live reads unsupported | #5, #6 |
 | [#8](https://github.com/PlagueHO/beyond-gate/issues/8) | Local stdio MCP and read parity | #5, #6; coordinate with #7 |
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
 | [#10](https://github.com/PlagueHO/beyond-gate/issues/10) | Native packages and first-run usability | #9 and its prerequisites |
@@ -119,10 +120,18 @@ for #6 in this change, not a claim that the live-read goal has been fulfilled.
 Issue #4 remains partial. The [offline library boundary](architecture.md#offline-library-boundary)
 validates supplied metadata, access evidence, duplicate handling, and bounded
 complete pagination. It retains no prior grants or persistent cache.
-`discover_library` explicitly reports unsupported discovery; the CLI's `book list`
-reports that failure instead of returning live books. Runtime endpoints, actual metadata and entitlement
-schemas, source-URL rules, upstream pagination, usable sessions, and approved live
-validation remain unresolved. Offline tests cannot prove upstream freshness,
+Issue #32 adds Windows Web-library discovery through public classification and
+two bounded protected JSON routes, with matching CLI `book list` and MCP `book_list`.
+It requires complete count equality and preserves separate purchase and
+account-sharing evidence. Attribution permits a supplied validated marketplace
+URL only when the book path is absent. It neither fetches those links nor grants
+later content access. See [live discovery](architecture.md#live-library-discovery)
+for caps and failures. Earlier native metadata and ownership checks failed.
+The approved Web-catalog scope now handles configured ownership-only sources
+without inventing book metadata. Fresh native CLI/MCP acceptance passed with
+matching results: 169 books, 36 purchased and 133 unknown.
+Real sharing observations remain unverified.
+Offline tests cannot prove upstream freshness,
 detect unreported revocation, or establish schema-change compatibility.
 
 Issue #5 remains offline-only. The core validates explicitly supplied character
@@ -184,8 +193,9 @@ Each platform result applies only after its packaging workflow succeeds.
 This is not completion of #10 or proof of a usable v1. Missing-session and expiry
 errors for live operations remain blocked, not replaced by unsupported errors.
 Windows login and protected-store checks have approved product evidence.
-Other-platform login, actual client discovery, and approved live CLI/MCP checks
-for access, attribution, and book bounds remain release blockers.
+Other-platform login, actual client discovery, real-sharing validation, and live
+content access remain release blockers. Native Web-library metadata and evidence
+parity passed separately from packaging.
 See the guide's [release-readiness table](installation.md#release-readiness).
 Maintainers must review version, lockfile, dated changelog, assets, evidence, and
 the draft before publication. This issue authorizes no release tag or publication.

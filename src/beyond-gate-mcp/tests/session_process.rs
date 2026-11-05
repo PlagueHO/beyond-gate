@@ -10,6 +10,7 @@ use std::{
 };
 
 use beyond_gate_core::auth::session::fixture::{self, Scenario};
+use beyond_gate_core::{auth::session::Session, library::fixture as library_fixture};
 use rmcp::{ServiceExt, transport::stdio};
 use serde_json::{Value, json};
 
@@ -32,6 +33,37 @@ fn scenario(name: &str) -> Scenario {
     }
 }
 
+/// Selects fixed invented source cases only in this self-spawning test executable.
+fn session(name: &str) -> Session {
+    let source = match name {
+        "library-normal" => Some(library_fixture::Scenario::Normal),
+        "library-lost" => Some(library_fixture::Scenario::SharingLost),
+        "library-empty" => Some(library_fixture::Scenario::Empty),
+        "library-absent" => Some(library_fixture::Scenario::Absent),
+        "library-rejected" => Some(library_fixture::Scenario::Rejected),
+        "library-expired" => Some(library_fixture::Scenario::Expired),
+        "library-waiting" => Some(library_fixture::Scenario::Waiting),
+        "library-malformed" => Some(library_fixture::Scenario::Malformed),
+        "library-incomplete" => Some(library_fixture::Scenario::Incomplete),
+        "library-oversized" => Some(library_fixture::Scenario::Oversized),
+        "library-denied" => Some(library_fixture::Scenario::Denied),
+        "library-rate-limited" => Some(library_fixture::Scenario::RateLimited),
+        "library-invalid-config" => Some(library_fixture::Scenario::InvalidConfiguration),
+        "library-invalid-title" => Some(library_fixture::Scenario::InvalidTitle),
+        "library-hidden-evidence" => Some(library_fixture::Scenario::InvalidHiddenEvidence),
+        "library-unmatched-ownership" => Some(library_fixture::Scenario::UnmatchedOwnership),
+        "library-outside-web-catalog" => Some(library_fixture::Scenario::OutsideWebCatalog),
+        "library-invalid-outside-evidence" => {
+            Some(library_fixture::Scenario::InvalidOutsideEvidence)
+        }
+        _ => None,
+    };
+    match source {
+        Some(source) => library_fixture::session(source).expect("invented library services"),
+        None => fixture::session(scenario(name)).expect("invented auth service"),
+    }
+}
+
 /// Runs an actual CLI parser/runner in a separate process using the invented core owner.
 fn cli(name: &str, arguments: &[&str]) -> Output {
     Command::new(std::env::current_exe().expect("test executable"))
@@ -43,6 +75,11 @@ fn cli(name: &str, arguments: &[&str]) -> Output {
 
 /// Exchanges protocol messages with the actual rmcp stdio server until validation completes.
 fn mcp(name: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
+    mcp_tool(name, "auth_validate", arguments, cancel)
+}
+
+/// Calls an actual registered tool while preserving protocol-only stdout and bounded waits.
+fn mcp_tool(name: &str, tool: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
     let mut child = Command::new(std::env::current_exe().expect("test executable"))
         .args(["--mcp-child", name])
         .stdin(Stdio::piped())
@@ -69,7 +106,7 @@ fn mcp(name: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
         json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
         json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
         json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
-            "name":"auth_validate","arguments":arguments}}),
+            "name":tool,"arguments":arguments}}),
     ] {
         writeln!(stdin, "{message}").expect("protocol input");
     }
@@ -94,8 +131,11 @@ fn mcp(name: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
             Ok(message) => message,
             Err(error) => {
                 child.kill().expect("stop this stalled test child");
-                child.wait().expect("reap test child");
-                panic!("bounded MCP response wait failed: {error}");
+                let output = child.wait_with_output().expect("reap test child");
+                panic!(
+                    "bounded MCP response wait failed ({name}/{tool}): {error}; {}",
+                    String::from_utf8_lossy(&output.stderr)
+                );
             }
         };
         let done = message["id"] == if cancel { 4 } else { 3 };
@@ -139,7 +179,11 @@ fn contracts() {
         let cli = cli(name, &["auth", "validate"]);
         let (output, messages) = mcp(name, json!({}), false);
         assert!(output.status.success());
-        assert!(output.stderr.is_empty());
+        assert!(
+            output.stderr.is_empty(),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         let result = &messages
             .iter()
             .find(|value| value["id"] == 3)
@@ -155,7 +199,11 @@ fn contracts() {
                 format!("error: {text}")
             );
         } else {
-            assert!(cli.status.success());
+            assert!(
+                cli.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&cli.stderr)
+            );
             assert!(cli.stderr.is_empty());
             let data: Value = serde_json::from_str(text).expect("MCP safe data");
             assert_eq!(
@@ -210,7 +258,11 @@ fn contracts() {
     );
     let (output, messages) = mcp("waiting", json!({}), true);
     assert!(output.status.success());
-    assert!(output.stderr.is_empty());
+    assert!(
+        output.stderr.is_empty(),
+        "waiting: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
     if let Some(message) = messages.iter().find(|value| value["id"] == 3) {
         assert_eq!(message["result"]["isError"], true);
         assert_eq!(message["result"]["content"][0]["text"], "cancelled");
@@ -222,13 +274,152 @@ fn contracts() {
     );
 }
 
+/// Checks library transport, complete output, evidence parity, strict inputs, and error streams.
+fn library_contracts() {
+    for name in [
+        "library-normal",
+        "library-lost",
+        "library-empty",
+        "library-absent",
+        "library-rejected",
+        "library-expired",
+        "library-malformed",
+        "library-incomplete",
+        "library-oversized",
+        "library-denied",
+        "library-rate-limited",
+        "library-invalid-config",
+        "library-invalid-title",
+        "library-hidden-evidence",
+        "library-unmatched-ownership",
+        "library-outside-web-catalog",
+        "library-invalid-outside-evidence",
+    ] {
+        let cli = cli(name, &["book", "list", "--format", "json"]);
+        let (output, messages) = mcp_tool(name, "book_list", json!({}), false);
+        assert!(output.status.success());
+        assert!(
+            output.stderr.is_empty(),
+            "{name}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("library result")["result"];
+        let text = result["content"][0]["text"]
+            .as_str()
+            .expect("library result text");
+        if matches!(
+            name,
+            "library-normal" | "library-lost" | "library-empty" | "library-outside-web-catalog"
+        ) {
+            assert!(
+                cli.status.success(),
+                "{name}: {}",
+                String::from_utf8_lossy(&cli.stderr)
+            );
+            assert!(cli.stderr.is_empty());
+            let data: Value = serde_json::from_str(text).expect("MCP complete data");
+            assert_eq!(
+                data,
+                serde_json::from_slice::<Value>(&cli.stdout).expect("CLI complete data")
+            );
+            match name {
+                "library-normal" | "library-outside-web-catalog" => {
+                    assert_eq!(data.as_array().expect("books").len(), 5);
+                    assert_eq!(data[0]["title"], "Invented volume 1");
+                    assert!(
+                        data.as_array()
+                            .expect("books")
+                            .iter()
+                            .all(|book| !matches!(book["id"].as_str(), Some("6" | "7" | "8")))
+                    );
+                    assert_eq!(data[0]["access"], "purchased");
+                    assert_eq!(data[1]["access"], "shared");
+                    assert_eq!(data[2]["access"], "purchased_and_shared");
+                    assert_eq!(data[3]["access"], "unknown");
+                    assert_eq!(data[4]["access"], "unknown");
+                    assert_eq!(
+                        data[1]["evidence"],
+                        json!([{"kind":"shared_with_account","state":"granted"}])
+                    );
+                }
+                "library-lost" => {
+                    assert_eq!(data[0]["access"], "purchased");
+                    assert_eq!(data[1]["access"], "unknown");
+                }
+                _ => assert_eq!(data, json!([])),
+            }
+        } else {
+            assert_eq!(cli.status.code(), Some(1));
+            assert!(cli.stdout.is_empty());
+            assert_eq!(result["isError"], true);
+            if name == "library-unmatched-ownership" {
+                assert_eq!(text, "Library ownership has no matching source metadata.");
+            }
+            if name == "library-invalid-outside-evidence" {
+                assert_eq!(text, "Library access evidence is invalid.");
+            }
+            assert_eq!(
+                String::from_utf8_lossy(&cli.stderr).trim(),
+                format!("error: {text}")
+            );
+        }
+        for private in ["invented-session", "invented-private", "c3ludGhldGlj"] {
+            assert!(!text.contains(private));
+            assert!(!String::from_utf8_lossy(&cli.stderr).contains(private));
+        }
+    }
+    let table = cli("library-normal", &["book", "list", "--format", "tsv"]);
+    assert!(table.status.success());
+    assert!(table.stderr.is_empty());
+    let table = String::from_utf8_lossy(&table.stdout);
+    assert!(table.starts_with("id\ttitle\taccess\tsource_url\n"));
+    assert!(table.contains(
+        "2\tInvented volume 2\tshared\thttps://www.dndbeyond.com/sources/dnd/invented-2"
+    ));
+    let table = cli("library-normal", &["book", "list"]);
+    assert!(table.status.success());
+    assert!(!table.stdout.contains(&b'\t'));
+    assert_eq!(
+        String::from_utf8_lossy(&table.stdout)
+            .lines()
+            .next()
+            .expect("table header")
+            .split_whitespace()
+            .collect::<Vec<_>>(),
+        ["id", "title", "access", "source_url"]
+    );
+    let (output, messages) = mcp_tool(
+        "library-normal",
+        "book_list",
+        json!({"url":"https://foreign.invalid"}),
+        false,
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("input failure")["result"]["isError"],
+        true
+    );
+    let (output, messages) = mcp_tool("library-waiting", "book_list", json!({}), true);
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    if let Some(message) = messages.iter().find(|message| message["id"] == 3) {
+        assert_eq!(message["result"]["isError"], true);
+        assert_eq!(message["result"]["content"][0]["text"], "cancelled");
+    }
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
     match arguments.next().as_deref() {
         Some("--cli-child") => {
-            let session =
-                fixture::session(scenario(&arguments.next().expect("scenario"))).expect("fixture");
+            let session = session(&arguments.next().expect("scenario"));
             let args = std::iter::once("beyond-gate".to_owned()).chain(arguments);
             let code = beyond_gate_cli::run_with_session_input(
                 args,
@@ -241,8 +432,7 @@ fn main() {
             std::process::exit(code);
         }
         Some("--mcp-child") => {
-            let session =
-                fixture::session(scenario(&arguments.next().expect("scenario"))).expect("fixture");
+            let session = session(&arguments.next().expect("scenario"));
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()
@@ -255,6 +445,9 @@ fn main() {
                 service.waiting().await.expect("EOF");
             });
         }
-        _ => contracts(),
+        _ => {
+            contracts();
+            library_contracts();
+        }
     }
 }
