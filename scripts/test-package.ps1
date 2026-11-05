@@ -86,7 +86,7 @@ function Assert-PackagedProtocol {
     @{name = 'character_show'; arguments = @{id = 'synthetic'}}
     @{name = 'campaign_list'; arguments = @{}}
     @{name = 'campaign_show'; arguments = @{id = 'synthetic'}}
-    @{name = 'book_list'; arguments = @{}}
+    @{name = 'book_list'; arguments = $(if ($IsWindows) { @{unexpected = $true} } else { @{} })}
     @{name = 'book_outline'; arguments = @{book_id = 'synthetic'}}
     @{name = 'book_read'; arguments = @{book_id = 'synthetic'; section_id = 'opening'}}
   )
@@ -118,11 +118,18 @@ function Assert-PackagedProtocol {
   Assert-Package ($authValidate.annotations.idempotentHint -eq $false -and $authValidate.annotations.openWorldHint -eq $true) 'Packaged session validation annotations differ from the CLI contract.'
   $bookRead = $tools | Where-Object { $_.name -ceq 'book_read' }
   Assert-Package ($bookRead.inputSchema.properties.continuation.maxLength -eq 16384) 'MCP continuation input must remain bounded.'
+  $bookList = $tools | Where-Object { $_.name -ceq 'book_list' }
+  Assert-Package ($bookList.inputSchema.additionalProperties -eq $false) 'MCP library input must reject unknown fields.'
   for ($id = 3; $id -le 9; $id++) {
     $response = @($responses | Where-Object { $_.id -eq $id })
-    Assert-Package ($response.Count -eq 1 -and $response[0].result.isError -eq $true) 'Unsupported MCP reads must return tool errors.'
+    Assert-Package ($response.Count -eq 1 -and $response[0].result.isError -eq $true) 'Invalid or unsupported MCP reads must return tool errors.'
     $text = $response[0].result.content | ConvertTo-Json -Depth 10 -Compress
-    Assert-Package ($text -cmatch 'unsupported') 'MCP read failure must state the current implementation limit.'
+    if ($IsWindows -and $id -eq 7) {
+      # Invalid input must stop Windows discovery before credential or network access.
+      Assert-Package ($text -cmatch 'unknown field' -and $text -cmatch 'unexpected') 'MCP library input must fail before discovery.'
+    } else {
+      Assert-Package ($text -cmatch 'unsupported') 'MCP read failure must state the current implementation limit.'
+    }
   }
 }
 
@@ -258,12 +265,19 @@ try {
     ,@('character', 'show', 'synthetic')
     ,@('campaign', 'list')
     ,@('campaign', 'show', 'synthetic')
-    ,@('book', 'list')
     ,@('book', 'outline', 'synthetic')
     ,@('book', 'read', 'synthetic', 'opening')
   )) {
     $result = Invoke-PackagedProcess $cli $arguments
     Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('unsupported')) "Unsupported read contract failed: $arguments"
+  }
+  if ($IsWindows) {
+    # A valid library request can open the real OS store despite the isolated home.
+    $result = Invoke-PackagedProcess $cli @('book', 'list', '--unexpected')
+    Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err.Contains("unexpected argument '--unexpected'")) 'Invalid library input must fail before discovery.'
+  } else {
+    $result = Invoke-PackagedProcess $cli @('book', 'list')
+    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('unsupported')) 'Unsupported read contract failed: book list'
   }
   Assert-PackagedProtocol $server
   Assert-PackagedProtocol $cli @('mcp', 'start')

@@ -338,6 +338,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Windows package checks now test CLI and MCP library input rejection before
+  discovery instead of expecting implemented library reads to be unsupported.
+  Valid Windows library requests are not account-free checks. Other unsupported
+  reads and non-Windows library checks keep their existing assertions.
 - Synthetic Chrome/Edge runners now report safe installed-browser startup
   metadata, bounded launch-cause and stderr categories, and fixed owned-process
   startup state. Primary failures remain visible

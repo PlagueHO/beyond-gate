@@ -213,6 +213,10 @@ These are implementation limits, not verified missing-session or expiry errors.
 Do not supply a password, cookie, or token. Do not create a credential manually.
 Do not run `auth status` or `auth logout` as an automated package check:
 they access the real OS store.
+On Windows, valid `book list` and MCP `book_list` requests also use the real
+OS store and can contact D&D Beyond. Package checks reject unknown CLI options
+and MCP input fields before discovery instead. Synthetic process tests check
+successful discovery and session failures without a real account.
 Do not run interactive `auth login` as an account-free check. After human pairing
 and consent, it reads the selected browser cookie, validates it, and replaces the
 protected local entry. Separate explicit approval is required for real account
