@@ -131,6 +131,50 @@ fn unsafe_links_and_fragments_never_become_fetch_targets() {
     assert_eq!(fragment("%2520").expect("decode once"), "%20");
 }
 
+/// Rejects resolved marketplace links as purchase markers instead of returning chapter text.
+#[test]
+fn marketplace_purchase_links_return_access_unknown() {
+    for href in [
+        "/marketplace",
+        "/marketplace/items/invented",
+        "../../../marketplace/items/invented",
+        "https://www.dndbeyond.com/marketplace/items/invented",
+        "//www.dndbeyond.com/marketplace/items/invented",
+        "https://marketplace.dndbeyond.com/items/invented",
+        "//marketplace.dndbeyond.com/items/invented",
+    ] {
+        let body = format!("<h2 id=\"first\">Opening</h2><a href=\"{href}\">Purchase</a>");
+        assert!(
+            matches!(section(&body), Err(BookError::AccessUnknown)),
+            "{href}"
+        );
+    }
+}
+
+/// Keeps ordinary links whose paths, queries, or similar host names mention marketplace URLs.
+#[test]
+fn marketplace_near_miss_links_preserve_section_text() {
+    for href in [
+        "/marketplace-guide",
+        "/sources/dnd/invented-1/marketplace",
+        "https://www.dndbeyond.com/marketplace-guide",
+        "https://www.dndbeyond.com/help?next=/marketplace/items",
+        "https://example.invalid/marketplace/items",
+        "https://example.invalid/marketplace.dndbeyond.com/items",
+        "https://example.invalid/help?next=https://marketplace.dndbeyond.com/items",
+        "https://marketplace.dndbeyond.com.example.invalid/items",
+        "https://marketplace.dndbeyond.com@example.invalid/items",
+        "#marketplace.dndbeyond.com",
+    ] {
+        let body = format!("<h2 id=\"first\">Opening</h2><a href=\"{href}\">Useful link</a>");
+        assert_eq!(
+            section(&body).expect(href),
+            "Opening\nUseful link\n",
+            "{href}"
+        );
+    }
+}
+
 /// Preserves useful text, list order, table cells, and sidebars without adjacent topics.
 #[test]
 fn selected_text_preserves_structure_without_controls_or_adjacent_text() {
@@ -159,6 +203,96 @@ fn selected_text_preserves_structure_without_controls_or_adjacent_text() {
     assert!(!text.contains("private"));
     assert!(!text.contains("Adjacent"));
     assert!(!text.contains("Chapter"));
+}
+
+/// Applies the validation depth cap to text nodes at the exact renderer boundary.
+#[test]
+fn validation_bounds_accept_depth_256_and_reject_depth_257() {
+    for depth in [256, 257] {
+        let body = format!(
+            "<h2 id=\"first\">One</h2>{}text{}",
+            "<div>".repeat(depth - 1),
+            "</div>".repeat(depth - 1)
+        );
+        if depth == 256 {
+            assert_eq!(section(&body).expect("bounded depth"), "One\ntext\n");
+        } else {
+            assert!(matches!(section(&body), Err(BookError::LimitExceeded)));
+        }
+    }
+}
+
+/// Counts the article and every element, including content outside the selected range.
+#[test]
+fn validation_bounds_accept_100000_elements_and_reject_100001() {
+    for count in [100_000, 100_001] {
+        let body = format!(
+            "<h2 id=\"first\">One</h2><h2>Next</h2>{}",
+            "<br>".repeat(count - 4)
+        );
+        if count == 100_000 {
+            assert_eq!(section(&body).expect("bounded element count"), "One\n");
+        } else {
+            assert!(matches!(section(&body), Err(BookError::LimitExceeded)));
+        }
+    }
+}
+
+/// Caps outer wrappers so heading visibility cannot repeatedly walk unbounded ancestors.
+#[test]
+fn validation_bounds_include_outer_article_ancestors() {
+    let url = root().join("opening#first").expect("synthetic URL");
+    for wrappers in [253, 254] {
+        let body = format!(
+            "{}<article class=\"p-article-content\"><h1>Chapter</h1>\
+            <h2 id=\"first\">One</h2></article>{}",
+            "<div>".repeat(wrappers),
+            "</div>".repeat(wrappers)
+        );
+        let result = parse_section(&html(&url, &body), &url);
+        if wrappers == 253 {
+            assert_eq!(result.expect("256 outer ancestors"), "One\n");
+        } else {
+            assert!(matches!(result, Err(BookError::LimitExceeded)));
+        }
+    }
+}
+
+/// Rejects a large, balanced deep article before hidden headings can start ancestor walks.
+#[test]
+fn validation_bounds_reject_balanced_deep_headings_before_visibility() {
+    let body = format!(
+        "{}{}",
+        "<div><h2 hidden>Hidden</h2>".repeat(4_000),
+        "</div>".repeat(4_000)
+    );
+    assert!(matches!(section(&body), Err(BookError::LimitExceeded)));
+}
+
+/// Preserves visibility and selected descendant handling within the validation bounds.
+#[test]
+fn validation_bounds_preserve_hidden_ancestors_and_heading_selection() {
+    assert_eq!(
+        section("<div><h2><span id=\"first\">One</span></h2><p>Text</p></div>")
+            .expect("visible selected descendant"),
+        "One\nText\n"
+    );
+    for attribute in ["hidden", "aria-hidden=\"true\"", "style=\"display: none\""] {
+        let body = format!("<div {attribute}><h2 id=\"first\">Hidden</h2></div>");
+        assert!(matches!(section(&body), Err(BookError::AccessUnknown)));
+    }
+    let url = root().join("opening#first").expect("synthetic URL");
+    assert!(matches!(
+        parse_section(
+            &html(
+                &url,
+                "<div hidden><article class=\"p-article-content\">\
+                <h1>Chapter</h1><h2 id=\"first\">Hidden</h2></article></div>"
+            ),
+            &url
+        ),
+        Err(BookError::AccessUnknown)
+    ));
 }
 
 /// Fails closed for ambiguous IDs, missing targets, hidden headings, and unsupported targets.

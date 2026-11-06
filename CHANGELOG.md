@@ -368,6 +368,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Book article checks resolve purchase links against the selected page and reject
+  same-site marketplace paths as well as the dedicated marketplace host.
+  Structural validation now enforces depth and element limits before unbounded
+  heading-visibility work can occur.
 - Windows package checks now test CLI and MCP library input rejection before
   discovery instead of expecting implemented library reads to be unsupported.
   Valid Windows library requests are not account-free checks. Other unsupported
