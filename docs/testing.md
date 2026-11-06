@@ -19,6 +19,13 @@ reads. A supplied cookie cannot make those missing operations work.
 
 ## Results and coverage
 
+For archive-based checks and separate approval gates, use the
+[desktop acceptance procedures](desktop-acceptance.md).
+The package verifier's optional JSON report records offline case results,
+candidate metadata, host versions, and cleanup. Manual acceptance cases remain
+blocked, and `full_coverage` stays false. These reports do not replace the manual
+suite or its separately approved native-store evidence.
+
 [`capabilities.json`](../scripts/e2e/capabilities.json) lists commands, argument
 names, output formats, completion shells, installation clients, MCP tools, and
 live assertions. The suite expands these into individually reported cases.

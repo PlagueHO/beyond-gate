@@ -7,6 +7,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Offline package evidence reports with candidate hashes, supplied source identity,
+  host versions, fixed case results, cleanup, and explicit manual acceptance gaps.
+  Package checks cover process-local PATH startup, missing siblings, same-candidate
+  reinstall, relocation, explicit re-registration, and owned removal. Windows
+  browser package versions must match the candidate. Packaging CI retains evidence
+  separately from release assets. Desktop acceptance procedures define separate
+  approval gates for clean machines, native stores, real clients, browser setup,
+  and live reads. These checks do not establish full desktop acceptance.
 - Windows live book outlines and selected-section reads through shared core,
   CLI, and MCP operations. Each call checks fresh positive Web-library evidence
   and canonical cookie-page structure within one session identity. Unknown access
