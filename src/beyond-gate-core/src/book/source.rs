@@ -479,10 +479,44 @@ fn parse_outline(bytes: &[u8], root: &Url, book_id: &str) -> Result<BookOutline,
     )
 }
 
+/// Bounds all article nodes and outer ancestors before repeated visibility checks.
+fn validate_section_bounds(article: ElementRef<'_>) -> Result<(), BookError> {
+    if article.ancestors().take(257).count() > 256 {
+        return Err(BookError::LimitExceeded);
+    }
+    let mut stack = vec![(*article, 0_usize)];
+    let mut elements = 0;
+    while let Some((node, depth)) = stack.pop() {
+        if depth > 256 {
+            return Err(BookError::LimitExceeded);
+        }
+        if ElementRef::wrap(node).is_some() {
+            elements += 1;
+            if elements > 100_000 {
+                return Err(BookError::LimitExceeded);
+            }
+        }
+        for child in node.children().rev() {
+            stack.push((child, depth + 1));
+        }
+    }
+    Ok(())
+}
+
+/// Resolves an article link without fetching it and identifies first-party purchase destinations.
+fn marketplace_link(selected: &Url, href: &str) -> bool {
+    selected.join(href).is_ok_and(|target| {
+        target.host_str() == Some("marketplace.dndbeyond.com")
+            || (target.host_str() == Some("www.dndbeyond.com")
+                && (target.path() == "/marketplace" || target.path().starts_with("/marketplace/")))
+    })
+}
+
 /// Checks unique article IDs and selects only a heading range or its explicit chapter.
 fn parse_section(bytes: &[u8], selected: &Url) -> Result<String, BookError> {
     let document = document(bytes, selected)?;
     let article = container(&document, ".p-article-content")?;
+    validate_section_bounds(article)?;
     if article.select(&selector("h1")?).count() != 1 {
         return Err(BookError::MalformedSource);
     }
@@ -509,7 +543,7 @@ fn parse_section(bytes: &[u8], selected: &Url) -> Result<String, BookError> {
         if element.value().name() == "a"
             && element
                 .attr("href")
-                .is_some_and(|value| value.contains("marketplace.dndbeyond.com"))
+                .is_some_and(|value| marketplace_link(selected, value))
         {
             return Err(BookError::AccessUnknown);
         }

@@ -631,7 +631,9 @@ The canonical link must match the requested page. There must be exactly one
 visible `.compendium-toc-full-text` or `.p-article-content`, as appropriate.
 Known challenge elements, hidden articles, purchase links inside an article,
 duplicate IDs, and ambiguous containers fail without content. The article must
-have one h1. Fragments must decode once as valid UTF-8 and uniquely select a
+have one h1. Article purchase links resolve against the selected page;
+the dedicated marketplace host and same-site `/marketplace` paths return
+unknown access without content. Fragments must decode once as valid UTF-8 and uniquely select a
 heading or an element inside it. Other fragment layouts return unsupported.
 A heading range ends at the next visible heading of equal or higher rank.
 A chapter entry selects only that chapter, not linked chapters.
@@ -649,6 +651,8 @@ preformatted text, image alternate text, and meaningful asides. It excludes
 scripts, styles, navigation, controls, and explicitly hidden subtrees. It does
 not execute CSS or JavaScript or extract image pixels. Render depth is capped at
 256, visited elements at 100,000, and normalized selected text at 1 MiB.
+The same depth and element caps bound structural validation, not only
+selected-text rendering.
 Chunking then applies the existing 4,096-byte UTF-8 and 16 KiB cursor contracts.
 
 The complete operation has a 30-second deadline. Each request has a 5-second

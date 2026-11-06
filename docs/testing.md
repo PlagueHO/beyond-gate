@@ -51,7 +51,10 @@ original HTML and actual loopback metadata/page services. They cover canonical
 identity, same-book aliases, nested hierarchy, duplicate roles, raw 1,000/1,001
 anchor bounds, legal UTF-8 fragments, unsafe paths, hidden or ambiguous content,
 empty sections, text structure, sidebars, stale text/URLs, sharing loss, failed
-responses, and in-flight cancellation. HTTP tests cover exact media, encoding,
+responses, and in-flight cancellation. Purchase-link cases cover relative and
+absolute same-site marketplace paths and the dedicated marketplace host.
+Structural-validation cases cover bounded depth and element counts before
+heading-visibility checks. HTTP tests cover exact media, encoding,
 body, retry, and status rules. Session tests cover account changes across a
 request-local scope and another concurrent cache owner.
 
