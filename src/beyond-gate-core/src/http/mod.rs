@@ -1,7 +1,7 @@
-//! Bounded async JSON reads with explicit origin and session boundaries.
+//! Bounded async JSON and HTML reads with explicit origin and session boundaries.
 //!
-//! No upstream origin or resource endpoint is built in. Neither adapter uses this
-//! boundary yet. Local mocks establish policy behavior, not an upstream contract.
+//! No upstream origin or resource endpoint is built in. Resource modules select
+//! fixed destinations. Local mocks check transport policy, not upstream permission.
 
 mod error;
 
@@ -12,7 +12,8 @@ use std::{fmt, sync::Arc, time::Duration};
 use reqwest::{
     Client, ClientBuilder, RequestBuilder, Response, Url,
     header::{
-        ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_ENCODING, COOKIE, HeaderValue, RETRY_AFTER,
+        ACCEPT, ACCEPT_ENCODING, AUTHORIZATION, CONTENT_ENCODING, CONTENT_TYPE, COOKIE,
+        HeaderValue, RETRY_AFTER,
     },
 };
 use serde::de::DeserializeOwned;
@@ -352,6 +353,28 @@ impl HttpClient {
         Ok(url)
     }
 
+    /// Reads one bounded UTF-8 HTML response without retries or redirect following.
+    pub(crate) async fn get_html(
+        &self,
+        url: &str,
+        session: &SessionHeaders,
+    ) -> Result<Zeroizing<Vec<u8>>, HttpError> {
+        let deadline = Instant::now() + self.policy.total;
+        let url = self.check_url(url)?;
+        let _permit = timeout_at(deadline, self.permits.acquire())
+            .await
+            .map_err(HttpError::deadline)?
+            .map_err(|_| HttpError::new(ErrorKind::ClientSetup))?;
+        let result = timeout_at(deadline, self.body(&url, Some(session), true))
+            .await
+            .map_err(HttpError::deadline)
+            .and_then(|result| result);
+        result.map_err(|mut error| {
+            error.attempts = 1;
+            error
+        })
+    }
+
     /// Builds the actual bounded HTTP path against a test-only loopback origin.
     #[cfg(test)]
     pub(crate) fn for_test(origin: &str) -> Result<Self, HttpError> {
@@ -377,16 +400,37 @@ impl HttpClient {
         url: &Url,
         session: Option<&SessionHeaders>,
     ) -> Result<T, HttpError> {
+        let body = self.body(url, session, false).await?;
+        serde_json::from_slice(&body).map_err(HttpError::json)
+    }
+
+    /// Shares status, encoding, byte, and time bounds without changing JSON media rules.
+    async fn body(
+        &self,
+        url: &Url,
+        session: Option<&SessionHeaders>,
+        html: bool,
+    ) -> Result<Zeroizing<Vec<u8>>, HttpError> {
         let mut request = self
             .client
             .get(url.clone())
-            .header(ACCEPT, "application/json")
+            .header(
+                ACCEPT,
+                if html {
+                    "text/html"
+                } else {
+                    "application/json"
+                },
+            )
             .header(ACCEPT_ENCODING, "identity");
         if let Some(session) = session {
             request = session.apply(request);
         }
         let mut response = request.send().await.map_err(HttpError::transport)?;
         check_status(&response)?;
+        if html {
+            check_html(&response)?;
+        }
         if response
             .headers()
             .get_all(CONTENT_ENCODING)
@@ -401,15 +445,49 @@ impl HttpClient {
         {
             return Err(HttpError::new(ErrorKind::BodyTooLarge));
         }
-        let mut body = Vec::new();
+        let mut body = Zeroizing::new(Vec::new());
         while let Some(chunk) = response.chunk().await.map_err(HttpError::transport)? {
             if chunk.len() > self.policy.bytes - body.len() {
                 return Err(HttpError::new(ErrorKind::BodyTooLarge));
             }
             body.extend_from_slice(&chunk);
         }
-        serde_json::from_slice(&body).map_err(HttpError::json)
+        if html && std::str::from_utf8(&body).is_err() {
+            return Err(HttpError::new(ErrorKind::MalformedResponse));
+        }
+        Ok(body)
     }
+}
+
+/// Requires exactly HTTP 200 and one HTML media type with no conflicting charset.
+fn check_html(response: &Response) -> Result<(), HttpError> {
+    let invalid = || HttpError::new(ErrorKind::MalformedResponse);
+    if response.status() != reqwest::StatusCode::OK {
+        return Err(invalid());
+    }
+    let mut values = response.headers().get_all(CONTENT_TYPE).iter();
+    let value = values.next().ok_or_else(invalid)?;
+    if values.next().is_some() {
+        return Err(invalid());
+    }
+    let mut parts = value.to_str().map_err(|_| invalid())?.split(';');
+    if !parts
+        .next()
+        .is_some_and(|media| media.trim().eq_ignore_ascii_case("text/html"))
+    {
+        return Err(invalid());
+    }
+    let mut charset = false;
+    for part in parts {
+        let (key, value) = part.trim().split_once('=').ok_or_else(invalid)?;
+        if key.trim().eq_ignore_ascii_case("charset") {
+            if charset || !value.trim().trim_matches('"').eq_ignore_ascii_case("utf-8") {
+                return Err(invalid());
+            }
+            charset = true;
+        }
+    }
+    Ok(())
 }
 
 /// Parses a destination without exposing invalid input in its error.

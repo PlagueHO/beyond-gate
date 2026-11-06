@@ -656,15 +656,18 @@ fn diagnostic_output_is_redacted_for_all_book_types() {
     assert!(!format!("{error} {error:?}").contains(marker));
 }
 
-/// Live entry points cannot claim a successful empty result without a contract.
-#[test]
-fn live_book_operations_remain_explicitly_unsupported() {
+/// Invalid live selections fail before session or network access.
+#[tokio::test]
+async fn live_book_operations_reject_invalid_selections() {
+    let session =
+        crate::auth::session::fixture::session(crate::auth::session::fixture::Scenario::Absent)
+            .expect("synthetic absent session");
     assert!(matches!(
-        get_book_outline("invented-book"),
-        Err(BookError::UnsupportedOperation)
+        get_book_outline(&session, "invented-book").await,
+        Err(BookError::InvalidMetadata)
     ));
     assert!(matches!(
-        read_book_section(request(None)),
-        Err(BookError::UnsupportedOperation)
+        read_book_section(&session, request(None)).await,
+        Err(BookError::InvalidMetadata)
     ));
 }

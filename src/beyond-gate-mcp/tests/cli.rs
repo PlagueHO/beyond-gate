@@ -272,7 +272,11 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
             response["result"]["content"][0]["text"]
                 .as_str()
                 .expect("tool error text")
-                .contains("not implemented")
+                .contains(if matches!(id, 10 | 11) {
+                    "metadata is invalid"
+                } else {
+                    "not implemented"
+                })
         );
     }
 }

@@ -33,15 +33,15 @@ fn help_reports_foundation_scope() {
     assert!(!stdout.contains("MCP serving are not implemented"));
 }
 
-/// Reports implemented library discovery without claiming live book-content support.
+/// Reports Windows book reads without claiming support for every source layout.
 #[test]
 fn book_help_reports_web_catalog_scope() {
     let output = run(&["book", "--help"]);
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Bounded Web-catalog discovery"));
-    assert!(stdout.contains("content reads unsupported"));
+    assert!(stdout.contains("Bounded Windows library, outline, and selected-section reads"));
+    assert!(stdout.contains("canonical"));
     assert!(!stdout.contains("discovery blocked"));
 }
 
@@ -70,7 +70,7 @@ fn missing_or_unknown_operation_fails() {
     }
 }
 
-/// Checks all resource routes fail honestly without storage, network, or fake data.
+/// Checks unsupported resources and invalid book IDs without account or network access.
 #[test]
 fn live_resource_reads_are_explicitly_unsupported() {
     for arguments in [
@@ -93,7 +93,12 @@ fn live_resource_reads_are_explicitly_unsupported() {
         let output = run(&arguments);
         assert_eq!(output.status.code(), Some(1));
         assert!(output.stdout.is_empty());
-        assert!(String::from_utf8_lossy(&output.stderr).contains("unsupported"));
+        let expected = if arguments[0] == "book" {
+            "metadata is invalid"
+        } else {
+            "unsupported"
+        };
+        assert!(String::from_utf8_lossy(&output.stderr).contains(expected));
     }
 }
 
@@ -127,7 +132,7 @@ fn resource_help_matches_available_commands() {
     let help = String::from_utf8_lossy(&output.stdout);
     assert!(help.contains("4,096"));
     assert!(help.contains("--continuation"));
-    assert!(help.contains("unsupported"));
+    assert!(help.contains("fresh access checks"));
     let output = run(&["mcp", "install", "--help"]);
     let help = String::from_utf8_lossy(&output.stdout);
     for expected in ["vscode", "claude-code", "copilot-cli", "--dry-run"] {

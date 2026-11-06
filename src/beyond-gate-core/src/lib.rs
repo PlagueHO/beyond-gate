@@ -1,14 +1,13 @@
 //! Shared code for the Beyond Gate CLI and MCP server.
 //!
-//! Account access is not implemented. The offline-tested HTTP boundary has no
-//! built-in upstream hosts or endpoints. Local auth operations use one protected
+//! The bounded HTTP boundary requires explicit origins. Local auth operations use one protected
 //! credential entry. Windows CLI login calls the shared service-validation/save
 //! API after paired submission; Windows browser setup is implemented. Both adapters
 //! expose fresh Windows validation through shared process-local session reuse.
-//! The MCP server exposes explicit unsupported resource reads. Character, campaign, and library
-//! assembly accept supplied offline pages only. Book outlines and bounded section
-//! reads use fresh supplied access evidence and normalized offline records, not
-//! live account data.
+//! Windows library and book reads use the shared session. Book reads require fresh
+//! positive library evidence and checked canonical cookie pages for each operation.
+//! Character and campaign live reads remain unsupported. Offline assembly APIs
+//! remain available for synthetic records. No operation caches book content.
 
 pub mod auth;
 pub mod book;
@@ -28,4 +27,4 @@ pub mod library;
 ///
 /// assert!(FOUNDATION_NOTICE.contains("not implemented"));
 /// ```
-pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list and MCP book_list discover bounded Web-catalog metadata and access evidence through the shared session. Other live reads are not implemented; Linux production login and session use remain deferred.";
+pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list discovers bounded Web-catalog metadata and evidence. Book outline/read and their MCP tools check fresh library evidence and canonical cookie pages, with explicit bounded continuation. Unknown access and unsupported layouts return no content. Character and campaign live reads are not implemented; Linux production login and session use remain deferred.";

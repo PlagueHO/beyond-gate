@@ -13,14 +13,15 @@ resource command parsing and formatting, shell completion generation, and local
 MCP start/install commands. The start
 command runs the sibling MCP binary. The install command previews user-level
 configuration changes and writes only after confirmation. Library discovery
-uses fixed public classification and two protected metadata routes. Other resource
-commands use explicit unsupported live entry points. Synthetic source selection
+uses fixed public classification and two protected metadata routes. Windows book
+outline and section reads add fresh canonical cookie-page checks. Character and
+campaign commands use explicit unsupported live entry points. Synthetic source selection
 exists only in compiled tests. No account-content model or content cache is added.
 Windows browser setup and native/core completion are implemented.
 Approved real Chrome and Edge Dev login and protected-save checks passed.
-The MCP adapter serves local stdio with `book_list`, six unsupported resource read tools,
+The MCP adapter serves local stdio with three book tools, four unsupported character/campaign tools,
 and a credential-free Windows `auth_validate` tool.
-Other resource reads do not construct an HTTP client or send upstream requests.
+Unsupported character and campaign reads do not send upstream requests.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -79,9 +80,9 @@ stdout is reserved for MCP messages; server diagnostics use stderr.
 
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `book_list`, `book_outline`, and `book_read`. It calls the same
-core live-read functions as the CLI. This does not create live access: each
-function currently returns a typed unsupported-operation error, which rmcp
-returns as a tool result with `isError` set. It never substitutes an empty or
+core live-read functions as the CLI. Windows book reads check fresh metadata and
+canonical cookie pages. Character and campaign functions return typed unsupported
+errors as tool results with `isError` set. The server never substitutes an empty or
 synthetic successful result. Tool input does not accept credentials, arbitrary
 URLs, or account identities.
 
@@ -588,12 +589,83 @@ responses. A 401 alone does not prove expiry. No failure returns partial text.
 Debug output and error messages omit source text, identifiers, revisions, URLs,
 and cursor state.
 
-`get_book_outline` and `read_book_section` always report `UnsupportedOperation`.
-They do not access credentials or send requests. Neither adapter enables live
-book reads. The CLI routes to these blockers without constructing synthetic
-production sources. Synthetic tests cover exact limits, Unicode cuts, complete reconstruction,
-bad links, cursor rejection, access revocation, source failures, untrusted text,
-and safe diagnostics. This is partial offline work for #6, not a live contract.
+The offline validators remain available. The asynchronous live entry points now
+use the source contract below. Synthetic tests cover exact bounds, Unicode cuts,
+complete reconstruction, access changes, stale tokens, and safe diagnostics.
+
+### Live book reads
+
+The [source operation](../src/beyond-gate-core/src/book/source.rs) implements the
+user-approved page-level contract. It relies on server page-level access
+enforcement, not a separately verified entitlement API. Initial production
+session support is Windows. Native source/chapter probes established delivery
+and structure for one selected book. The anonymous chapter control returned
+HTTP 307; its reason remains unknown.
+[Native CLI/MCP book acceptance](api-survey.md#native-book-adapter-acceptance)
+later passed for that selected chapter: matching 79-entry outlines and 3,929
+UTF-8 byte initial chunks. Live continuation and sharing remain unchecked.
+All earlier probe and acceptance approvals are consumed.
+
+Every outline, section, and explicit continuation first discovers fresh
+Web-library metadata. Only current purchase or account-sharing evidence permits
+the next check. Catalog-only, unknown, and public/free-looking records do not.
+Metadata alone never grants content access. Marketplace-only attribution is not
+a page fetch target.
+
+One request-local session scope pins the first protected cookie load. Subsequent
+metadata and HTML loads must match, even if another concurrent request changes
+the shared bearer cache. A change returns `session_changed`; no output is returned.
+Scopes share process-local bearer reuse but retain no page or text cache.
+Each HTML read reloads the fixed protected entry, sends only `CobaltSession` to
+the exact website source origin, and performs no exchange or bearer fallback.
+
+Source URLs come only from the fresh library record. Chapter URLs come only from
+the newly checked outline. Tokens never supply a fetch URL. Same-book legacy
+`/sources/<slug>/<chapter>` links can map to the fresh
+`/sources/dnd/<slug>/<chapter>` root. No redirect is followed. Foreign source
+paths, nested chapter routes, encoded paths, dot segments, credentials, queries,
+and unsafe schemes fail. Safe HTTPS non-source auxiliary links and a source-root
+self-link count toward the raw cap but do not become entries or fetches.
+
+The canonical link must match the requested page. There must be exactly one
+visible `.compendium-toc-full-text` or `.p-article-content`, as appropriate.
+Known challenge elements, hidden articles, purchase links inside an article,
+duplicate IDs, and ambiguous containers fail without content. The article must
+have one h1. Fragments must decode once as valid UTF-8 and uniquely select a
+heading or an element inside it. Other fragment layouts return unsupported.
+A heading range ends at the next visible heading of equal or higher rank.
+A chapter entry selects only that chapter, not linked chapters.
+
+Outlines count at most 1,000 raw anchors before filtering or duplicate handling.
+Nested list hierarchy is retained. Otherwise fragment links belong to their
+chapter entry. Repeated targets retain distinct navigation roles.
+Opaque `s-` IDs use SHA-256 over book ID, canonical target, and occurrence.
+Revision hashes bind book, section, source URL, and complete normalized selected
+text. A moved or changed selection makes an explicit continuation stale.
+
+The [iterative renderer](../src/beyond-gate-core/src/book/text.rs) preserves
+headings, paragraphs, ordered/unordered lists, table cells, line breaks,
+preformatted text, image alternate text, and meaningful asides. It excludes
+scripts, styles, navigation, controls, and explicitly hidden subtrees. It does
+not execute CSS or JavaScript or extract image pixels. Render depth is capped at
+256, visited elements at 100,000, and normalized selected text at 1 MiB.
+Chunking then applies the existing 4,096-byte UTF-8 and 16 KiB cursor contracts.
+
+The complete operation has a 30-second deadline. Each request has a 5-second
+connection limit, a 15-second attempt limit, and a 1 MiB body cap. HTML requires
+HTTP 200, one `text/html` header, identity encoding, and UTF-8 bytes.
+No request is retried. Outlines use at most six total HTTP attempts, normally
+five; section reads use at most seven, normally six. These totals include
+public configuration, both metadata requests, up to two session exchanges,
+and one outline page plus, for a section, one selected chapter page.
+Dropping the future cancels network work. Redirects and HTTP 403 responses do not
+become confirmed ownership denials. Typed session, library, and HTTP causes are
+retained without source text, URLs, credentials, or tokens in diagnostics.
+
+The parser uses [scraper 0.27.0](https://docs.rs/scraper/0.27.0/scraper/) without
+default features, [SHA-256](https://docs.rs/sha2/0.10.9/sha2/), and
+[percent encoding](https://docs.rs/percent-encoding/2.3.2/percent_encoding/).
+They add native Rust dependencies, not an external runtime.
 
 ## Data and output contracts
 

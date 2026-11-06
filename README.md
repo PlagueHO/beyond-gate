@@ -6,7 +6,7 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns, and
 purchased or shared books.
 
-**Status: verified Windows login and Web-library discovery; other live reads remain unsupported.**
+**Status: Windows login, Web-library discovery, and bounded book reads.**
 The CLI and MCP binaries provide `--help` and `--version`.
 The CLI also provides local `auth status` and `auth logout`.
 Windows `auth validate` and MCP `auth_validate` now make one fresh service check
@@ -22,7 +22,12 @@ have bounded live metadata transport through the shared stored session.
 Category selection and title cleanup are implemented and checked offline.
 The Web catalog defines the result scope. Native CLI/MCP acceptance passed with
 matching metadata and evidence for 169 books.
-Character, campaign, outline, and section reads remain unsupported.
+Windows outline and section reads now use fresh library evidence and checked
+canonical cookie pages. Unknown access and unsupported layouts return no content.
+The production source path has synthetic CLI/MCP process checks.
+[Native book acceptance](docs/api-survey.md#native-book-adapter-acceptance) passed
+for one selected chapter. Live continuation and sharing remain unchecked.
+Character and campaign reads remain unsupported.
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
@@ -62,14 +67,14 @@ It preserves supplied JSON fields, validates opaque identifiers, and bounds
 complete pagination. It does not interpret game rules or enable live character
 or campaign reads.
 
-The core also provides offline
-[book outlines and bounded section reads](docs/architecture.md#offline-book-boundary).
-Each call checks fresh supplied access before loading one selected source.
+The core provides shared
+[book outlines and bounded section reads](docs/architecture.md#live-book-reads),
+plus offline validators. Each live call checks fresh positive library evidence
+and the selected canonical cookie page within one session identity.
 Section results contain at most 4,096 UTF-8 text bytes, source attribution, and
 an opaque continuation or explicit end state. Outlines allow at most 1,000
-entries. CLI output and continuation use these synthetic-tested core operations
-in offline adapter tests, not live book access. MCP exposes the same bounded
-outline and section tool contracts, but live reads remain unsupported.
+raw links. Both adapters use the same source parser and explicit continuation.
+Tokens never grant access or select a fetch URL. No book-content cache is added.
 
 ## Goals and limits
 
@@ -190,7 +195,9 @@ An earlier native check stopped on ownership-only sources outside the Web catalo
 The user then approved Web-scoped results with validation of all account evidence.
 The approved native check returned matching results: 36 purchased and 133 unknown.
 No live sharing was observed; sharing behavior has synthetic coverage.
-Other live reads remain unsupported. Failures exit with code 1, write a diagnostic
+Windows book outline/read operations are implemented for the checked HTML layout.
+Use a book ID from `book list` and a section ID from `book outline`.
+Character and campaign live reads remain unsupported. Failures exit with code 1, write a diagnostic
 to stderr, and leave stdout empty. Offline tests use synthetic services through
 the real shared transport and adapters; the product has no fixture mode.
 See [output contracts](docs/cli.md#output-contracts) for table, JSON, and TSV
@@ -207,7 +214,8 @@ supported shells and Bash/PowerShell examples.
 Start `beyond-gate-mcp` directly or use `beyond-gate mcp start` with both binaries
 in the same directory. The server uses local stdio only; stdout is reserved for
 MCP protocol messages. `book_list` uses shared Windows library discovery.
-The other six read-only resource tools return explicit unsupported-operation errors.
+`book_outline` and `book_read` use the shared checked source path.
+Character and campaign tools return explicit unsupported-operation errors.
 
 See the [MCP tool reference](docs/mcp.md) for startup, client registration, strict
 input schemas, output envelopes, errors, and CLI mappings.

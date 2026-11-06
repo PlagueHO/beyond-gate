@@ -160,7 +160,11 @@ impl ReadOperations for Fixtures {
     }
 
     /// Uses the actual core outline validation after checking synthetic access.
-    fn get_book_outline(&self, id: &str) -> Result<BookOutline, BookError> {
+    async fn get_book_outline(
+        &self,
+        _session: &beyond_gate_core::auth::session::Session,
+        id: &str,
+    ) -> Result<BookOutline, BookError> {
         book::assemble_outline(
             id,
             |_| self.access(),
@@ -184,7 +188,11 @@ impl ReadOperations for Fixtures {
     }
 
     /// Uses actual core chunking and fresh access checks, including continuation.
-    fn read_book_section(&self, request: SectionRequest<'_>) -> Result<SectionChunk, BookError> {
+    async fn read_book_section(
+        &self,
+        _session: &beyond_gate_core::auth::session::Session,
+        request: SectionRequest<'_>,
+    ) -> Result<SectionChunk, BookError> {
         book::read_section(
             request,
             |_, _| self.access(),

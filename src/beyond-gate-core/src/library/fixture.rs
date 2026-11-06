@@ -12,7 +12,7 @@ use std::{
     net::TcpListener,
     sync::{
         Arc,
-        atomic::{AtomicBool, Ordering},
+        atomic::{AtomicBool, AtomicUsize, Ordering},
     },
     time::Duration,
 };
@@ -56,6 +56,26 @@ pub enum Scenario {
     OutsideWebCatalog,
     /// Account evidence outside the Web catalog must still have a supported type.
     InvalidOutsideEvidence,
+    /// Source pages redirect without a followed request.
+    BookRedirect,
+    /// The selected chapter rejects the cookie after metadata and outline succeed.
+    BookRejected,
+    /// The selected chapter denies the request without proving an ownership state.
+    BookDenied,
+    /// A preview has no supported article container.
+    BookPreview,
+    /// Fresh selected content differs from an earlier fixture's revision.
+    BookChanged,
+    /// Fresh navigation moves the selected heading to a different chapter URL.
+    BookMoved,
+    /// The article contains repeated target IDs.
+    BookMalformed,
+    /// The source response declares more than the HTML body cap.
+    BookOversized,
+    /// The selected chapter waits long enough to exercise cancellation.
+    BookWaiting,
+    /// The HTML media type is wrong.
+    BookWrongMedia,
 }
 
 /// Holds private fixed loopback routes and their owned bounded worker.
@@ -72,6 +92,8 @@ pub(crate) struct Source {
     stop: Arc<AtomicBool>,
     /// Joins only the owned worker.
     worker: Option<std::thread::JoinHandle<()>>,
+    /// Counts received resource headers, including source pages but excluding auth exchange.
+    requests: Arc<AtomicUsize>,
 }
 
 impl Drop for Source {
@@ -156,6 +178,8 @@ impl Source {
         let client = HttpClient::for_fixture(&origin).map_err(std::io::Error::other)?;
         let stop = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&stop);
+        let requests = Arc::new(AtomicUsize::new(0));
+        let received = Arc::clone(&requests);
         let (catalog, status, ownership) = replies(scenario);
         let config = json!({
             "sources": (1..=8).map(|id| json!({"id":id,"sourceCategoryId":if matches!(id, 6 | 8) {41} else {73}})).collect::<Vec<_>>(),
@@ -195,10 +219,23 @@ impl Source {
                 let header = String::from_utf8(header)
                     .expect("synthetic header")
                     .to_ascii_lowercase();
-                assert!(!header.contains("\r\ncookie:"));
+                received.fetch_add(1, Ordering::SeqCst);
                 let public = header.starts_with("get /api/config/json ");
-                assert_eq!(header.contains("\r\nauthorization:"), !public);
-                let (status, body) = if public {
+                let page = header.starts_with("get /sources/");
+                assert_eq!(header.contains("\r\ncookie:"), page);
+                assert_eq!(header.contains("\r\nauthorization:"), !public && !page);
+                let page_reply;
+                let (status, body) = if page {
+                    let path = header
+                        .split_whitespace()
+                        .nth(1)
+                        .expect("fixed source route");
+                    if matches!(scenario, Scenario::BookWaiting) && path.ends_with("/opening") {
+                        std::thread::sleep(Duration::from_millis(250));
+                    }
+                    page_reply = book_reply(scenario, path);
+                    (page_reply.0, &page_reply.1)
+                } else if public {
                     (200, &config)
                 } else if header.starts_with("get /library/sources?platform=web ") {
                     (200, &catalog)
@@ -206,8 +243,13 @@ impl Source {
                     assert!(header.starts_with("get /library/sources/me "));
                     (status, &ownership)
                 };
+                let media = if page && !matches!(scenario, Scenario::BookWrongMedia) {
+                    "text/html; charset=utf-8"
+                } else {
+                    "application/json"
+                };
                 let response = format!(
-                    "HTTP/1.1 {status} Synthetic\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 {status} Synthetic\r\nContent-Type: {media}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 if let Err(error) = stream.write_all(response.as_bytes()) {
@@ -227,8 +269,74 @@ impl Source {
             ownership: format!("{origin}/library/sources/me"),
             stop,
             worker: Some(worker),
+            requests,
         })
     }
+}
+
+/// Produces original source markup; it contains no account snapshot or proprietary text.
+fn book_reply(scenario: Scenario, path: &str) -> (u16, String) {
+    let chapter = path.ends_with("/opening") || path.ends_with("/revised-opening");
+    let status = match scenario {
+        Scenario::BookRedirect => 307,
+        Scenario::BookRejected if chapter => 401,
+        Scenario::BookDenied if chapter => 403,
+        _ => 200,
+    };
+    if matches!(scenario, Scenario::BookOversized) {
+        return (status, "x".repeat(1024 * 1024 + 1));
+    }
+    let content = if chapter {
+        if matches!(scenario, Scenario::BookPreview) {
+            "<p>An invented preview, not a supported article.</p>".into()
+        } else {
+            let text = if matches!(scenario, Scenario::BookChanged) {
+                "A changed invented lantern glows. "
+            } else {
+                "An invented lantern glows \u{754c}. "
+            }
+            .repeat(240);
+            let second = if matches!(scenario, Scenario::BookMalformed) {
+                "first"
+            } else {
+                "second"
+            };
+            format!(
+                "<article class=\"p-article-content\"><h1>An invented chapter</h1>\
+                <h2 id=\"first\">An invented opening</h2><p>{text}</p>\
+                <aside><h3>An invented sidebar</h3><p>A useful invented note.</p></aside>\
+                <h2 id=\"{second}\">A second topic</h2><p>Adjacent topic must not leak.</p></article>"
+            )
+        }
+    } else {
+        let slug = path.rsplit('/').next().unwrap_or_default();
+        let chapter = if matches!(scenario, Scenario::BookMoved) {
+            "revised-opening"
+        } else {
+            "opening"
+        };
+        format!(
+            "<div class=\"compendium-toc-full-text\">\
+            <a href=\"/sources/{slug}/{chapter}\">An invented chapter</a>\
+            <a href=\"/sources/{slug}/{chapter}#first\">An invented opening</a>\
+            <a href=\"/sources/{slug}/{chapter}#second\">A second topic</a></div>"
+        )
+    };
+    (
+        status,
+        format!(
+            "<!doctype html><html><head><link rel=\"canonical\" \
+        href=\"https://www.dndbeyond.com{path}\"></head><body>{content}</body></html>"
+        ),
+    )
+}
+
+/// Returns resource requests observed by the compiled local service, not a live counter.
+pub fn request_count(session: &Session) -> usize {
+    session
+        .library_fixture
+        .as_ref()
+        .map_or(0, |source| source.requests.load(Ordering::SeqCst))
 }
 
 /// Supplies the real shared lifecycle and HTTP discovery with fixed invented services.
@@ -246,6 +354,6 @@ pub fn session(scenario: Scenario) -> std::io::Result<Session> {
         _ => auth::Scenario::Valid,
     })
     .map_err(std::io::Error::other)?;
-    session.library_fixture = Some(Source::start(scenario)?);
+    session.library_fixture = Some(Arc::new(Source::start(scenario)?));
     Ok(session)
 }

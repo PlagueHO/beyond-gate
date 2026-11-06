@@ -16,7 +16,12 @@ The Web catalog defines output scope. All raw ownership still validates against
 public configuration; configured ownership-only sources do not create books.
 Approved native CLI/MCP checks returned matching Web-library metadata and evidence.
 Real sharing was not observed; sharing checks remain synthetic.
-Other live resource reads remain unsupported. Do not silently discard invalid sources.
+Windows outline and section reads use fresh library evidence and checked canonical
+cookie pages within one session identity. Their source path has synthetic CLI/MCP
+process checks. Separately approved native acceptance passed for one selected
+chapter with matching outlines and initial chunks. Live continuation and sharing
+remain unchecked. Character and campaign live reads remain unsupported.
+Do not silently discard invalid sources.
 Linux production login and session use are tracked in #52.
 
 - Keep v1 read-only and local; do not add remote hosting or multiuser services.

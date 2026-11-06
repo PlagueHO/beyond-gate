@@ -3,7 +3,11 @@
 The CLI and MCP binaries provide help and version output. The CLI has verified Windows
 browser login, local auth status/logout, and shell completions. Resource command parsing and
 formatting have offline process tests. Windows Web-library discovery has approved
-native CLI/MCP parity; other live resource reads fail explicitly.
+native CLI/MCP parity. Windows book outline/read operations now use the approved
+page-level contract, with synthetic process coverage. Native book adapter
+acceptance passed for one selected chapter with matching outlines and initial
+chunks. Live continuation and sharing remain unchecked.
+Character and campaign reads remain unsupported.
 Protected-store operations have synthetic offline
 tests; Windows login creates the protected entry after service validation.
 The core HTTP read boundary has offline policy tests and fixed Web-library
@@ -25,8 +29,8 @@ dependencies, tests, and documentation requirements.
 | [#3](https://github.com/PlagueHO/beyond-gate/issues/3) | Windows human login and local storage/status/logout implemented; reusable sessions and other-platform login remain deferred | #1, #2 |
 | [#4](https://github.com/PlagueHO/beyond-gate/issues/4) | Offline library assembly implemented; #32 adds verified Windows Web-library discovery through both adapters | #1, #2, #3 |
 | [#5](https://github.com/PlagueHO/beyond-gate/issues/5) | Authorized character and campaign reads | #1, #2, #3 |
-| [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Offline outlines and bounded section reads implemented; live reads not implemented | #4 |
-| [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | CLI output, continuation, and completions implemented; #32 adds verified Windows Web-library reads; other live reads unsupported | #5, #6 |
+| [#6](https://github.com/PlagueHO/beyond-gate/issues/6) | Offline outlines and bounded section reads; #33 adds Windows page-level source operations | #4 |
+| [#7](https://github.com/PlagueHO/beyond-gate/issues/7) | CLI output, continuation, and completions; #32 adds Windows Web-library reads and #33 adds bounded book reads | #5, #6 |
 | [#8](https://github.com/PlagueHO/beyond-gate/issues/8) | Local stdio MCP and read parity | #5, #6; coordinate with #7 |
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
 | [#10](https://github.com/PlagueHO/beyond-gate/issues/10) | Native packages and first-run usability | #9 and its prerequisites |
@@ -140,16 +144,20 @@ pages. Live list and read functions explicitly report unsupported operations.
 The CLI exposes their explicit unsupported failures and tests successful output
 with synthetic core results. No upstream schema, access rule, or endpoint is assumed.
 
-Issue #6 remains offline-only. The [book boundary](architecture.md#offline-book-boundary)
+Issue #6 supplied the offline validators. The [book boundary](architecture.md#offline-book-boundary)
 returns validated outlines with at most 1,000 raw entries and selected-section
 chunks with at most 4,096 UTF-8 text bytes. Every call checks fresh supplied
 access before loading. Opaque in-process cursors bind book, section, source
 revision, URL, and byte position. Shared `bg1.` wire tokens allow explicit
 cross-process continuation with a 16 KiB encoded cap. The CLI tests bounded
-output and continuation offline, but its production commands fail as unsupported.
-No live book contract, MCP read, automatic continuation, or content cache is
-added. Real access freshness and
-source revisions still depend on a future source implementation.
+output and continuation through the real shared source path against synthetic
+local services. Issue #33 adds the user-approved
+[page-level contract](architecture.md#live-book-reads) through both adapters.
+Fresh positive library evidence and a checked canonical cookie page are required
+for every call. Native book adapter acceptance passed for one selected chapter
+with matching 79-entry outlines and 3,929 UTF-8 byte initial chunks.
+Live continuation and sharing remain unchecked. No automatic continuation,
+whole-book operation, or content cache is added.
 
 Issue #7 remains partial for live-read criteria. Its CLI adapter defines
 `character list/show`, `campaign list/show`, and `book list/outline/read`.
@@ -160,8 +168,9 @@ make the core's unsupported live operations usable. There is no product fixture
 input, cached content, or account snapshot.
 
 Issue #8 now has a local rmcp stdio server and seven matching read tools. The
-tools call the shared core functions and preserve their explicit unsupported
-errors; they do not enable account reads. Tool schemas, read-only annotations,
+tools call the shared core functions. Windows book tools now use checked source
+pages; character and campaign tools preserve unsupported errors.
+Tool schemas, read-only annotations,
 bounded continuation input, and protocol process tests are implemented. The
 current MCP output contract is documented alongside the CLI contract.
 

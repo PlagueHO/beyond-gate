@@ -6,9 +6,13 @@ login, explicit browser setup, and the native host are implemented.
 Approved Chrome and Edge Dev login/save/restart/logout checks passed.
 Windows `book list` has bounded live metadata transport through the shared stored session.
 Web-catalog scope, category selection, and title cleanup are implemented and verified natively.
-Other live resource reads remain unsupported.
+Windows `book outline/read` now use fresh library evidence and checked canonical
+cookie pages. Their production source path has synthetic process checks.
+Native adapter acceptance passed for one selected chapter with matching outlines
+and initial chunks. Live continuation and sharing remain unchecked.
+Character and campaign live reads remain unsupported.
 
-Other valid resource reads currently exit with code 1, write an unsupported-operation
+Unsupported character and campaign reads exit with code 1, write an unsupported-operation
 diagnostic to stderr, and leave stdout empty. They do not return sample data or
 empty success results. The success contracts below are tested with synthetic
 inputs in offline tests. They are not evidence of live access.
@@ -59,8 +63,8 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`campaign list`](#campaign-list) | List campaigns and associations | Live read unsupported |
 | [`campaign show`](#campaign-show) | Select one campaign | Live read unsupported |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
-| [`book outline`](#book-outline) | Read complete bounded navigation | Live read unsupported |
-| [`book read`](#book-read) | Read one bounded section chunk | Live read unsupported |
+| [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
+| [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
@@ -223,8 +227,9 @@ for the fixed entry identity, backend requirements, and failure recovery.
 ## Resource commands
 
 `book list` reads the fixed protected session and two bounded metadata routes.
-The other six actions fail as unsupported after valid input is accepted.
-Their success outputs are offline-tested contracts.
+`book outline` and `book read` repeat fresh metadata and page-level access checks.
+The four character and campaign actions fail as unsupported after valid input
+is accepted. Their success outputs are offline-tested contracts.
 
 ### List options
 
@@ -362,11 +367,14 @@ most 1,000 entries. Table and TSV columns are `id`, `title`, `parent_id`, and
 `source_url`, in that order. JSON uses an
 [outline envelope](#outline-and-section-objects), not a bare entry array.
 
-Current result: unsupported-operation diagnostic, exit code 1, and empty stdout.
-Invalid identifiers or list options fail with code 2. The offline contract rejects
-denied or unknown access, invalid metadata, repeated entry identifiers, missing
-parents, cycles, and more than 1,000 raw entries. It never silently truncates an
-outline. See [book bounds and continuation](#book-bounds-and-continuation).
+Use the numeric book ID returned by `book list`. Windows reads require fresh
+positive library evidence and one checked canonical source page. Unknown access,
+unsafe links, unsupported layouts, and malformed sources return no outline.
+At most 1,000 raw anchors are allowed before filtering or duplicate-role handling.
+The result preserves nested list hierarchy; fragment links otherwise belong to
+their chapter. Repeated navigation targets have distinct stable opaque IDs.
+Invalid parser input or list options use code 2. Invalid numeric IDs and shared
+operation failures use code 1. See [book bounds and continuation](#book-bounds-and-continuation).
 
 ### book read
 
@@ -380,10 +388,14 @@ The success contract is one JSON
 [section object](#outline-and-section-objects) with at most 4,096 UTF-8 text bytes.
 There are no format, header, whole-book, or automatic continuation options.
 
-Current result: unsupported-operation diagnostic, exit code 1, and empty stdout.
-Invalid identifiers, missing arguments, and malformed or oversized input tokens
-fail with code 2 before the live operation. A syntactically valid token does not
-enable live access.
+Use a section ID from `book outline`, not a heading label or URL.
+Each Windows read repeats fresh metadata, outline, and selected-page checks.
+Native adapter acceptance passed for one selected chapter. Synthetic local
+services cover continuation and failure cases; live continuation remains unchecked.
+Parser-invalid identifiers, missing arguments, and malformed or oversized input
+tokens fail with code 2 before the live operation. Noncanonical book IDs and
+invalid opaque section IDs fail with code 1 before credential access.
+A syntactically valid token does not enable live access.
 
 In the offline contract, denied or unknown access, unavailable content,
 unsupported sections, source failures, invalid metadata, wrong-scope or
@@ -393,9 +405,9 @@ that hides remaining text.
 
 ## Output contracts
 
-The following describes successful resource output tested offline, not current
-live results. JSON uses standard escaping and preserves structured values.
-CLI JSON is pretty-printed with a final newline.
+Offline checks verify the following output contracts. Examples use invented
+data, not live account results. JSON uses standard escaping and preserves
+structured values. CLI JSON is pretty-printed with a final newline.
 
 ### Character and campaign objects
 
@@ -487,16 +499,19 @@ Empty JSON lists are `[]`. Empty outlines retain `book_id`, `source_url`, and
 
 ### Book bounds and continuation
 
-The offline core checks fresh supplied access before each outline or section
-load, including each continuation. Unknown access is not a grant. Neither a prior
-library result nor a continuation authorizes another read. Current product
-entry points return unsupported errors; no live access check occurs yet.
+Every live outline, section, and explicit continuation checks fresh positive
+library evidence and current canonical cookie-page structure. Unknown or
+catalog-only evidence cannot enable a read, including public/free-looking sources.
+The same session identity must supply metadata and content. A session change
+returns `session_changed`; retry the operation. Neither prior results nor tokens grant access.
+See the [page-level contract](architecture.md#live-book-reads) for supported scope.
 
 Outlines allow at most 1,000 raw entries, including duplicates. Section output
 contains at most 4,096 UTF-8 text bytes. This cap excludes JSON escaping, source
 attribution, and continuation bytes. It is not a whole-response or source-memory
-limit. Original text and line breaks are preserved. A chunk can end before the
-cap to preserve a UTF-8 boundary or a supplied line.
+limit. HTML conversion preserves meaningful text, headings, lists, tables, and
+sidebars with deterministic whitespace. Chunking preserves those normalized bytes.
+A chunk can end before the cap to preserve a UTF-8 boundary or a complete line.
 
 A nonterminal result has a string `next_cursor` and `is_complete: false`.
 Request the next chunk explicitly with the same book and section identifiers:

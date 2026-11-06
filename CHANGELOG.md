@@ -7,6 +7,36 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Windows live book outlines and selected-section reads through shared core,
+  CLI, and MCP operations. Each call checks fresh positive Web-library evidence
+  and canonical cookie-page structure within one session identity. Unknown access
+  and unsupported layouts return no content. Outlines count at most 1,000 raw
+  anchors; text results stay within 4,096 UTF-8 bytes; explicit continuation
+  tokens stay within 16 KiB and never choose fetch URLs or grant access.
+  Synthetic actual-process checks cover parity, complete Unicode reconstruction,
+  access changes, stale sources, strict inputs, cancellation, and safe errors.
+  Separately approved native CLI/MCP acceptance passed for one selected chapter:
+  matching 79-entry outlines and 3,929 UTF-8 byte initial chunks. Live continuation
+  and sharing remain unchecked. Character and campaign reads remain unsupported.
+  No external runtime, automatic continuation, or content cache is added.
+- Ignored Windows metadata-only investigation probe for issue #33's mobile
+  book-access candidate. Synthetic checks cover explicit execution guards,
+  fixed targets, form encoding, redacted schema output, record/byte caps, and
+  no retries or redirects. One separately approved live request confirmed
+  metadata structure only; its scope is consumed.
+  Production book reads remained unsupported at that diagnostic stage.
+- Separately gated Windows cookie-only chapter diagnostic for issue #33.
+  Five synthetic checks cover the actual GET, fixed scope, redaction, and bounds.
+  One explicitly approved native request accepted HTML and fixed literal markers.
+  This does not establish preview status or content authorization. Its request
+  scope is consumed; it did not itself enable production book reads.
+- Test-only HTML structure diagnostic for the selected source and protected
+  chapter, with a final anonymous control and five synthetic checks.
+  A separately approved three-request run parsed both authenticated pages,
+  matched all selected outline fragments, and stopped at the anonymous HTTP 307.
+  The scope is consumed. A separate entitlement API remains unverified.
+  The later page-level contract promotes the parser to a native Rust dependency,
+  not an external runtime.
 - Windows live `book list` and MCP `book_list` discovery through the shared session.
   Fixed public configuration, catalog, and ownership GETs have no retries, redirects, or automatic
   continuation. Complete discovery is bounded to 30 seconds and 1 MiB per response.
@@ -29,7 +59,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Web scope is now implemented and checked offline. Unconfigured IDs and invalid
   evidence still fail. Fresh native CLI/MCP acceptance passed with matching metadata
   and evidence for 169 Web-catalog books: 36 purchased and 133 unknown.
-  No live sharing was observed; content reads stay unsupported.
+  No live sharing was observed. This acceptance did not check book content.
   Unsupported platforms stop before any network request. Help and MCP
   instructions report the implemented Web-catalog scope.
 - First-party library JSON route evidence for source metadata and current-account

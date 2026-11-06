@@ -49,6 +49,44 @@ async fn acquire(session: &Session) -> Result<(), SessionError> {
     session.prepare(&mut state, deadline, false).await
 }
 
+/// Keeps one book operation tied to its first cookie even when another read changes the cache.
+#[tokio::test]
+async fn book_scopes_pin_identity_without_losing_process_local_reuse() {
+    let session = fixture::session(Scenario::Valid).expect("fixture");
+    let scoped = session.book_scope();
+    assert_eq!(request_count(&session), 0);
+    acquire(&scoped).await.expect("initial scoped evidence");
+    acquire(&session.book_scope())
+        .await
+        .expect("separate scope shares bearer");
+    assert_eq!(request_count(&session), 1);
+    store(&session)
+        .save(
+            &BrowserSessionCookie::new(b"invented-other-account".to_vec())
+                .expect("cookie")
+                .encode(),
+        )
+        .expect("changed protected entry");
+    acquire(&session)
+        .await
+        .expect("another operation changes the cached identity");
+    assert_eq!(request_count(&session), 2);
+    assert_eq!(
+        acquire(&scoped)
+            .await
+            .expect_err("old metadata cannot cross accounts")
+            .kind(),
+        SessionErrorKind::Changed
+    );
+    assert_eq!(request_count(&session), 2);
+    assert!(!format!("{scoped:?}").contains("other-account"));
+    session.logout().await.expect("local removal");
+    assert_eq!(
+        acquire(&scoped).await.expect_err("actual absence").kind(),
+        SessionErrorKind::Absent
+    );
+}
+
 /// Changes only this fixture's response for subsequent actual requests.
 fn reply(session: &Session, status: u16, body: Vec<u8>) {
     *session

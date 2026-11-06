@@ -3,6 +3,7 @@
 use std::{error::Error, fmt};
 
 use crate::http::HttpError;
+use crate::{auth::session::SessionError, library::LibraryError};
 
 /// Explains why no outline or selected-section result can be returned.
 #[derive(Debug)]
@@ -27,15 +28,29 @@ pub enum BookError {
     StaleContinuation,
     /// The raw outline entry limit was exceeded.
     LimitExceeded,
-    /// Live book reads have no implemented source contract or usable login.
+    /// The selected source has no supported live read contract.
     UnsupportedOperation,
     /// An access check or source load failed with a typed HTTP cause.
     SourceRead(HttpError),
+    /// Fresh library discovery failed without a partial result.
+    LibraryRead(LibraryError),
+    /// The current protected session or source response could not establish access.
+    SessionRead(SessionError),
+    /// A canonical location, container, target, or document structure is ambiguous.
+    MalformedSource,
+    /// The entire metadata, navigation, and selected-content operation timed out.
+    TimedOut,
 }
 
 impl fmt::Display for BookError {
     /// Gives a fixed message without printing text, metadata, or cursor values.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Self::SessionRead(error) = self {
+            return write!(formatter, "Book access could not be established: {error}");
+        }
+        if let Self::LibraryRead(error) = self {
+            return write!(formatter, "Book metadata check failed: {error}");
+        }
         formatter.write_str(match self {
             Self::InvalidMetadata => "Book or section metadata is invalid.",
             Self::InvalidOutline => "Book outline links are invalid or identifiers repeat.",
@@ -46,11 +61,14 @@ impl fmt::Display for BookError {
             Self::InvalidContinuation => "Section continuation scope or position is invalid.",
             Self::ContinuationTooLarge => "Section continuation exceeds the 16 KiB encoded limit.",
             Self::StaleContinuation => "Section continuation refers to an older or changed source.",
-            Self::LimitExceeded => "Book outline exceeds the local entry limit.",
+            Self::LimitExceeded => "Book source exceeds a local entry, size, or depth limit.",
             Self::UnsupportedOperation => {
-                "Live book reads are unsupported: source contracts and usable login are not implemented."
+                "Live book reads are unsupported for this source contract."
             }
             Self::SourceRead(_) => "A book access check or source read failed.",
+            Self::MalformedSource => "Book source structure or canonical location is invalid.",
+            Self::TimedOut => "Book read reached its operation deadline.",
+            Self::SessionRead(_) | Self::LibraryRead(_) => "Book access check failed.",
         })
     }
 }
@@ -60,6 +78,8 @@ impl Error for BookError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::SourceRead(error) => Some(error),
+            Self::LibraryRead(error) => Some(error),
+            Self::SessionRead(error) => Some(error),
             _ => None,
         }
     }

@@ -1,6 +1,6 @@
 # Native installation and first-run checks
 
-**Status: Windows login and Web-library discovery; other live reads remain unsupported.**
+**Status: Windows login, Web-library discovery, and bounded book reads.**
 There is no published release yet. The packaging workflow produces test archives.
 Windows login and native-host setup are implemented.
 Approved real Chrome and Edge Dev login/save/restart/logout checks passed.
@@ -208,12 +208,12 @@ beyond-gate book read synthetic opening
 ```
 
 Each currently exits with code 1 and leaves stdout empty.
-Reads report unsupported live operations.
-These are implementation limits, not verified missing-session or expiry errors.
+The character read reports an unsupported operation. The synthetic book ID
+fails metadata validation before session access. Neither proves a missing or expired session.
 Do not supply a password, cookie, or token. Do not create a credential manually.
 Do not run `auth status` or `auth logout` as an automated package check:
 they access the real OS store.
-On Windows, valid `book list` and MCP `book_list` requests also use the real
+On Windows, valid book list, outline, and read requests through either adapter use the real
 OS store and can contact D&D Beyond. Package checks reject unknown CLI options
 and MCP input fields before discovery instead. Synthetic process tests check
 successful discovery and session failures without a real account.
@@ -256,7 +256,8 @@ No entry contains a secret, remote URL, Python command, or Node.js command.
 Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
 `claude mcp list` in Claude Code. The server exposes seven resource read tools:
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
-`book_outline`, and `book_read`. Valid reads currently return explicit tool
+`book_outline`, and `book_read`. Windows book reads use fresh library evidence
+and checked canonical cookie pages. Character and campaign reads return unsupported
 errors. The additional credential-free `auth_validate` tool makes one fresh
 Windows session check; it does not grant content access.
 Do not interpret discovery as successful login or live read access.
@@ -296,8 +297,8 @@ An offline package check is not a v1 acceptance decision.
 | Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
 | Runtime-independent native startup | Checked with a restricted child PATH. Clean desktop installation and OS trust prompts remain untested. |
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
-| CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library CLI/MCP metadata and evidence parity passed separately from packaging. Synthetic errors, attribution, and bounded book checks pass. Content reads remain unsupported. |
-| Missing, expired, or rejected upstream session errors | Shared-session library discovery has synthetic failure checks. Other live operations remain unsupported. Live evidence is separate. |
+| CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library parity and one selected chapter's outline/initial-chunk parity passed separately from packaging. Synthetic source checks cover continuation and failures. Live continuation and sharing remain unchecked. |
+| Missing, expired, or rejected upstream session errors | Shared-session library and book source operations have synthetic failure checks. Live evidence is separate. |
 | Simple browser login and native credential-store operation | Approved Windows Chrome and Edge Dev product checks passed separately from packaging. Other-platform login remains deferred. New real-store tests need explicit approval. |
 | Live reads and client walkthrough | Native Web-library acceptance passed separately from packaging. Real sharing, other live reads, and actual client walkthrough remain unverified. New account checks need explicit approval. Stop on access denial. |
 | Version, lockfile, dated changelog, assets, evidence, and draft release | Require maintainer review before publication. No tag or publication is authorized by issue #10 alone. |

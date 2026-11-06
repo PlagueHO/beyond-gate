@@ -1,13 +1,14 @@
-//! Ignored, explicitly approved library metadata inspection; never a product read.
+//! Ignored, explicitly approved native diagnostics; never a product read.
 //!
 //! The live check reads the fixed protected entry without saving or deleting it.
 //! It makes one exchange and at most two metadata GET attempts, without retries.
+//! Child probes have separate scopes for mobile metadata, website HTML, and DOM controls.
 //! Ordinary tests below use only synthetic data and loopback HTTP.
 
 use super::*;
 use crate::http::{SessionHeaders, direct_client_builder};
 use reqwest::{
-    Client, Response,
+    Client, Response, Url,
     header::{ACCEPT, ACCEPT_ENCODING, CONTENT_ENCODING, CONTENT_TYPE},
 };
 use serde_json::Value;
@@ -51,6 +52,8 @@ enum ProbeError {
     RequestLimit,
     Expired,
     TimedOut,
+    Target,
+    Headers(crate::http::HttpError),
 }
 
 impl fmt::Display for ProbeError {
@@ -67,19 +70,21 @@ impl fmt::Display for ProbeError {
             Self::Transport(_) => formatter.write_str("metadata transport failed"),
             Self::Status(status) => write!(formatter, "HTTP {status}; stopped without retry"),
             Self::Encoding => formatter.write_str("encoded response rejected"),
-            Self::ContentType => formatter.write_str("non-JSON response rejected"),
+            Self::ContentType => formatter.write_str("unexpected response media type"),
             Self::BodyLimit => formatter.write_str("response exceeded 1 MiB"),
             Self::Json(error) => write!(formatter, "invalid JSON: {:?}", error.classify()),
-            Self::Shape => formatter.write_str("unexpected metadata shape"),
+            Self::Shape => formatter.write_str("unexpected response shape"),
             Self::RecordLimit => formatter.write_str("inspection record limit exceeded"),
             Self::PageLimit => formatter.write_str("metadata exceeds the existing per-page limit"),
             Self::Incomplete => formatter.write_str("totalCount does not match returned records"),
             Self::SourcePath => formatter.write_str("a source has no valid canonical book path"),
             Self::SourceConflict => formatter.write_str("source identifiers conflict"),
             Self::OwnershipMismatch => formatter.write_str("ownership has an unmatched source"),
-            Self::RequestLimit => formatter.write_str("three-attempt request budget exhausted"),
+            Self::RequestLimit => formatter.write_str("probe request budget exhausted"),
             Self::Expired => formatter.write_str("bearer expired; no exchange retry"),
             Self::TimedOut => formatter.write_str("complete probe deadline reached"),
+            Self::Target => formatter.write_str("target is outside the fixed probe scope"),
+            Self::Headers(error) => fmt::Display::fmt(error, formatter),
         }
     }
 }
@@ -113,8 +118,32 @@ fn client() -> Result<Client, ProbeError> {
         .map_err(ProbeError::Transport)
 }
 
-/// Reads at most the byte cap plus one byte; compressed and non-JSON bodies fail.
-async fn body(mut response: Response) -> Result<Value, ProbeError> {
+/// Allows only the selected fixed route or an explicit synthetic loopback target.
+fn check_target(url: &str, expected: &str, loopback: bool) -> Result<(), ProbeError> {
+    if url == expected {
+        return Ok(());
+    }
+    let parsed = Url::parse(url).map_err(|_| ProbeError::Target)?;
+    if loopback
+        && parsed.scheme() == "http"
+        && matches!(parsed.host_str(), Some("127.0.0.1" | "[::1]"))
+        && parsed.username().is_empty()
+        && parsed.password().is_none()
+        && parsed.path() == "/metadata"
+        && parsed.query().is_none()
+        && parsed.fragment().is_none()
+    {
+        Ok(())
+    } else {
+        Err(ProbeError::Target)
+    }
+}
+
+/// Reads at most the byte cap plus one byte with an exact successful media type.
+async fn bounded_body(
+    mut response: Response,
+    expected_type: &str,
+) -> Result<Zeroizing<Vec<u8>>, ProbeError> {
     if response.status() != reqwest::StatusCode::OK {
         return Err(ProbeError::Status(response.status().as_u16()));
     }
@@ -126,7 +155,7 @@ async fn body(mut response: Response) -> Result<Value, ProbeError> {
     {
         return Err(ProbeError::Encoding);
     }
-    let json_type = response
+    let expected_media = response
         .headers()
         .get(CONTENT_TYPE)
         .and_then(|value| value.to_str().ok())
@@ -134,9 +163,9 @@ async fn body(mut response: Response) -> Result<Value, ProbeError> {
             value
                 .split(';')
                 .next()
-                .is_some_and(|mime| mime.trim().eq_ignore_ascii_case("application/json"))
+                .is_some_and(|mime| mime.trim().eq_ignore_ascii_case(expected_type))
         });
-    if !json_type {
+    if !expected_media || response.headers().get_all(CONTENT_TYPE).iter().count() != 1 {
         return Err(ProbeError::ContentType);
     }
     let mut bytes = Zeroizing::new(Vec::new());
@@ -147,6 +176,12 @@ async fn body(mut response: Response) -> Result<Value, ProbeError> {
             return Err(ProbeError::BodyLimit);
         }
     }
+    Ok(bytes)
+}
+
+/// Parses bounded JSON without printing any response fields or scalar values.
+async fn body(response: Response) -> Result<Value, ProbeError> {
+    let bytes = bounded_body(response, "application/json").await?;
     let value = serde_json::from_slice(&bytes).map_err(ProbeError::Json)?;
     eprintln!("metadata_response_bytes={}", bytes.len());
     Ok(value)
@@ -654,6 +689,7 @@ async fn transport_stops_without_retry_or_redirect() {
         (429, "Retry-After: 0\r\n", b"{}".to_vec()),
         (503, "", b"{}".to_vec()),
         (200, "Content-Encoding: gzip\r\n", b"{}".to_vec()),
+        (200, "Content-Type: text/html\r\n", b"{}".to_vec()),
         (200, "", b"private-invalid-json".to_vec()),
         (200, "", vec![b' '; MAX_BYTES + 1]),
     ];
@@ -693,3 +729,12 @@ async fn byte_and_attempt_boundaries_are_enforced() {
     ));
     worker.await.expect("no fourth request");
 }
+
+#[path = "mobile_probe.rs"]
+mod mobile_probe;
+
+#[path = "website_probe.rs"]
+mod website_probe;
+
+#[path = "structure_probe.rs"]
+mod structure_probe;
