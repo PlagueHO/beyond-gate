@@ -53,7 +53,9 @@ Replace the placeholders before execution. The report's command uses the same
 portable placeholders to avoid retaining private paths. Its candidate fields
 record the actual version, target, hash, and supplied source identity.
 The report's parent directory must already exist. Keep it outside the archive
-and outside the temporary installation. Without `-ReportPath`, existing command
+and outside the temporary installation. Relative report paths use the current
+PowerShell location, including after `Set-Location`.
+Without `-ReportPath`, existing command
 usage still works. Without `-SourceCommit`, source identity is `unavailable`.
 
 The verifier checks exact archive membership before extraction. It checks both

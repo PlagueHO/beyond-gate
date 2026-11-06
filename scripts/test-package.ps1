@@ -81,7 +81,11 @@ function Write-PackageReport {
     real_clients = $false
   }
   $json = ConvertTo-Json $report -Depth 10
-  [System.IO.File]::WriteAllText([System.IO.Path]::GetFullPath($ReportPath), "$json`n")
+  $provider = $null
+  $drive = $null
+  $destination = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ReportPath, [ref]$provider, [ref]$drive)
+  if ($provider.Name -cne 'FileSystem') { throw 'Package evidence report requires a FileSystem destination.' }
+  [System.IO.File]::WriteAllText($destination, "$json`n")
 }
 
 # Fail with the contract being checked, rather than a successful empty result.

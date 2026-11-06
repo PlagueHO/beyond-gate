@@ -17,6 +17,56 @@ $testArchive = Join-Path $temporary ([System.IO.Path]::GetFileName($archivePath)
 $checksum = "$testArchive.sha256"
 $reportPath = Join-Path $temporary 'evidence.json'
 
+# Check decoded strings, including nested values and strings that embed private paths.
+function Test-PrivateReportPath {
+  param([AllowNull()][object]$Value, [string[]]$Paths)
+  if ($Value -is [string]) {
+    foreach ($path in $Paths) {
+      if ($Value.Contains($path)) { return $true }
+    }
+  } elseif ($Value -is [System.Collections.IDictionary]) {
+    foreach ($key in $Value.Keys) {
+      if ((Test-PrivateReportPath $key $Paths) -or (Test-PrivateReportPath $Value[$key] $Paths)) {
+        return $true
+      }
+    }
+  } elseif ($Value -is [System.Collections.IEnumerable]) {
+    foreach ($item in $Value) {
+      if (Test-PrivateReportPath $item $Paths) { return $true }
+    }
+  }
+  return $false
+}
+
+# Require each escaped path leak to fail without exposing it in diagnostics.
+function Assert-ReportPrivacyRegression {
+  $original = [System.IO.File]::ReadAllText($reportPath)
+  try {
+    foreach ($path in @($temporary, $archivePath)) {
+      foreach ($value in @($path, "Embedded path: $path")) {
+        $fixture = ConvertFrom-Json $original -AsHashtable
+        $fixture['privacy_regression'] = @{ nested = @(@{ value = $value }) }
+        [System.IO.File]::WriteAllText($reportPath, (ConvertTo-Json $fixture -Depth 20))
+        $rejected = $false
+        try { $null = Assert-TestReport 'passed' -WithSource }
+        catch {
+          if ($_.Exception.Message -cne 'Package report contains private paths, settings, or child output.') { throw }
+          $rejected = $true
+        }
+        if (!$rejected) { throw 'Package report accepted a private path.' }
+      }
+    }
+    $fixture = ConvertFrom-Json $original -AsHashtable
+    $fixture['privacy_regression'] = @{ nested = @(@{ value = 'Safe package evidence.' }) }
+    [System.IO.File]::WriteAllText($reportPath, (ConvertTo-Json $fixture -Depth 20))
+    $null = Assert-TestReport 'passed' -WithSource
+  }
+  finally {
+    [System.IO.File]::WriteAllText($reportPath, $original)
+  }
+  Write-Output 'Verified escaped private path rejection and safe nested report values.'
+}
+
 # Check evidence independently of raw process diagnostics and temporary paths.
 function Assert-TestReport {
   param([string]$Status, [string]$FailedCase = '', [switch]$WithSource, [switch]$CleanupFailed)
@@ -72,7 +122,7 @@ function Assert-TestReport {
       !$report.host.powershell_version -or !$report.command.Contains('-Archive <archive>')) {
     throw 'Package report is missing host or command evidence.'
   }
-  if ($text.Contains($temporary) -or $text.Contains($archivePath) -or $text.Contains('synthetic-other') -or
+  if ((Test-PrivateReportPath $report @($temporary, $archivePath)) -or $text.Contains('synthetic-other') -or
       $text.Contains('StandardOutput') -or $text.Contains('StandardError')) {
     throw 'Package report contains private paths, settings, or child output.'
   }
@@ -160,6 +210,61 @@ function Assert-CleanupFailure {
   }
 }
 
+# Resolve new report files at the PowerShell location, not the process directory.
+function Assert-ReportDestination {
+  $fixture = Join-Path (Split-Path $PSScriptRoot -Parent) "target\report destination $([guid]::NewGuid().ToString('N'))"
+  $processLocation = Join-Path $fixture 'process location'
+  $shellLocation = Join-Path $fixture 'shell location'
+  $savedDirectory = [System.Environment]::CurrentDirectory
+  $locationPushed = $false
+  try {
+    New-Item -ItemType Directory -Path $processLocation, $shellLocation | Out-Null
+    Push-Location -LiteralPath $shellLocation
+    $locationPushed = $true
+    [System.Environment]::CurrentDirectory = $processLocation
+    $destinations = @(
+      @{ Path = '.\relative evidence.json'; File = Join-Path $shellLocation 'relative evidence.json' }
+      @{ Path = Join-Path $shellLocation 'absolute evidence.json'; File = Join-Path $shellLocation 'absolute evidence.json' }
+      @{ Path = '.\missing parent\evidence.json'; File = $null }
+      @{ Path = 'Env:\BEYOND_GATE_REPORT_DESTINATION_TEST'; File = $null }
+      @{ Path = 'BeyondGateMissingReportDrive:\evidence.json'; File = $null }
+    )
+    foreach ($destination in $destinations) {
+      $rejected = $false
+      $reportErrors = @()
+      try {
+        & $checker -Archive '.\report-destination-missing-archive.zip' -Checksum '.\missing.sha256' `
+          -Version $Version -Target $Target -ReportPath $destination.Path -ErrorVariable reportErrors
+      } catch {
+        if (!$_.Exception.Message.Contains('report-destination-missing-archive.zip')) { throw }
+        $rejected = $true
+      }
+      if (!$rejected) { throw 'Missing archive was accepted during report destination checks.' }
+      $writeFailed = @($reportErrors | Where-Object { $_.ToString().Contains('Package evidence report could not be written.') }).Count -gt 0
+      if ($destination.File) {
+        if ($writeFailed -or !(Test-Path -LiteralPath $destination.File)) {
+          throw 'Report was not written at the requested PowerShell destination.'
+        }
+        $report = ConvertFrom-Json ([System.IO.File]::ReadAllText($destination.File))
+        if ($report.status -cne 'failed' -or ($report.cases | Where-Object id -CEQ 'package.identity').status -cne 'failed') {
+          throw 'Destination check report did not preserve the archive rejection.'
+        }
+      } elseif (!$writeFailed) {
+        throw 'Invalid report destination did not produce an explicit write failure.'
+      }
+    }
+    if (@(Get-ChildItem -LiteralPath $processLocation -Force).Count -ne 0) {
+      throw 'Report destination checks wrote into the process directory.'
+    }
+    Write-Output 'Verified relative and absolute report destinations and explicit destination failures.'
+  }
+  finally {
+    [System.Environment]::CurrentDirectory = $savedDirectory
+    if ($locationPushed) { Pop-Location }
+    if (Test-Path -LiteralPath $fixture) { Remove-Item -LiteralPath $fixture -Recurse -Force }
+  }
+}
+
 try {
   New-Item -ItemType Directory -Path $temporary | Out-Null
   Copy-Item -LiteralPath $archivePath -Destination $testArchive
@@ -167,6 +272,7 @@ try {
   & $checker -Archive $testArchive -Checksum $checksum -Version $Version -Target $Target `
     -ReportPath $reportPath -SourceCommit ('a' * 40)
   $report = Assert-TestReport 'passed' -WithSource
+  Assert-ReportPrivacyRegression
   $hash = (Get-FileHash -LiteralPath $testArchive -Algorithm SHA256).Hash.ToLowerInvariant()
   if ($report.candidate.sha256 -cne $hash -or $report.candidate.version -cne $Version -or $report.candidate.target -cne $Target) {
     throw 'Package report does not identify the tested candidate.'
@@ -284,6 +390,7 @@ try {
   }
   if (!$originalFailure) { throw 'Report failure masked the original package failure.' }
   Write-Output 'Verified report failure preserves the original package failure.'
+  Assert-ReportDestination
 }
 finally {
   if (Test-Path -LiteralPath $temporary) { Remove-Item -LiteralPath $temporary -Recurse -Force }
