@@ -46,7 +46,8 @@ function Get-E2eCases {
     $cases.Add((New-E2eCase 'cli.no-action' 'cli' @{ arguments = @(); code = 2 }))
     $cases.Add((New-E2eCase 'cli.help-subcommand' 'cli' @{ arguments = @('help', 'book', 'read'); code = 0; contains = 'Usage:' }))
     $cases.Add((New-E2eCase 'cli.auth.login-blocker' 'cli' @{
-        arguments = @('auth', 'login'); code = 1; error = 'no working session handoff'
+        arguments = @('auth', 'login'); code = 1
+        error = $(if ($IsWindows) { 'pairing requires interactive stdin, stdout, and stderr' } else { 'no working session handoff' })
     }))
     foreach ($shell in $Inventory.shells) {
         $cases.Add((New-E2eCase "cli.completions.$shell" 'cli' @{

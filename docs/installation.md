@@ -134,6 +134,23 @@ No administrator installation or `sudo` is needed.
 
 ### Windows
 
+The Windows x64 binaries require the Microsoft Visual C++ v14 x64
+Redistributable. They import `VCRUNTIME140.dll` and Windows Universal CRT
+libraries. The archive does not include or install this system dependency.
+Install the latest supported x64 runtime before the first run. Its version must
+be at least as recent as the MSVC tools used to build the package.
+
+If WinGet is available, install the Microsoft package:
+
+```powershell
+winget install --id Microsoft.VCRedist.2015+.x64 --exact --source winget --interactive
+```
+
+Otherwise, use Microsoft's
+[supported x64 Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+Do not install Visual Studio to run the package. Do not download individual DLLs
+from other sites.
+
 Use PowerShell and an empty directory under your user profile:
 
 ```powershell
@@ -154,14 +171,10 @@ Variables. Start a new terminal after you change it. For the current terminal:
 $env:PATH = "$destination;$env:PATH"
 ```
 
-Both locally checked Windows binaries import `VCRUNTIME140.dll` and Windows
-Universal CRT libraries. Install the supported x64 Visual C++ runtime if it is
-not already available. Do not install Visual Studio to run a package.
-If Windows reports a missing `VCRUNTIME` or `MSVCP` DLL, use Microsoft's
-[supported x64 Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
-Its version must support the build tools used for that package. Do not download
-individual DLLs from other sites. Package CI logs record native dependencies;
-execution on a developer machine does not prove a clean Windows desktop install.
+If Windows reports a missing `VCRUNTIME` or `MSVCP` DLL, install the runtime
+above and retry. Package CI logs record native dependencies, but the CI runner
+already has its system libraries. A passing package check on that runner does
+not prove that a new Windows desktop has the required runtime.
 
 ## System services and trust limits
 
@@ -299,7 +312,7 @@ approval gates. Package evidence never grants those approvals.
 | Requirement | Evidence or blocker |
 |-------------|---------------------|
 | Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
-| Runtime-independent native startup | Package checks use a restricted child PATH and process-local PATH lookup. Same-candidate reinstall, relocation, explicit re-registration, and removal use temporary state. Clean desktops, two-version upgrades, and OS trust prompts remain untested. |
+| Native startup and Windows runtime prerequisite | Package checks use a restricted child PATH and process-local PATH lookup. The Windows CI runner still provides system runtime libraries. `dumpbin /DEPENDENTS` records native imports, but does not prove a clean Windows desktop has the required Visual C++ Redistributable. The user must install it before first run. Clean-desktop, two-version upgrade, and OS trust checks remain manual acceptance cases. |
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
 | CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library parity and one selected chapter's outline/initial-chunk parity passed separately from packaging. Synthetic source checks cover continuation and failures. Live continuation and sharing remain unchecked. |
 | Missing, expired, or rejected upstream session errors | Shared-session library and book source operations have synthetic failure checks. Live evidence is separate. |

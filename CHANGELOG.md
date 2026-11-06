@@ -317,6 +317,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Document the Windows x64 Visual C++ v14 Redistributable as a package runtime
+  requirement, with supported WinGet and Microsoft download paths. Record clean
+  Windows and Ubuntu 24.04.5 package startup evidence for test candidate `0.1.0`.
+  This evidence does not establish minimum OS versions or release acceptance.
 - Align current login, architecture, roadmap, and installation guidance with
   verified Windows behavior. Remove obsolete fallback and validation-gate
   planning text while retaining dated evidence and accepted trust limits.
@@ -376,6 +380,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- The credential-free manual suite now checks Windows login's interactive-terminal
+  refusal instead of the unsupported-platform message. Other platforms keep
+  their existing expectation. Product login behavior is unchanged.
 - Package evidence resolves relative report paths from the current PowerShell
   location. Privacy checks reject private paths even when JSON escapes their
   backslashes.

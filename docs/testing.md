@@ -1063,6 +1063,13 @@ preview/malformed settings, and VS Code conflict. These results must remain
 separate from the passed native assertions. No failure cause or product-login
 success is established by the safe harness classification.
 
+The later [retained Windows package check](desktop-acceptance.md#retained-ci-candidate-verification)
+passed all 18 synthetic installation cases without native storage approval.
+That run found and fixed a separate stale Windows redirected-login expectation.
+Its credential-free selection then passed with 108 passed cases, 50 blocked live
+cases, and four unselected native cases. This does not explain the earlier five
+installation failures or add new native-store evidence.
+
 The off-by-default `e2e-isolation` feature changes only credential identity.
 The fixed service is `beyond-gate-e2e`. The account is a random 32-character
 lowercase hexadecimal run context. `BEYOND_GATE_E2E_CONTEXT` carries that
