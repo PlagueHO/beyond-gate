@@ -119,8 +119,135 @@ safe candidate and host metadata only. Expected injected errors appeared in the
 rejection tests; they were assertions of failure handling, not a package failure.
 No native credential, real client, browser profile, registry mapping, persistent
 PATH, or account was accessed or changed by these package checks.
-Linux/macOS execution, hosted CI, clean desktops, minimum runtimes, real upgrades,
-and all separately gated checks remain unverified for this change.
+At that checkpoint, Linux/macOS execution, hosted CI, clean desktops, minimum
+runtimes, real upgrades, and all separately gated checks remained unverified.
+
+### Retained CI candidate verification
+
+The 2026-11-07 follow-up checked retained artifacts from successful packaging
+[run 42182052563](https://github.com/PlagueHO/beyond-gate/actions/runs/42182052563).
+The Windows and Linux version `0.1.0` archives matched both their SHA-256
+sidecars and the hashes in their retained offline evidence:
+
+| Target | Archive SHA-256 |
+|--------|-----------------|
+| `x86_64-pc-windows-msvc` | `a3b91503ec3b5080aa5833f5c8836096d7334826c9b500e4a6ff87429770af5b` |
+| `x86_64-unknown-linux-gnu` | `0bb9b8191023f4d0d956d656ea0bc52b84fed64fa1ade289dd1c7c24d73da87b` |
+
+Both reports identify source commit
+`f4c2b21e774b117a8a33e74d32309e7fd64f2001`, the PR merge commit, not the
+PR head `b93d1418672fd4b086c7690d222089ed8b563b94`.
+GitHub's Git commit API and local `git rev-parse 'HEAD^{tree}'` confirmed that
+the reported source and checkout `03ef03d6fc0ee37f15d43dbf4655cc41bc9633b1`
+share tree `0c026d13af9f0f957d1e30821191d338995d8107`.
+Source-tree equality is not reproducible-build attestation.
+
+The downloaded Windows archive also passed these local checks:
+
+| Command | Result |
+|---------|--------|
+| `pwsh -NoProfile -File .\scripts\test-package.ps1 -Archive <archive> -Checksum <checksum> -Version 0.1.0 -Target x86_64-pc-windows-msvc -SourceCommit f4c2b21e774b117a8a33e74d32309e7fd64f2001 -ReportPath <report>` | Passed, exit 0. All 16 offline groups passed; all 11 manual groups remained blocked. |
+| `pwsh -NoProfile -File .\scripts\test-package-failures.ps1 -Archive <archive> -Version 0.1.0 -Target x86_64-pc-windows-msvc` | Passed, exit 0. Included escaped-path privacy, report destinations, cleanup failures, and existing archive rejection cases. |
+| `pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1` | Passed, exit 0. All 177 offline assertions passed after the login expectation fix. |
+| `pwsh -NoProfile -File .\scripts\test-e2e.ps1 -BinaryDirectory <extracted-package> -Selection contracts -ReportPath <report>` | Passed after the login expectation fix, exit 0. 108 cases passed, 50 live cases remained blocked, and four native cases were not selected. |
+
+The initial credential-free suite run failed only `cli.auth.login-blocker`.
+Its Windows expectation still required the unsupported-platform message.
+The harness now checks the interactive-terminal refusal required by the existing
+CLI process test. Non-Windows expectations and product behavior are unchanged.
+All 18 synthetic installation cases passed in both follow-up runs.
+This does not establish a cause for the five historical installation failures.
+
+The injected errors in rejection checks were expected. No real credentials,
+client settings, browser profiles, registry mappings, or persistent PATH were
+accessed or changed. Linux evidence was inspected, not rerun locally.
+No clean desktop VM was deployed. Native stores, real clients, browser setup,
+minimum runtimes, two-candidate upgrades, and account reads still need separate
+evidence. macOS desktop acceptance remains unverified.
+
+### Azure Windows desktop baseline
+
+The approved Azure test VM was created on 2026-11-07 in Australia East.
+It uses the Windows 11 Enterprise 25H2 x64 image
+`MicrosoftWindowsDesktop:windows-11:win11-25h2-ent:26200.9725.261024`
+and `Standard_D2s_v5` with two vCPUs and 8 GiB RAM. A read-only guest inventory
+reported Windows `10.0.26200`, build `26200`, and 64-bit OS and CPU.
+
+The initial image did not have the x64 Visual C++ redistributable registered.
+The inventory found no Rust, Cargo, Python, Node.js, PowerShell 7, VS Code,
+Claude Code, or Copilot CLI commands. Windows PowerShell remains available as
+part of the OS. This is the recorded pre-install baseline. The Windows package
+requires the x64 Visual C++ v14 Redistributable; see the
+[installation guide](installation.md#windows) for supported installation
+methods.
+
+The VM has a public address for direct RDP. Its network rule permits TCP 3389
+only from the user-approved source address; all other public inbound traffic
+remains denied. An automatic VM shutdown is enabled for 23:00 UTC. The public
+address, source address, subscription identifier, and temporary administrator
+credential are not recorded here.
+
+No native credential, real client, browser profile, account, or live service
+was accessed. The VM's OS image and RDP path are not evidence of physical
+desktop trust behavior or minimum Windows requirements. Remove the VM and its
+owned resources after the approved test, or deallocate it and check the
+remaining disk and IP charges.
+
+### Windows package startup and runtime
+
+The retained Windows x64 `0.1.0` archive matched its SHA-256 sidecar:
+`a3b91503ec3b5080aa5833f5c8836096d7334826c9b500e4a6ff87429770af5b`.
+The archive was extracted to a user-local path with spaces.
+
+Before installing a Visual C++ runtime, both `beyond-gate.exe` and
+`beyond-gate-mcp.exe` exited with `-1073741515` (`0xC0000135`) and produced no
+output. The VM inventory had already confirmed that the x64 runtime was absent.
+This confirms that the package does not start on this image without its runtime
+prerequisite.
+
+After explicit approval, WinGet installed
+`Microsoft.VCRedist.2015+.x64`, version `14.51.36247.0`. Both binaries then
+passed `--version` and `--help` from the path with spaces, with exit code `0`.
+The version output was `beyond-gate 0.1.0` and `beyond-gate-mcp 0.1.0`.
+Adding the package directory to the current process `PATH` allowed both binary
+names to resolve. Adding it to the test account's user `Path` also worked in a
+new PowerShell process. The test account's `Path` entry was removed after the
+check. Extracting the same archive again and copying the package to another
+path with spaces also left both binaries runnable. This verifies the documented
+prerequisite and recovery path on this VM. It does not establish a minimum
+supported Windows build or runtime version.
+
+After both package tests, the dedicated Azure resource group was deleted and
+verified absent. The temporary Windows drive mapping and Linux SSH key were
+removed. No test VM remains.
+
+### Azure Linux desktop baseline
+
+The approved Azure test VM used Ubuntu 24.04.5 LTS x64, image
+`Canonical:ubuntu-24_04-lts:server:24.04.202610250`, and
+`Standard_D2s_v5`. The 64-GiB OS disk used Standard SSD LRS. SSH and RDP were
+restricted to the approved source address. Automatic shutdown was enabled for
+00:10 UTC.
+
+The retained Linux x64 `0.1.0` archive matched its SHA-256 sidecar:
+`0bb9b8191023f4d0d956d656ea0bc52b84fed64fa1ade289dd1c7c24d73da87b`.
+The guest reported `x86_64` and glibc `2.39`. `ldd` showed only the standard
+glibc loader, `libc`, `libm`, and `libgcc_s` dependencies for both binaries;
+no dependency was reported missing. Before installing the desktop environment,
+both binaries passed `--version` and `--help` from `$HOME/Beyond Gate Test`.
+The current SSH session also found both binaries by name after a temporary
+session-only `PATH` update. The pre-desktop inventory did not enumerate all
+development tools or installed runtimes.
+
+XFCE, XRDP, Xorg XRDP support, and D-Bus X11 support were then installed to
+provide an interactive desktop. The XRDP service was active. The user opened
+an XFCE session and ran help and version for both package binaries there.
+This confirms basic package startup in that Linux desktop session. It does not
+test Secret Service availability or Linux credential storage. No client,
+native-store, browser, sign-in, or account tests were run. The archive was
+transferred over source-restricted SSH, so browser-download trust prompts were
+not tested. This single image does not establish a minimum Linux or glibc
+version.
 
 ## Gate 1: clean desktop
 
@@ -129,6 +256,13 @@ also requires no development runtimes installed, not just another account on a
 developer machine. Start from a recorded image with no Rust, Python, Node.js,
 PowerShell 7, or Visual Studio Build Tools. Use the OS shell for product commands.
 
+An Azure VM can supply a disposable desktop environment. Windows client images
+require [eligible dev/test licensing][azure-client]. Select a desktop image,
+not Server Core. Record remote desktop access as part of the tested environment;
+it does not establish physical-desktop or browser-download trust behavior.
+Keep Beyond Gate local in the VM. SSH alone does not establish a Linux desktop
+session or an available Secret Service collection.
+
 1. Verify the archive checksum through the installation guide. Record the OS,
    CPU, candidate hash, installed native runtimes, and image origin.
 2. Observe the normal download, extraction, and OS trust prompts. Stop on a
@@ -136,9 +270,10 @@ PowerShell 7, or Visual Studio Build Tools. Use the OS shell for product command
    or change organization policy to get a pass.
 3. Extract into an empty stable user-local path with spaces. Run help and version
    for both binaries. Check stdout, stderr, exit codes, and executable permission.
-4. On Windows, record the installed x64 Visual C++ Redistributable version.
-   If required, use Microsoft's supported installer and repeat on the same
-   recorded image. Do not install Visual Studio or individual downloaded DLLs.
+4. On Windows, verify the x64 Visual C++ Redistributable is installed before
+   package startup. Record its version. If it is absent, record the startup
+   failure, install the supported runtime, and repeat on the same recorded
+   image. Do not install Visual Studio or individual downloaded DLLs.
 5. Add only the test installation to the test account's PATH. Start a new terminal
    and run both binary names. Record current-terminal and new-terminal behavior.
 6. Reinstall the same candidate. For an upgrade, use two separately identified
@@ -270,3 +405,4 @@ native-store-only results. Retain safe counts and parity flags, not content.
 [vscode]: https://code.visualstudio.com/docs/agents/reference/mcp-configuration
 [claude]: https://code.claude.com/docs/en/mcp
 [copilot]: https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-mcp-servers
+[azure-client]: https://learn.microsoft.com/en-us/azure/virtual-machines/windows/client-images

@@ -31,6 +31,14 @@ function Get-ChildArguments {
 
 $inventory = Get-E2eInventory
 $cases = Get-E2eCases $inventory
+$login = @($cases | Where-Object { $_.id -ceq 'cli.auth.login-blocker' })
+Assert-Harness ($login.Count -eq 1)
+Assert-Harness ($login[0].data.code -eq 1 -and ($login[0].data.arguments -join ' ') -ceq 'auth login')
+if ($IsWindows) {
+    Assert-Harness ($login[0].data.error -ceq 'pairing requires interactive stdin, stdout, and stderr')
+} else {
+    Assert-Harness ($login[0].data.error -ceq 'no working session handoff')
+}
 Assert-Harness ($inventory.reads.Where({ $_.tool -eq 'book_list' })[0].requires_session)
 foreach ($case in $cases.Where({ $_.id.StartsWith('contract.cli.book.list.') })) {
     Assert-Harness ($case.data.code -eq 2 -and $case.data.arguments -contains '--unexpected')
