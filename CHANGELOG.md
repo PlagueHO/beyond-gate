@@ -376,6 +376,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Package evidence resolves relative report paths from the current PowerShell
+  location. Privacy checks reject private paths even when JSON escapes their
+  backslashes.
 - Book article checks resolve purchase links against the selected page and reject
   same-site marketplace paths as well as the dedicated marketplace host.
   Structural validation now enforces depth and element limits before unbounded
