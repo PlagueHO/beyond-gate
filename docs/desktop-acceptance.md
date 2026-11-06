@@ -161,9 +161,10 @@ This does not establish a cause for the five historical installation failures.
 The injected errors in rejection checks were expected. No real credentials,
 client settings, browser profiles, registry mappings, or persistent PATH were
 accessed or changed. Linux evidence was inspected, not rerun locally.
-No clean desktop VM was deployed. Native stores, real clients, browser setup,
-minimum runtimes, two-candidate upgrades, and account reads still need separate
-evidence. macOS desktop acceptance remains unverified.
+The retained-artifact checks did not deploy a clean desktop VM; the later Azure
+desktop results are recorded below. Native stores, real clients, browser setup,
+minimum supported OS or runtime versions, two-candidate upgrades, and account
+reads still need separate evidence. macOS desktop acceptance remains unverified.
 
 ### Azure Windows desktop baseline
 
@@ -189,9 +190,7 @@ credential are not recorded here.
 
 No native credential, real client, browser profile, account, or live service
 was accessed. The VM's OS image and RDP path are not evidence of physical
-desktop trust behavior or minimum Windows requirements. Remove the VM and its
-owned resources after the approved test, or deallocate it and check the
-remaining disk and IP charges.
+desktop trust behavior or minimum Windows requirements.
 
 ### Windows package startup and runtime
 
