@@ -248,9 +248,13 @@ Hardcoded source maps and guessed access-type meanings are also unsuitable.
 
 The initial survey did not establish book delivery. A later approved browser inspection
 established a library route and HTML outline/section structure for one selected source.
-The later native probe accepted the protected-session exchange and source HTML, but stopped
+The earlier native probe accepted the protected-session exchange and source HTML, but stopped
 at a chapter redirect. A user-requested repeat identified a marketplace or purchase target.
-Fresh access, bounded discovery, and general book support remain
+A separately approved cookie-only native check later accepted the selected chapter HTML
+with expected literal markers. It did not establish DOM structure or content authorization.
+A further approved check parsed the source and user-selected non-preview chapter,
+then stopped at the anonymous control's HTTP 307 without following it.
+Fresh content access and general book support remain
 unresolved. No book-content JSON endpoint or source-to-license mapping was established.
 The earlier failed credential-free `/sources` fetch was not proof of an access denial.
 
@@ -327,6 +331,125 @@ Do not treat an introduction or a successful HTML response as proof of full-book
 
 Production redirects remain disabled. The observed canonical routes are evidence for this
 source only, not permission to follow arbitrary redirects or guess aliases for other books.
+
+### Approved native website cookie check
+
+On 2026-11-06, the user explicitly approved a separate cookie-only investigation
+after the earlier bearer-only purchase redirect. The scope was one protected-entry
+read and one GET to `https://www.dndbeyond.com/sources/dnd/cos/introduction`.
+It permitted this diagnostic transport, not an automatic production fallback.
+No different identity, bearer exchange, other credential, browser impersonation,
+proxy, other page, redirect, retry, or stored-session change was permitted.
+
+The [ignored Windows probe](testing.md#website-cookie-probe) passed its one live
+request. HTTP 200 returned identity-encoded `text/html` with 257,524 bytes,
+within the 1 MiB cap. The fixed `p-article-content`, `RunningtheAdventure`,
+and canonical-URL literals were present. Known challenge markers were absent.
+The result remained `content_access=unverified`.
+
+These are byte-literal observations, not DOM parsing or a comparison of complete
+documents. No text was extracted or retained. The response byte count equals the
+earlier browser measurement; that does not prove identical content.
+The protected entry was unchanged, the acknowledgment was removed, and the
+test process exited. The scope is consumed. Another request needs new approval.
+
+This resolves whether the native client can receive HTML for this selected route
+with the existing cookie. It does not show whether an introduction is a preview,
+whether another chapter is protected, how to identify a content-access decision,
+or how general outline and section parsing must work. Source mapping, fresh
+authorization, revoked access, and full-book access remain separate contracts.
+Do not treat HTTP success or marker presence as an access grant.
+
+### Approved protected chapter structure and control
+
+The user next selected `https://www.dndbeyond.com/sources/dnd/cos/into-the-mists`
+as a non-preview chapter. On 2026-11-06, a separate approval permitted one
+protected-entry read and at most three ordered GETs: the source with the existing
+cookie, the selected chapter with that cookie, and the same chapter without
+credentials as the final control. The scope allowed transient HTML parsing, not
+text output, crawling, another chapter, redirects, retries, or credential changes.
+The same 5-second connection, 15-second request, 30-second complete, 1 MiB body,
+and 1,000-raw-link limits applied.
+
+The [structure probe](testing.md#protected-chapter-structure-probe) completed
+exactly three attempts. The source returned HTTP 200 with 246,103 HTML bytes.
+Its canonical link matched the selected source. One parsed outline container
+held 81 raw anchors: 26 chapter links, 53 fragment links, and 2 other links.
+There was one duplicate target, no empty label, and no unsafe target under the
+probe's classification. All 79 book links used the observed legacy prefix.
+The selected chapter had three distinct outline fragment targets.
+
+The authenticated chapter returned HTTP 200 with 356,402 HTML bytes and its
+expected canonical link. One article container had 35 headings with IDs:
+one `h1`, three `h2`, twelve `h3`, and nineteen `h4`.
+All three selected outline fragments matched article IDs.
+There were 41 unique IDs and no duplicates, 278 paragraphs, 7 list items,
+and one table. Its article had no marketplace link and no tested hidden
+attribute on the container or an ancestor. Known challenge elements were absent.
+
+The article contained 56,814 raw text-node bytes and 96 elements in the diagnostic
+`script`, `style`, `nav`, `aside`, and `form` group. These are counts, not extracted
+or normalized reader text. That group is not an extraction exclusion list:
+book sidebars can contain required content.
+
+The anonymous control returned HTTP 307. Its body and redirect target were not
+read or followed. That is a response difference, not proof of the restriction's
+cause or a general entitlement API. Output remained `content_access=unverified`.
+An allowed chapter must never grant a later chapter or continuation request.
+
+Parsing used the test-only [scraper 0.27.0 API][scraper-docs] with default
+features disabled. No external runtime was added. Raw HTML, text, identifiers,
+headers, and credentials were not retained. Private fragment sets existed only
+to compare targets within this process. Parsed DOM and dependency-owned copies
+cannot be guaranteed to be erased. The fixed entry was unchanged.
+The acknowledgment was removed and the process exited. This scope is consumed.
+
+### Approved page-level book contract
+
+The user later approved the [page-level book contract](architecture.md#live-book-reads)
+for offline production implementation. Fresh positive Web-library evidence is
+necessary but insufficient. The current native cookie response must also pass
+canonical-source, structure, and selected-target checks. Each explicit
+continuation repeats them within one session identity. Unknown access,
+unowned previews, ambiguous layouts, and redirects return no content.
+An unclassified redirect does not prove ownership denial. No separate
+entitlement API is claimed. The separately approved native acceptance below
+passed for one selected chapter and its initial chunk.
+This decision does not approve more credential access or live requests.
+
+### Native book adapter acceptance
+
+On 2026-11-06, the user separately approved a fixed native CLI/MCP acceptance
+scope for `/sources/dnd/cos` and the previously selected
+`/sources/dnd/cos/into-the-mists` chapter. One CLI `book list` resolved the numeric
+ID in memory. Each adapter then returned one outline and one initial chapter
+chunk. All five operations passed. The outlines matched with 79 entries.
+The chunks matched with 3,929 UTF-8 text bytes, source attribution, and the same
+output envelope. No continuation or other chapter was read.
+
+The maximum approved scope was 31 HTTP attempts and 16 protected-entry loads
+within 180 seconds. These bounds cover five fixed operation sequences, including
+at most two service exchanges per operation; they are not measured wire counts.
+Allowed operations were POST `https://auth-service.dndbeyond.com/v1/cobalt-token`,
+GET `https://www.dndbeyond.com/api/config/json`,
+GET `https://api.dndbeyond.com/library/sources?platform=Web`,
+GET `https://api.dndbeyond.com/library/sources/me`, and cookie-only GETs for the
+fixed source and chapter. Redirects, retries, login, credential changes,
+installation, and further content reads were excluded. Any failure would stop
+the remaining sequence.
+
+The temporary helper first passed synthetic success and stop-condition checks,
+including native refusal without the approval guard. Its one native run used the
+built product executables, not fixture entry points. JSON, text, tokens, and
+account records stayed in process memory; output contained only safe counts and
+comparison flags. No raw content or account snapshot was retained.
+The helper and consumed guard were removed, and child processes exited.
+This scope is consumed. Another live run needs new explicit approval.
+
+This result establishes native adapter parity for the selected source and
+initial chapter chunk. It does not establish live continuation, shared-access
+behavior, compatibility with other books, or a separately verified entitlement
+API. It does not expand the manual capability suite's zero live-request budget.
 
 ### First-party library JSON routes
 
@@ -945,7 +1068,7 @@ The earlier browser and native observations used different request contexts.
 No chapter text, raw redirect value, or credential was returned or saved.
 The temporary module was removed again, and browser login and protected storage were
 unchanged. This repeat scope ended at the failed guard.
-Native book content remains unsupported. Do not follow the purchase route, change headers
+At that stage, native book content remained unsupported. Do not follow the purchase route, change headers
 to impersonate the browser, or add an automatic cookie fallback to overcome the result.
 Any further comparison of website authentication needs a separately defined and approved
 scope; the successful outline request is not sufficient access evidence.
@@ -1024,9 +1147,11 @@ The [companion transport][adventure-mobile-api] provides the missing upstream ca
 Its helper sends POST requests with `application/x-www-form-urlencoded` bodies and follows
 redirects. Each operation below sends the Cobalt value in the form field `token`.
 This is different from the derived bearer used in the earlier native website probe.
-Beyond Gate has not implemented or tested this credential transport.
+Beyond Gate has no production mobile credential transport. Its test-only
+MOB-01 probe has now completed one separately approved request.
 
-All paths below use `https://www.dndbeyond.com`. No request to these routes was made.
+All paths below use `https://www.dndbeyond.com`. Only MOB-01 has been called;
+the other paths remain untested candidates.
 
 | Method and path | Additional form fields | Source-code interpretation |
 |-----------------|------------------------|----------------------------|
@@ -1057,19 +1182,35 @@ The public proxy also confirms the existing bearer exchange and the mobile `user
 candidate, but does not expose a book-section reader.
 
 This research resolves where to investigate mobile book discovery and access metadata.
-It does not resolve bounded library size, current mobile availability, free versus
+The approved MOB-01 run confirms current metadata availability for one account only.
+It does not resolve bounded library size, general mobile availability, free versus
 purchased versus shared access, or a fresh check for each requested outline or section.
 It also explains why importer success cannot establish bearer-only website chapter access:
 the companion sends a different credential form to a different delivery channel.
 The cause of the earlier purchase redirect remains unresolved.
 
-The next useful live check would be a separately approved, metadata-only check of
-`available-user-content`, with fixed fields, body and record limits, and stop conditions.
-It must use protected local credentials directly with the fixed first-party service.
+The metadata-only check of `available-user-content` used a separate approval,
+fixed fields, body and record limits, and stop conditions.
+It used protected local credentials directly with the fixed first-party service.
 Do not send credentials to a hosted proxy, retrieve book access material, follow a signed
 download URL, or adopt whole-book extraction as part of that metadata check.
 A mobile license response alone cannot authorize an outline or section read.
-Keep live book reads unsupported until a delivery method meets the existing design.
+At this research stage, live book reads remained unsupported. The later
+[approved page-level contract](#approved-page-level-book-contract) uses website
+pages, not mobile delivery.
+
+Issue #33 now has an ignored, test-only Windows metadata probe for this candidate.
+Its acknowledgment, request cap, redaction, and transport guards have synthetic
+tests. See the [fixed probe scope](testing.md#mobile-book-metadata-probe).
+The separately approved run on 2026-11-06 accepted one HTTP 200 response with
+12,596 bytes, 8 license records, and 478 nested entities. It confirmed the
+successful envelope and structural field types, not entity-type values, source
+mapping, ownership meaning, or fresh content access. The result remained
+`content_access=unverified`. The acknowledgment was removed and the process exited.
+The protected entry was not changed. No retry or redirect occurred.
+This scope is consumed. Another request needs new explicit approval.
+The probe does not retrieve book
+codes, signed URLs, or text, and it does not resolve the native content contract.
 
 ## Other client surfaces
 
@@ -1149,7 +1290,7 @@ denied access. Leave unknown contracts explicitly unsupported.
 | T4 | [Pinned Avrae client][avrae-client] | Integration-specific entitlement transport, not a local-user API |
 | T5 | [Pinned importer book client][importer-book-data] and [ownership helper][importer-adventures] | Hosted proxy book flow, not direct upstream routes |
 | T6 | [Pinned public proxy routes][mrprimate-proxy-routes] and [configuration][mrprimate-proxy-config] | Config forwarding and limits of the public self-hosted implementation |
-| T7 | [Pinned adventure companion transport][adventure-mobile-api] | Direct mobile book API candidates and different credential transport; not live-tested |
+| T7 | [Pinned adventure companion transport][adventure-mobile-api] | Direct mobile book API candidates and different credential transport; only MOB-01 has a separately approved structural metadata result |
 | T8 | [Pinned scraper picker][scraper-source-filter] and [configuration client][scraper-source-catalog] | Hidden-category candidate; incomplete attribution and weaker validation |
 | T9 | [Pinned TypeScript source parser][sdk-source-parser] | Selected-page DOM parsing, not complete library discovery |
 | T10 | [Pinned sources userscript][sources-userscript] | Historical DOM ownership/sharing heuristics, not a numeric-ID contract |
@@ -1194,6 +1335,7 @@ No search-result claim is used as endpoint evidence without source inspection.
 [mrprimate-proxy-config]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/config.js
 [mrprimate-proxy-lookup]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/lookup.js
 [adventure-mobile-api]: https://github.com/MrPrimate/ddb-adventure-muncher/blob/5d4f8e80554078ad907084885e8d2f73bf7a4355/munch/data/ddb.js
+[scraper-docs]: https://docs.rs/scraper/0.27.0/scraper/
 [scraper-source-filter]: https://github.com/theunschut/ddb-scraper/blob/54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b/DdbScraper.Repository/Ddb/SourcePickerFilter.cs
 [scraper-source-catalog]: https://github.com/theunschut/ddb-scraper/blob/54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b/DdbScraper.Repository/Ddb/DdbSourceCatalogClient.cs
 [scraper-endpoint-notes]: https://github.com/theunschut/ddb-scraper/blob/54cf2d411ad4533b45c9f0cf7871dfc0cdf38c8b/docs/ddb-api/endpoints.md

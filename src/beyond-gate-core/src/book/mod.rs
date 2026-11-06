@@ -1,10 +1,11 @@
-//! Offline book navigation and selected-section reads with fresh supplied access.
+//! Bounded book navigation and selected-section reads with fresh access checks.
 //!
 //! These normalized inputs are not a verified upstream contract or import format.
 //! Each operation calls an access check before its selected source loader. The
 //! caller must supply current, truthful evidence and change source revisions when
 //! content changes. A library snapshot and a continuation are never access grants.
-//! No function reads credentials, fetches URLs, or persists content.
+//! The live operations use the Windows session and fresh source pages. Offline
+//! validators do not read credentials or fetch URLs. No operation persists content.
 //!
 //! # Examples
 //!
@@ -66,6 +67,8 @@
 mod cursor;
 mod error;
 mod model;
+mod source;
+mod text;
 
 pub use cursor::MAX_CURSOR_BYTES;
 pub use error::BookError;
@@ -262,24 +265,30 @@ fn chunk_end(text: &str, start: usize) -> usize {
     }
 }
 
-/// Reports that live book outline reads have no implemented source contract.
+/// Reads one fresh outline through current library evidence and a checked source page.
 ///
 /// # Errors
 ///
-/// Always returns [`BookError::UnsupportedOperation`] without credentials,
-/// network access, or a successful empty-outline fallback.
-pub fn get_book_outline(_book_id: &str) -> Result<BookOutline, BookError> {
-    Err(BookError::UnsupportedOperation)
+/// Rejects unknown access, unsupported platforms, unsafe or ambiguous source data,
+/// session changes, and transport failures without partial navigation.
+pub async fn get_book_outline(
+    session: &crate::auth::session::Session,
+    book_id: &str,
+) -> Result<BookOutline, BookError> {
+    source::outline(session, book_id).await
 }
 
-/// Reports that live book section reads have no implemented source contract.
+/// Rechecks metadata, navigation, and the selected page before one bounded text result.
 ///
 /// # Errors
 ///
-/// Always returns [`BookError::UnsupportedOperation`] without credentials,
-/// network access, or a successful empty-text fallback.
-pub fn read_book_section(_request: SectionRequest<'_>) -> Result<SectionChunk, BookError> {
-    Err(BookError::UnsupportedOperation)
+/// Rejects missing or unsupported targets, changed access, malformed sources, and
+/// invalid or stale continuations. A token never selects a URL or grants access.
+pub async fn read_book_section(
+    session: &crate::auth::session::Session,
+    request: SectionRequest<'_>,
+) -> Result<SectionChunk, BookError> {
+    source::read(session, request).await
 }
 
 #[cfg(test)]

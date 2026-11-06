@@ -4,10 +4,14 @@
 the real CLI and MCP executables. It does not replace their read operations with
 fixtures. Windows library discovery includes category selection and title cleanup;
 the approved Web-catalog scope now handles configured ownership-only sources.
-Fresh native CLI/MCP acceptance passed. Other resource reads remain unsupported.
+Fresh native Web-library CLI/MCP acceptance passed. Windows bounded book source
+operations have synthetic process coverage. Separately approved native book
+acceptance passed for one selected chapter with matching outlines and initial
+chunks. Live continuation and sharing remain unchecked.
+Character and campaign reads remain unsupported.
 The suite keeps a zero live-request budget.
-Its credential-free contracts reject extra input for `book list` and `book_list`
-before session access. They do not call those operations with valid input.
+Its credential-free contracts reject extra input for all three book commands and
+their MCP tools before session access. They do not call those operations with valid input.
 
 The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits this
 blocked-first stage. It does not implement production authentication or live
@@ -39,6 +43,57 @@ excludes native storage and live reads. It can pass but always reports
 selected contract cannot produce full success.
 
 ## Browser handoff offline checks
+
+### Live book source path checks
+
+The [core source tests](../src/beyond-gate-core/src/book/source/tests.rs) use
+original HTML and actual loopback metadata/page services. They cover canonical
+identity, same-book aliases, nested hierarchy, duplicate roles, raw 1,000/1,001
+anchor bounds, legal UTF-8 fragments, unsafe paths, hidden or ambiguous content,
+empty sections, text structure, sidebars, stale text/URLs, sharing loss, failed
+responses, and in-flight cancellation. HTTP tests cover exact media, encoding,
+body, retry, and status rules. Session tests cover account changes across a
+request-local scope and another concurrent cache owner.
+
+The [CLI/MCP process suite](../src/beyond-gate-mcp/tests/session_process.rs)
+starts actual adapter processes through the production source parser. It compares
+outline and section JSON, reconstructs exact normalized Unicode text through
+explicit continuations, and checks stale content/URLs, access failures,
+preview/malformed responses, strict input, cancellation, TSV, and output streams.
+No product flag, endpoint argument, environment override, real credential, or
+account snapshot selects these fixtures.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+These are offline behavior checks, not native adapter acceptance. The earlier
+three native investigation scopes are consumed. More live requests require a
+new exact resource, credential-read scope, total attempt budget, deadlines,
+stop conditions, and cleanup. The manual capability suite retains its zero
+live-request budget.
+
+### Native book acceptance
+
+The [separately approved native run](api-survey.md#native-book-adapter-acceptance)
+completed one CLI `book list`, then one outline and one initial chapter read
+through each adapter. Both returned matching 79-entry outlines and matching
+3,929 UTF-8 byte chunks for the fixed selected chapter.
+No continuation or other chapter was read.
+
+The scope allowed at most 31 HTTP attempts and 16 protected-entry loads within
+180 seconds. These are conservative operation bounds, not measured wire counts.
+A temporary helper passed synthetic success, malformed-source, denied-response,
+and missing-approval guards before its one native run. It captured responses
+only in memory and reported safe counts and parity flags. The helper and consumed
+guard were removed. The scope made no credential changes or installation.
+Another live run needs new explicit approval.
+
+This establishes native parity for that selected source and initial chunk only.
+It does not establish live continuation, sharing, general book compatibility,
+or a separate entitlement API. The manual capability suite retains its zero
+live-request budget.
 
 ### Library discovery checks
 
@@ -1207,6 +1262,195 @@ These checks use invented responses and loopback HTTP. They verify approval gati
 redaction, malformed shapes, count equality, source joins, source paths, record caps,
 byte and attempt caps, and no retry or redirect behavior.
 They do not load protected storage or contact live services.
+
+## Mobile book metadata probe
+
+Issue #33 has a test-only Windows probe in
+`auth::session::library_probe::mobile_probe`.
+One separately approved run completed on 2026-11-06. That scope is consumed;
+another live run needs new approval.
+At that diagnostic stage, the native book contract gate was blocked and
+production outline and section reads remained unsupported. The later
+[approved page-level contract](architecture.md#live-book-reads) permits the
+implemented website reader. This mobile probe does not establish that reader.
+
+The fixed scope is one read of the protected session entry and one POST
+to `https://www.dndbeyond.com/mobile/api/v6/available-user-content`.
+The pinned [candidate transport](api-survey.md#direct-mobile-routes-in-the-companion-tool)
+sends the reusable cookie in the form field `token`, not a bearer header.
+This different credential transport needs separate explicit approval.
+It is not a fallback for the website's purchase redirect.
+No live request was made during implementation or offline checks.
+
+The ignored `live_mobile_metadata` test requires the non-secret
+`BEYOND_GATE_BOOK_PROBE_APPROVAL` acknowledgment
+`issue-33-mobile-metadata-one-attempt`. This is an execution guard, not permission.
+Missing or earlier acknowledgments and `e2e-isolation` builds fail before protected
+storage access. Do not select ignored tests or set the acknowledgment without
+separate approval for the exact scope.
+
+The probe makes no bearer exchange, credential write/delete, retry, redirect,
+proxy request, source-page request, book-code request, or book download.
+It uses a 5-second connection cap, 15-second request cap, 30-second complete
+deadline, and 1 MiB response cap. Only identity-encoded JSON with HTTP 200 is
+accepted. It caps raw license records and total nested entities at 1,000 each.
+Any failure stops the sequence.
+
+Output contains fixed schema names and JSON types, aggregate counts, and
+`content_access=unverified`. Unknown field names and all scalar values are omitted.
+License types and ownership fields never become access grants. No account data,
+book identifiers, download URLs, credentials, or raw responses are logged or saved.
+Owned cookie and form buffers are cleared on drop. Dependency, parsed JSON, and
+transport-owned copies cannot be guaranteed to be erased.
+After a separately approved run, remove the acknowledgment from the launcher and
+stop its process. The fixed protected entry must remain unchanged.
+
+Run only the synthetic checks without approval or credentials:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib mobile_probe --locked
+```
+
+These Windows checks use invented data and loopback HTTP. They check acknowledgment
+and target guards, form encoding, record and byte bounds, safe summaries, media
+types, the actual POST body/headers, request timeout, and refusal to retry or
+follow redirects. They do not prove the candidate's
+current availability, read-only semantics, ownership meaning, or content access.
+The #27 suite's live request budget remains zero.
+
+### Approved metadata result
+
+The approved run made one POST and accepted HTTP 200 with a 12,596-byte JSON
+response. Structural inspection found 8 license records and 478 nested entities.
+It confirmed `Licenses`, `EntityTypeID`, `Entities`, numeric `id`, and boolean
+`isOwned` fields in this response. It did not establish their access meaning.
+The result remained `content_access=unverified`.
+
+The exact selected test passed:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::session::library_probe::mobile_probe::live_mobile_metadata --locked -- --ignored --exact --nocapture
+```
+
+Only that ignored test ran. There was no bearer exchange, retry, redirect,
+book-code request, or content read. The protected entry was not changed.
+The launcher removed its acknowledgment and the test process exited.
+Only structural output and aggregate counts were retained.
+This result is not CLI/MCP acceptance or approval for another request.
+
+## Website cookie probe
+
+Issue #33 has a second ignored Windows test in
+`auth::session::library_probe::website_probe`.
+The user separately approved a cookie-only investigation after the earlier
+bearer-only purchase redirect. This is not a production credential fallback.
+Its one approved request completed on 2026-11-06. That scope is consumed.
+
+The exact scope is one read of the fixed protected session entry and one GET to
+`https://www.dndbeyond.com/sources/dnd/cos/introduction`, using only the existing
+`CobaltSession` cookie. It makes no bearer exchange and uses no other credentials,
+browser impersonation, proxy, retry, redirect, other page, or credential write/delete.
+Connection, request, and complete deadlines remain 5, 15, and 30 seconds.
+The response cap is 1 MiB. Only HTTP 200, identity encoding, and one `text/html`
+media-type header are accepted. Missing fixed structure or known challenge markers
+stop the check. The probe does not extract text or parse a DOM.
+
+The ignored `live_website_cookie` entry requires
+`BEYOND_GATE_BOOK_PROBE_APPROVAL=issue-33-website-cookie-one-attempt`.
+This non-secret guard is not permission. Earlier acknowledgments and
+`e2e-isolation` builds fail before protected storage access.
+Each live execution needs separate approval for its exact scope.
+
+The approved run passed:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::session::library_probe::website_probe::live_website_cookie --locked -- --ignored --exact --nocapture
+```
+
+Only that ignored test ran. Its single HTTP 200 response had 257,524 HTML bytes.
+Fixed article, section, and canonical-URL literals were present. Output remained
+`content_access=unverified`. These observations do not prove DOM structure,
+preview status, ownership, or full-book access.
+
+No raw HTML, headers, text, identifiers, or credentials were retained.
+The cookie and response buffers are zeroizing. Dependency-owned credential and
+transport copies cannot be guaranteed to be erased. The protected entry was
+unchanged. The launcher removed the acknowledgment and the process exited.
+No further request is approved. The #27 suite's live budget remains zero.
+
+Run the five synthetic website checks without credentials:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib website_probe --locked
+```
+
+They check separate approval and target guards, redacted literal observations,
+the actual cookie-only GET, terminal failures, exact byte limits, and no retry
+or redirect. Shared probe tests cover the same fixed transport deadlines.
+The shared body reader rejects duplicate media-type headers for JSON and HTML.
+These checks do not enable production book reads.
+
+## Protected chapter structure probe
+
+The user selected Chapter 1 at
+`https://www.dndbeyond.com/sources/dnd/cos/into-the-mists`.
+A separate approval permitted one protected-entry read and three ordered GETs:
+the selected source with the existing cookie, this chapter with the same cookie,
+and this chapter without credentials as the final control.
+The anonymous client has no credential headers. No request follows its result.
+
+The Windows-only `auth::session::library_probe::structure_probe` module uses
+the test-only `scraper` dependency with default features disabled.
+It does not execute scripts, serialize HTML, return text, or cache content.
+Output keys are static labels; values are counts. Canonical links and unique
+containers are required. The source and chapter paths are fixed, not token inputs
+or automatically followed outline links.
+
+The ignored `live_protected_structure` test requires the separate non-secret
+`BEYOND_GATE_BOOK_PROBE_APPROVAL=issue-33-protected-structure-three-attempts`
+guard. Earlier guards and `e2e-isolation` builds fail before protected reads.
+Knowing a guard is not approval. The scope has no bearer exchange, other identity,
+other credentials, browser impersonation, proxy, retry, redirect following,
+other page, credential write/delete, or content cache.
+
+Limits remain 5 seconds to connect, 15 seconds per request, 30 seconds total,
+1 MiB per body, and 1,000 raw outline anchors before classification.
+Unexpected responses, denied authenticated requests, challenges, ambiguity,
+and limits stop the remaining sequence. A final anonymous redirect or refusal is
+reported as a control outcome with an unknown reason; its body is not read.
+Neither it nor a successful page becomes a general access grant.
+
+The separately approved run on 2026-11-06 passed:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::session::library_probe::structure_probe::live_protected_structure --locked -- --ignored --exact --nocapture
+```
+
+Only that ignored test ran. Source and chapter HTTP 200 responses had 246,103 and
+356,402 HTML bytes. The parsed outline had 81 raw links, including one duplicate,
+and three fragment targets for the selected chapter.
+All three matched IDs in its single article. The final anonymous GET returned
+HTTP 307; no redirect or retry followed. There were exactly three attempts.
+See the [survey result](api-survey.md#approved-protected-chapter-structure-and-control)
+for the remaining safe counts and their limits.
+
+Only classifications, booleans, and counts were retained. Raw HTML, text, private
+fragment sets, headers, and credentials were not retained. Cookie and raw body
+buffers are zeroizing. Parsed DOM and dependency-owned copies cannot be
+guaranteed to be erased. The fixed entry was unchanged. The launcher removed
+the guard and the process exited. This scope is consumed; another live request
+needs new approval. The #27 suite's live budget remains zero.
+
+Run its five synthetic checks without credentials:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib structure_probe --locked
+```
+
+They check counts and redaction, raw bounds, canonical paths, ambiguity, hidden
+attributes, known challenges, separate approval, exact authentication order,
+actual wire headers, the final anonymous redirect, and no fourth attempt.
+They do not enable production reads or prove full-book authorization.
 
 ## Offline validation
 

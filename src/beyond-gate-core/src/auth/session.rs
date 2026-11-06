@@ -53,6 +53,8 @@ pub enum SessionErrorKind {
     UnsupportedPlatform,
     /// An authenticated read failed; its typed HTTP cause retains access semantics.
     ReadFailed,
+    /// The protected entry changed during one identity-bound book operation.
+    Changed,
 }
 
 impl SessionErrorKind {
@@ -72,6 +74,7 @@ impl SessionErrorKind {
             Self::TimedOut => "timed_out",
             Self::UnsupportedPlatform => "unsupported_platform",
             Self::ReadFailed => "authenticated_read_failed",
+            Self::Changed => "session_changed",
         }
     }
 }
@@ -201,6 +204,8 @@ impl fmt::Display for SessionError {
                 ": resolve duplicate entries in your OS credential manager",
             SessionErrorKind::UnsupportedPlatform =>
                 ": production session validation and reuse are currently Windows-only",
+            SessionErrorKind::Changed =>
+                ": session evidence changed during this read; retry the operation",
             _ => "",
         })
     }
@@ -259,6 +264,7 @@ struct State {
 }
 
 /// Selects production storage lazily; synthetic constructors never open an OS store.
+#[derive(Clone)]
 enum Backend {
     /// Opening occurs only when a validated operation needs storage.
     Native,
@@ -275,26 +281,29 @@ enum Backend {
 /// Logout in another process is observed on the next load, not in-flight.
 pub struct Session {
     /// Serializes validation, refresh, reads, and cache removal.
-    state: Mutex<State>,
+    state: Arc<Mutex<State>>,
     /// Does not contact a store at construction.
     backend: Backend,
+    /// Pins the first protected load across a single book operation, not across reads.
+    binding: Option<Arc<Mutex<Option<BrowserSessionCookie>>>>,
     /// Synthetic service selection cannot be configured in a product invocation.
     #[cfg(any(test, feature = "session-fixture"))]
     exchange: Option<(reqwest::Client, String)>,
     /// Keeps only this owner's local synthetic service alive.
     #[cfg(any(test, feature = "session-fixture"))]
-    fixture: Option<fixture::Service>,
+    fixture: Option<Arc<fixture::Service>>,
     /// Keeps only compiled synthetic library services alive; native owners have none.
     #[cfg(any(test, feature = "session-fixture"))]
-    pub(crate) library_fixture: Option<crate::library::fixture::Source>,
+    pub(crate) library_fixture: Option<Arc<crate::library::fixture::Source>>,
 }
 
 impl Default for Session {
     /// Constructs an empty owner without store, network, or browser activity.
     fn default() -> Self {
         Self {
-            state: Mutex::new(State::default()),
+            state: Arc::new(Mutex::new(State::default())),
             backend: Backend::Native,
+            binding: None,
             #[cfg(any(test, feature = "session-fixture"))]
             exchange: None,
             #[cfg(any(test, feature = "session-fixture"))]
@@ -313,6 +322,29 @@ impl fmt::Debug for Session {
 }
 
 impl Session {
+    /// Shares the bearer cache while preventing account changes within a book read.
+    ///
+    /// Construction does not open storage. The first protected load pins the
+    /// cookie; subsequent loads must match. Nested scopes keep the same binding.
+    pub(crate) fn book_scope(&self) -> Self {
+        Self {
+            state: Arc::clone(&self.state),
+            backend: self.backend.clone(),
+            binding: Some(
+                self.binding
+                    .as_ref()
+                    .map(Arc::clone)
+                    .unwrap_or_else(|| Arc::new(Mutex::new(None))),
+            ),
+            #[cfg(any(test, feature = "session-fixture"))]
+            exchange: self.exchange.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            fixture: self.fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            library_fixture: self.library_fixture.clone(),
+        }
+    }
+
     /// Prevents unsupported production platforms from opening storage or networking.
     pub(crate) fn supported(&self) -> Result<(), SessionError> {
         match &self.backend {
@@ -364,10 +396,118 @@ impl Session {
         .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?
         .map_err(SessionError::worker)?
         .map_err(SessionError::storage)?;
-        loaded
+        let cookie = loaded
             .map(BrowserSessionCookie::from_persisted)
             .transpose()
-            .map_err(SessionError::service)
+            .map_err(SessionError::service)?;
+        if let (Some(binding), Some(cookie)) = (&self.binding, &cookie) {
+            let mut binding = timeout_at(deadline, binding.lock())
+                .await
+                .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?;
+            if let Some(previous) = binding.as_ref() {
+                if previous.0 != cookie.0 {
+                    return Err(SessionError::new(SessionErrorKind::Changed));
+                }
+            } else {
+                *binding = Some(BrowserSessionCookie(cookie.0.clone()));
+            }
+        }
+        Ok(cookie)
+    }
+
+    /// Uses only the current cookie for a source page, never a bearer fallback or exchange.
+    pub(crate) async fn get_book_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        if !website
+            || target.query().is_some()
+            || !target.path().starts_with("/sources/")
+            || !target.path().split('/').skip(1).all(|part| {
+                !part.is_empty()
+                    && part
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+            })
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut state = self.lock(deadline).await?;
+        let prior_bearer = state.bearer.take();
+        let Some(cookie) = self.load_cookie(deadline).await? else {
+            *state = State::default();
+            return Err(SessionError::new(SessionErrorKind::Absent));
+        };
+        if !state
+            .cookie
+            .as_ref()
+            .is_some_and(|previous| previous.0 == cookie.0)
+        {
+            return Err(SessionError::new(SessionErrorKind::Changed));
+        }
+        if state.rejected {
+            return Err(SessionError::new(SessionErrorKind::Rejected));
+        }
+        let bearer = prior_bearer
+            .ok_or_else(|| SessionError::new(SessionErrorKind::ValidationUnavailable))?;
+        if !bearer.usable(SystemTime::now()) {
+            return Err(SessionError::new(SessionErrorKind::Expired));
+        }
+        let headers = crate::http::SessionHeaders::cookie(
+            "CobaltSession",
+            std::str::from_utf8(&cookie.0)
+                .map_err(|_| SessionError::new(SessionErrorKind::InvalidMaterial))?,
+        )
+        .map_err(SessionError::read)?;
+        let read_deadline = deadline.min(bearer.deadline());
+        state.cookie = Some(cookie);
+        state.bearer = Some(bearer);
+        let result = timeout_at(read_deadline, client.get_html(url, &headers)).await;
+        match result {
+            Ok(Ok(body))
+                if state
+                    .bearer
+                    .as_ref()
+                    .is_some_and(|bearer| bearer.usable(SystemTime::now())) =>
+            {
+                Ok(body)
+            }
+            Ok(Ok(_)) => {
+                state.bearer = None;
+                Err(SessionError::new(SessionErrorKind::Expired))
+            }
+            Ok(Err(error)) => {
+                let error = SessionError::read(error);
+                if error.kind() == SessionErrorKind::Rejected {
+                    state.bearer = None;
+                    state.rejected = true;
+                }
+                Err(error)
+            }
+            Err(_) => {
+                let expired = state
+                    .bearer
+                    .as_ref()
+                    .is_some_and(|bearer| !bearer.usable(SystemTime::now()));
+                state.bearer = None;
+                Err(SessionError::new(if expired {
+                    SessionErrorKind::Expired
+                } else {
+                    SessionErrorKind::TimedOut
+                }))
+            }
+        }
     }
 
     /// Clears prior evidence before loading so failures or cancellation cannot restore it.

@@ -233,10 +233,11 @@ pub fn session(scenario: Scenario) -> Result<Session, SessionError> {
         .build()
         .map_err(|_| SessionError::new(SessionErrorKind::ValidationUnavailable))?;
     Ok(Session {
-        state: tokio::sync::Mutex::new(State::default()),
+        state: Arc::new(tokio::sync::Mutex::new(State::default())),
         backend: Backend::Synthetic(store),
+        binding: None,
         exchange: Some((client, url)),
-        fixture: Some(fixture),
+        fixture: Some(Arc::new(fixture)),
         library_fixture: None,
     })
 }

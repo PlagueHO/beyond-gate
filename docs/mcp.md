@@ -5,11 +5,15 @@ official Rust MCP SDK, rmcp. Startup, initialization, tool discovery, validation
 and protocol errors are implemented. Windows `book_list` has bounded live
 metadata transport with Web-catalog scope, category selection, and title cleanup.
 Native CLI/MCP acceptance passed with matching Web-catalog results.
-Character, campaign, outline, and section reads remain unsupported.
+Windows `book_outline` and `book_read` use fresh library evidence and checked
+canonical cookie pages. Synthetic process checks cover both adapters.
+Native book adapter acceptance passed for one selected chapter with matching
+outlines and initial chunks. Live continuation and sharing remain unchecked.
+Character and campaign reads remain unsupported.
 Windows `auth_validate` makes one fresh session check
 through the shared core without credential input.
 
-Valid calls to the other six read tools return unsupported-operation tool
+Valid calls to the four character and campaign tools return unsupported-operation tool
 errors with `isError: true`. They do not return sample data or empty success
 results. Success shapes in this reference are offline-tested adapter contracts,
 not evidence of successful live access.
@@ -285,6 +289,10 @@ Synthetic checks do not prove live success.
 
 Selects one book's complete navigation outline, with at most 1,000 entries.
 
+The book examples show offline shapes only. Their invented book and section IDs
+are not valid for production calls. Use a numeric book ID from `book_list` and
+an opaque section ID from `book_outline`.
+
 | Input | Type | Required | Validation |
 |-------|------|----------|------------|
 | `book_id` | String | Yes | Nonempty, unpadded, control-free identifier |
@@ -298,8 +306,9 @@ Synthetic `tools/call` parameters:
 The success data is an [outline envelope](#outline-data) with `book_id`,
 `source_url`, and `entries`. Each entry contains `id`, `title`, `parent_id`, and
 `source_url`. It is not a bare entry array.
-Invalid identifiers fail before the core operation. Valid calls currently return
-the unsupported live-book-read tool error.
+Use the numeric book ID returned by `book_list`. Invalid identifiers fail before
+credential access. Windows reads require fresh positive library evidence and a
+checked canonical source page. Unknown access or unsupported layouts return no outline.
 
 The offline contract checks fresh supplied access before loading the source.
 Denied or unknown access, unavailable content, invalid metadata or outline links,
@@ -325,8 +334,8 @@ Synthetic initial `tools/call` parameters:
 The success data is one [section object](#section-data), with `book_id`,
 `section_id`, `source_url`, `text`, `next_cursor`, `is_complete`, and
 `max_text_bytes`. Invalid identifiers or malformed/oversized tokens fail before
-the core live operation. Valid calls currently return the unsupported
-live-book-read tool error.
+credential access. Use a section ID returned by `book_outline`, not a heading label
+or URL. Each call repeats metadata, outline, and selected canonical page checks.
 
 The offline contract checks fresh supplied access on every read. Denied or
 unknown access, unavailable content, unsupported sections, source failures,
@@ -361,7 +370,7 @@ the text string as JSON to obtain the array or object described below.
 Do not treat the outer result as the resource object or assume a
 `structuredContent` field.
 
-This synthetic request is valid, but its current result is an unsupported error:
+This synthetic nonnumeric book ID fails before credentials or network access:
 
 ```json
 {
@@ -382,7 +391,7 @@ Current error response shape for that request:
     "content": [
       {
         "type": "text",
-        "text": "Live book reads are unsupported: source contracts and usable login are not implemented."
+        "text": "Book or section metadata is invalid."
       }
     ],
     "isError": true
@@ -390,8 +399,8 @@ Current error response shape for that request:
 }
 ```
 
-**Illustrative synthetic success response only:** The current product does not
-return this successful outline. It shows the separate MCP wrapper and inner JSON:
+**Illustrative synthetic success response only:** This shows the separate MCP
+wrapper and inner JSON. It is not retained account data:
 
 ```json
 {
@@ -427,8 +436,8 @@ No failure substitutes sample data, partial data, or empty success.
 
 ## Success data contracts
 
-These data shapes are tested with synthetic core inputs. The server has no
-fixture switch or live success mode.
+These data shapes are tested with synthetic core inputs and local source services.
+The server has no product fixture switch.
 
 ### Character and campaign data
 
@@ -507,17 +516,18 @@ a terminal section object could look like this. It is not a current live result:
 
 ## Bounds and access
 
-The offline book operations check fresh supplied access before every outline or
-section load, including continuation. Unknown access and explicit denial both
-stop the load. A prior library observation or token is never an access grant.
-Current product calls stop at the unsupported-operation boundary, not a live
-access check.
+Every Windows outline, section, and explicit continuation checks fresh positive
+library evidence and current canonical cookie-page structure within one session
+identity. Unknown access and unsupported layouts return no content. An outline,
+library observation, or token never grants later access. See the
+[page-level contract](architecture.md#live-book-reads) for scope and limits.
 
 Outlines allow at most 1,000 raw entries, including duplicates. Section results
 allow at most 4,096 UTF-8 text bytes, excluding JSON escaping, source metadata, and
 continuation bytes. This does not cap total response size or caller allocations.
-Text and line breaks remain unchanged. Chunk boundaries respect UTF-8 and can
-prefer a complete supplied line; they need not align with words.
+HTML conversion preserves meaningful text, headings, lists, tables, and sidebars
+with deterministic whitespace. Chunking preserves these bytes and respects UTF-8.
+It can prefer a complete line; it need not align with words.
 
 Nonterminal sections have `is_complete: false` and a string `next_cursor`.
 Terminal sections, including empty ones, have `is_complete: true` and

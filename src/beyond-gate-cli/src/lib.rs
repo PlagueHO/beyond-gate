@@ -79,13 +79,21 @@ pub trait ReadOperations {
     /// # Errors
     ///
     /// Returns the shared outline failure without partial navigation.
-    fn get_book_outline(&self, id: &str) -> Result<BookOutline, BookError>;
+    fn get_book_outline(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<BookOutline, BookError>>;
     /// Reads one bounded chunk after a fresh access check, never auto-continuing.
     ///
     /// # Errors
     ///
     /// Returns the shared access, source, or continuation failure.
-    fn read_book_section(&self, request: SectionRequest<'_>) -> Result<SectionChunk, BookError>;
+    fn read_book_section(
+        &self,
+        session: &Session,
+        request: SectionRequest<'_>,
+    ) -> impl std::future::Future<Output = Result<SectionChunk, BookError>>;
 }
 
 /// Starts the MCP server or registers it with one supported local client.
@@ -165,13 +173,21 @@ impl ReadOperations for LiveReads {
     }
 
     /// Uses the core outline entry point without granting synthetic access.
-    fn get_book_outline(&self, id: &str) -> Result<BookOutline, BookError> {
-        book::get_book_outline(id)
+    async fn get_book_outline(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> Result<BookOutline, BookError> {
+        book::get_book_outline(session, id).await
     }
 
     /// Preserves the explicit selection and any untrusted continuation claim.
-    fn read_book_section(&self, request: SectionRequest<'_>) -> Result<SectionChunk, BookError> {
-        book::read_book_section(request)
+    async fn read_book_section(
+        &self,
+        session: &Session,
+        request: SectionRequest<'_>,
+    ) -> Result<SectionChunk, BookError> {
+        book::read_book_section(session, request).await
     }
 }
 
@@ -472,9 +488,17 @@ fn execute_book(
         }
         "outline" => {
             let options = ListOptions::parse(arguments)?;
-            let value = reads
-                .get_book_outline(selection(arguments, "book-id")?)
-                .map_err(Failure::Book)?;
+            let id = selection(arguments, "book-id")?;
+            let value = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.get_book_outline(session, id) => result.map_err(Failure::Book),
+                }
+            })?;
             let json = output::outline(&value);
             let rows = json["entries"]
                 .as_array()
@@ -492,13 +516,21 @@ fn execute_book(
                 .map(|token| SectionCursor::from_token(token))
                 .transpose()
                 .map_err(Failure::Cursor)?;
-            let value = reads
-                .read_book_section(SectionRequest {
-                    book_id: selection(arguments, "book-id")?,
-                    section_id: selection(arguments, "section-id")?,
-                    continuation: cursor.as_ref(),
-                })
-                .map_err(Failure::Book)?;
+            let request = SectionRequest {
+                book_id: selection(arguments, "book-id")?,
+                section_id: selection(arguments, "section-id")?,
+                continuation: cursor.as_ref(),
+            };
+            let value = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.read_book_section(session, request) => result.map_err(Failure::Book),
+                }
+            })?;
             output::json_bytes(&output::section(&value)?)
         }
         _ => Err(Failure::Usage("Select a supported book operation.")),

@@ -221,6 +221,56 @@ fn policy() -> RequestPolicy {
     }
 }
 
+/// Requires one current HTML response and sends only the selected scoped cookie.
+#[tokio::test]
+async fn html_reads_use_one_attempt_and_strict_media_encoding_and_byte_bounds() {
+    let cookie = SessionHeaders::cookie("CobaltSession", "invented-cookie").expect("cookie");
+    let mock = Mock::start(vec![
+        Reply::new(200, "<p>\u{754c}</p>".as_bytes())
+            .headers("Content-Type: text/html; charset=\"UTF-8\"\r\n"),
+    ])
+    .await;
+    let body = mock
+        .client(policy())
+        .get_html(&format!("{}/sources/invented", mock.origin), &cookie)
+        .await
+        .expect("HTML");
+    assert_eq!(&*body, "<p>\u{754c}</p>".as_bytes());
+    {
+        let requests = mock.observations.requests.lock().expect("observations");
+        let request = requests[0].0.to_ascii_lowercase();
+        assert!(request.contains("\r\ncookie: cobaltsession=invented-cookie\r\n"));
+        assert!(request.contains("\r\naccept: text/html\r\n"));
+        assert!(!request.contains("\r\nauthorization:"));
+    }
+    for reply in [
+        Reply::new(200, b"<p/>"),
+        Reply::new(200, b"<p/>").headers("Content-Type: application/json\r\n"),
+        Reply::new(200, b"<p/>").headers("Content-Type: text/html\r\nContent-Type: text/html\r\n"),
+        Reply::new(200, b"<p/>").headers("Content-Type: text/html; charset=iso-8859-1\r\n"),
+        Reply::new(200, b"<p/>")
+            .headers("Content-Type: text/html; charset=utf-8; charset=utf-8\r\n"),
+        Reply::new(200, b"\xff").headers("Content-Type: text/html\r\n"),
+        Reply::new(200, b"<p/>").headers("Content-Type: text/html\r\nContent-Encoding: gzip\r\n"),
+        Reply::new(200, &[b'x'; 129]).headers("Content-Type: text/html\r\n"),
+        Reply::new(204, b"").headers("Content-Type: text/html\r\n"),
+        Reply::new(206, b"<p/>").headers("Content-Type: text/html\r\n"),
+        Reply::new(307, b"private").headers("Location: https://foreign.invalid/private\r\n"),
+        Reply::new(429, b"private").headers("Retry-After: 0\r\n"),
+        Reply::new(503, b"private"),
+    ] {
+        let mock = Mock::start(vec![reply]).await;
+        let error = mock
+            .client(policy())
+            .get_html(&format!("{}/sources/invented", mock.origin), &cookie)
+            .await
+            .expect_err("rejected");
+        assert_eq!(error.attempts(), 1);
+        assert_eq!(mock.count(), 1);
+        assert!(!format!("{error} {error:?}").contains("private"));
+    }
+}
+
 /// Checks typed output, ignored unknown fields, and sensitive headers on the wire.
 #[tokio::test]
 async fn reads_typed_json_with_scoped_session_headers() {

@@ -127,6 +127,8 @@ function Assert-PackagedProtocol {
     if ($IsWindows -and $id -eq 7) {
       # Invalid input must stop Windows discovery before credential or network access.
       Assert-Package ($text -cmatch 'unknown field' -and $text -cmatch 'unexpected') 'MCP library input must fail before discovery.'
+    } elseif ($id -in @(8, 9)) {
+      Assert-Package ($text -cmatch 'metadata is invalid') 'Invalid book IDs must fail before session or network access.'
     } else {
       Assert-Package ($text -cmatch 'unsupported') 'MCP read failure must state the current implementation limit.'
     }
@@ -265,11 +267,16 @@ try {
     ,@('character', 'show', 'synthetic')
     ,@('campaign', 'list')
     ,@('campaign', 'show', 'synthetic')
+  )) {
+    $result = Invoke-PackagedProcess $cli $arguments
+    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('unsupported')) "Unsupported read contract failed: $arguments"
+  }
+  foreach ($arguments in @(
     ,@('book', 'outline', 'synthetic')
     ,@('book', 'read', 'synthetic', 'opening')
   )) {
     $result = Invoke-PackagedProcess $cli $arguments
-    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('unsupported')) "Unsupported read contract failed: $arguments"
+    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('metadata is invalid')) "Invalid book selection must not access the session: $arguments"
   }
   if ($IsWindows) {
     # A valid library request can open the real OS store despite the isolated home.

@@ -32,12 +32,12 @@ pub fn command() -> Command {
                 .subcommand(Command::new("show").about("Show campaign metadata, associations, and raw JSON; live reads are unsupported").arg(identifier("id"))),
         )
         .subcommand(
-            resource("book", "Bounded Web-catalog discovery; content reads unsupported")
+            resource("book", "Bounded Windows library, outline, and selected-section reads")
                 .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
-                .subcommand(list_options(Command::new("outline").about("List section navigation; live reads are unsupported").arg(identifier("book-id"))))
+                .subcommand(list_options(Command::new("outline").about("List at most 1,000 entries after fresh library and canonical source-page checks").arg(identifier("book-id"))))
                 .subcommand(
                     Command::new("read")
-                        .about("Read one JSON chunk, at most 4,096 UTF-8 text bytes; live reads are unsupported")
+                        .about("Read one selected JSON chunk, at most 4,096 UTF-8 text bytes, after fresh access checks")
                         .arg(identifier("book-id"))
                         .arg(identifier("section-id"))
                         .arg(Arg::new("continuation").long("continuation").value_name("TOKEN")

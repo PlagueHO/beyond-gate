@@ -56,6 +56,16 @@ fn session(name: &str) -> Session {
         "library-invalid-outside-evidence" => {
             Some(library_fixture::Scenario::InvalidOutsideEvidence)
         }
+        "book-redirect" => Some(library_fixture::Scenario::BookRedirect),
+        "book-rejected" => Some(library_fixture::Scenario::BookRejected),
+        "book-denied" => Some(library_fixture::Scenario::BookDenied),
+        "book-preview" => Some(library_fixture::Scenario::BookPreview),
+        "book-changed" => Some(library_fixture::Scenario::BookChanged),
+        "book-moved" => Some(library_fixture::Scenario::BookMoved),
+        "book-malformed" => Some(library_fixture::Scenario::BookMalformed),
+        "book-oversized" => Some(library_fixture::Scenario::BookOversized),
+        "book-waiting" => Some(library_fixture::Scenario::BookWaiting),
+        "book-wrong-media" => Some(library_fixture::Scenario::BookWrongMedia),
         _ => None,
     };
     match source {
@@ -414,6 +424,181 @@ fn library_contracts() {
     }
 }
 
+/// Extracts one actual tool result, checking process streams before interpreting its data.
+fn tool_result(output: &Output, messages: &[Value]) -> Value {
+    assert!(output.status.success());
+    assert!(
+        output.stderr.is_empty(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    messages
+        .iter()
+        .find(|message| message["id"] == 3)
+        .expect("tool result")["result"]
+        .clone()
+}
+
+/// Checks real CLI/MCP source parsing, bounded continuation, access loss, and safe failures.
+fn book_contracts() {
+    let arguments = ["book", "outline", "1", "--format", "json"];
+    let outline = cli("library-normal", &arguments);
+    assert!(
+        outline.status.success(),
+        "{}",
+        String::from_utf8_lossy(&outline.stderr)
+    );
+    assert!(outline.stderr.is_empty());
+    let outline: Value = serde_json::from_slice(&outline.stdout).expect("CLI outline");
+    let (output, messages) = mcp_tool(
+        "library-normal",
+        "book_outline",
+        json!({"book_id":"1"}),
+        false,
+    );
+    let result = tool_result(&output, &messages);
+    assert_eq!(
+        serde_json::from_str::<Value>(result["content"][0]["text"].as_str().expect("text"))
+            .expect("MCP outline"),
+        outline
+    );
+    let id = outline["entries"][1]["id"]
+        .as_str()
+        .expect("opaque section ID");
+    assert_eq!(outline["entries"].as_array().expect("entries").len(), 3);
+    let mut token: Option<String> = None;
+    let mut complete_text = String::new();
+    for index in 0..10 {
+        let mut arguments = vec!["book", "read", "1", id];
+        if let Some(token) = &token {
+            arguments.extend(["--continuation", token]);
+        }
+        let cli = cli("library-normal", &arguments);
+        assert!(
+            cli.status.success(),
+            "{}",
+            String::from_utf8_lossy(&cli.stderr)
+        );
+        assert!(cli.stderr.is_empty());
+        let cli: Value = serde_json::from_slice(&cli.stdout).expect("CLI section");
+        let mut arguments = json!({"book_id":"1","section_id":id});
+        if let Some(token) = &token {
+            arguments["continuation"] = json!(token);
+        }
+        let (output, messages) = mcp_tool("library-normal", "book_read", arguments, false);
+        let result = tool_result(&output, &messages);
+        let mcp: Value = serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
+            .expect("MCP section");
+        assert_eq!(cli, mcp);
+        let text = cli["text"].as_str().expect("section text");
+        assert!(text.len() <= 4096);
+        complete_text.push_str(text);
+        token = cli["next_cursor"].as_str().map(str::to_owned);
+        if index == 0 {
+            let token = token.as_deref().expect("nonterminal chunk");
+            assert!(token.len() <= 16384);
+            for name in [
+                "book-changed",
+                "book-moved",
+                "book-denied",
+                "book-preview",
+                "book-malformed",
+            ] {
+                let cli = self::cli(name, &["book", "read", "1", id, "--continuation", token]);
+                let (output, messages) = mcp_tool(
+                    name,
+                    "book_read",
+                    json!({"book_id":"1","section_id":id,"continuation":token}),
+                    false,
+                );
+                let result = tool_result(&output, &messages);
+                assert_eq!(cli.status.code(), Some(1));
+                assert!(cli.stdout.is_empty());
+                assert_eq!(result["isError"], true);
+                assert_eq!(
+                    String::from_utf8_lossy(&cli.stderr).trim(),
+                    format!(
+                        "error: {}",
+                        result["content"][0]["text"].as_str().expect("safe error")
+                    )
+                );
+            }
+        }
+        if cli["is_complete"] == true {
+            assert!(token.is_none());
+            break;
+        }
+    }
+    assert!(
+        token.is_none(),
+        "explicit bounded continuations must reach a terminal result"
+    );
+    assert!(complete_text.starts_with("An invented opening\n"));
+    assert!(complete_text.contains("An invented sidebar"));
+    assert!(!complete_text.contains("Adjacent topic"));
+    assert_eq!(
+        complete_text,
+        format!(
+            "An invented opening\n{}\nAn invented sidebar\nA useful invented note.\n",
+            "An invented lantern glows \u{754c}. "
+                .repeat(240)
+                .trim_end()
+        )
+    );
+    for name in [
+        "book-redirect",
+        "book-rejected",
+        "book-oversized",
+        "book-wrong-media",
+    ] {
+        let cli = cli(name, &["book", "read", "1", id]);
+        let (output, messages) = mcp_tool(
+            name,
+            "book_read",
+            json!({"book_id":"1","section_id":id}),
+            false,
+        );
+        let result = tool_result(&output, &messages);
+        assert_eq!(cli.status.code(), Some(1));
+        assert!(cli.stdout.is_empty());
+        assert_eq!(result["isError"], true);
+        assert_eq!(
+            String::from_utf8_lossy(&cli.stderr).trim(),
+            format!(
+                "error: {}",
+                result["content"][0]["text"].as_str().expect("safe error")
+            )
+        );
+    }
+    for arguments in [
+        json!({"book_id":"1","unexpected":true}),
+        json!({"book_id":"1","section_id":id,"continuation":"bad-token"}),
+        json!({"book_id":"1","section_id":id,"continuation":"x".repeat(16385)}),
+    ] {
+        let (output, messages) = mcp_tool("library-normal", "book_read", arguments, false);
+        assert_eq!(tool_result(&output, &messages)["isError"], true);
+    }
+    let table = cli(
+        "library-normal",
+        &["book", "outline", "1", "--format", "tsv", "--no-headers"],
+    );
+    assert!(table.status.success());
+    assert!(!table.stdout.starts_with(b"id\t"));
+    assert_eq!(String::from_utf8_lossy(&table.stdout).lines().count(), 3);
+    let (output, messages) = mcp_tool(
+        "book-waiting",
+        "book_read",
+        json!({"book_id":"1","section_id":id}),
+        true,
+    );
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    if let Some(message) = messages.iter().find(|message| message["id"] == 3) {
+        assert_eq!(message["result"]["isError"], true);
+        assert_eq!(message["result"]["content"][0]["text"], "cancelled");
+    }
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
@@ -448,6 +633,7 @@ fn main() {
         _ => {
             contracts();
             library_contracts();
+            book_contracts();
         }
     }
 }

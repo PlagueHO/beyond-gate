@@ -6,7 +6,9 @@ Use this shared index when planning or implementing another issue.
 It catalogs all calls identified in the [API survey](api-survey.md), including candidates
 and known failures. It is not a complete list of D&D Beyond's internal APIs.
 **Cataloged does not mean implemented, supported upstream, or approved for a live test.**
-Production resource reads remain unsupported.
+Windows Web-library and bounded book reads are implemented. Character and campaign
+live reads remain unsupported. Native book adapter acceptance passed for one
+selected chapter; live continuation and sharing remain unchecked.
 
 ## How to use and maintain this catalog
 
@@ -223,7 +225,9 @@ Do not replace stronger version evidence with a third-party assumption.
 These are HTML routes, not JSON section APIs.
 Sources: B1 and the [book evidence](api-survey.md#books-sources-and-access-checks).
 Browser requests used the signed-in page context; credential headers were not collected.
-Native probes used only the process-local bearer.
+Earlier native probes used only the process-local bearer. A separately approved
+cookie-only check later accepted one chapter response. Neither transport is a
+production book reader.
 Book implementation remains separate from [#31][issue-31]; see the
 [library and book work](roadmap.md#implementation-issues).
 
@@ -231,16 +235,28 @@ Book implementation remains separate from [#31][issue-31]; see the
 |----|---------|-----------------|---------------------|-------|
 | BOOK-01 | WEB | GET `/sources` | Browser redirects to `/en/library`; earlier credential-free fetch failed | Do not enable automatic production redirects |
 | BOOK-02 | WEB | GET `/en/library` | Browser HTML includes selected-source metadata | 2,654,622 decoded bytes exceeds the 1 MiB limit; bounded transport unresolved |
-| BOOK-03 | WEB | GET `/sources/dnd/cos` | Browser HTML 246,103 bytes; native bearer HTML 243,123 bytes; outline markers present | One selected example, not a general book map or access grant |
+| BOOK-03 | WEB | GET `/sources/dnd/cos` | Browser HTML 246,103 bytes; native bearer HTML 243,123 bytes; later cookie-only native HTML 246,103 bytes with one parsed outline container and 81 raw links | One selected example, not a general book map or access grant |
 | BOOK-04 | WEB | GET `/sources/cos/introduction` | Listed chapter route; browser redirected to the canonical route | Alias applies only to observed navigation |
-| BOOK-05 | WEB | GET `/sources/dnd/cos/introduction` | Browser HTML 257,524 bytes; repeated native HTTP 307 to a marketplace or purchase path | Native guard stopped; cause and native content access unresolved |
+| BOOK-05 | WEB | GET `/sources/dnd/cos/introduction` | Browser HTML 257,524 bytes; earlier bearer-only native HTTP 307 to a purchase path; separately approved cookie-only native HTTP 200 with 257,524 HTML bytes and expected literal markers | Preview status, full-book access, fresh authorization, and DOM parsing remain unverified |
+| BOOK-06 | WEB | GET `/sources/dnd/cos/into-the-mists` | User-selected non-preview chapter; cookie-only native HTTP 200 with 356,402 HTML bytes; one parsed article and all three selected outline fragments matched; final anonymous control HTTP 307 | The control reason and general entitlement contract remain unverified; no redirect was followed |
 
 The listed section target was `/sources/cos/introduction#RunningtheAdventure`.
 The fragment `#RunningtheAdventure` is local HTML selection, not an HTTP API input.
 The outline selector is `.compendium-toc-full-text`; the article container is
 `.p-article-content`. See the survey for heading boundaries and raw link counts.
-No text extraction, UTF-8 output-limit test, or fresh native entitlement check was completed.
+Those investigations did not extract text or establish a separate entitlement API.
+The later [page-level contract](architecture.md#live-book-reads) now implements
+bounded text conversion and fresh checks, with synthetic CLI/MCP process coverage.
+It requires positive fresh library evidence and a checked canonical cookie page
+for each operation. [Native book adapter acceptance](api-survey.md#native-book-adapter-acceptance)
+passed for the selected BOOK-06 chapter, with matching outlines and initial chunks.
+Live continuation and sharing remain unchecked.
 Other source paths must not be generated from this one example.
+The [cookie-only result](api-survey.md#approved-native-website-cookie-check)
+does not authorize an automatic fallback from a denied bearer request.
+The [protected-chapter check](api-survey.md#approved-protected-chapter-structure-and-control)
+adds parsed structure and a final anonymous control. It does not grant access
+to other chapters or authorize another request.
 
 ## Library JSON client routes
 
@@ -309,20 +325,24 @@ production behavior change resulted from this trace.
 ## Mobile book API candidates
 
 All rows use WEB, POST, and `application/x-www-form-urlencoded`.
-Evidence: Candidate. Source: T7. Each sends the stored Cobalt value in the form field `token`,
-not the derived bearer. No row was called during this research.
-Beyond Gate has no implemented mobile credential transport.
+Evidence: Candidate, except the limited Live metadata result for MOB-01.
+Source: T7 and the [approved metadata result](testing.md#approved-metadata-result).
+Each sends the stored Cobalt value in the form field `token`, not the derived bearer.
+Beyond Gate has no production mobile credential transport.
+An ignored, test-only Windows `MOB-01` probe has
+[offline safety checks](testing.md#mobile-book-metadata-probe).
+Its one approved metadata request is consumed. It does not establish content access.
 
 | ID | Path | Additional form fields | Source-code interpretation and limit |
 |----|------|------------------------|--------------------------------------|
-| MOB-01 | `/mobile/api/v6/available-user-content` | None | Reads `Licenses`, book `EntityTypeID` equal to `496802664`, and `Entities`; source IDs and `isOwned` need verification |
+| MOB-01 | `/mobile/api/v6/available-user-content` | None | Live: one bounded HTTP 200 JSON response confirmed license/entity structure and field types. Book `EntityTypeID` equal to `496802664` remains a T7 interpretation; source mapping and access meaning remain unverified |
 | MOB-02 | `/mobile/api/v6/get-book-url/{bookId}` | None | Whole-book download URL; outside current bounded-read design |
 | MOB-03 | `/mobile/api/v6/book-codes` | `sources`, JSON array with `sourceID` and `versionID` | Database access material; not a selected-section endpoint or approved test |
 | MOB-04 | `/mobile/api/v6/do-higher-versions-exist` | `sourceVersions`, `manifestVersion` | Downloaded-source version check; client reads `sourceUpdatesAvailable` |
 | MOB-05 | `/mobile/api/v6/user-data` | None | Account information; privacy-sensitive and not needed to prove section access |
 
 The third-party helper checks `status: "success"` and unwraps `data` when present.
-That is parser behavior, not a verified schema.
+That is parser behavior; the approved MOB-01 run confirmed one successful envelope only.
 Free, owned, shared, denied, expired, oversized, and malformed outcomes remain unresolved.
 An entity without `isOwned` does not prove shared access.
 Do not copy the helper's redirects, full-result logging, or whole-book processing.

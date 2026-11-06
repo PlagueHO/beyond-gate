@@ -37,8 +37,8 @@
     { "path": "campaign list", "tool": "campaign_list", "arguments": {}, "list": true },
     { "path": "campaign show", "tool": "campaign_show", "arguments": { "id": "synthetic" }, "list": false },
     { "path": "book list", "tool": "book_list", "arguments": {}, "list": true, "requires_session": true },
-    { "path": "book outline", "tool": "book_outline", "arguments": { "book_id": "synthetic" }, "list": true },
-    { "path": "book read", "tool": "book_read", "arguments": { "book_id": "synthetic", "section_id": "opening" }, "list": false }
+    { "path": "book outline", "tool": "book_outline", "arguments": { "book_id": "synthetic" }, "list": true, "requires_session": true },
+    { "path": "book read", "tool": "book_read", "arguments": { "book_id": "synthetic", "section_id": "opening" }, "list": false, "requires_session": true }
   ],
   "live_assertions": [
     "cli-mcp-parity", "source-urls", "fresh-access", "explicit-continuation",
