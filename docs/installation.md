@@ -291,11 +291,15 @@ does not revoke an upstream session or remove a stored credential.
 ## Release readiness
 
 An offline package check is not a v1 acceptance decision.
+Use the [desktop acceptance procedures](desktop-acceptance.md) to record
+candidate identity, actual platform versions, results, cleanup, and gaps.
+Native stores, real clients, browser setup, and account reads have separate
+approval gates. Package evidence never grants those approvals.
 
 | Requirement | Evidence or blocker |
 |-------------|---------------------|
 | Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
-| Runtime-independent native startup | Checked with a restricted child PATH. Clean desktop installation and OS trust prompts remain untested. |
+| Runtime-independent native startup | Package checks use a restricted child PATH and process-local PATH lookup. Same-candidate reinstall, relocation, explicit re-registration, and removal use temporary state. Clean desktops, two-version upgrades, and OS trust prompts remain untested. |
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
 | CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library parity and one selected chapter's outline/initial-chunk parity passed separately from packaging. Synthetic source checks cover continuation and failures. Live continuation and sharing remain unchecked. |
 | Missing, expired, or rejected upstream session errors | Shared-session library and book source operations have synthetic failure checks. Live evidence is separate. |
