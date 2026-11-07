@@ -7,6 +7,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Desktop acceptance matrix with retained three-target package checks and
+  separately approved Windows desktop, synthetic native-store, and Chrome/stable
+  Edge setup/removal evidence. Remaining acceptance gaps stay explicit.
 - Offline package evidence reports with candidate hashes, supplied source identity,
   host versions, fixed case results, cleanup, and explicit manual acceptance gaps.
   Package checks cover process-local PATH startup, missing siblings, same-candidate

@@ -304,8 +304,9 @@ does not revoke an upstream session or remove a stored credential.
 ## Release readiness
 
 An offline package check is not a v1 acceptance decision.
-Use the [desktop acceptance procedures](desktop-acceptance.md) to record
-candidate identity, actual platform versions, results, cleanup, and gaps.
+See the [desktop acceptance matrix](desktop-acceptance.md#remaining-acceptance-matrix)
+for candidate-specific passes and remaining gaps. That guide also defines
+the procedures and required evidence.
 Native stores, real clients, browser setup, and account reads have separate
 approval gates. Package evidence never grants those approvals.
 

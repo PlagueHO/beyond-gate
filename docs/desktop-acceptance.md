@@ -1,6 +1,6 @@
 # Desktop acceptance
 
-**Status: offline checks and manual procedures, not full desktop acceptance.**
+**Status: partial desktop evidence, not full desktop acceptance.**
 Issue [#34](https://github.com/PlagueHO/beyond-gate/issues/34) stays open until
 the required desktop evidence exists. A package check, synthetic registration,
 or development-machine run is not a clean desktop result.
@@ -126,21 +126,27 @@ runtimes, real upgrades, and all separately gated checks remained unverified.
 
 The 2026-11-07 follow-up checked retained artifacts from successful packaging
 [run 42182052563](https://github.com/PlagueHO/beyond-gate/actions/runs/42182052563).
-The Windows and Linux version `0.1.0` archives matched both their SHA-256
-sidecars and the hashes in their retained offline evidence:
+The initial Windows/Linux review was later extended to all three native targets.
+Each version `0.1.0` archive matched both its SHA-256 sidecar and retained
+`package-evidence-<target>` report hash:
 
-| Target | Archive SHA-256 |
-|--------|-----------------|
-| `x86_64-pc-windows-msvc` | `a3b91503ec3b5080aa5833f5c8836096d7334826c9b500e4a6ff87429770af5b` |
-| `x86_64-unknown-linux-gnu` | `0bb9b8191023f4d0d956d656ea0bc52b84fed64fa1ade289dd1c7c24d73da87b` |
+| Target | Archive SHA-256 | Actual CI host | Offline case results |
+|--------|-----------------|----------------|----------------------|
+| `x86_64-pc-windows-msvc` | `a3b91503ec3b5080aa5833f5c8836096d7334826c9b500e4a6ff87429770af5b` | Windows `10.0.20348.0`, X64 | 16 passed |
+| `x86_64-unknown-linux-gnu` | `0bb9b8191023f4d0d956d656ea0bc52b84fed64fa1ade289dd1c7c24d73da87b` | Ubuntu 24.04.5 LTS, X64 | 15 passed; Windows browser package not applicable |
+| `aarch64-apple-darwin` | `ecea5c99a46403050a1d1ef93a9be978d0dc7049737533d9f51f3c5a240d711c` | macOS 15.8.2, ARM64 | 15 passed; Windows browser package not applicable |
 
-Both reports identify source commit
+All three reports identify source commit
 `f4c2b21e774b117a8a33e74d32309e7fd64f2001`, the PR merge commit, not the
 PR head `b93d1418672fd4b086c7690d222089ed8b563b94`.
 GitHub's Git commit API and local `git rev-parse 'HEAD^{tree}'` confirmed that
 the reported source and checkout `03ef03d6fc0ee37f15d43dbf4655cc41bc9633b1`
 share tree `0c026d13af9f0f957d1e30821191d338995d8107`.
 Source-tree equality is not reproducible-build attestation.
+
+Each schema-1 report has scope `offline-package`, exit code `0`, completed
+cleanup, and 11 blocked manual groups. Each records `full_coverage: false`,
+zero live requests, no credential access, and no real clients.
 
 The downloaded Windows archive also passed these local checks:
 
@@ -160,11 +166,10 @@ This does not establish a cause for the five historical installation failures.
 
 The injected errors in rejection checks were expected. No real credentials,
 client settings, browser profiles, registry mappings, or persistent PATH were
-accessed or changed. Linux evidence was inspected, not rerun locally.
-The retained-artifact checks did not deploy a clean desktop VM; the later Azure
-desktop results are recorded below. Native stores, real clients, browser setup,
-minimum supported OS or runtime versions, two-candidate upgrades, and account
-reads still need separate evidence. macOS desktop acceptance remains unverified.
+accessed or changed by these offline checks. Linux and macOS reports were
+inspected, not rerun locally. The separately approved desktop results below
+and the [remaining acceptance matrix](#remaining-acceptance-matrix) record
+later passes and gaps. macOS desktop acceptance remains unverified.
 
 ### Azure Windows desktop baseline
 
@@ -194,9 +199,8 @@ desktop trust behavior or minimum Windows requirements.
 
 ### Windows package startup and runtime
 
-The retained Windows x64 `0.1.0` archive matched its SHA-256 sidecar:
-`a3b91503ec3b5080aa5833f5c8836096d7334826c9b500e4a6ff87429770af5b`.
-The archive was extracted to a user-local path with spaces.
+The [verified Windows x64 `0.1.0` archive](#retained-ci-candidate-verification)
+was extracted to a user-local path with spaces.
 
 Before installing a Visual C++ runtime, both `beyond-gate.exe` and
 `beyond-gate-mcp.exe` exited with `-1073741515` (`0xC0000135`) and produced no
@@ -216,9 +220,9 @@ path with spaces also left both binaries runnable. This verifies the documented
 prerequisite and recovery path on this VM. It does not establish a minimum
 supported Windows build or runtime version.
 
-After both package tests, the dedicated Azure resource group was deleted and
-verified absent. The temporary Windows drive mapping and Linux SSH key were
-removed. No test VM remains.
+After both historical package tests, the dedicated Azure resource group was
+deleted and verified absent. The temporary Windows drive mapping and Linux SSH
+key were removed. The separately approved Windows follow-up below used a new VM.
 
 ### Azure Linux desktop baseline
 
@@ -228,9 +232,8 @@ The approved Azure test VM used Ubuntu 24.04.5 LTS x64, image
 restricted to the approved source address. Automatic shutdown was enabled for
 00:10 UTC.
 
-The retained Linux x64 `0.1.0` archive matched its SHA-256 sidecar:
-`0bb9b8191023f4d0d956d656ea0bc52b84fed64fa1ade289dd1c7c24d73da87b`.
-The guest reported `x86_64` and glibc `2.39`. `ldd` showed only the standard
+The guest tested the [verified Linux x64 `0.1.0` archive](#retained-ci-candidate-verification)
+and reported `x86_64` and glibc `2.39`. `ldd` showed only the standard
 glibc loader, `libc`, `libm`, and `libgcc_s` dependencies for both binaries;
 no dependency was reported missing. Before installing the desktop environment,
 both binaries passed `--version` and `--help` from `$HOME/Beyond Gate Test`.
@@ -247,6 +250,115 @@ native-store, browser, sign-in, or account tests were run. The archive was
 transferred over source-restricted SSH, so browser-download trust prompts were
 not tested. This single image does not establish a minimum Linux or glibc
 version.
+
+### Separately approved Windows desktop follow-up
+
+A new disposable VM repeated the [Windows baseline](#azure-windows-desktop-baseline)
+on 2026-11-07 with the same image, size, region, OS build, and initial tool/runtime
+absence. Azure Run Command supplied inventory only; the user ran all following
+checks in the interactive RDP desktop, not as SYSTEM.
+Separate approvals covered provisioning, installation, synthetic native storage,
+and browser setup. The new USD 10 planning ceiling was not an enforced spending
+cap. Licensing, source-restricted RDP, shutdown, and resource deletion were approved.
+
+#### Desktop package result
+
+The retained Windows `0.1.0` candidate passed seven installation checks and
+owned-file cleanup. Both binaries first returned `-1073741515` before runtime
+installation. The signed Microsoft x64 runtime installer from
+`https://aka.ms/vc14/vc_redist.x64.exe` installed version `v14.51.36247.00`.
+Its SHA-256 was
+`843068991daaa1f73ad9f6239bce4d0f6a07a51f18c37ea2a867e9beca71295c`.
+The script checked the Microsoft Authenticode signature. No restart was needed.
+Startup, process-local PATH, same-candidate reinstall, and relocation passed.
+Persistent user PATH was unchanged.
+
+#### Synthetic native-store result
+
+Separately built `e2e-isolation` binaries used source
+`b65417252af1ca83c052b265ed3145c136add183` with local documentation changes only.
+Product Rust sources were unchanged. Both build commands passed:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 build --workspace --locked --features 'beyond-gate-cli/e2e-isolation,beyond-gate-mcp/e2e-isolation' --target-dir target\manual-e2e
+pwsh -NoProfile -File .\scripts\cargo.ps1 build -p beyond-gate-core --example e2e-session --features e2e-isolation --locked --target-dir target\manual-e2e
+```
+
+The Windows PowerShell orchestration checked all three binary hashes and exact
+isolation handshakes before enabling native access. One random synthetic
+`beyond-gate-e2e` entry was approved, with a limit of 12 local store commands.
+Eight commands checked absence, synthetic stored-unverified state, logout,
+repeated logout, final absence, and cleanup. All six reported cases, including
+the handshake, passed. The product credential entry was not accessed.
+
+#### Manual browser installation result
+
+Regular Chrome `157.0.8103.39` and stable Edge `157.0.4341.42` loaded the packaged
+extension in fresh test profiles. The package manifest version was `0.1.0`;
+its public key produced ID `gnhdconfgjfdbbgkemadegjcjnnodefh`.
+The user confirmed that ID in both browsers. The native-host binary SHA-256 was
+`d53fa7fe1bbea6342920657fce7d4c8f76d993ec3d6e19a93cb23d6ce73b1ba7`.
+Setup used a stable user-local installation with spaces, outside source and
+build trees. The following commands used `$install` for that directory and
+`$cli` for its `beyond-gate.exe`. Each write had interactive confirmation.
+
+| Commands or action | Result |
+|--------------------|--------|
+| `& $cli auth install edge --directory $install --dry-run` and corresponding `chrome` preview | Passed; selected per-user mappings, pinned origin, and installed host path displayed |
+| `& $cli auth install edge --directory $install` and corresponding `chrome` setup | Passed; independent checks found matching manifests and HKCU mappings in the checked registry views |
+| Repeat both setup commands after capturing a verified baseline | Passed; both manifests remained unchanged and both mappings still matched |
+| `& $cli auth uninstall edge --directory $install --dry-run`, then confirmed removal | Passed; Edge mapping and manifest absent, Chrome mapping preserved |
+| Corresponding `chrome` removal preview and confirmed removal | Passed; both mappings and manifests absent, installation binaries preserved |
+| Remove the extension in both browsers, close test windows, and delete the owned installation directory | Passed; user confirmed extension removal and the directory absence check passed |
+
+The temporary session verifier was run as
+`powershell.exe -NoProfile -File .\check-browser-setup.ps1 -Stage Installed`,
+then with `EdgeRemoved` and `Removed`. A missing-script transfer error was
+resolved before the verified baseline, repeat, and removal checks.
+
+No login, cookie query, product credential access, or D&D Beyond request occurred
+in these installation checks. Remaining browser cases are listed in the matrix.
+The temporary orchestration and safe reports remain session evidence, not
+shipped package checks.
+
+The ownership-checked deletion command completed with exit code `0`.
+It verified that the owned resource group was absent before removing its
+protected local state. No VM, disk, or public IP from this run remains.
+The final subscription-specific charge was not measured.
+
+## Remaining acceptance matrix
+
+This matrix separates existing evidence from required work. A passed row
+applies only to its stated case and candidate. The new browser installation
+results used the retained package; the native-store results used a separate
+feature build. The blocked manual groups in CI reports remain unchanged;
+later desktop evidence is separate.
+
+| Case | Platform or client | Status | Evidence or blocker |
+|------|--------------------|--------|---------------------|
+| `package.offline` | Windows x64, Linux GNU x64, macOS ARM64 | passed | [Retained CI reports and archive hashes](#retained-ci-candidate-verification) |
+| `desktop.startup` | Windows 11 Enterprise 25H2 x64 | passed | [Windows package results](#windows-package-startup-and-runtime) |
+| `desktop.path-lifecycle` | Windows 11 Enterprise 25H2 x64 | passed | [Windows PATH, reinstall, and relocation](#windows-package-startup-and-runtime) |
+| `desktop.startup` | Ubuntu 24.04.5 x64, XFCE | passed | [Linux desktop results](#azure-linux-desktop-baseline) |
+| `desktop.clean-inventory` | Ubuntu 24.04.5 x64 | blocked | Historical pre-desktop inventory did not enumerate all development tools and runtimes |
+| `desktop.path-lifecycle` | Linux GNU x64 | blocked | New-terminal persistent PATH, reinstall, relocation, and isolated removal need desktop evidence |
+| `desktop.clean-install` | macOS ARM64 | blocked | CI is not a clean desktop; no disposable macOS desktop selected for this run |
+| `desktop.real-upgrade` | All three package targets | blocked | Two distinct identified candidates and an approved environment are required |
+| `desktop.trust` | All three package targets | blocked | Normal browser-download and OS trust behavior has no complete evidence |
+| `desktop.minimum-runtime` | All three package targets | blocked | Tested combinations are known; minimum supported versions are not established |
+| `native.synthetic-lifecycle` | Windows Credential Manager | passed | [Synthetic native-store result](#synthetic-native-store-result); feature build only |
+| `native.release-lifecycle` | All three credential services | blocked | Packaged-binary store evidence needs disposable identities and exact approvals |
+| `native.synthetic-lifecycle` | macOS login Keychain, Linux Secret Service | blocked | Safe platform procedure, disposable identities, and exact approvals are required |
+| `native.locked-unavailable` | All three credential services | blocked | Safe isolated failure states and exact approvals are required |
+| `client.discovery-lifecycle` | VS Code, Claude Code, Copilot CLI | blocked | Each client needs an isolated approved discovery, safe-error, shutdown/restart, and removal run |
+| `browser.manual-setup-removal` | Windows regular Chrome, stable Edge | passed | [Browser versions, setup/removal, and cleanup](#manual-browser-installation-result) |
+| `browser.package-lifecycle` | Windows regular Chrome, stable Edge | blocked | Actual host/fallback launch, foreign preservation, mismatch/conflict cases, and distinct-candidate updates remain untested |
+| `account.client-reads` | Supported Windows reads in real clients | blocked | New exact account approval and client prerequisites are required |
+| `account.production-login` | Linux and macOS | not_applicable | Not supported by this acceptance scope; Linux implementation is tracked in #52 |
+
+Real clients and account reads remain unapproved. No next disposable environment
+is selected. Earlier budgets, approvals, and plan approval do not grant any new
+provisioning or the gates below.
 
 ## Gate 1: clean desktop
 
