@@ -5,6 +5,23 @@ Issue [#34](https://github.com/PlagueHO/beyond-gate/issues/34) stays open until
 the required desktop evidence exists. A package check, synthetic registration,
 or development-machine run is not a clean desktop result.
 
+## Issue completion checks
+
+These statuses describe the checks in [#34](https://github.com/PlagueHO/beyond-gate/issues/34).
+They do not change the overall partial acceptance status.
+
+| Completion check | Status | Evidence or remaining work |
+|------------------|--------|----------------------------|
+| Record candidate versions, platforms, commands, results, and gaps | completed for the checks run | [Candidate evidence](#candidate-and-evidence) and the [acceptance matrix](#remaining-acceptance-matrix) record results and limits |
+| Validate startup without development runtimes and state minimum OS/runtime requirements | partial | Windows startup and Linux shell startup have evidence; minimum versions and other clean desktops remain unverified |
+| Check locked or unavailable stores and cleanup using isolated state | incomplete | Windows synthetic lifecycle and cleanup passed; locked or unavailable stores remain untested |
+| Check real client discovery, shutdown, and supported reads when prerequisites exist | partial | VS Code discovery, shutdown, and one supported read passed; Copilot CLI discovery and shutdown passed offline; other client cases remain unverified or deferred |
+| Update installation and troubleshooting guidance and identify untested claims | completed | [Installation and troubleshooting](installation.md) and the [acceptance matrix](#remaining-acceptance-matrix) state known requirements and gaps |
+| Check extension installation, native-host setup, updates, and removal for each claimed browser/OS combination | partial | Windows Chrome and Edge setup, direct host launch, and removal passed; distinct-candidate updates and other lifecycle cases remain untested |
+
+The user deferred Claude Code and macOS checks for this work. The original issue
+remains open because its full completion checks are not yet met.
+
 ## Candidate and evidence
 
 Use the [package matrix](installation.md#package-matrix). Its three native CI
@@ -326,6 +343,242 @@ It verified that the owned resource group was absent before removing its
 protected local state. No VM, disk, or public IP from this run remains.
 The final subscription-specific charge was not measured.
 
+### Browser-to-native-host negative checks
+
+On 2026-11-07, a separate approved disposable Windows 11 Enterprise 25H2 x64
+VM used the retained `0.1.0` Windows archive and the same image, size, and
+region as the [Windows desktop follow-up](#separately-approved-windows-desktop-follow-up).
+The signed Microsoft Visual C++ runtime, stable Edge `157.0.4341.42`, and
+regular Chrome `157.0.8103.39` were installed or verified. The package and native
+host hashes and extension ID matched the
+[manual installation result](#manual-browser-installation-result).
+
+The user loaded the packaged extension in each fresh browser profile and
+confirmed its ID. With no pending login, the user submitted one synthetic
+43-character key and selected the required consent checkbox. The user observed
+both the `Login did not complete` heading and the message `Start a new
+interactive beyond-gate auth login command.` in each browser. Edge was tested
+first; its registration was removed before Chrome was installed. Both selected
+per-user registrations and their host manifests were absent after removal.
+
+The expected `no_pending_login` response requires the browser extension to
+reach the native host. The extension queries a cookie only after a pending
+authorization response, which this test did not receive. No login or account
+access was approved or attempted. This was not a network or cookie-access trace.
+The test does not establish a successful login, cookie handoff, or Edge fallback.
+The guest helper recorded package identity, browser versions, setup, and removal;
+the browser UI results are user observations.
+
+After both removal checks, the ownership-checked cleanup deleted the VM
+resource group and protected local access files. A separate check confirmed
+that the resource group and local access state were absent. The final Azure
+charge was not measured; the USD 10 planning ceiling was not an enforced cap.
+
+### Azure Linux package-only follow-up
+
+A credential-free follow-up on 2026-11-07 used the retained Linux x64 `0.1.0`
+archive and pinned image
+`Canonical:ubuntu-24_04-lts:server:24.04.202610250`.
+The VM used `Standard_D2s_v5`, a 32-GiB Standard SSD LRS OS disk, and Australia
+East. SSH allowed only the runner's source address. The SSH host key was checked
+through the Azure control plane before transfer. No development runtime or
+desktop environment was installed for these checks.
+
+The guest reported Ubuntu 24.04.5 LTS, `x86_64`, kernel
+`7.0.0-1017-azure`, and glibc `2.39`. Package versions were
+`libc6` `2.39-0ubuntu8.9`, `libgcc-s1` `14.2.0-4ubuntu2~24.04.1`, and
+`bash` `5.2.21-2ubuntu4`. Command lookup found no Rust, Cargo, `python`, Node.js,
+npm, PowerShell 7, .NET, VS Code, Claude Code, or Copilot CLI commands.
+System `python3` was present at version `3.12.3`. This is an observed inventory,
+not proof that all development runtimes were absent.
+
+Session-only orchestration used
+`pwsh -NoProfile -File <run-directory>\run-linux-package-vm.ps1`.
+It transferred the verified archive and an owned shell script to the disposable
+account. The guest command was
+`timeout 180 bash "$HOME/verify-linux-package.sh"`.
+The final orchestration returned exit code `0`. Its safe report,
+`linux-package-shell-report.json`, records scope `linux-package-shell`,
+`desktop_session: false`, and `full_desktop_acceptance: false`.
+
+| Case | Expected and observed result |
+|------|------------------------------|
+| Inventory and identity | Command/runtime inventory recorded; archive SHA-256 matched the retained candidate; six regular package files and the root directory matched |
+| Startup and dependencies | Both binaries retained executable permission; `ldd "$install/$binary"` found no missing library; `"$install/$binary" --help` and `"$install/$binary" --version` passed without stderr |
+| Process-local PATH | Both binary names started from the installation path with spaces |
+| New login shell PATH | `bash --login -c 'beyond-gate --version && beyond-gate-mcp --version'` read the disposable account's profile and returned both exact `0.1.0` versions |
+| Same-candidate reinstall | All six extracted files matched byte for byte |
+| Relocation | Both binaries started after moving the installation to another path with spaces |
+| Removal and preservation | Both installations were removed; a fresh login shell no longer found either binary; an unrelated synthetic PATH entry and sentinel were preserved |
+| Cleanup | The original profile was restored byte for byte; owned guest files and temporary local access files were removed; Azure resource-group absence was verified |
+
+Two earlier attempts failed in the session scripts, not the product. The first
+script had Windows line endings and did not run. The second archive check
+rejected the valid `./` root directory; its failure key also failed the safe-output
+parser. The scripts were corrected. LF format, Bash syntax, and the archive
+contract were checked locally before the final passing run. Both failed reports
+were retained, and each attempt's VM resources were deleted before the next
+attempt. Only one VM existed at a time.
+
+The three sequential attempts used the user's new USD 10 total planning ceiling.
+The [Azure retail prices API](https://prices.azure.com/api/retail/prices)
+returned a Linux compute quote of USD 0.12 per hour before provisioning.
+Automatic shutdown was configured as a backup. The owned resource group was
+verified absent after each run; final absence was checked again.
+The actual subscription charge was not measured. The planning ceiling was not
+an enforced spending cap.
+
+Only package files, help, version, runtime lookup, and shell settings were checked.
+No native credential, browser, real client, sign-in, model call, or D&D Beyond
+request was used. A new login shell over noninteractive SSH is not a new desktop
+terminal. These results do not establish desktop PATH behavior, a strict
+runtime-free desktop baseline, download trust, a minimum OS/runtime, an actual
+upgrade, or Secret Service behavior.
+
+### Local VS Code Insiders prerequisite
+
+A separately approved local preflight used installed VS Code Insiders
+`1.145.0-insider`, commit `a3797664749856829367927a93d65834507e4d12`,
+and the retained Windows `0.1.0` candidate. The process had fresh user-data,
+extension, home, and `COPILOT_HOME` directories. Its PATH included the actual
+Insiders command directory and Windows System32, but no `code` command or shim.
+
+`beyond-gate mcp install vscode --dry-run` returned exit code `1`, empty stdout,
+and `error: VS Code was not found on PATH.` The generated test configuration
+was unchanged. The installer checks `code`, not `code-insiders`. No editor,
+MCP server, sign-in, model call, credential access, or D&D Beyond request ran.
+The owned local test directories were removed. The safe detection report remains
+session evidence.
+
+This is a demonstrated installer prerequisite limit, not a discovery result or
+an Insiders compatibility test. The next approved client run uses stable VS Code
+on a disposable Windows VM instead.
+
+### Stable VS Code registration follow-up
+
+A disposable Windows 11 Enterprise 25H2 x64 VM used the retained Windows
+`0.1.0` candidate and stable VS Code `1.145.2`, commit
+`c4453f8ea430795f941c1b2ff6c9321135a74a02`. The tested VS Code archive had
+SHA-256 `33cf166a751090fe7d244bf0e594e3c69c832d5ae2af1769140ad82a35ea1e0b`.
+The signed Microsoft Visual C++ x64 runtime was installed before testing.
+
+In the interactive test account, `beyond-gate mcp install vscode --dry-run`
+and the confirmed installation passed. Repeating installation preserved the
+registration. An unrelated synthetic setting was unchanged. Detection used the
+actual stable `code.cmd`, with no shim. The settings used a fresh `COPILOT_HOME`.
+
+GitHub temporarily blocked sign-in before the server was started. Discovery,
+invalid input, shutdown, restart, and entry removal were not tested. No model
+request or D&D Beyond request ran. The resource group and public IP were
+deleted. A local cleanup error was corrected and the cleanup repeated; final
+resource absence was verified. The fixed reports remain session evidence.
+
+#### Stable VS Code client retry
+
+A second disposable VM used the same Windows image and candidate, stable
+VS Code `1.145.2`, and an isolated test account and client profile. The user
+used MSTSC with clipboard redirection. The actual stable `code.cmd` was on
+the test process PATH. Registration, repeat registration, and preservation of
+an unrelated synthetic setting passed again.
+
+A session-only observer used the real VS Code `lm.tools` registry. It reported
+all eight Beyond Gate tools. One model-free `lm.invokeTool` call with an
+unknown field was rejected. The result does not identify whether the client or
+server rejected the input. The observer saw two distinct server processes,
+with an exit between them, and all eight tools remained available after the
+restart. This does not prove that VS Code fetched a fresh tool list on restart.
+No model-driven tool routing was tested.
+
+The user closed VS Code after the restart. A separate process check confirmed
+that the owned server and client were stopped. A removal helper deleted the
+test entry but failed when checking the resulting empty collection. A corrected
+helper verified the entry was absent and the unrelated synthetic setting
+remained. The user reopened the isolated profile and confirmed that
+`beyond-gate` was absent from **MCP: List Servers**. The first observer report
+still says removal was pending; the separate removal report and user check
+provide the later evidence.
+
+The reopened VS Code log included a `safeStorage.decryptString` failure. Its
+cause is unknown. This is not a successful authentication or credential-store
+test. The helper also initially used a stale redirected-drive shortcut; it was
+corrected before the client test. The test permitted no D&D Beyond requests
+or product credential access. An outbound firewall rule blocked the packaged
+MCP server. The observer made no model request. The test did not cover supported
+account reads or a model-driven agent call.
+
+After the test, the owned Azure resource group, public IP, and protected local
+access files were deleted. A separate Azure query verified their absence.
+The actual subscription charge was not measured.
+
+#### Local unsigned VS Code preflight
+
+Stable VS Code `1.143.1`, commit `e646868227c3e3a9e3f24277c8c7220be42c0be7`,
+ran on the existing Windows account with fresh user-data, extensions, home,
+and `COPILOT_HOME` directories. The process did not inherit authentication
+token variables. GitHub and Microsoft authentication extensions were disabled.
+The user started the retained packaged server in the test window.
+
+A session-only observer found all eight tools in `lm.tools` and invoked the
+unsupported `character_list` tool through `lm.invokeTool`. It reported an
+unsupported error without a model request. The core operation does not load a
+credential or send a request. The observer did not identify whether the client
+or server supplied the error. The owned editor and server exited after the
+check. No sign-in or live account read was performed.
+
+This preflight shows that this client version can expose and invoke a tool
+without sign-in in this test configuration. It does not prove complete
+OS credential-store isolation or that a supported account read will succeed.
+
+#### Local VS Code Web-library read
+
+The user separately approved one `book_list` call on the same Windows account.
+Stable VS Code `1.143.1` used the retained packaged server with fresh test
+settings and disabled GitHub and Microsoft authentication extensions. The
+session-only observer used `lm.invokeTool` without a model request. The test
+used the existing protected Beyond Gate entry and did not ask for credentials.
+
+The approved scope allowed at most two fixed-entry loads and five HTTP attempts:
+the fixed public configuration and protected Web-library GETs, with up to two
+authentication exchanges. It excluded retries, redirects, credential writes,
+and book content reads. The product's discovery deadline was 30 seconds; the
+observer cancelled after 35 seconds. Exact HTTP and credential-load counts
+were not instrumented.
+
+The call returned valid metadata for 169 books: 36 purchased and 133 unknown.
+No shared or unavailable books were reported. The observer retained only fixed
+status and aggregate counts, not book IDs, titles, URLs, or raw responses.
+VS Code could have written temporary state or logs in the test directory; the
+test did not inspect them. The owned editor and server exited, and the complete
+test directory was removed. No model-driven routing or GitHub sign-in was
+tested. This single read does not prove sharing or book-content access.
+
+### Local Copilot CLI offline client
+
+A separately approved local test used Copilot CLI `1.0.106` and the retained
+Windows `0.1.0` candidate. The installer used the real `copilot` executable,
+an installation path with spaces, a fresh `COPILOT_HOME`, and an empty working
+directory. Preview, confirmed registration, repeat registration, and preservation
+of an unrelated synthetic setting passed. `copilot mcp list --json` listed the
+test registration. That list alone does not establish tool discovery.
+
+The interactive client used a restricted process environment with no inherited
+authentication tokens. `COPILOT_OFFLINE=true` disabled GitHub authentication
+and network access in the client. A loopback provider address supplied the
+required local provider configuration. No model request was sent. The client's
+`/mcp` dashboard connected the packaged server and showed all eight tools.
+The dashboard's Disable action stopped the owned server process. Enable started
+a different process, and the dashboard again showed all eight tools. The dashboard
+then removed the test registration. The second server process exited, the
+registration disappeared, and the unrelated synthetic setting remained.
+
+The dashboard also showed four other disabled server names as session entries.
+Their source was not established. Therefore, the test does not prove complete
+client settings isolation. It used the current Windows identity, not a clean
+OS account. No sign-in, model-driven routing, model-free tool call, D&D Beyond
+request, or intentional credential access was performed. The safe-error case
+remains untested. Offline discovery is not evidence of an authenticated client
+or supported account reads. The test did not inspect the other server entries.
+
 ## Remaining acceptance matrix
 
 This matrix separates existing evidence from required work. A passed row
@@ -340,8 +593,10 @@ later desktop evidence is separate.
 | `desktop.startup` | Windows 11 Enterprise 25H2 x64 | passed | [Windows package results](#windows-package-startup-and-runtime) |
 | `desktop.path-lifecycle` | Windows 11 Enterprise 25H2 x64 | passed | [Windows PATH, reinstall, and relocation](#windows-package-startup-and-runtime) |
 | `desktop.startup` | Ubuntu 24.04.5 x64, XFCE | passed | [Linux desktop results](#azure-linux-desktop-baseline) |
-| `desktop.clean-inventory` | Ubuntu 24.04.5 x64 | blocked | Historical pre-desktop inventory did not enumerate all development tools and runtimes |
-| `desktop.path-lifecycle` | Linux GNU x64 | blocked | New-terminal persistent PATH, reinstall, relocation, and isolated removal need desktop evidence |
+| `package.linux-inventory` | Ubuntu 24.04.5 x64, noninteractive SSH | passed | [Observed command and runtime inventory](#azure-linux-package-only-follow-up); system Python 3 was present |
+| `package.linux-shell-lifecycle` | Linux GNU x64, noninteractive SSH | passed | [Package startup, login-shell PATH, reinstall, relocation, removal, and cleanup](#azure-linux-package-only-follow-up) |
+| `desktop.clean-inventory` | Ubuntu 24.04.5 x64 | blocked | Shell inventory is recorded, but a desktop baseline without development runtimes remains unverified |
+| `desktop.path-lifecycle` | Linux GNU x64 | blocked | Shell lifecycle passed; a new desktop terminal and desktop settings still need evidence |
 | `desktop.clean-install` | macOS ARM64 | blocked | CI is not a clean desktop; no disposable macOS desktop selected for this run |
 | `desktop.real-upgrade` | All three package targets | blocked | Two distinct identified candidates and an approved environment are required |
 | `desktop.trust` | All three package targets | blocked | Normal browser-download and OS trust behavior has no complete evidence |
@@ -350,15 +605,27 @@ later desktop evidence is separate.
 | `native.release-lifecycle` | All three credential services | blocked | Packaged-binary store evidence needs disposable identities and exact approvals |
 | `native.synthetic-lifecycle` | macOS login Keychain, Linux Secret Service | blocked | Safe platform procedure, disposable identities, and exact approvals are required |
 | `native.locked-unavailable` | All three credential services | blocked | Safe isolated failure states and exact approvals are required |
-| `client.discovery-lifecycle` | VS Code, Claude Code, Copilot CLI | blocked | Each client needs an isolated approved discovery, safe-error, shutdown/restart, and removal run |
+| `client.registration` | Windows x64, stable VS Code | passed | [Registration follow-up](#stable-vs-code-registration-follow-up) and [client retry](#stable-vs-code-client-retry) |
+| `client.discovery` | Windows x64, stable VS Code | passed | [Client retry](#stable-vs-code-client-retry); all eight tools appeared in the real client |
+| `client.discovery-lifecycle` | Windows x64, stable VS Code | blocked | Stop, restart, and removal have evidence, but a fresh tool-list fetch after restart was not verified |
+| `client.registration` | Windows x64, Copilot CLI | passed | [Offline client](#local-copilot-cli-offline-client); test configuration and synthetic setting only |
+| `client.discovery` | Windows x64, Copilot CLI offline | passed | [Offline client](#local-copilot-cli-offline-client); all eight tools before and after restart |
+| `client.discovery-lifecycle` | Windows x64, Copilot CLI | blocked | Offline stop, restart, and removal passed; safe-error and full settings isolation remain unverified |
+| `client.discovery-lifecycle` | Claude Code | deferred | The user did not prioritize this client |
 | `browser.manual-setup-removal` | Windows regular Chrome, stable Edge | passed | [Browser versions, setup/removal, and cleanup](#manual-browser-installation-result) |
-| `browser.package-lifecycle` | Windows regular Chrome, stable Edge | blocked | Actual host/fallback launch, foreign preservation, mismatch/conflict cases, and distinct-candidate updates remain untested |
-| `account.client-reads` | Supported Windows reads in real clients | blocked | New exact account approval and client prerequisites are required |
+| `browser.host-no-pending` | Windows regular Chrome, stable Edge | passed | [Direct browser-to-host negative checks](#browser-to-native-host-negative-checks); no login or cookie handoff |
+| `browser.package-lifecycle` | Windows regular Chrome, stable Edge | blocked | Direct host launch has evidence; fallback, foreign preservation, mismatch/conflict cases, and distinct-candidate updates remain untested |
+| `account.client-read` | Windows x64, stable VS Code `book_list` | passed | [One approved Web-library read](#local-vs-code-web-library-read); no model-driven routing |
+| `account.client-reads` | Other supported reads and clients | blocked | Each live case needs a new exact account approval and client prerequisites |
 | `account.production-login` | Linux and macOS | not_applicable | Not supported by this acceptance scope; Linux implementation is tracked in #52 |
 
-Real clients and account reads remain unapproved. No next disposable environment
-is selected. Earlier budgets, approvals, and plan approval do not grant any new
-provisioning or the gates below.
+The separate stable VS Code approval permitted at most three MCP server starts,
+one unknown-field rejection check, and one model request. The observer recorded
+two starts and no model request. D&D Beyond requests and product credential
+access were excluded. The separate Copilot CLI test also excluded account reads,
+sign-in, and model requests. Other client and account tests need new approval.
+The USD 10 total planning ceiling and one-VM limit applied to this run.
+This approval does not authorize the other gates below.
 
 ## Gate 1: clean desktop
 

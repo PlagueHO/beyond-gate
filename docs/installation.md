@@ -182,6 +182,12 @@ not prove that a new Windows desktop has the required runtime.
 record `ldd` output for both binaries. A build on Ubuntu 24.04 is not proof of
 compatibility with an older glibc. A missing loader or shared library needs a
 compatible OS/runtime, not a Python or Node.js installation.
+The retained `0.1.0` package also passed startup and shell lifecycle checks on
+Ubuntu 24.04.5 x64 with glibc `2.39` and `libgcc-s1`
+`14.2.0-4ubuntu2~24.04.1`. These are tested combinations, not minimum versions.
+The image included system Python 3. No extra development runtime was installed.
+See the [Linux package-only evidence](desktop-acceptance.md#azure-linux-package-only-follow-up)
+for the inventory, PATH, removal, and desktop limits.
 
 Local `auth status` and `auth logout` also require a user session D-Bus service
 and a Secret Service provider with an unlocked default collection. Examples are
@@ -247,6 +253,9 @@ The supported clients are VS Code, Claude Code, and GitHub Copilot CLI.
 Their commands (`code`, `claude`, or `copilot`) must be available on PATH.
 Client applications have their own requirements; they are not a runtime
 dependency of the Beyond Gate binaries.
+The VS Code installer checks only `code`. An Insiders-only installation with
+`code-insiders` does not meet that prerequisite. This does not establish whether
+manual MCP registration works in Insiders.
 
 Preview the selected registration first:
 

@@ -9,7 +9,23 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - Desktop acceptance matrix with retained three-target package checks and
   separately approved Windows desktop, synthetic native-store, and Chrome/stable
-  Edge setup/removal evidence. Remaining acceptance gaps stay explicit.
+  Edge setup/removal evidence. A disposable Ubuntu VM also checked command/runtime
+  inventory, package startup, login-shell PATH, reinstall, relocation, removal,
+  and cleanup. Shell-only results do not establish desktop acceptance.
+  An isolated local preflight also records the `code` command prerequisite that
+  an Insiders-only installation does not meet. A disposable Windows retry checked
+  real stable VS Code tool discovery, a model-free input rejection, process
+  stop/restart, and registration removal. A separate unsigned local VS Code
+  preflight discovered the tools and invoked an unsupported read without a model.
+  One separately approved VS Code `book_list` call returned bounded Web-library
+  metadata without a model request; temporary client state was removed.
+  An offline local Copilot CLI session
+  showed all eight tools before and after a restart and removed the registration.
+  Its safe-error case and complete settings isolation remain unverified.
+  Separate Edge and Chrome checks reached the packaged native host with a
+  synthetic key and no pending login. They do not prove a cookie handoff or
+  Edge fallback.
+  Remaining acceptance gaps stay explicit.
 - Offline package evidence reports with candidate hashes, supplied source identity,
   host versions, fixed case results, cleanup, and explicit manual acceptance gaps.
   Package checks cover process-local PATH startup, missing siblings, same-candidate
