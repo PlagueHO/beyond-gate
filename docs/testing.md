@@ -1070,6 +1070,9 @@ Its credential-free selection then passed with 108 passed cases, 50 blocked live
 cases, and four unselected native cases. This does not explain the earlier five
 installation failures or add new native-store evidence.
 
+See the [desktop acceptance matrix](desktop-acceptance.md#remaining-acceptance-matrix)
+for later native-store evidence and remaining gaps.
+
 The off-by-default `e2e-isolation` feature changes only credential identity.
 The fixed service is `beyond-gate-e2e`. The account is a random 32-character
 lowercase hexadecimal run context. `BEYOND_GATE_E2E_CONTEXT` carries that
