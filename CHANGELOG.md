@@ -25,6 +25,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Separate Edge and Chrome checks reached the packaged native host with a
   synthetic key and no pending login. They do not prove a cookie handoff or
   Edge fallback.
+  A disposable Linux desktop checked one synthetic Secret Service entry with
+  feature-built binaries, including repeated logout and explicit errors for
+  locked and unavailable stores. Release-binary storage remains unverified.
+  A Windows unavailable-store attempt stopped before credential entry operations
+  because its Remote Desktop certificate fingerprint could not be verified.
   Remaining acceptance gaps stay explicit.
 - Offline package evidence reports with candidate hashes, supplied source identity,
   host versions, fixed case results, cleanup, and explicit manual acceptance gaps.
