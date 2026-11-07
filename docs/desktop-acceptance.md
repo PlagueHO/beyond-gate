@@ -14,13 +14,18 @@ They do not change the overall partial acceptance status.
 |------------------|--------|----------------------------|
 | Record candidate versions, platforms, commands, results, and gaps | completed for the checks run | [Candidate evidence](#candidate-and-evidence) and the [acceptance matrix](#remaining-acceptance-matrix) record results and limits |
 | Validate startup without development runtimes and state minimum OS/runtime requirements | partial | Windows startup and Linux shell startup have evidence; minimum versions and other clean desktops remain unverified |
-| Check locked or unavailable stores and cleanup using isolated state | incomplete | Windows synthetic lifecycle and cleanup passed; locked or unavailable stores remain untested |
+| Check locked or unavailable stores and cleanup using isolated state | incomplete | Linux synthetic lifecycle and failure states passed; Windows locked and unavailable states remain untested |
 | Check real client discovery, shutdown, and supported reads when prerequisites exist | partial | VS Code discovery, shutdown, and one supported read passed; Copilot CLI discovery and shutdown passed offline; other client cases remain unverified or deferred |
 | Update installation and troubleshooting guidance and identify untested claims | completed | [Installation and troubleshooting](installation.md) and the [acceptance matrix](#remaining-acceptance-matrix) state known requirements and gaps |
 | Check extension installation, native-host setup, updates, and removal for each claimed browser/OS combination | partial | Windows Chrome and Edge setup, direct host launch, and removal passed; distinct-candidate updates and other lifecycle cases remain untested |
 
-The user deferred Claude Code and macOS checks for this work. The original issue
-remains open because its full completion checks are not yet met.
+The user deferred Claude Code and macOS checks to [#62](https://github.com/PlagueHO/beyond-gate/issues/62).
+The original issue remains open because its full completion checks are not yet met.
+The remaining desktop checks are deferred while CLI and MCP functionality is
+completed, including the character and campaign work in
+[#31](https://github.com/PlagueHO/beyond-gate/issues/31). Reuse completed
+evidence within its recorded candidate, platform, and test scope. New checks
+are still required when changes or release claims exceed that scope.
 
 ## Candidate and evidence
 
@@ -579,6 +584,118 @@ request, or intentional credential access was performed. The safe-error case
 remains untested. Offline discovery is not evidence of an authenticated client
 or supported account reads. The test did not inspect the other server entries.
 
+### Linux Secret Service synthetic follow-up
+
+A separately approved run on 2026-11-08 used one disposable Ubuntu 24.04 x64
+Azure VM in Australia East. It used the image
+`Canonical:ubuntu-24_04-lts:server:24.04.202610250`, size `Standard_D2s_v5`,
+kernel `7.0.0-1017-azure`, XFCE, D-Bus `1.14.10-4ubuntu4.1`, GNOME Keyring
+`46.1-2ubuntu0.2`, and Seahorse `43.0-3build2`. The first Remote Desktop session
+failed because the Xorg backend was missing. Installing `xorgxrdp`
+`1:0.9.19-1` and `xserver-xorg-core` allowed a later desktop sign-in.
+
+The test used Linux binaries built from commit
+`4f842080dd0c6e02d5294bab2081992962aec0b7` with the off-by-default
+`e2e-isolation` feature. The stripped CLI SHA-256 was
+`e20b40937bed7509d3c5d2b8dcc0f28b5ce8aba8a15a3e9cdac4d4ca4f6c9789`;
+the stripped helper SHA-256 was
+`643ed06e7fc48f83d7db5b5e458a940ded7ca004eb98b8751488d2f525f53743`.
+These are feature-built test binaries, not the retained release package.
+
+The user created a disposable default keyring and ran a session-only test
+runner in the desktop account. The runner verified both binary hashes and
+isolation handshakes. The user confirmed that `init` returned the ready result
+and that `healthy` checked absence, one synthetic write, and stored-unverified
+status. The commands were:
+
+```bash
+python3 ./linux-store-runner.py init
+python3 ./linux-store-runner.py healthy
+python3 ./linux-store-runner.py locked
+python3 ./linux-store-runner.py emergency-cleanup
+```
+
+The `locked` step stopped before a native entry operation. The runner did not
+report a specific cause, so the locked case is blocked, not passed. The
+unavailable case was not run after that stop. The user then reported that
+`emergency-cleanup` removed the synthetic entry and verified absence. A separate
+safe state check recorded phase `cleaned` and five attempted entry operations.
+The cleanup used the helper, not a repeated CLI logout check.
+
+The test used no D&D Beyond account, browser login, or product credential entry.
+The session-only runner and fixed-shape report are not shipped or run in CI.
+An independent query confirmed that the VM resource group and protected local
+access files were absent. Azure charges were not measured. The USD 10 planning
+ceiling was not an enforced spending cap.
+
+### Linux Secret Service locked-store retry
+
+A separately approved retry on 2026-11-08 used a new disposable VM with the
+same image, size, kernel, desktop, D-Bus, GNOME Keyring, Seahorse, xrdp, and
+xorgxrdp versions as the earlier follow-up. It used the same feature-built
+binaries. A separate copy of the session-only runner added fixed preflight stop
+categories. Its offline guard tests passed.
+
+The user created and unlocked a disposable default keyring. The runner checked
+absence, wrote one synthetic entry, and reported stored-unverified status.
+After the user locked the keyring, the locked `status` operation returned
+`storage_access`. The user cancelled both unlock prompts. The locked `logout`
+operation returned `unexpected_result`; the runner did not retain the native
+output, so the cause and exact product response are unknown. The test stopped
+at that result. The unavailable-service and repeated CLI logout checks did not
+run.
+
+After the user unlocked the keyring, helper cleanup and the final absence check
+passed. A separate safe state check confirmed phase `cleaned` and seven attempted
+entry operations. The test used no D&D Beyond account, browser login, or product
+credential entry. These results do not prove Linux production login or session
+use. An independent query confirmed that the VM resource group and protected
+local access files were absent. Azure charges were not measured.
+
+### Linux Secret Service complete synthetic run
+
+A further separately approved run on 2026-11-08 used a disposable Ubuntu VM
+with the same image, size, kernel, desktop, and package versions as the locked
+store retry. A previous attempt stopped at initialization with phase `ready`,
+zero entry operations, and no synthetic write. The user later reported that the
+initialization command may have run twice. That attempt did not proceed.
+
+The completed run used the same feature-built binaries and a revised session-only
+runner. The runner recognizes both status and logout error formats without
+recording native output. Its offline guard and diagnostic tests passed. The
+user confirmed the following results from the desktop session:
+
+1. Initial absence, one synthetic write, and stored-unverified status passed.
+2. With the default keyring locked, status and logout both returned
+   `storage_access`. The user cancelled the unlock prompts.
+3. After the keyring was unlocked, stored-unverified status passed.
+4. On an isolated D-Bus session without an owned or activatable Secret Service
+   provider, status and logout both returned `storage_failure`. Both results
+   were explicit errors, not absent-session results or plaintext fallbacks.
+5. Two CLI logout operations and the final absence check passed.
+
+A separate safe state check confirmed phase `cleaned` and 11 attempted entry
+operations. The approved limit was 13, including two reserved for emergency
+cleanup. The test did not use a D&D Beyond account, browser login, or product
+credential entry. These feature-build results do not prove release-binary
+storage behavior or Linux production login and session use. An independent
+query confirmed that the VM resource group and protected local access files
+were absent. Azure charges were not measured.
+
+### Windows unavailable-store attempt
+
+On 2026-11-08, a separately approved Windows 11 Enterprise 25H2 x64 VM was
+created for a synthetic unavailable-store test. The test stopped before Remote
+Desktop sign-in because the VM certificate fingerprint could not be verified.
+The cause was not established. No native credential entry operation or
+D&D Beyond request ran. The locked and unavailable Windows store cases remain
+unverified.
+
+The approved limit was 11 native entry operations, including two reserved for
+emergency cleanup. A separate query confirmed that the VM resource group and
+protected local access files were absent. The deletion guard stopped after that
+check. Azure charges were not measured.
+
 ## Remaining acceptance matrix
 
 This matrix separates existing evidence from required work. A passed row
@@ -603,8 +720,12 @@ later desktop evidence is separate.
 | `desktop.minimum-runtime` | All three package targets | blocked | Tested combinations are known; minimum supported versions are not established |
 | `native.synthetic-lifecycle` | Windows Credential Manager | passed | [Synthetic native-store result](#synthetic-native-store-result); feature build only |
 | `native.release-lifecycle` | All three credential services | blocked | Packaged-binary store evidence needs disposable identities and exact approvals |
-| `native.synthetic-lifecycle` | macOS login Keychain, Linux Secret Service | blocked | Safe platform procedure, disposable identities, and exact approvals are required |
-| `native.locked-unavailable` | All three credential services | blocked | Safe isolated failure states and exact approvals are required |
+| `native.synthetic-entry` | Linux Secret Service | passed | [Synthetic write, status, and removal](#linux-secret-service-synthetic-follow-up); feature build and user-observed results only |
+| `native.synthetic-lifecycle` | Linux Secret Service | passed | [Synthetic lifecycle](#linux-secret-service-complete-synthetic-run), including repeated CLI logout; feature build only |
+| `native.synthetic-lifecycle` | macOS login Keychain | deferred | Tracked in #62 |
+| `native.locked-unavailable` | Linux Secret Service | passed | [Locked and isolated unavailable service checks](#linux-secret-service-complete-synthetic-run); feature build only |
+| `native.locked-unavailable` | Windows Credential Manager | blocked | The [unavailable-store attempt](#windows-unavailable-store-attempt) stopped before entry operations; a new run needs approval |
+| `native.locked-unavailable` | macOS login Keychain | deferred | Tracked in #62 |
 | `client.registration` | Windows x64, stable VS Code | passed | [Registration follow-up](#stable-vs-code-registration-follow-up) and [client retry](#stable-vs-code-client-retry) |
 | `client.discovery` | Windows x64, stable VS Code | passed | [Client retry](#stable-vs-code-client-retry); all eight tools appeared in the real client |
 | `client.discovery-lifecycle` | Windows x64, stable VS Code | blocked | Stop, restart, and removal have evidence, but a fresh tool-list fetch after restart was not verified |
@@ -678,7 +799,7 @@ delete, or lock the normal product entry.
 |----|--------------|-------------------------|
 | Windows | Windows Credential Manager under the approved test account | The existing [isolated native-storage harness](testing.md#isolated-native-storage) uses feature-built binaries and a random synthetic entry. It does not prove release-binary storage behavior. |
 | macOS | Available login Keychain in a disposable desktop account | Use only an approved test entry. No portable isolated native-store harness is implemented. Mark execution blocked until the test method and identity are approved. |
-| Linux | User session D-Bus and a Secret Service provider with a default collection | Use a disposable desktop account and test collection. No portable isolated native-store harness is implemented. Production login/session use remains tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52). |
+| Linux | User session D-Bus and a Secret Service provider with a default collection | Use a disposable desktop account and test collection. The session-only follow-up is not a shipped native-store harness. Production login/session use remains tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52). |
 
 Check absent state, synthetic write/read, stored-unverified status, logout,
 repeated logout, and final absence. A stored entry is not current upstream
