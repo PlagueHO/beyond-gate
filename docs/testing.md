@@ -26,6 +26,13 @@ candidate metadata, host versions, and cleanup. Manual acceptance cases remain
 blocked, and `full_coverage` stays false. These reports do not replace the manual
 suite or its separately approved native-store evidence.
 
+The [Linux package-only follow-up](desktop-acceptance.md#azure-linux-package-only-follow-up)
+records a disposable VM's command/runtime inventory, both binaries' startup,
+new-login-shell PATH, reinstall, relocation, removal, and verified cleanup.
+It used noninteractive SSH, not a desktop terminal. System Python 3 was present.
+No credential, real-client, browser, or account operation was tested.
+The passing shell report is not full desktop acceptance.
+
 [`capabilities.json`](../scripts/e2e/capabilities.json) lists commands, argument
 names, output formats, completion shells, installation clients, MCP tools, and
 live assertions. The suite expands these into individually reported cases.
