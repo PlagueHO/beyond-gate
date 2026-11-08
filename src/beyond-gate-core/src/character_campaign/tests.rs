@@ -76,6 +76,18 @@ async fn missing_campaign_stops_before_roster_request() {
     assert_eq!(fixture::request_count(&session), 1);
 }
 
+/// Rejects conflicting campaign summaries before requesting the selected roster.
+#[tokio::test]
+async fn conflicting_campaign_stops_before_roster_request() {
+    let session =
+        fixture::session(fixture::Scenario::ConflictingCampaigns).expect("synthetic services");
+    assert!(matches!(
+        get_campaign(&session, "8").await,
+        Err(CharacterCampaignError::ConflictingRecord)
+    ));
+    assert_eq!(fixture::request_count(&session), 1);
+}
+
 /// Maps an HTTP 404 on the selected character route to an explicit missing record.
 #[tokio::test]
 async fn missing_character_is_not_reported_as_a_session_failure() {
@@ -128,6 +140,12 @@ async fn live_source_failures_remain_explicit() {
         ),
         "unexpected denied-roster result: {denied_result:?}; routes={:?}",
         fixture::requested_routes(&denied),
+    );
+    assert!(
+        denied_result
+            .expect_err("denied roster must fail")
+            .to_string()
+            .contains("access_denied: the service denied access to the selected resource")
     );
     assert_eq!(fixture::request_count(&denied), 2);
 }

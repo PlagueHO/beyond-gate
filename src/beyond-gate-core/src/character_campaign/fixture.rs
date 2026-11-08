@@ -28,6 +28,8 @@ pub enum Scenario {
     MalformedCampaigns,
     /// Returns a successful campaign list without the selected campaign.
     MissingCampaign,
+    /// Returns conflicting campaign summaries with the same identifier.
+    ConflictingCampaigns,
     /// Returns a selected character with a different source identifier.
     ChangedCharacter,
     /// Returns not found for the selected character route.
@@ -183,6 +185,13 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         }
         if matches!(scenario, Scenario::MalformedCampaigns) {
             return (200, r#"{"status":"unknown","data":[]}"#.to_owned());
+        }
+        if matches!(scenario, Scenario::ConflictingCampaigns) {
+            return (
+                200,
+                r#"{"status":"success","data":[{"id":8,"name":"Invented Campaign","playerCount":2},{"id":8,"name":"Different Campaign","playerCount":2}]}"#
+                    .to_owned(),
+            );
         }
         return (
             200,

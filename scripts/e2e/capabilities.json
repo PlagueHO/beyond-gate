@@ -32,10 +32,10 @@
   "browsers": ["chrome", "edge"],
   "session_validation": { "path": "auth validate", "tool": "auth_validate", "arguments": {} },
   "reads": [
-    { "path": "character list", "tool": "character_list", "arguments": {}, "list": true },
-    { "path": "character show", "tool": "character_show", "arguments": { "id": "synthetic" }, "list": false },
-    { "path": "campaign list", "tool": "campaign_list", "arguments": {}, "list": true },
-    { "path": "campaign show", "tool": "campaign_show", "arguments": { "id": "synthetic" }, "list": false },
+    { "path": "character list", "tool": "character_list", "arguments": {}, "list": true, "requires_session": true },
+    { "path": "character show", "tool": "character_show", "arguments": { "id": "synthetic" }, "list": false, "requires_session": true },
+    { "path": "campaign list", "tool": "campaign_list", "arguments": { "active_only": false }, "list": true, "requires_session": true },
+    { "path": "campaign show", "tool": "campaign_show", "arguments": { "id": "synthetic" }, "list": false, "requires_session": true },
     { "path": "book list", "tool": "book_list", "arguments": {}, "list": true, "requires_session": true },
     { "path": "book outline", "tool": "book_outline", "arguments": { "book_id": "synthetic" }, "list": true, "requires_session": true },
     { "path": "book read", "tool": "book_read", "arguments": { "book_id": "synthetic", "section_id": "opening" }, "list": false, "requires_session": true }
