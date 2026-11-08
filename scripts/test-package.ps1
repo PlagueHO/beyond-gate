@@ -302,7 +302,7 @@ try {
     Assert-Package ($result.Code -eq 0 -and $result.Err -eq '' -and $result.Out.TrimEnd("`r", "`n") -ceq "$name $Version") "$name version contract failed."
     $result = Invoke-PackagedProcess $binary @('--help')
     Assert-Package ($result.Code -eq 0 -and $result.Err -eq '' -and $result.Out.Contains("Usage: $name")) "$name help contract failed."
-    Assert-Package ($result.Out -match 'not implemented|unsupported') "$name help must keep the implementation limit."
+    Assert-Package ($result.Out -match '(?s)Character.*campaign.*read.*fixed.*bounded') "$name help must describe bounded character and campaign reads."
     $result = Invoke-PackagedProcess $binary @('--unknown')
     Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err -ne '') "$name invalid usage contract failed."
   }

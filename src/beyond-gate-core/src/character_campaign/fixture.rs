@@ -91,9 +91,10 @@ impl Source {
                     }
                     Err(_) => break,
                 };
-                if stream
-                    .set_read_timeout(Some(Duration::from_secs(10)))
-                    .is_err()
+                if stream.set_nonblocking(false).is_err()
+                    || stream
+                        .set_read_timeout(Some(Duration::from_secs(10)))
+                        .is_err()
                     || stream
                         .set_write_timeout(Some(Duration::from_secs(10)))
                         .is_err()
