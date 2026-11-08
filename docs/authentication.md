@@ -8,7 +8,10 @@ and cleanup. See the [scope and evidence](testing.md#approved-windows-product-lo
 Windows session validation and process-local reuse are implemented and tested
 with synthetic services and stores. Windows library metadata discovery now uses
 that lifecycle for bounded Web-catalog reads. Approved native CLI/MCP checks
-returned matching metadata and evidence. Other live resource reads remain unsupported.
+returned matching metadata and evidence. Windows book outline/read and
+character/campaign sources are implemented with synthetic process coverage.
+Selected book acceptance has evidence; character/campaign live acceptance remains
+unverified.
 macOS/Linux browser login and production session use remain deferred.
 Linux implementation is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
@@ -27,6 +30,45 @@ under the [current policy](roadmap.md#development-policy-and-technical-status).
 The earlier browser assessments and the
 [developer probe](#opt-in-session-exchange-probe) below retain dated evidence.
 They do not describe the current Windows implementation or authorize new tests.
+
+## Agreed authentication follow-up
+
+**Planned, not implemented:** [#52](https://github.com/PlagueHO/beyond-gate/issues/52)
+now owns shared CLI/MCP authentication and Linux terminal use. This user-directed
+scope replaces the earlier blanket prohibition on environment credential input.
+It does not change current commands or remove account-test approval boundaries.
+
+| Input path | Intended use | Storage |
+|------------|--------------|---------|
+| `CobaltSession` environment input | Recommended for CLI/MCP terminal-only use and client-supplied startup secrets | Process memory only; no browser or native store required |
+| Hidden CLI cookie prompt | Explicit manual input without echoed characters | Process memory unless protected save is explicitly requested |
+| Supported Chrome/Edge extension | Preferred interactive browser-assisted login when available | Protected save through explicit login |
+
+Select and document one environment variable name and the hidden-input command
+surface during implementation. MCP must not prompt on protocol streams or
+implicitly open a browser. Client secret-input references may supply its process
+environment; examples and client settings must not contain literal secrets.
+Do not add raw-cookie command-line arguments or credential-bearing MCP tools.
+
+An explicitly selected input overrides saved credentials. Invalid or rejected
+explicit input fails without silently switching sources. The shared core
+exchanges the cookie and keeps the derived bearer in memory. Normal environment
+use never saves automatically. It must work without a desktop, D-Bus, or Secret
+Service. Environment values can be inherited by child processes; process memory
+does not guarantee erasure of OS or caller copies.
+
+Only explicit login/import persists to protected OS storage. Its locked or
+unavailable state remains an error, not a plaintext fallback. Define safe
+source/status/logout meanings before implementing the new paths. A restarted
+process needs its process-only input again. Logout cannot erase environment input
+from another process or claim upstream revocation.
+
+Prioritize Windows and Linux implementation and acceptance. Use the common design
+for macOS, but defer native validation to
+[#62](https://github.com/PlagueHO/beyond-gate/issues/62).
+Linux browser registration and protected handoff are a later optional stage,
+not a prerequisite for environment authentication or Linux reads.
+The current behavior below remains in effect until #52 is implemented.
 
 ## Browser login window
 
@@ -92,11 +134,13 @@ code 2. A locked store or a failed service is not an absent session. Status does
 not modify a credential. Logout deletes its entry without first reading its
 secret, so it can also remove invalid stored data.
 
-There is no credential import command. Do not create a credential manually to
+There is currently no credential import command. Do not create a credential manually to
 work around failed browser setup. The Windows CLI calls the core write
 boundary after paired submission. Offline tests use synthetic values only.
-No credential argument,
-environment input, password prompt, or MCP credential input is added.
+Current commands do not accept environment cookie input or a hidden cookie
+prompt. Those paths and explicit protected import are planned in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Raw-cookie arguments and credential-bearing MCP inputs remain excluded.
 The MCP `auth_validate` tool uses the same core validation as the CLI.
 Both explicit validation operations can contact the fixed authentication service.
 Resource read tools use the protected stored session for supported reads.
@@ -122,8 +166,10 @@ An ambiguous match is an error; no duplicate is selected or deleted automaticall
 
 Headless Linux and WSL do not always provide a session bus or default collection.
 If protected storage cannot work in that environment, the command fails. Do not
-use a file or environment variable as a replacement. No password collection or
-headless unlock script is supplied. Other operating systems fail explicitly.
+use a plaintext file as a replacement. Current production session use does not
+accept environment input; #52's planned process-only path will not require native
+storage. No password collection or headless unlock script is supplied.
+Other operating systems fail explicitly.
 
 Backends do not expose identical errors. Access denied and locked storage share
 one category when they cannot be distinguished. A service connection failure can

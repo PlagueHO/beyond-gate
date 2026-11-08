@@ -348,6 +348,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Backlog and authentication guidance now prioritize Windows/Linux CLI and MCP
+  terminal use. #52 owns planned process-only `CobaltSession` environment input,
+  hidden CLI input, explicit protected save, and Linux session/read support.
+  Browser assistance stays optional. #34 separates simple-use acceptance from
+  optional paths and hardening; macOS/Claude Code validation stays in #62.
+  These scope changes do not implement authentication or establish new test passes.
 - Document the Windows x64 Visual C++ v14 Redistributable as a package runtime
   requirement, with supported WinGet and Microsoft download paths. Record clean
   Windows and Ubuntu 24.04.5 package startup evidence for test candidate `0.1.0`.
@@ -411,6 +417,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Desktop acceptance guidance no longer proposes implemented character/campaign
+  reads as account-free checks. Input rejection must stop before session access.
+  Installation guidance distinguishes `auth_validate`'s lack of credential input
+  from its protected-store and service access. Historical candidate results stay
+  unchanged; authentication implementation precedes new Windows/Linux acceptance,
+  and macOS/Claude Code checks remain deferred to #62.
 - The credential-free manual suite now checks Windows login's interactive-terminal
   refusal instead of the unsupported-platform message. Other platforms keep
   their existing expectation. Product login behavior is unchanged.

@@ -192,7 +192,9 @@ for the inventory, PATH, removal, and desktop limits.
 Local `auth status` and `auth logout` also require a user session D-Bus service
 and a Secret Service provider with an unlocked default collection. Examples are
 GNOME Keyring and a compatible KDE Wallet. Headless systems and WSL may not have
-these services. There is no plaintext or environment-variable credential fallback.
+these services. There is no plaintext fallback. Environment input is not
+implemented yet; the [agreed #52 authentication follow-up](authentication.md#agreed-authentication-follow-up)
+will allow process-only CLI/MCP use without these services or a browser.
 Package checks do not unlock or access a real credential store.
 
 **macOS:** Local session commands use the user's login Keychain. Unlock it through
@@ -280,9 +282,10 @@ Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
 `book_outline`, and `book_read`. Windows book reads use fresh library evidence
 and checked canonical cookie pages. Character and campaign reads use fixed
-bounded routes through the protected session. The additional credential-free
-`auth_validate` tool makes one fresh
-Windows session check; it does not grant content access.
+bounded routes through the protected session. The additional `auth_validate`
+tool accepts no credential input, but loads the protected Windows entry and
+makes one fresh service check. It is not an account-free smoke check and does
+not grant content access.
 Do not interpret discovery as successful login or live read access.
 Linux production login and session use are tracked in
 [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
@@ -319,16 +322,26 @@ for candidate-specific passes and remaining gaps. That guide also defines
 the procedures and required evidence.
 Native stores, real clients, browser setup, and account reads have separate
 approval gates. Package evidence never grants those approvals.
+Implement shared authentication and Linux terminal use in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52) first. Then
+[#34](https://github.com/PlagueHO/beyond-gate/issues/34) checks Windows/Linux
+CLI and real MCP clients. Environment input and a hidden CLI prompt remain
+planned, not usable commands. Optional browser/protected-save checks and deeper
+hardening remain separate; no live test is authorized by the backlog revision.
+macOS desktop and Keychain checks and Claude Code client checks are deferred to
+[#62](https://github.com/PlagueHO/beyond-gate/issues/62).
+Candidate-release decisions remain in
+[#41](https://github.com/PlagueHO/beyond-gate/issues/41).
 
 | Requirement | Evidence or blocker |
 |-------------|---------------------|
 | Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
 | Native startup and Windows runtime prerequisite | Package checks use a restricted child PATH and process-local PATH lookup. The Windows CI runner still provides system runtime libraries. `dumpbin /DEPENDENTS` records native imports, but does not prove a clean Windows desktop has the required Visual C++ Redistributable. The user must install it before first run. Clean-desktop, two-version upgrade, and OS trust checks remain manual acceptance cases. |
-| Local MCP startup and registration | Protocol checks and temporary synthetic settings. Actual client discovery remains a manual release blocker. |
+| Local MCP startup and registration | Protocol checks and temporary synthetic settings. Retained Windows VS Code and Copilot CLI discovery results have candidate-specific evidence; remaining lifecycle and isolation gaps stay open. |
 | CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library parity and one selected chapter's outline/initial-chunk parity passed separately from packaging. Synthetic source checks cover continuation and failures. Live continuation and sharing remain unchecked. |
 | Missing, expired, or rejected upstream session errors | Shared-session library and book source operations have synthetic failure checks. Live evidence is separate. |
 | Simple browser login and native credential-store operation | Approved Windows Chrome and Edge Dev product checks passed separately from packaging. Other-platform login remains deferred. New real-store tests need explicit approval. |
-| Live reads and client walkthrough | Native Web-library acceptance passed separately from packaging. Real sharing, other live reads, and actual client walkthrough remain unverified. New account checks need explicit approval. Stop on access denial. |
+| Live reads and client walkthrough | Native Web-library acceptance and one retained-candidate VS Code `book_list` call passed separately from packaging. Other real-client reads, model-driven routing, and sharing remain unverified. New account checks need explicit approval. Stop on access denial. |
 | Version, lockfile, dated changelog, assets, evidence, and draft release | Require maintainer review before publication. No tag or publication is authorized by issue #10 alone. |
 
 Manual packaging uploads artifacts only. A maintainer-approved version tag can
