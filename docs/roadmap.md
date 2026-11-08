@@ -165,15 +165,18 @@ Live continuation and sharing remain unchecked. No automatic continuation,
 whole-book operation, or content cache is added.
 
 Issue #7 provides `character list/show`, `campaign list/show`, and
-`book list/outline/read`. Character and campaign operations use fixed,
+`book list/outline/read`. Issue #65 adds `class list/show` and `subclass list/show`
+for bounded metadata only. Character and campaign operations use fixed,
 read-only Windows routes through the shared protected session. Lists and
 outlines support table, JSON, and TSV; show/read preserve structured JSON.
 Character and campaign show commands also support `--output` / `-o`, with
 `--format` as an alias. There is no product fixture input, cached content, or
 account snapshot.
 
-Issue #8 provides a local rmcp stdio server and seven matching read tools.
+Issue #8 provides a local rmcp stdio server. With issue #65, it has nine resource
+read tools. The separate `auth_validate` tool brings the total to ten.
 Character and campaign tools call the same bounded core operations as the CLI.
+`class_list` and `class_show` expose class/subclass metadata only.
 `campaign_list` can select the active collection with `active_only`; campaign
 show returns the selected active roster. Tool schemas, read-only annotations,
 bounded continuation input, and synthetic protocol process tests are

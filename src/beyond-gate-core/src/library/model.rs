@@ -4,7 +4,7 @@ use std::fmt;
 
 use reqwest::Url;
 
-use super::LibraryError;
+use super::{LibraryError, valid_text};
 
 /// Describes evidence for one purchase or sharing context in one discovery.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -275,9 +275,4 @@ impl fmt::Debug for Book {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("Book { metadata: [REDACTED] }")
     }
-}
-
-/// Requires meaningful, unpadded metadata without terminal control characters.
-pub(crate) fn valid_text(value: &str) -> bool {
-    !value.is_empty() && value.trim() == value && !value.chars().any(char::is_control)
 }

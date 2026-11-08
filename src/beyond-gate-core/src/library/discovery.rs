@@ -34,16 +34,11 @@ impl Configuration {
             }
         }
         let hidden = hidden.ok_or(LibraryError::InvalidMetadata)?;
-        let mut selection = HashMap::new();
-        for source in self.sources {
-            if selection
-                .insert(source.id, source.category != hidden)
-                .is_some()
-            {
-                return Err(LibraryError::ConflictingMetadata);
-            }
-        }
-        Ok(selection)
+        Ok(self
+            .sources
+            .into_iter()
+            .map(|source| (source.id, source.category != hidden))
+            .collect())
     }
 }
 

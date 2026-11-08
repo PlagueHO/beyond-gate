@@ -377,12 +377,21 @@ fn optional_metadata_and_parent_local_duplicates_are_explicit() {
 #[tokio::test]
 async fn cancellation_stops_waiting_discovery() {
     let session = fixture::session(Scenario::Waiting).expect("waiting source");
-    let operation = list(&session, ClassKind::Subclass, None, None);
-    assert!(
-        tokio::time::timeout(Duration::from_millis(100), operation)
-            .await
-            .is_err()
-    );
+    {
+        let operation = list(&session, ClassKind::Subclass, None, None);
+        tokio::pin!(operation);
+        let waiting = async {
+            while fixture::requested_routes(&session).len() < 2 {
+                tokio::time::sleep(Duration::from_millis(2)).await;
+            }
+        };
+        tokio::select! {
+            result = operation => panic!("waiting discovery returned early: {result:?}"),
+            observed = tokio::time::timeout(Duration::from_secs(5), waiting) => {
+                observed.expect("protected request started");
+            }
+        }
+    }
     assert_eq!(fixture::requested_routes(&session).len(), 2);
     assert_eq!(auth::request_count(&session), 1);
 }

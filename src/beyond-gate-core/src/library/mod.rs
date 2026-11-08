@@ -17,7 +17,7 @@ pub use model::{AccessEvidence, AccessState, Book, BookAccess, BookRecord};
 use std::{collections::HashSet, fmt};
 
 use crate::http::HttpError;
-pub(crate) use model::valid_text;
+pub(crate) use crate::public_config::valid_text;
 
 /// Maximum raw observations in one supplied page, before duplicate removal.
 pub const MAX_ENTRIES_PER_PAGE: usize = 100;
