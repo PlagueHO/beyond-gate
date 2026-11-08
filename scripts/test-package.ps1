@@ -355,14 +355,15 @@ try {
   $result = Invoke-PackagedProcess $cli @('auth', 'login')
   $loginReason = if ($IsWindows) { 'requires interactive stdin, stdout, and stderr' } else { 'no working session handoff' }
   Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains($loginReason)) 'Redirected login must fail without collecting credentials.'
+  # Reject invalid input before a read can open protected storage or contact its source.
   foreach ($arguments in @(
     ,@('character', 'list')
     ,@('character', 'show', 'synthetic')
     ,@('campaign', 'list')
     ,@('campaign', 'show', 'synthetic')
   )) {
-    $result = Invoke-PackagedProcess $cli $arguments
-    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('unsupported')) "Unsupported read contract failed: $arguments"
+    $result = Invoke-PackagedProcess $cli (@($arguments) + '--unexpected')
+    Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err.Contains("unexpected argument '--unexpected'")) "Read argument validation failed: $arguments"
   }
   foreach ($arguments in @(
     ,@('book', 'outline', 'synthetic')
@@ -376,8 +377,8 @@ try {
     $result = Invoke-PackagedProcess $cli @('book', 'list', '--unexpected')
     Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err.Contains("unexpected argument '--unexpected'")) 'Invalid library input must fail before discovery.'
   } else {
-    $result = Invoke-PackagedProcess $cli @('book', 'list')
-    Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('unsupported')) 'Unsupported read contract failed: book list'
+    $result = Invoke-PackagedProcess $cli @('book', 'list', '--unexpected')
+    Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err.Contains("unexpected argument '--unexpected'")) 'Invalid library input must fail before discovery.'
   }
   Complete-PackageCase 'cli.contracts'
   $currentCase = 'mcp.protocol'
