@@ -8,14 +8,15 @@ Fresh native Web-library CLI/MCP acceptance passed. Windows bounded book source
 operations have synthetic process coverage. Separately approved native book
 acceptance passed for one selected chapter with matching outlines and initial
 chunks. Live continuation and sharing remain unchecked.
-Character and campaign reads remain unsupported.
-The suite keeps a zero live-request budget.
-Its credential-free contracts reject extra input for all three book commands and
-their MCP tools before session access. They do not call those operations with valid input.
+Character and campaign reads now have fixed, bounded Windows implementations
+and synthetic process coverage. No live acceptance has been run. The suite
+keeps a zero live-request budget. Its credential-free contracts reject extra
+input for all three book commands and their MCP tools before session access.
+They do not call character, campaign, or book operations with valid input.
 
-The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits this
-blocked-first stage. It does not implement production authentication or live
-reads. A supplied cookie cannot make those missing operations work.
+The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
+this blocked-first stage. It does not authorize live tests. A supplied cookie
+does not change this suite's zero live-request budget.
 
 ## Results and coverage
 

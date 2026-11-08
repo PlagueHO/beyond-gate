@@ -15,13 +15,13 @@ command runs the sibling MCP binary. The install command previews user-level
 configuration changes and writes only after confirmation. Library discovery
 uses fixed public classification and two protected metadata routes. Windows book
 outline and section reads add fresh canonical cookie-page checks. Character and
-campaign commands use explicit unsupported live entry points. Synthetic source selection
-exists only in compiled tests. No account-content model or content cache is added.
+campaign commands use fixed, bounded read-only operations through the protected
+session. Synthetic source selection exists only in compiled tests. No
+account-content model or content cache is added.
 Windows browser setup and native/core completion are implemented.
 Approved real Chrome and Edge Dev login and protected-save checks passed.
-The MCP adapter serves local stdio with three book tools, four unsupported character/campaign tools,
-and a credential-free Windows `auth_validate` tool.
-Unsupported character and campaign reads do not send upstream requests.
+The MCP adapter serves local stdio with four character/campaign tools, three
+book tools, and a credential-free Windows `auth_validate` tool.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -81,10 +81,11 @@ stdout is reserved for MCP messages; server diagnostics use stderr.
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `book_list`, `book_outline`, and `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
-canonical cookie pages. Character and campaign functions return typed unsupported
-errors as tool results with `isError` set. The server never substitutes an empty or
-synthetic successful result. Tool input does not accept credentials, arbitrary
-URLs, or account identities.
+canonical cookie pages. Character and campaign operations use fixed bounded
+routes through the protected session. Failures return tool errors with
+`isError` set; the server never substitutes an empty or synthetic successful
+result. Tool input does not accept credentials, arbitrary URLs, or account
+identities.
 
 Input objects reject unknown fields. Resource identifiers use the CLI's
 nonempty, unpadded, control-free rule. Book reads require an explicit book and
@@ -497,13 +498,15 @@ These record-count limits do not bound memory already used by the caller to
 build a page or its JSON values. Future adapters must apply response-byte limits
 before parsing or constructing records.
 
-`list_characters`, `get_character`, `list_campaigns`, and `get_campaign` always
-return an explicit unsupported-operation error. They do not construct a client
-or access credentials. CLI commands expose those explicit failures; synthetic
-adapter tests cover successful formatting. Live character and campaign reads remain
-unimplemented until runtime hosts, response schemas, pagination,
-access rules, and session handling are established. Synthetic tests validate
-internal behavior only; they do not prove an upstream contract.
+`list_characters`, `get_character`, `list_campaigns`, and `get_campaign` use
+fixed character-service and website routes with a protected Windows session.
+The core bounds each operation to 30 seconds, accepts at most 100 records for
+list responses, rejects incomplete character collections, and requests only the
+selected campaign's active roster. CLI and MCP call these shared operations.
+Synthetic tests validate internal behavior and adapter parity; they do not
+prove live source compatibility. The campaign success discriminator is
+conservatively implemented as `status: "success"` and still needs live contract
+confirmation.
 
 ## Offline book boundary
 
@@ -696,14 +699,17 @@ and result formatting. Its binary only supplies OS arguments, stdout/stderr, and
 `LiveReads`. The narrow `ReadOperations` trait is an actual offline test boundary,
 not an upstream abstraction or plugin API. Its seven operations use existing
 shared result and error types. Library discovery is async and receives the existing
-session owner. `LiveReads` calls shared discovery; the other reads remain unsupported.
+session owner. `LiveReads` calls shared discovery and the character/campaign
+read operations.
 Auth uses its existing protected-store operations and is not part of
 the read trait.
 
 The command patterns are `character list/show`, `campaign list/show`, and
-`book list/outline/read`. Lists and outlines default to table and accept
-`--format table|json|tsv` and `--no-headers`. JSON rejects header suppression.
-Show/read are JSON only. Identifiers remain opaque meaningful text.
+`book list/outline/read`. Lists and outlines default to table; show commands
+default to JSON. Character/campaign show commands also accept table or TSV.
+Resource outputs accept `--output` / `-o`, with `--format` as an alias.
+`--no-headers` applies to table and TSV. JSON rejects header suppression.
+Identifiers remain opaque meaningful text.
 The [CLI output contract](cli.md#output-contracts) defines
 exact columns, JSON fields, evidence labels, escaping, and empty-result shapes.
 Unknown character fields stay structured under `raw`; no rules are computed.
@@ -712,8 +718,8 @@ Output is deterministic and not silently truncated.
 Section reads return one JSON chunk with attribution, explicit completion,
 an optional encoded continuation, and the 4,096-byte text limit.
 Parsing an invalid/oversized wire token is a usage error. Source-dependent
-cursor errors remain operation errors. A valid token cannot override the live
-blocker, choose a source URL, or authorize loading. There is no automatic fetch
+cursor errors remain operation errors. A valid token cannot choose a source URL
+or authorize loading. There is no automatic fetch
 of another chunk.
 
 Results and completion scripts are prepared before stdout writes. Fallible

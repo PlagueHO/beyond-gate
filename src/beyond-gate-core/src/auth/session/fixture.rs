@@ -239,5 +239,6 @@ pub fn session(scenario: Scenario) -> Result<Session, SessionError> {
         exchange: Some((client, url)),
         fixture: Some(Arc::new(fixture)),
         library_fixture: None,
+        character_campaign_fixture: None,
     })
 }

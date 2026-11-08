@@ -10,7 +10,10 @@ use std::{
 };
 
 use beyond_gate_core::auth::session::fixture::{self, Scenario};
-use beyond_gate_core::{auth::session::Session, library::fixture as library_fixture};
+use beyond_gate_core::{
+    auth::session::Session, character_campaign::fixture as character_campaign_fixture,
+    library::fixture as library_fixture,
+};
 use rmcp::{ServiceExt, transport::stdio};
 use serde_json::{Value, json};
 
@@ -35,6 +38,20 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    let character_source = match name {
+        "character-normal" => Some(character_campaign_fixture::Scenario::Normal),
+        "character-denied-roster" => Some(character_campaign_fixture::Scenario::DeniedRoster),
+        "character-incomplete" => Some(character_campaign_fixture::Scenario::IncompleteCharacters),
+        "character-malformed-campaigns" => {
+            Some(character_campaign_fixture::Scenario::MalformedCampaigns)
+        }
+        "character-missing-campaign" => Some(character_campaign_fixture::Scenario::MissingCampaign),
+        "character-changed" => Some(character_campaign_fixture::Scenario::ChangedCharacter),
+        _ => None,
+    };
+    if let Some(source) = character_source {
+        return character_campaign_fixture::session(source).expect("invented source services");
+    }
     let source = match name {
         "library-normal" => Some(library_fixture::Scenario::Normal),
         "library-lost" => Some(library_fixture::Scenario::SharingLost),
@@ -599,6 +616,73 @@ fn book_contracts() {
     }
 }
 
+/// Checks real CLI/MCP process parity through shared synthetic resource operations.
+fn character_campaign_contracts() {
+    for (tool, arguments, command) in [
+        (
+            "character_list",
+            json!({}),
+            vec!["character", "list", "--output", "json"],
+        ),
+        (
+            "character_show",
+            json!({"id":"42"}),
+            vec!["character", "show", "42"],
+        ),
+        (
+            "campaign_list",
+            json!({}),
+            vec!["campaign", "list", "--output", "json"],
+        ),
+        (
+            "campaign_list",
+            json!({"active_only":true}),
+            vec!["campaign", "list", "--active-only", "--output", "json"],
+        ),
+        (
+            "campaign_show",
+            json!({"id":"8"}),
+            vec!["campaign", "show", "8"],
+        ),
+    ] {
+        let cli = cli("character-normal", &command);
+        assert!(
+            cli.status.success(),
+            "CLI {tool}: {}",
+            String::from_utf8_lossy(&cli.stderr)
+        );
+        assert!(cli.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&cli.stdout).expect("CLI JSON data");
+
+        let (output, messages) = mcp_tool("character-normal", tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("tool result")["result"];
+        assert_eq!(result["isError"], false, "{tool}: {result}");
+        let text = result["content"][0]["text"].as_str().expect("MCP JSON");
+        let mcp_value: Value = serde_json::from_str(text).expect("MCP JSON data");
+        assert_eq!(mcp_value, cli_value, "{tool} CLI/MCP output differs");
+    }
+
+    let (output, messages) = mcp_tool(
+        "character-normal",
+        "campaign_list",
+        json!({"active_only":"yes"}),
+        false,
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("strict active-only response")["result"]["isError"],
+        true
+    );
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
@@ -634,6 +718,7 @@ fn main() {
             contracts();
             library_contracts();
             book_contracts();
+            character_campaign_contracts();
         }
     }
 }

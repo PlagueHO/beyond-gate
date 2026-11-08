@@ -199,9 +199,9 @@ struct ServiceResponse<'a> {
     token: Option<&'a str>,
 }
 
-/// Keeps only a Boolean classification, never an account identifier allocation.
+/// Retains the accepted positive account identifier only with process-local bearer evidence.
 #[derive(Default)]
-struct PositiveIdentifier(bool);
+struct PositiveIdentifier(Option<u64>);
 
 impl<'de> Deserialize<'de> for PositiveIdentifier {
     /// Classifies positive numeric or decimal-string identifiers without retaining values.
@@ -218,20 +218,23 @@ impl<'de> Deserialize<'de> for PositiveIdentifier {
 
             /// Accepts a positive unsigned numeric identifier.
             fn visit_u64<E: serde::de::Error>(self, value: u64) -> Result<Self::Value, E> {
-                Ok(PositiveIdentifier(value > 0))
+                Ok(PositiveIdentifier((value > 0).then_some(value)))
             }
 
             /// Rejects negative or zero numeric identifiers.
             fn visit_i64<E: serde::de::Error>(self, value: i64) -> Result<Self::Value, E> {
-                Ok(PositiveIdentifier(value > 0))
+                Ok(PositiveIdentifier(
+                    u64::try_from(value).ok().filter(|value| *value > 0),
+                ))
             }
 
             /// Accepts bounded decimal digits only, with a positive representable value.
             fn visit_str<E: serde::de::Error>(self, value: &str) -> Result<Self::Value, E> {
                 Ok(PositiveIdentifier(
-                    !value.is_empty()
-                        && value.bytes().all(|byte| byte.is_ascii_digit())
-                        && value.parse::<u64>().is_ok_and(|number| number > 0),
+                    (!value.is_empty() && value.bytes().all(|byte| byte.is_ascii_digit()))
+                        .then(|| value.parse::<u64>().ok())
+                        .flatten()
+                        .filter(|number| *number > 0),
                 ))
             }
         }
@@ -256,6 +259,8 @@ struct Claims {
 pub(super) struct ValidatedBearer {
     /// Cleared when discarded; never persisted or returned to an adapter.
     token: Zeroizing<String>,
+    /// Comes only from the accepted service response and stays process-local.
+    account_id: u64,
     /// Comes only from the accepted direct response.
     expires: SystemTime,
     /// Prevents a backward wall-clock change from extending cached evidence.
@@ -263,6 +268,11 @@ pub(super) struct ValidatedBearer {
 }
 
 impl ValidatedBearer {
+    /// Returns the account identity bound to this accepted bearer.
+    pub(super) fn account_id(&self) -> u64 {
+        self.account_id
+    }
+
     /// Rejects exact expiry and either clock reaching its original bound.
     pub(super) fn usable(&self, now: SystemTime) -> bool {
         now < self.expires && Instant::now() < self.deadline
@@ -326,9 +336,10 @@ pub(super) fn validate_response(
     let claims: Claims = serde_json::from_slice(&payload).map_err(|error| {
         EstablishmentError::caused(ErrorCode::ValidationUnavailable, Cause::Json(error))
     })?;
-    if !claims.identifier.0 {
-        return Err(EstablishmentError::new(ErrorCode::SessionRejected));
-    }
+    let account_id = claims
+        .identifier
+        .0
+        .ok_or_else(|| EstablishmentError::new(ErrorCode::SessionRejected))?;
     let expiry = claims
         .exp
         .ok_or_else(|| EstablishmentError::new(ErrorCode::SessionRejected))?;
@@ -346,6 +357,7 @@ pub(super) fn validate_response(
         .ok_or_else(|| EstablishmentError::new(ErrorCode::ValidationUnavailable))?;
     Ok(ValidatedBearer {
         token: Zeroizing::new(token.to_owned()),
+        account_id,
         expires: expiry,
         deadline,
     })

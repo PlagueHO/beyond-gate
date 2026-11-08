@@ -25,7 +25,7 @@ fn main() -> ExitCode {
         .version(env!("CARGO_PKG_VERSION"))
         .about("Local read-only MCP server for Beyond Gate")
         .after_help(
-            "Uses stdio for MCP messages. Windows book_list uses bounded public category classification and metadata transport through the shared stored session. Other live reads are not implemented and report explicit unsupported errors.",
+            "Uses stdio for MCP messages. Character, campaign, and book reads use fixed bounded sources through the shared protected session. Campaign rosters load only for the selected campaign.",
         )
         .get_matches();
 

@@ -53,6 +53,10 @@ pub enum SessionErrorKind {
     UnsupportedPlatform,
     /// An authenticated read failed; its typed HTTP cause retains access semantics.
     ReadFailed,
+    /// An authenticated resource request was denied with HTTP 403.
+    AccessDenied,
+    /// An authenticated resource request returned HTTP 404.
+    NotFound,
     /// The protected entry changed during one identity-bound book operation.
     Changed,
 }
@@ -74,6 +78,8 @@ impl SessionErrorKind {
             Self::TimedOut => "timed_out",
             Self::UnsupportedPlatform => "unsupported_platform",
             Self::ReadFailed => "authenticated_read_failed",
+            Self::AccessDenied => "access_denied",
+            Self::NotFound => "record_not_found",
             Self::Changed => "session_changed",
         }
     }
@@ -168,12 +174,13 @@ impl SessionError {
         }
     }
 
-    /// Preserves bounded read errors and treats only HTTP 401 as session rejection.
+    /// Preserves bounded read errors and classifies rejection, denial, and absence.
     fn read(error: HttpError) -> Self {
-        let kind = if error.kind() == ErrorKind::SessionUnusable {
-            SessionErrorKind::Rejected
-        } else {
-            SessionErrorKind::ReadFailed
+        let kind = match error.kind() {
+            ErrorKind::SessionUnusable => SessionErrorKind::Rejected,
+            ErrorKind::AccessDenied => SessionErrorKind::AccessDenied,
+            ErrorKind::UpstreamStatus if error.status() == Some(404) => SessionErrorKind::NotFound,
+            _ => SessionErrorKind::ReadFailed,
         };
         Self {
             kind,
@@ -204,6 +211,8 @@ impl fmt::Display for SessionError {
                 ": resolve duplicate entries in your OS credential manager",
             SessionErrorKind::UnsupportedPlatform =>
                 ": production session validation and reuse are currently Windows-only",
+            SessionErrorKind::AccessDenied => ": the service denied access to the selected resource",
+            SessionErrorKind::NotFound => ": the selected resource was not found",
             SessionErrorKind::Changed =>
                 ": session evidence changed during this read; retry the operation",
             _ => "",
@@ -284,7 +293,7 @@ pub struct Session {
     state: Arc<Mutex<State>>,
     /// Does not contact a store at construction.
     backend: Backend,
-    /// Pins the first protected load across a single book operation, not across reads.
+    /// Pins the first protected load across one multi-request resource operation.
     binding: Option<Arc<Mutex<Option<BrowserSessionCookie>>>>,
     /// Synthetic service selection cannot be configured in a product invocation.
     #[cfg(any(test, feature = "session-fixture"))]
@@ -295,6 +304,9 @@ pub struct Session {
     /// Keeps only compiled synthetic library services alive; native owners have none.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) library_fixture: Option<Arc<crate::library::fixture::Source>>,
+    /// Keeps only compiled synthetic character/campaign services alive.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) character_campaign_fixture: Option<Arc<crate::character_campaign::fixture::Source>>,
 }
 
 impl Default for Session {
@@ -310,6 +322,8 @@ impl Default for Session {
             fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             library_fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            character_campaign_fixture: None,
         }
     }
 }
@@ -322,11 +336,11 @@ impl fmt::Debug for Session {
 }
 
 impl Session {
-    /// Shares the bearer cache while preventing account changes within a book read.
+    /// Shares the bearer cache while preventing account changes within one read operation.
     ///
     /// Construction does not open storage. The first protected load pins the
     /// cookie; subsequent loads must match. Nested scopes keep the same binding.
-    pub(crate) fn book_scope(&self) -> Self {
+    pub(crate) fn read_scope(&self) -> Self {
         Self {
             state: Arc::clone(&self.state),
             backend: self.backend.clone(),
@@ -342,6 +356,8 @@ impl Session {
             fixture: self.fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             library_fixture: self.library_fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            character_campaign_fixture: self.character_campaign_fixture.clone(),
         }
     }
 
@@ -597,6 +613,27 @@ impl Session {
         let mut state = self.lock(deadline).await?;
         self.prepare(&mut state, deadline, true).await?;
         Ok(SessionValidation::fresh_evidence())
+    }
+
+    /// Returns only the accepted account identifier for a fixed source request.
+    ///
+    /// The caller must keep this `Session` scoped across the matching resource
+    /// request. The identifier is never returned by an adapter or persisted.
+    ///
+    /// # Errors
+    ///
+    /// Returns protected-store, session-establishment, expiry, or platform failures.
+    pub(crate) async fn account_id(&self) -> Result<u64, SessionError> {
+        self.supported()?;
+        let deadline = Instant::now() + Duration::from_secs(30);
+        let mut state = self.lock(deadline).await?;
+        self.prepare(&mut state, deadline, false).await?;
+        state
+            .bearer
+            .as_ref()
+            .filter(|bearer| bearer.usable(SystemTime::now()))
+            .map(ValidatedBearer::account_id)
+            .ok_or_else(|| SessionError::new(SessionErrorKind::Expired))
     }
 
     /// Reads bounded JSON with shared session reuse and the client's exact origin policy.

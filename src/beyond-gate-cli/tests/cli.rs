@@ -70,38 +70,6 @@ fn missing_or_unknown_operation_fails() {
     }
 }
 
-/// Checks unsupported resources and invalid book IDs without account or network access.
-#[test]
-fn live_resource_reads_are_explicitly_unsupported() {
-    for arguments in [
-        vec!["character", "list"],
-        vec!["character", "show", "invented"],
-        vec!["campaign", "list"],
-        vec!["campaign", "show", "invented"],
-        vec!["book", "outline", "invented"],
-        vec!["book", "read", "invented", "opening"],
-        vec!["character", "list", "--format", "json"],
-        vec![
-            "book",
-            "outline",
-            "invented",
-            "--format",
-            "tsv",
-            "--no-headers",
-        ],
-    ] {
-        let output = run(&arguments);
-        assert_eq!(output.status.code(), Some(1));
-        assert!(output.stdout.is_empty());
-        let expected = if arguments[0] == "book" {
-            "metadata is invalid"
-        } else {
-            "unsupported"
-        };
-        assert!(String::from_utf8_lossy(&output.stderr).contains(expected));
-    }
-}
-
 /// Checks root, resource, and action help against the actual command definition.
 #[test]
 fn resource_help_matches_available_commands() {
@@ -155,7 +123,7 @@ fn invalid_resource_usage_has_no_result() {
         vec!["book", "read", "book", "bad\nsection"],
         vec!["character", "list", "--format", "yaml"],
         vec!["character", "list", "--format", "json", "--no-headers"],
-        vec!["character", "show", "hero", "--format", "table"],
+        vec!["character", "show", "hero", "--output", "yaml"],
         vec![
             "book",
             "read",
@@ -182,6 +150,19 @@ fn invalid_resource_usage_has_no_result() {
         assert!(!output.stderr.is_empty());
         assert!(!String::from_utf8_lossy(&output.stderr).contains("private-invalid"));
     }
+}
+
+/// Names the preferred output option when rejecting JSON header suppression.
+#[test]
+fn json_no_headers_error_uses_output_option_name() {
+    let output = run(&["character", "list", "--output", "json", "--no-headers"]);
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(
+        String::from_utf8_lossy(&output.stderr)
+            .contains("--no-headers cannot be used with --output json")
+    );
 }
 
 /// Setup refuses a development directory before any product registry write.

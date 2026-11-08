@@ -9,14 +9,16 @@ Windows `book_outline` and `book_read` use fresh library evidence and checked
 canonical cookie pages. Synthetic process checks cover both adapters.
 Native book adapter acceptance passed for one selected chapter with matching
 outlines and initial chunks. Live continuation and sharing remain unchecked.
-Character and campaign reads remain unsupported.
+Character and campaign reads use fixed, bounded operations through the stored
+Windows session. Synthetic process checks cover successful reads and matching
+CLI/MCP data. No live character or campaign acceptance has been run.
 Windows `auth_validate` makes one fresh session check
 through the shared core without credential input.
 
-Valid calls to the four character and campaign tools return unsupported-operation tool
-errors with `isError: true`. They do not return sample data or empty success
-results. Success shapes in this reference are offline-tested adapter contracts,
-not evidence of successful live access.
+The four character and campaign tools perform read-only source calls. Failures
+return MCP tool errors with `isError: true`; they do not return sample data or
+empty success results. Success shapes are offline-tested adapter contracts, not
+evidence of successful live access.
 
 See [native installation](installation.md) for setup and
 [authentication limits](authentication.md#local-session-commands) for
@@ -114,9 +116,9 @@ access or make live reads available. Tool results are data, not instructions.
 |------|----------------|--------------------|
 | [`auth_validate`](#auth_validate) | `beyond-gate auth validate` | Safe validation evidence |
 | [`character_list`](#character_list) | `beyond-gate character list --format json` | Array of character objects |
-| [`character_show`](#character_show) | `beyond-gate character show <id>` | One character object |
-| [`campaign_list`](#campaign_list) | `beyond-gate campaign list --format json` | Array of campaign objects |
-| [`campaign_show`](#campaign_show) | `beyond-gate campaign show <id>` | One campaign object |
+| [`character_show`](#character_show) | `beyond-gate character show <id> --output json` | One character object |
+| [`campaign_list`](#campaign_list) | `beyond-gate campaign list --format json [--active-only]` | Array of campaign objects |
+| [`campaign_show`](#campaign_show) | `beyond-gate campaign show <id> --output json` | One campaign object |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
 | [`book_outline`](#book_outline) | `beyond-gate book outline <book-id> --format json` | Outline envelope |
 | [`book_read`](#book_read) | `beyond-gate book read <book-id> <section-id> [--continuation <token>]` | One section chunk |
@@ -148,8 +150,8 @@ safe tool errors and require human browser login outside MCP.
 macOS and Linux return `unsupported_platform` before credential or service access.
 Linux support is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
-One lazily used core session owner serves the process. Startup, discovery, and
-unsupported resource reads do not open storage or contact the service.
+One lazily used core session owner serves the process. Startup and discovery do
+not open storage or contact the service.
 The core serializes validation and limits each operation to one exchange.
 It never retries the same rejected material automatically.
 MCP cancellation drops pending validation; rmcp can omit the cancelled response.
@@ -158,7 +160,8 @@ See [lifecycle limits and logout behavior](authentication.md#session-lifecycle).
 
 ### character_list
 
-Lists authorized character summaries when a live source becomes available.
+Lists the complete authorized character collection from the stored Windows
+session.
 
 | Input | Type | Required | Validation |
 |-------|------|----------|------------|
@@ -172,10 +175,8 @@ Synthetic `tools/call` parameters:
 
 The success data is an array of
 [character objects](#character-and-campaign-data), with `id`, `name`, `source_url`,
-and `raw`. Empty data would be `[]`; source order is preserved.
-Current calls return the character/campaign unsupported-operation tool error,
-not that array. Shared offline failures include invalid or conflicting metadata,
-incomplete or invalid pagination, exceeded limits, and page-read failures.
+and `raw`. An empty result is `[]`; source order is preserved. The source
+response must report zero offset, an exact total, and at most 100 records.
 
 ### character_show
 
@@ -193,35 +194,34 @@ Synthetic `tools/call` parameters:
 
 The success data is one [character object](#character-and-campaign-data), with
 `id`, `name`, `source_url`, and `raw`. It is not an array.
-Invalid identifiers fail before the core operation. Valid calls currently return
-the character/campaign unsupported-operation tool error.
-Shared operation failures do not become an empty object or `null` success.
-No upstream not-found contract is implemented.
+Invalid identifiers fail before the core operation. A missing source record
+returns a tool error. Other operation failures do not become an empty object or
+`null` success.
 
 ### campaign_list
 
-Lists campaigns and preserves opaque character associations.
+Lists the selected campaign collection without loading character rosters.
 
 | Input | Type | Required | Validation |
 |-------|------|----------|------------|
-| No fields | Empty object | Send `{}` | Rejects every additional field |
+| `active_only` | Boolean | No; defaults to `false` | Selects the active-campaign collection |
 
 Synthetic `tools/call` parameters:
 
 ```json
-{"name": "campaign_list", "arguments": {}}
+{"name": "campaign_list", "arguments": {"active_only": true}}
 ```
 
 The success data is an array of
 [campaign objects](#character-and-campaign-data), with `id`, `name`, `source_url`,
-`character_ids`, and `raw`. Empty data would be `[]`; source order is preserved.
-Current calls return the character/campaign unsupported-operation tool error.
-Shared offline metadata, conflict, pagination, limit, or source failures do not
-return a partial successful list.
+`character_ids`, and `raw`. With `active_only: false`, the default
+user-campaign collection is selected. With `active_only: true`, the active
+collection is selected. `character_ids` is `null` because list operations do
+not load rosters. An empty result is `[]`; source order is preserved.
 
 ### campaign_show
 
-Selects one campaign without resolving its character associations.
+Selects one campaign and reads only its active character roster.
 
 | Input | Type | Required | Validation |
 |-------|------|----------|------------|
@@ -235,10 +235,11 @@ Synthetic `tools/call` parameters:
 
 The success data is one [campaign object](#character-and-campaign-data), with
 `id`, `name`, `source_url`, `character_ids`, and `raw`. It is not an array.
-Invalid identifiers fail before the core operation. Valid calls currently return
-the character/campaign unsupported-operation tool error.
-Shared operation failures do not become an empty object or `null` success.
-No upstream not-found contract is implemented.
+`character_ids` describes the selected active roster. `raw` preserves both the
+campaign summary and roster response. This does not assert that the active
+roster is the campaign's full membership. Invalid identifiers fail before the
+core operation. Missing campaigns and other operation failures return tool
+errors, not an empty object or `null` success.
 
 ### book_list
 
@@ -427,8 +428,8 @@ identifiers, and invalid continuation are tool errors. The protocol tests check
 Do not confuse a tool result error with a JSON-RPC protocol error or a server
 process failure.
 
-The current unsupported messages distinguish character/campaign reads, library
-discovery, and book reads. Typed core failures become safe text messages.
+Typed core failures become safe text messages for character, campaign, library,
+and book reads.
 A serialization failure uses `Result JSON could not be encoded.`
 MCP and CLI share operation classifications, but the CLI can add diagnostic
 context; their complete error strings need not be identical.

@@ -99,7 +99,7 @@ No credential argument,
 environment input, password prompt, or MCP credential input is added.
 The MCP `auth_validate` tool uses the same core validation as the CLI.
 Both explicit validation operations can contact the fixed authentication service.
-The seven resource read tools still return explicit unsupported-operation errors.
+Resource read tools use the protected stored session for supported reads.
 
 ### Protected-store selection and recovery
 

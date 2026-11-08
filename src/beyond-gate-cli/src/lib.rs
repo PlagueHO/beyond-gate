@@ -46,25 +46,40 @@ pub trait ReadOperations {
     /// # Errors
     ///
     /// Returns source, validation, access, or unsupported-operation failures.
-    fn list_characters(&self) -> Result<CharacterSnapshot, CharacterCampaignError>;
+    fn list_characters(
+        &self,
+        session: &Session,
+    ) -> impl std::future::Future<Output = Result<CharacterSnapshot, CharacterCampaignError>>;
     /// Reads one explicitly selected character without interpreting its rules.
     ///
     /// # Errors
     ///
     /// Returns the shared read failure without an empty-result fallback.
-    fn get_character(&self, id: &str) -> Result<Character, CharacterCampaignError>;
+    fn get_character(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Character, CharacterCampaignError>>;
     /// Lists campaigns while preserving their supplied character associations.
     ///
     /// # Errors
     ///
     /// Returns the shared discovery failure without partial results.
-    fn list_campaigns(&self) -> Result<CampaignSnapshot, CharacterCampaignError>;
+    fn list_campaigns(
+        &self,
+        session: &Session,
+        active_only: bool,
+    ) -> impl std::future::Future<Output = Result<CampaignSnapshot, CharacterCampaignError>>;
     /// Reads one explicitly selected campaign.
     ///
     /// # Errors
     ///
     /// Returns the shared read failure without an empty-result fallback.
-    fn get_campaign(&self, id: &str) -> Result<Campaign, CharacterCampaignError>;
+    fn get_campaign(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Campaign, CharacterCampaignError>>;
     /// Lists library metadata without granting later book access.
     ///
     /// # Errors
@@ -148,23 +163,38 @@ pub struct LiveReads;
 
 impl ReadOperations for LiveReads {
     /// Preserves the core character-discovery result and failure classification.
-    fn list_characters(&self) -> Result<CharacterSnapshot, CharacterCampaignError> {
-        character_campaign::list_characters()
+    async fn list_characters(
+        &self,
+        session: &Session,
+    ) -> Result<CharacterSnapshot, CharacterCampaignError> {
+        character_campaign::list_characters(session).await
     }
 
     /// Passes only the explicitly selected identifier to the core.
-    fn get_character(&self, id: &str) -> Result<Character, CharacterCampaignError> {
-        character_campaign::get_character(id)
+    async fn get_character(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> Result<Character, CharacterCampaignError> {
+        character_campaign::get_character(session, id).await
     }
 
     /// Preserves the core campaign-discovery result and failure classification.
-    fn list_campaigns(&self) -> Result<CampaignSnapshot, CharacterCampaignError> {
-        character_campaign::list_campaigns()
+    async fn list_campaigns(
+        &self,
+        session: &Session,
+        active_only: bool,
+    ) -> Result<CampaignSnapshot, CharacterCampaignError> {
+        character_campaign::list_campaigns(session, active_only).await
     }
 
     /// Passes only the selected campaign identifier to the core.
-    fn get_campaign(&self, id: &str) -> Result<Campaign, CharacterCampaignError> {
-        character_campaign::get_campaign(id)
+    async fn get_campaign(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> Result<Campaign, CharacterCampaignError> {
+        character_campaign::get_campaign(session, id).await
     }
 
     /// Uses the library boundary without inventing account data or access.
@@ -402,8 +432,8 @@ fn execute(
         .subcommand()
         .ok_or(Failure::Usage("Select a resource operation."))?;
     match resource {
-        "character" => execute_character(action, arguments, reads),
-        "campaign" => execute_campaign(action, arguments, reads),
+        "character" => execute_character(action, arguments, reads, session),
+        "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
     }
@@ -414,11 +444,21 @@ fn execute_character(
     action: &str,
     arguments: &ArgMatches,
     reads: &impl ReadOperations,
+    session: &Session,
 ) -> Result<Vec<u8>, Failure> {
     match action {
         "list" => {
             let options = ListOptions::parse(arguments)?;
-            let snapshot = reads.list_characters().map_err(Failure::Character)?;
+            let snapshot = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.list_characters(session) => result.map_err(Failure::Character),
+                }
+            })?;
             let rows: Vec<_> = snapshot
                 .characters()
                 .iter()
@@ -427,10 +467,20 @@ fn execute_character(
             render_list(&options, &["id", "name", "source_url"], rows)
         }
         "show" => {
-            let value = reads
-                .get_character(selection(arguments, "id")?)
-                .map_err(Failure::Character)?;
-            output::json_bytes(&output::character(&value))
+            let options = ListOptions::parse(arguments)?;
+            let id = selection(arguments, "id")?;
+            let value = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.get_character(session, id) => result.map_err(Failure::Character),
+                }
+            })?;
+            let row = output::character(&value);
+            render_record(&options, &["id", "name", "source_url", "raw"], row)
         }
         _ => Err(Failure::Usage("Select a supported character operation.")),
     }
@@ -441,11 +491,22 @@ fn execute_campaign(
     action: &str,
     arguments: &ArgMatches,
     reads: &impl ReadOperations,
+    session: &Session,
 ) -> Result<Vec<u8>, Failure> {
     match action {
         "list" => {
             let options = ListOptions::parse(arguments)?;
-            let snapshot = reads.list_campaigns().map_err(Failure::Character)?;
+            let active_only = arguments.get_flag("active-only");
+            let snapshot = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.list_campaigns(session, active_only) => result.map_err(Failure::Character),
+                }
+            })?;
             let rows: Vec<_> = snapshot.campaigns().iter().map(output::campaign).collect();
             render_list(
                 &options,
@@ -454,10 +515,24 @@ fn execute_campaign(
             )
         }
         "show" => {
-            let value = reads
-                .get_campaign(selection(arguments, "id")?)
-                .map_err(Failure::Character)?;
-            output::json_bytes(&output::campaign(&value))
+            let options = ListOptions::parse(arguments)?;
+            let id = selection(arguments, "id")?;
+            let value = execute_session(async {
+                tokio::select! {
+                    biased;
+                    signal = tokio::signal::ctrl_c() => {
+                        signal.map_err(Failure::Signal)?;
+                        Err(Failure::Cancelled)
+                    }
+                    result = reads.get_campaign(session, id) => result.map_err(Failure::Character),
+                }
+            })?;
+            let row = output::campaign(&value);
+            render_record(
+                &options,
+                &["id", "name", "source_url", "character_ids", "raw"],
+                row,
+            )
         }
         _ => Err(Failure::Usage("Select a supported campaign operation.")),
     }
@@ -552,6 +627,11 @@ fn render_list(
     rows: Vec<Value>,
 ) -> Result<Vec<u8>, Failure> {
     output::list(options, fields, &rows, None)
+}
+
+/// Presents one complete record in JSON or one lossless table/TSV row.
+fn render_record(options: &ListOptions, fields: &[&str], value: Value) -> Result<Vec<u8>, Failure> {
+    output::list(options, fields, std::slice::from_ref(&value), Some(&value))
 }
 
 #[cfg(test)]

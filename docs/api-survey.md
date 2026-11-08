@@ -1252,9 +1252,12 @@ Subsequent reads can use protected session storage without another interactive l
 
 ## Implementation order and remaining contracts
 
-Complete the already selected character and campaign core operations first.
-Connect CLI and MCP to the same core reads and preserve their error and output semantics.
-Keep campaign list association state separate from a loaded empty roster.
+The selected character and campaign core operations now use fixed read-only
+routes and a protected Windows session. CLI and MCP share these operations.
+Campaign list association state remains distinct from a loaded empty roster.
+Synthetic process tests cover internal behavior and adapter parity. Live source
+compatibility remains unvalidated; in particular, the campaign envelope's
+`status: "success"` value is a conservative implementation assumption.
 
 For later Rules tools, establish a selected-record or bounded-search contract for each
 family before implementation. Verify identifiers, rules versions, source URLs, fresh access,
@@ -1262,8 +1265,11 @@ response media, schema, paging, completeness, and exact limits.
 Test success, denied access, expiry, malformed responses, cancellation, and safe diagnostics
 with synthetic fixtures and local mock servers.
 
-The current character/campaign assembly limits remain 100 raw records per page, 10 pages,
-and 1,000 raw records in total. Duplicates count before removal.
+Offline character/campaign assembly supports up to 100 raw records per page,
+10 pages, and 1,000 raw records in total. Duplicates count before removal.
+Current live list operations accept one unpaged response with at most 100 records.
+Character list completeness is checked against its offset and total fields.
+No live paging is inferred or followed.
 The current HTTP default remains a 1 MiB response, a 5-second connection deadline,
 a 15-second attempt deadline, a 30-second logical-read deadline, concurrency four, and
 at most two retries. Redirects and proxies remain disabled.

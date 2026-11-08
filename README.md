@@ -27,7 +27,9 @@ canonical cookie pages. Unknown access and unsupported layouts return no content
 The production source path has synthetic CLI/MCP process checks.
 [Native book acceptance](docs/api-survey.md#native-book-adapter-acceptance) passed
 for one selected chapter. Live continuation and sharing remain unchecked.
-Character and campaign reads remain unsupported.
+Character and campaign reads use fixed, bounded operations through the stored
+Windows session. Synthetic process checks cover adapter parity; live source
+compatibility has not been validated.
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
@@ -197,8 +199,9 @@ The approved native check returned matching results: 36 purchased and 133 unknow
 No live sharing was observed; sharing behavior has synthetic coverage.
 Windows book outline/read operations are implemented for the checked HTML layout.
 Use a book ID from `book list` and a section ID from `book outline`.
-Character and campaign live reads remain unsupported. Failures exit with code 1, write a diagnostic
-to stderr, and leave stdout empty. Offline tests use synthetic services through
+Character and campaign reads use fixed, bounded Windows operations through the
+stored session. Failures exit with code 1, write a diagnostic to stderr, and
+leave stdout empty. Offline tests use synthetic services through
 the real shared transport and adapters; the product has no fixture mode.
 See [output contracts](docs/cli.md#output-contracts) for table, JSON, and TSV
 fields, escaping, source attribution, and bounded explicit continuation.
@@ -215,7 +218,8 @@ Start `beyond-gate-mcp` directly or use `beyond-gate mcp start` with both binari
 in the same directory. The server uses local stdio only; stdout is reserved for
 MCP protocol messages. `book_list` uses shared Windows library discovery.
 `book_outline` and `book_read` use the shared checked source path.
-Character and campaign tools return explicit unsupported-operation errors.
+Character and campaign tools use the shared core reads. They have synthetic
+process coverage, but no live acceptance.
 
 See the [MCP tool reference](docs/mcp.md) for startup, client registration, strict
 input schemas, output envelopes, errors, and CLI mappings.

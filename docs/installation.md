@@ -219,20 +219,20 @@ The help and version commands above must exit with code 0 and no stderr output.
 The CLI with no arguments shows usage on stderr and exits with code 2.
 Unknown arguments also exit with code 2.
 
-After PATH setup, these checks are safe without an account:
+After PATH setup, use help commands for a smoke check without an account:
 
 ```sh
-beyond-gate character list --format json
-beyond-gate book read synthetic opening
+beyond-gate character list --help
+beyond-gate campaign show --help
 ```
 
-Each currently exits with code 1 and leaves stdout empty.
-The character read reports an unsupported operation. The synthetic book ID
-fails metadata validation before session access. Neither proves a missing or expired session.
+These commands do not access the protected store or contact D&D Beyond.
+Do not run a valid character, campaign, or book read as a package smoke check.
+Those operations use the real OS store and can contact D&D Beyond.
 Do not supply a password, cookie, or token. Do not create a credential manually.
 Do not run `auth status` or `auth logout` as an automated package check:
 they access the real OS store.
-On Windows, valid book list, outline, and read requests through either adapter use the real
+On Windows, valid character, campaign, and book reads through either adapter use the real
 OS store and can contact D&D Beyond. Package checks reject unknown CLI options
 and MCP input fields before discovery instead. Synthetic process tests check
 successful discovery and session failures without a real account.
@@ -279,8 +279,9 @@ Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
 `claude mcp list` in Claude Code. The server exposes seven resource read tools:
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
 `book_outline`, and `book_read`. Windows book reads use fresh library evidence
-and checked canonical cookie pages. Character and campaign reads return unsupported
-errors. The additional credential-free `auth_validate` tool makes one fresh
+and checked canonical cookie pages. Character and campaign reads use fixed
+bounded routes through the protected session. The additional credential-free
+`auth_validate` tool makes one fresh
 Windows session check; it does not grant content access.
 Do not interpret discovery as successful login or live read access.
 Linux production login and session use are tracked in
