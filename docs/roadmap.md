@@ -7,12 +7,13 @@ native CLI/MCP parity. Windows book outline/read operations now use the approved
 page-level contract, with synthetic process coverage. Native book adapter
 acceptance passed for one selected chapter with matching outlines and initial
 chunks. Live continuation and sharing remain unchecked.
-Character and campaign reads remain unsupported.
+Character and campaign reads now use fixed, bounded Windows operations through
+the shared protected session. Synthetic process tests cover adapter parity;
+live source compatibility remains unvalidated.
 Protected-store operations have synthetic offline
 tests; Windows login creates the protected entry after service validation.
 The core HTTP read boundary has offline policy tests and fixed Web-library
-routes through the shared protected session. Other authenticated resource operations
-below remain pending. The core can also assemble explicitly supplied offline
+routes through the shared protected session. The core can also assemble explicitly supplied offline
 library metadata with context-specific evidence and bounded pagination. This is
 not live discovery. The core also validates supplied book outlines and reads
 bounded sections with fresh supplied access checks. The first feasibility
@@ -159,20 +160,20 @@ with matching 79-entry outlines and 3,929 UTF-8 byte initial chunks.
 Live continuation and sharing remain unchecked. No automatic continuation,
 whole-book operation, or content cache is added.
 
-Issue #7 remains partial for live-read criteria. Its CLI adapter defines
-`character list/show`, `campaign list/show`, and `book list/outline/read`.
-Lists/outlines support table, JSON, and TSV with header control. Show/read
-preserve structured JSON. The CLI uses the actual clap definition to generate
-Bash, Elvish, Fish, PowerShell, and Zsh completions. Offline process tests do not
-make the core's unsupported live operations usable. There is no product fixture
-input, cached content, or account snapshot.
+Issue #7 provides `character list/show`, `campaign list/show`, and
+`book list/outline/read`. Character and campaign operations use fixed,
+read-only Windows routes through the shared protected session. Lists and
+outlines support table, JSON, and TSV; show/read preserve structured JSON.
+Character and campaign show commands also support `--output` / `-o`, with
+`--format` as an alias. There is no product fixture input, cached content, or
+account snapshot.
 
-Issue #8 now has a local rmcp stdio server and seven matching read tools. The
-tools call the shared core functions. Windows book tools now use checked source
-pages; character and campaign tools preserve unsupported errors.
-Tool schemas, read-only annotations,
-bounded continuation input, and protocol process tests are implemented. The
-current MCP output contract is documented alongside the CLI contract.
+Issue #8 provides a local rmcp stdio server and seven matching read tools.
+Character and campaign tools call the same bounded core operations as the CLI.
+`campaign_list` can select the active collection with `active_only`; campaign
+show returns the selected active roster. Tool schemas, read-only annotations,
+bounded continuation input, and synthetic protocol process tests are
+implemented. No live character or campaign acceptance has been run.
 
 Issue #3 remains partial. Windows `auth login` now starts one-use pairing and
 calls shared completion after bound submission. Windows setup and synthetic

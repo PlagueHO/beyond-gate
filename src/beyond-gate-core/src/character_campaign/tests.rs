@@ -4,6 +4,134 @@ use super::*;
 use serde_json::{Value, json};
 use std::{cell::Cell, error::Error};
 
+/// Exercises the actual shared source paths through an isolated loopback service.
+#[tokio::test]
+async fn live_operations_use_bounded_fixed_routes_and_preserve_source_values() {
+    let session = fixture::session(fixture::Scenario::Normal).expect("synthetic services");
+
+    let characters = list_characters(&session).await.unwrap_or_else(|error| {
+        let source = error
+            .source()
+            .and_then(|cause| cause.source())
+            .map(ToString::to_string);
+        panic!(
+            "complete synthetic character list: {error}; cause={source:?}; routes={:?}",
+            fixture::requested_routes(&session)
+        )
+    });
+    assert_eq!(characters.characters().len(), 2);
+    assert_eq!(
+        characters.characters()[0].raw()["unknown"]["preserved"],
+        true
+    );
+    assert_eq!(fixture::request_count(&session), 1);
+
+    let character = get_character(&session, "42")
+        .await
+        .expect("synthetic selected character");
+    assert_eq!(character.raw()["campaign"]["id"], 8);
+    assert_eq!(fixture::request_count(&session), 2);
+
+    let campaigns = list_campaigns(&session, false)
+        .await
+        .expect("synthetic campaign list");
+    assert_eq!(campaigns.campaigns()[0].character_ids(), None);
+    assert_eq!(campaigns.campaigns()[0].raw()["unknown"]["kept"], true);
+    assert_eq!(fixture::request_count(&session), 3);
+
+    let active = list_campaigns(&session, true)
+        .await
+        .expect("synthetic active campaign list");
+    assert_eq!(active.campaigns().len(), 1);
+    assert_eq!(fixture::request_count(&session), 4);
+
+    let campaign = get_campaign(&session, "8")
+        .await
+        .expect("synthetic selected campaign and roster");
+    assert_eq!(campaign.character_ids().expect("loaded roster"), ["42"]);
+    assert_eq!(campaign.raw()["summary"]["unknown"]["kept"], true);
+    assert_eq!(campaign.raw()["characters"][0]["unknown"]["kept"], true);
+    assert_eq!(fixture::request_count(&session), 6);
+    assert_eq!(
+        fixture::requested_routes(&session),
+        [
+            "/character/v5/characters/list?userid=42",
+            "/character/v5/character/42?includecustomitems=true",
+            "/api/campaign/stt/user-campaigns",
+            "/api/campaign/stt/active-campaigns",
+            "/api/campaign/stt/user-campaigns",
+            "/api/campaign/stt/active-short-characters/8",
+        ]
+    );
+}
+
+/// Stops before roster fan-out when the selected campaign is not in the complete list.
+#[tokio::test]
+async fn missing_campaign_stops_before_roster_request() {
+    let session = fixture::session(fixture::Scenario::MissingCampaign).expect("synthetic services");
+    assert!(matches!(
+        get_campaign(&session, "8").await,
+        Err(CharacterCampaignError::MissingRecord)
+    ));
+    assert_eq!(fixture::request_count(&session), 1);
+}
+
+/// Maps an HTTP 404 on the selected character route to an explicit missing record.
+#[tokio::test]
+async fn missing_character_is_not_reported_as_a_session_failure() {
+    let session =
+        fixture::session(fixture::Scenario::MissingCharacter).expect("synthetic services");
+    assert!(matches!(
+        get_character(&session, "42").await,
+        Err(CharacterCampaignError::MissingRecord)
+    ));
+    assert_eq!(fixture::request_count(&session), 1);
+}
+
+/// Rejects incomplete, changed, and denied source observations without partial values.
+#[tokio::test]
+async fn live_source_failures_remain_explicit() {
+    let incomplete =
+        fixture::session(fixture::Scenario::IncompleteCharacters).expect("synthetic services");
+    let incomplete_result = list_characters(&incomplete).await;
+    assert!(
+        matches!(
+            incomplete_result,
+            Err(CharacterCampaignError::IncompleteDiscovery)
+        ),
+        "unexpected incomplete-list result: {incomplete_result:?}; cause={:?}; routes={:?}",
+        incomplete_result
+            .as_ref()
+            .err()
+            .and_then(|error| error.source())
+            .and_then(|cause| cause.source())
+            .map(ToString::to_string),
+        fixture::requested_routes(&incomplete),
+    );
+
+    let changed =
+        fixture::session(fixture::Scenario::ChangedCharacter).expect("synthetic services");
+    let changed_result = get_character(&changed, "42").await;
+    assert!(
+        matches!(changed_result, Err(CharacterCampaignError::InvalidResponse)),
+        "unexpected selected-character result: {changed_result:?}; routes={:?}",
+        fixture::requested_routes(&changed),
+    );
+
+    let denied = fixture::session(fixture::Scenario::DeniedRoster).expect("synthetic services");
+    let denied_result = get_campaign(&denied, "8").await;
+    assert!(
+        matches!(
+            &denied_result,
+        Err(CharacterCampaignError::SessionRead(error))
+            if error.kind() == crate::auth::session::SessionErrorKind::AccessDenied
+        ),
+        "unexpected denied-roster result: {denied_result:?}; routes={:?}",
+        fixture::requested_routes(&denied),
+    );
+    assert_eq!(fixture::request_count(&denied), 2);
+}
+
 /// Creates synthetic character metadata with one unknown JSON field.
 fn character(id: &str) -> CharacterRecord {
     CharacterRecord {
@@ -20,10 +148,12 @@ fn campaign(id: &str, character_ids: &[&str]) -> CampaignRecord {
         id: id.to_owned(),
         name: Some(format!("Invented campaign {id}")),
         source_url: Some(format!("https://example.com/campaigns/{id}")),
-        character_ids: character_ids
-            .iter()
-            .map(|value| (*value).to_owned())
-            .collect(),
+        character_ids: Some(
+            character_ids
+                .iter()
+                .map(|value| (*value).to_owned())
+                .collect(),
+        ),
         raw: json!({"future_campaign_field": {"enabled": true}}),
     }
 }
@@ -79,6 +209,7 @@ fn supplied_raw_json_and_campaign_associations_are_preserved() {
     assert_eq!(
         found_campaign
             .character_ids()
+            .expect("loaded associations")
             .iter()
             .map(String::as_str)
             .collect::<Vec<_>>(),
@@ -86,32 +217,15 @@ fn supplied_raw_json_and_campaign_associations_are_preserved() {
     );
 }
 
-/// Distinguishes a complete empty result and a missing record from unsupported reads.
+/// Distinguishes a complete empty result and a missing record.
 #[test]
-fn empty_missing_and_unsupported_results_are_distinct() {
+fn empty_results_and_missing_records_are_distinct() {
     let empty_characters = characters(vec![]).expect("terminal empty character page");
     assert!(empty_characters.characters().is_empty());
     assert!(empty_characters.get("not-present").is_none());
     let empty_campaigns = campaigns(vec![]).expect("terminal empty campaign page");
     assert!(empty_campaigns.campaigns().is_empty());
     assert!(empty_campaigns.get("not-present").is_none());
-
-    assert!(matches!(
-        list_characters(),
-        Err(CharacterCampaignError::UnsupportedOperation)
-    ));
-    assert!(matches!(
-        get_character("synthetic-id"),
-        Err(CharacterCampaignError::UnsupportedOperation)
-    ));
-    assert!(matches!(
-        list_campaigns(),
-        Err(CharacterCampaignError::UnsupportedOperation)
-    ));
-    assert!(matches!(
-        get_campaign("synthetic-id"),
-        Err(CharacterCampaignError::UnsupportedOperation)
-    ));
 }
 
 /// Rejects invalid identifiers, optional names, source URLs, and associations.
@@ -126,7 +240,7 @@ fn malformed_metadata_is_rejected() {
         ));
 
         let mut bad_campaign = campaign("valid", &[]);
-        bad_campaign.character_ids = vec![invalid.to_owned()];
+        bad_campaign.character_ids = Some(vec![invalid.to_owned()]);
         assert!(matches!(
             campaigns(vec![bad_campaign]),
             Err(CharacterCampaignError::InvalidMetadata)

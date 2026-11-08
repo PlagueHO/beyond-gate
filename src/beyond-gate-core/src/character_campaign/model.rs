@@ -128,9 +128,9 @@ impl fmt::Debug for Character {
 
 /// Supplies one normalized campaign record for offline assembly.
 ///
-/// `character_ids` contains opaque associations. The crate does not infer a
-/// campaign schema or require associated characters to appear in another list.
-/// `raw` preserves all supplied JSON fields without interpretation.
+/// `character_ids` is `None` when associations were not loaded. A present
+/// array contains opaque identifiers, including an empty array for a loaded
+/// empty roster. `raw` preserves all supplied JSON fields without interpretation.
 #[derive(Clone)]
 pub struct CampaignRecord {
     /// Opaque identifier used for duplicate detection in one assembly.
@@ -140,7 +140,7 @@ pub struct CampaignRecord {
     /// Optional HTTPS source location; metadata only, never a request instruction.
     pub source_url: Option<String>,
     /// Opaque character identifiers associated by the supplied observation.
-    pub character_ids: Vec<String>,
+    pub character_ids: Option<Vec<String>>,
     /// Entire supplied JSON value, including fields unknown to this crate.
     pub raw: Value,
 }
@@ -158,7 +158,7 @@ pub struct Campaign {
     id: String,
     name: Option<String>,
     source_url: Option<Url>,
-    character_ids: Vec<String>,
+    character_ids: Option<Vec<String>>,
     raw: Value,
 }
 
@@ -170,7 +170,11 @@ impl Campaign {
             record.name.as_deref(),
             record.source_url.as_deref(),
         )?;
-        if record.character_ids.iter().any(|id| !valid_text(id)) {
+        if record
+            .character_ids
+            .as_ref()
+            .is_some_and(|ids| ids.iter().any(|id| !valid_text(id)))
+        {
             return Err(CharacterCampaignError::InvalidMetadata);
         }
         Ok(Self {
@@ -198,8 +202,8 @@ impl Campaign {
     }
 
     /// Returns the supplied character associations in their original order.
-    pub fn character_ids(&self) -> &[String] {
-        &self.character_ids
+    pub fn character_ids(&self) -> Option<&[String]> {
+        self.character_ids.as_deref()
     }
 
     /// Returns the original JSON value, including unknown fields.

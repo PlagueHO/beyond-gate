@@ -10,12 +10,9 @@ Windows `book outline/read` now use fresh library evidence and checked canonical
 cookie pages. Their production source path has synthetic process checks.
 Native adapter acceptance passed for one selected chapter with matching outlines
 and initial chunks. Live continuation and sharing remain unchecked.
-Character and campaign live reads remain unsupported.
-
-Unsupported character and campaign reads exit with code 1, write an unsupported-operation
-diagnostic to stderr, and leave stdout empty. They do not return sample data or
-empty success results. The success contracts below are tested with synthetic
-inputs in offline tests. They are not evidence of live access.
+Character and campaign reads use fixed, bounded operations through the stored
+Windows session. Synthetic process checks cover successful reads and matching
+CLI/MCP data. No live character or campaign acceptance has been run.
 
 See [native installation](installation.md) for binary setup and
 [authentication](authentication.md#local-session-commands) for protected storage
@@ -58,10 +55,10 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`auth status`](#auth-status) | Inspect local credential presence | Implemented; no upstream validation |
 | [`auth validate`](#auth-validate) | Make one fresh session check | Windows; safe JSON, no credential input |
 | [`auth logout`](#auth-logout) | Remove the local credential | Implemented; no upstream revocation |
-| [`character list`](#character-list) | List character summaries | Live read unsupported |
-| [`character show`](#character-show) | Select one character | Live read unsupported |
-| [`campaign list`](#campaign-list) | List campaigns and associations | Live read unsupported |
-| [`campaign show`](#campaign-show) | Select one campaign | Live read unsupported |
+| [`character list`](#character-list) | List character summaries | Windows; bounded complete response |
+| [`character show`](#character-show) | Select one character | Windows; fixed source route |
+| [`campaign list`](#campaign-list) | List campaigns and associations | Windows; `--active-only` selects the active collection |
+| [`campaign show`](#campaign-show) | Select one campaign and active roster | Windows; selected roster only |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
@@ -226,29 +223,29 @@ for the fixed entry identity, backend requirements, and failure recovery.
 
 ## Resource commands
 
-`book list` reads the fixed protected session and two bounded metadata routes.
-`book outline` and `book read` repeat fresh metadata and page-level access checks.
-The four character and campaign actions fail as unsupported after valid input
-is accepted. Their success outputs are offline-tested contracts.
+All resource reads use fixed origins and the protected stored session.
+Book outline/read also repeat fresh library and page-level access checks.
+Character and campaign success outputs are offline-tested. No live character
+or campaign acceptance has been run.
 
 ### List options
 
-`character list`, `campaign list`, `book list`, and `book outline` share these
-options:
+`character list`, `character show`, `campaign list`, `campaign show`,
+`book list`, and `book outline` share these options:
 
 | Option | Values | Default | Effect |
 |--------|--------|---------|--------|
-| `--format <FORMAT>` | `table`, `json`, `tsv` | `table` | Select result presentation |
+| `-o, --output <FORMAT>` | `table`, `json`, `tsv` | `table` for lists; `json` for shows | Select result presentation |
+| `--format <FORMAT>` | `table`, `json`, `tsv` | Same as `--output` | Alias for `--output` |
 | `--no-headers` | Flag; no value | Headers included | Omit table or TSV column names |
 
-`--no-headers` with `--format json` is invalid usage, with exit code 2.
-`show` and `book read` produce JSON only. They reject format and header options.
-There are no filter, automatic pagination, account, URL, or fixture options.
+`--no-headers` with JSON is invalid usage, with exit code 2.
+There are no account, URL, or fixture options.
 
 ### character list
 
 ```text
-beyond-gate character list [--format <FORMAT>] [--no-headers]
+beyond-gate character list [-o, --output <FORMAT>] [--no-headers]
 ```
 
 Lists character summaries. No positional arguments are required.
@@ -256,56 +253,63 @@ Table and TSV columns are `id`, `name`, and `source_url`, in that order.
 JSON is an array of [character objects](#character-and-campaign-objects), including
 the structured `raw` field. Source order is preserved.
 
-Current result: unsupported-operation diagnostic, exit code 1, and empty stdout.
-Invalid list options fail with code 2. Offline assembly errors include invalid
-metadata, conflicting records, incomplete or invalid pagination, and exceeded
-page or record limits. They do not produce a partial successful list.
+The operation requests the account's default character collection. It accepts
+only a complete response with zero offset, a total matching the returned count,
+and no more than 100 records. It does not infer or follow pagination.
+Invalid options fail with code 2. Session, transport, response, completeness,
+and limit failures use code 1 with empty stdout.
 
 ### character show
 
 ```text
-beyond-gate character show <id>
+beyond-gate character show <id> [-o, --output <FORMAT>]
 ```
 
-Requires one character identifier. No action-specific options are accepted.
-The success contract is one JSON
+Requires one character identifier and accepts `table`, `json`, or `tsv` output.
+The default is JSON. The success contract is one
 [character object](#character-and-campaign-objects), not an array.
-It preserves the supplied data without interpreting game rules.
+It preserves the supplied data without interpreting game rules. A missing
+source record returns an explicit error.
 
-Current result: unsupported-operation diagnostic, exit code 1, and empty stdout.
-Missing or invalid identifiers fail with code 2. Shared character operation
-failures use code 1. No upstream not-found behavior is implemented.
+Invalid identifiers fail with code 2. Session, transport, and response failures
+use code 1.
 
 ### campaign list
 
 ```text
-beyond-gate campaign list [--format <FORMAT>] [--no-headers]
+beyond-gate campaign list [--active-only] [-o, --output <FORMAT>] [--no-headers]
 ```
 
-Lists campaigns and their opaque character associations. No positional arguments
-are required. Table and TSV columns are `id`, `name`, `source_url`, and
+Lists campaigns without loading rosters. `--active-only` selects the active
+campaign collection directly; without it, the default user-campaign collection
+is used. No positional arguments are required. Table and TSV columns are
+`id`, `name`, `source_url`, and
 `character_ids`, in that order. JSON is an array of
 [campaign objects](#character-and-campaign-objects), including `raw`.
+The `character_ids` value is `null` because the list does not load a roster.
 
-Current result: unsupported-operation diagnostic, exit code 1, and empty stdout.
-Invalid list options fail with code 2. Shared metadata, record-conflict,
-pagination, and limit failures use code 1 without a partial successful list.
+The source response is bounded to 100 records. Invalid options fail with code 2.
+Session, transport, malformed-response, and limit failures use code 1 without a
+partial successful list.
 
 ### campaign show
 
 ```text
-beyond-gate campaign show <id>
+beyond-gate campaign show <id> [-o, --output <FORMAT>]
 ```
 
-Requires one campaign identifier. No action-specific options are accepted.
-The success contract is one JSON
+Requires one campaign identifier and accepts `table`, `json`, or `tsv` output.
+The default is JSON. The operation reads the default user-campaign collection,
+then requests only the selected campaign's active roster. The success contract
+is one
 [campaign object](#character-and-campaign-objects), not an array.
-Associated character identifiers remain in their supplied order. They do not
-prove that those characters are visible in a separate character list.
+The `character_ids` field describes that active roster. `raw` preserves both
+the campaign summary and roster response; this does not assert that the roster
+is the full campaign membership.
 
-Current result: unsupported-operation diagnostic, exit code 1, and empty stdout.
-Missing or invalid identifiers fail with code 2. Shared campaign operation
-failures use code 1. No upstream not-found behavior is implemented.
+Invalid identifiers fail with code 2. A campaign absent from the returned
+collection is an explicit not-found error. Session, transport, and response
+failures use code 1.
 
 ### book list
 

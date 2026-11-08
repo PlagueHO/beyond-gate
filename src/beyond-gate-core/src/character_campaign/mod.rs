@@ -1,11 +1,15 @@
-//! Offline character and campaign records with bounded page assembly.
+//! Bounded, read-only character and campaign reads and record assembly.
 //!
 //! The normalized records are not an upstream schema. Assembly validates
-//! explicitly supplied pages only. Live list and read operations remain
-//! unsupported until usable upstream contracts and login are implemented.
+//! explicitly supplied pages. Live reads use fixed source routes and a
+//! protected Windows session. Synthetic fixtures do not establish live access.
 
 mod error;
 mod model;
+mod source;
+
+#[cfg(any(test, feature = "session-fixture"))]
+pub mod fixture;
 
 pub use error::CharacterCampaignError;
 pub use model::{
@@ -14,10 +18,21 @@ pub use model::{
 };
 
 use std::collections::HashSet;
+use std::time::Duration;
 
-use crate::http::HttpError;
+use serde_json::{Value, json};
+use tokio::time::timeout;
+
+use crate::{
+    auth::session::Session,
+    http::{HttpClient, HttpError},
+};
 use model::valid_text;
 
+/// Fixed character-service origin for approved read-only routes.
+const CHARACTER_ORIGIN: &str = "https://character-service.dndbeyond.com";
+/// Fixed website origin for approved campaign routes.
+const WEBSITE_ORIGIN: &str = "https://www.dndbeyond.com";
 /// Maximum raw records in one supplied page, before duplicate removal.
 pub const MAX_ENTRIES_PER_PAGE: usize = 100;
 /// Maximum supplied pages in one complete assembly, including empty pages.
@@ -161,52 +176,184 @@ pub fn assemble_campaigns(
     Ok(CampaignSnapshot { campaigns })
 }
 
-/// Reports that live character discovery is not available.
+/// Reads the complete account-scoped character collection.
 ///
-/// This function does not construct an HTTP client, access credentials, or
-/// send a request. A successful empty list must not be used as a fallback.
+/// The service's default response is accepted only when its offset is zero,
+/// its reported total matches the raw returned count, and all records fit
+/// within the existing page limit.
 ///
 /// # Errors
 ///
-/// Always returns [`CharacterCampaignError::UnsupportedOperation`].
-pub fn list_characters() -> Result<CharacterSnapshot, CharacterCampaignError> {
-    Err(CharacterCampaignError::UnsupportedOperation)
+/// Returns session, transport, malformed-response, completeness, or limit
+/// failures. No partial snapshot is returned.
+pub async fn list_characters(
+    session: &Session,
+) -> Result<CharacterSnapshot, CharacterCampaignError> {
+    let session = session.read_scope();
+    timeout(Duration::from_secs(30), async {
+        let account_id = session
+            .account_id()
+            .await
+            .map_err(CharacterCampaignError::SessionRead)?;
+        let (client, origin) = source_client(&session, CHARACTER_ORIGIN)?;
+        let url = format!("{origin}/character/v5/characters/list?userId={account_id}");
+        let response: Value = session
+            .get_json(&client, &url)
+            .await
+            .map_err(CharacterCampaignError::SessionRead)?;
+        let entries = source::character_list(response)?;
+        assemble_characters([Ok(CharacterPage {
+            cursor: None,
+            entries,
+            next_cursor: None,
+        })])
+    })
+    .await
+    .map_err(|_| CharacterCampaignError::TimedOut)?
 }
 
-/// Reports that live character reads are not available.
+/// Reads one explicitly selected character from the fixed character service.
 ///
-/// This function does not construct an HTTP client, access credentials, or
-/// send a request. It does not interpret an identifier without a read contract.
+/// The selection must be a positive decimal source identifier. The returned
+/// raw JSON keeps campaign and unknown fields without interpreting them.
 ///
 /// # Errors
 ///
-/// Always returns [`CharacterCampaignError::UnsupportedOperation`].
-pub fn get_character(_id: &str) -> Result<Character, CharacterCampaignError> {
-    Err(CharacterCampaignError::UnsupportedOperation)
+/// Returns session, transport, malformed-response, or selection failures.
+pub async fn get_character(
+    session: &Session,
+    id: &str,
+) -> Result<Character, CharacterCampaignError> {
+    let numeric_id = selected_id(id)?;
+    let session = session.read_scope();
+    timeout(Duration::from_secs(30), async {
+        let (client, origin) = source_client(&session, CHARACTER_ORIGIN)?;
+        let url = format!("{origin}/character/v5/character/{numeric_id}?includeCustomItems=true");
+        let response: Value = session.get_json(&client, &url).await.map_err(|error| {
+            if error.kind() == crate::auth::session::SessionErrorKind::NotFound {
+                CharacterCampaignError::MissingRecord
+            } else {
+                CharacterCampaignError::SessionRead(error)
+            }
+        })?;
+        let record = source::character_show(response, id)?;
+        let snapshot = assemble_characters([Ok(CharacterPage {
+            cursor: None,
+            entries: vec![record],
+            next_cursor: None,
+        })])?;
+        snapshot
+            .get(id)
+            .cloned()
+            .ok_or(CharacterCampaignError::MissingRecord)
+    })
+    .await
+    .map_err(|_| CharacterCampaignError::TimedOut)?
 }
 
-/// Reports that live campaign discovery is not available.
+/// Reads bounded campaign summaries from the selected fixed collection.
 ///
-/// This function does not construct an HTTP client, access credentials, or
-/// send a request. A successful empty list must not be used as a fallback.
+/// `active_only` selects the source's active-campaign route. Campaign list
+/// reads do not request rosters, so their association state remains unknown.
 ///
 /// # Errors
 ///
-/// Always returns [`CharacterCampaignError::UnsupportedOperation`].
-pub fn list_campaigns() -> Result<CampaignSnapshot, CharacterCampaignError> {
-    Err(CharacterCampaignError::UnsupportedOperation)
+/// Returns session, transport, malformed-response, or limit failures.
+pub async fn list_campaigns(
+    session: &Session,
+    active_only: bool,
+) -> Result<CampaignSnapshot, CharacterCampaignError> {
+    let session = session.read_scope();
+    timeout(Duration::from_secs(30), async {
+        let (client, origin) = source_client(&session, WEBSITE_ORIGIN)?;
+        let url = if active_only {
+            format!("{origin}/api/campaign/stt/active-campaigns")
+        } else {
+            format!("{origin}/api/campaign/stt/user-campaigns")
+        };
+        let response: Value = session
+            .get_json(&client, &url)
+            .await
+            .map_err(CharacterCampaignError::SessionRead)?;
+        let entries = source::campaign_list(response)?;
+        assemble_campaigns([Ok(CampaignPage {
+            cursor: None,
+            entries,
+            next_cursor: None,
+        })])
+    })
+    .await
+    .map_err(|_| CharacterCampaignError::TimedOut)?
 }
 
-/// Reports that live campaign reads are not available.
+/// Reads one default campaign summary and its selected active roster.
 ///
-/// This function does not construct an HTTP client, access credentials, or
-/// send a request. It does not interpret an identifier without a read contract.
+/// Only the selected campaign's roster is requested. The returned associations
+/// describe that active roster, not inactive participants or full details.
 ///
 /// # Errors
 ///
-/// Always returns [`CharacterCampaignError::UnsupportedOperation`].
-pub fn get_campaign(_id: &str) -> Result<Campaign, CharacterCampaignError> {
-    Err(CharacterCampaignError::UnsupportedOperation)
+/// Returns session, transport, malformed-response, or missing-record failures.
+pub async fn get_campaign(session: &Session, id: &str) -> Result<Campaign, CharacterCampaignError> {
+    let numeric_id = selected_id(id)?;
+    let session = session.read_scope();
+    timeout(Duration::from_secs(30), async {
+        let (client, origin) = source_client(&session, WEBSITE_ORIGIN)?;
+        let user_campaigns = format!("{origin}/api/campaign/stt/user-campaigns");
+        let response: Value = session
+            .get_json(&client, &user_campaigns)
+            .await
+            .map_err(CharacterCampaignError::SessionRead)?;
+        let mut summaries = source::campaign_list(response)?;
+        let selected = summaries
+            .iter()
+            .position(|campaign| campaign.id == id)
+            .ok_or(CharacterCampaignError::MissingRecord)?;
+        let mut summary = summaries.swap_remove(selected);
+
+        let roster_url = format!("{origin}/api/campaign/stt/active-short-characters/{numeric_id}");
+        let roster: Value = session
+            .get_json(&client, &roster_url)
+            .await
+            .map_err(CharacterCampaignError::SessionRead)?;
+        let characters = source::campaign_roster(roster)?;
+        let character_ids = characters
+            .iter()
+            .map(|character| source::numeric_source_id(character, "id"))
+            .collect::<Result<Vec<_>, _>>()?;
+        summary.character_ids = Some(character_ids);
+        summary.raw = json!({"summary": summary.raw, "characters": characters});
+        Campaign::from_record(summary)
+    })
+    .await
+    .map_err(|_| CharacterCampaignError::TimedOut)?
+}
+
+/// Selects only a compiled synthetic source or the fixed production origin.
+fn source_client(
+    session: &Session,
+    production_origin: &str,
+) -> Result<(HttpClient, String), CharacterCampaignError> {
+    #[cfg(any(test, feature = "session-fixture"))]
+    if let Some(source) = &session.character_campaign_fixture {
+        return Ok((source.client.clone(), source.origin.clone()));
+    }
+    #[cfg(not(any(test, feature = "session-fixture")))]
+    let _ = session;
+    let client = HttpClient::single_attempt(&[production_origin])
+        .map_err(CharacterCampaignError::PageRead)?;
+    Ok((client, production_origin.to_owned()))
+}
+
+/// Validates the canonical decimal form used to build fixed numeric routes.
+fn selected_id(id: &str) -> Result<u64, CharacterCampaignError> {
+    let parsed = id
+        .parse::<u64>()
+        .ok()
+        .filter(|value| *value > 0)
+        .filter(|value| value.to_string() == id)
+        .ok_or(CharacterCampaignError::InvalidMetadata)?;
+    Ok(parsed)
 }
 
 #[cfg(test)]

@@ -53,10 +53,10 @@ async fn acquire(session: &Session) -> Result<(), SessionError> {
 #[tokio::test]
 async fn book_scopes_pin_identity_without_losing_process_local_reuse() {
     let session = fixture::session(Scenario::Valid).expect("fixture");
-    let scoped = session.book_scope();
+    let scoped = session.read_scope();
     assert_eq!(request_count(&session), 0);
     acquire(&scoped).await.expect("initial scoped evidence");
-    acquire(&session.book_scope())
+    acquire(&session.read_scope())
         .await
         .expect("separate scope shares bearer");
     assert_eq!(request_count(&session), 1);
@@ -401,13 +401,23 @@ async fn authenticated_reads_share_evidence_and_preserve_denial_semantics() {
         .await
         .expect_err("content denied");
     worker.join().expect("one denied read, no retry");
-    assert_eq!(error.kind(), SessionErrorKind::ReadFailed);
+    assert_eq!(error.kind(), SessionErrorKind::AccessDenied);
     let cause = error
         .source()
         .expect("HTTP cause")
         .downcast_ref::<HttpError>()
         .expect("typed HTTP");
     assert_eq!(cause.kind(), ErrorKind::AccessDenied);
+    let (client, url, worker) = read_service(404);
+    assert_eq!(
+        session
+            .get_json::<Value>(&client, &url)
+            .await
+            .expect_err("missing record")
+            .kind(),
+        SessionErrorKind::NotFound
+    );
+    worker.join().expect("one missing read, no retry");
     let (client, url, worker) = read_service(401);
     assert_eq!(
         session

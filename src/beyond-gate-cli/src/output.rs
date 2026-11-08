@@ -20,12 +20,12 @@ impl ListOptions {
     /// Rejects header control for JSON before the selected operation can run.
     pub(crate) fn parse(matches: &ArgMatches) -> Result<Self, Failure> {
         let format = matches
-            .get_one::<String>("format")
+            .get_one::<String>("output")
             .ok_or(Failure::Usage("A list format is required."))?;
         let headers = !matches.get_flag("no-headers");
         if format == "json" && !headers {
             return Err(Failure::Usage(
-                "--no-headers cannot be used with --format json",
+                "--no-headers cannot be used with --output json",
             ));
         }
         Ok(Self {

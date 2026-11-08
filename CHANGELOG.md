@@ -7,6 +7,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Fixed, bounded read-only character and campaign operations through the shared
+  core, CLI, and MCP server. Character lists require a complete response;
+  campaign lists support the active collection, and campaign show reads only
+  the selected active roster. CLI show commands support `--output` / `-o`,
+  with `--format` as an alias. Synthetic process checks cover adapter parity.
+  Live character and campaign compatibility has not been validated.
 - Desktop acceptance matrix with retained three-target package checks and
   separately approved Windows desktop, synthetic native-store, and Chrome/stable
   Edge setup/removal evidence. A disposable Ubuntu VM also checked command/runtime
@@ -49,7 +55,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   access changes, stale sources, strict inputs, cancellation, and safe errors.
   Separately approved native CLI/MCP acceptance passed for one selected chapter:
   matching 79-entry outlines and 3,929 UTF-8 byte initial chunks. Live continuation
-  and sharing remain unchecked. Character and campaign reads remain unsupported.
+  and sharing remain unchecked. Character and campaign reads are described in a
+  separate Unreleased entry; live compatibility has not been validated.
   No external runtime, automatic continuation, or content cache is added.
 - Ignored Windows metadata-only investigation probe for issue #33's mobile
   book-access candidate. Synthetic checks cover explicit execution guards,

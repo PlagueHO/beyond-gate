@@ -6,8 +6,9 @@
 //! expose fresh Windows validation through shared process-local session reuse.
 //! Windows library and book reads use the shared session. Book reads require fresh
 //! positive library evidence and checked canonical cookie pages for each operation.
-//! Character and campaign live reads remain unsupported. Offline assembly APIs
-//! remain available for synthetic records. No operation caches book content.
+//! Character and campaign reads use fixed, bounded operations through a
+//! protected Windows session. Synthetic tests validate adapter behavior, not
+//! live source compatibility. No operation caches book content.
 
 pub mod auth;
 pub mod book;
@@ -25,6 +26,6 @@ pub mod library;
 /// ```
 /// use beyond_gate_core::FOUNDATION_NOTICE;
 ///
-/// assert!(FOUNDATION_NOTICE.contains("not implemented"));
+/// assert!(FOUNDATION_NOTICE.contains("bounded"));
 /// ```
-pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list discovers bounded Web-catalog metadata and evidence. Book outline/read and their MCP tools check fresh library evidence and canonical cookie pages, with explicit bounded continuation. Unknown access and unsupported layouts return no content. Character and campaign live reads are not implemented; Linux production login and session use remain deferred.";
+pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list discovers bounded Web-catalog metadata and evidence. Book outline/read and their MCP tools check fresh library evidence and canonical cookie pages, with explicit bounded continuation. Character and campaign reads use fixed, bounded operations through a protected Windows session; live source compatibility has not been validated. Linux production login and session use remain deferred.";

@@ -894,8 +894,10 @@ stop conditions, and cleanup. Do not put credential values in the approval.
 Stop on access denial, throttling, unexpected content, or a protection prompt.
 Do not retry or select another resource unless the approval permits it.
 
-Current product support is Windows library discovery and bounded book reads.
-Character and campaign live reads remain unsupported. Existing one-chapter
+Current product support includes Windows library discovery and bounded book
+reads, plus fixed, bounded character and campaign read operations. Character and
+campaign behavior has synthetic process coverage, but no live acceptance.
+Existing one-chapter
 initial-chunk evidence does not prove general compatibility, live continuation,
 or real sharing. Do not automatically follow continuation tokens.
 Keep live results separate from package checks, synthetic fixtures, and

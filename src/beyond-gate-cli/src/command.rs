@@ -22,14 +22,15 @@ pub fn command() -> Command {
                 .subcommand(Command::new("logout").about("Remove the local credential without upstream revocation")),
         )
         .subcommand(
-            resource("character", "Character reads (live source is not implemented)")
-                .subcommand(list_options(Command::new("list").about("List character summaries; live reads are unsupported")))
-                .subcommand(Command::new("show").about("Show character metadata and unchanged raw JSON; live reads are unsupported").arg(identifier("id"))),
+            resource("character", "Read authorized character data")
+                .subcommand(list_options(Command::new("list").about("List complete character summaries")))
+                .subcommand(show_options(Command::new("show").about("Show one character and its unchanged raw JSON").arg(identifier("id")))),
         )
         .subcommand(
-            resource("campaign", "Campaign reads (live source is not implemented)")
-                .subcommand(list_options(Command::new("list").about("List campaigns and character associations; live reads are unsupported")))
-                .subcommand(Command::new("show").about("Show campaign metadata, associations, and raw JSON; live reads are unsupported").arg(identifier("id"))),
+            resource("campaign", "Read authorized campaign data")
+                .subcommand(list_options(Command::new("list").about("List campaign summaries without loading rosters"))
+                    .arg(Arg::new("active-only").long("active-only").action(ArgAction::SetTrue).help("List only campaigns from the active-campaign source")))
+                .subcommand(show_options(Command::new("show").about("Show one campaign summary and its active roster").arg(identifier("id")))),
         )
         .subcommand(
             resource("book", "Bounded Windows library, outline, and selected-section reads")
@@ -120,20 +121,35 @@ fn valid_identifier(value: &str) -> Result<String, &'static str> {
     }
 }
 
-/// Adds only the formatting controls that apply to list-like results.
+/// Adds output controls with the established table default for lists.
 fn list_options(command: Command) -> Command {
-    command
-        .arg(
-            Arg::new("format")
-                .long("format")
-                .default_value("table")
-                .value_parser(["table", "json", "tsv"])
-                .help("Result format; JSON preserves structured fields"),
-        )
-        .arg(
-            Arg::new("no-headers")
-                .long("no-headers")
-                .action(ArgAction::SetTrue)
-                .help("Omit table/TSV headers; invalid with JSON"),
-        )
+    output_options(command, "table").arg(
+        Arg::new("no-headers")
+            .long("no-headers")
+            .action(ArgAction::SetTrue)
+            .help("Omit table/TSV headers; invalid with JSON"),
+    )
+}
+
+/// Adds output controls with a JSON default for one selected record.
+fn show_options(command: Command) -> Command {
+    output_options(command, "json").arg(
+        Arg::new("no-headers")
+            .long("no-headers")
+            .action(ArgAction::SetTrue)
+            .help("Omit table/TSV headers; invalid with JSON"),
+    )
+}
+
+/// Defines one output selector shared by its modern name and compatibility alias.
+fn output_options(command: Command, default: &'static str) -> Command {
+    command.arg(
+        Arg::new("output")
+            .short('o')
+            .long("output")
+            .visible_alias("format")
+            .default_value(default)
+            .value_parser(["table", "json", "tsv"])
+            .help("Output format; JSON preserves structured fields"),
+    )
 }

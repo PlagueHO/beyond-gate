@@ -2,7 +2,7 @@
 
 use std::{error::Error, fmt};
 
-use crate::http::HttpError;
+use crate::{auth::session::SessionError, http::HttpError};
 
 /// Explains why no complete character or campaign result can be returned.
 ///
@@ -21,10 +21,16 @@ pub enum CharacterCampaignError {
     IncompleteDiscovery,
     /// The page, per-page record, or total raw-record cap was exceeded.
     LimitExceeded,
-    /// Live source contracts and usable login are not implemented.
-    UnsupportedOperation,
-    /// A supplied page failed; the underlying HTTP classification is preserved.
+    /// The selected record is absent from a complete authorized source response.
+    MissingRecord,
+    /// A source response does not match the fixed read contract.
+    InvalidResponse,
+    /// A protected-session read failed and retains its safe cause.
+    SessionRead(SessionError),
+    /// A bounded source request failed and retains its safe cause.
     PageRead(HttpError),
+    /// The complete multi-request operation reached its fixed deadline.
+    TimedOut,
 }
 
 impl fmt::Display for CharacterCampaignError {
@@ -44,12 +50,15 @@ impl fmt::Display for CharacterCampaignError {
             Self::LimitExceeded => {
                 "Character or campaign discovery exceeds a local page or record limit."
             }
-            Self::UnsupportedOperation => {
-                "Live character and campaign reads are unsupported: source contracts and usable login are not implemented."
+            Self::MissingRecord => "The selected character or campaign was not found.",
+            Self::InvalidResponse => {
+                "The character or campaign source returned an invalid response."
             }
             Self::PageRead(_) => {
                 "A character or campaign page read failed; no snapshot is available."
             }
+            Self::TimedOut => "The character or campaign operation reached its time limit.",
+            Self::SessionRead(_) => "The protected session could not read this source.",
         };
         formatter.write_str(message)
     }
@@ -60,6 +69,7 @@ impl Error for CharacterCampaignError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::PageRead(error) => Some(error),
+            Self::SessionRead(error) => Some(error),
             _ => None,
         }
     }

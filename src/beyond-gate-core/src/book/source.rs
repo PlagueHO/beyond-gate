@@ -125,7 +125,7 @@ fn validate_book_id(id: &str) -> Result<(), BookError> {
 pub(super) async fn outline(session: &Session, id: &str) -> Result<BookOutline, BookError> {
     validate_book_id(id)?;
     let deadline = Instant::now() + Duration::from_secs(30);
-    let session = session.book_scope();
+    let session = session.read_scope();
     let result = timeout_at(deadline, async {
         Source::resolve(&session, id)
             .await?
@@ -160,7 +160,7 @@ pub(super) async fn read(
         return Err(BookError::InvalidContinuation);
     }
     let deadline = Instant::now() + Duration::from_secs(30);
-    let session = session.book_scope();
+    let session = session.read_scope();
     let result = timeout_at(deadline, async {
         let source = Source::resolve(&session, request.book_id).await?;
         let outline = source.navigation(&session, request.book_id).await?;

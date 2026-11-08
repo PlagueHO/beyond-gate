@@ -41,10 +41,12 @@ fn manual_inventory_matches_parser() {
         .collect();
     assert_eq!(actual, expected);
     for (path, argument, key) in [
-        ("character list", "format", "formats"),
-        ("campaign list", "format", "formats"),
-        ("book list", "format", "formats"),
-        ("book outline", "format", "formats"),
+        ("character list", "output", "formats"),
+        ("character show", "output", "formats"),
+        ("campaign list", "output", "formats"),
+        ("campaign show", "output", "formats"),
+        ("book list", "output", "formats"),
+        ("book outline", "output", "formats"),
         ("completions", "shell", "shells"),
         ("mcp install", "client", "clients"),
         ("auth install", "browser", "browsers"),

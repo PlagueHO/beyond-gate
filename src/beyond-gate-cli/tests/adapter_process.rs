@@ -11,6 +11,7 @@ use std::{
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
 use beyond_gate_cli::ReadOperations;
 use beyond_gate_core::{
+    auth::session::Session,
     book::{
         self, BookError, BookOutline, OutlineEntryRecord, OutlineRecord, SectionChunk,
         SectionRecord, SectionRequest,
@@ -56,7 +57,10 @@ impl Fixtures {
 
 impl ReadOperations for Fixtures {
     /// Builds validated characters with optional metadata and unknown JSON fields.
-    fn list_characters(&self) -> Result<CharacterSnapshot, CharacterCampaignError> {
+    async fn list_characters(
+        &self,
+        _session: &Session,
+    ) -> Result<CharacterSnapshot, CharacterCampaignError> {
         if self.scenario == "malformed" {
             return Err(CharacterCampaignError::InvalidMetadata);
         }
@@ -86,15 +90,24 @@ impl ReadOperations for Fixtures {
     }
 
     /// Looks up only the explicit synthetic selection.
-    fn get_character(&self, id: &str) -> Result<Character, CharacterCampaignError> {
-        self.list_characters()?
+    async fn get_character(
+        &self,
+        _session: &Session,
+        id: &str,
+    ) -> Result<Character, CharacterCampaignError> {
+        self.list_characters(_session)
+            .await?
             .get(id)
             .cloned()
             .ok_or(CharacterCampaignError::InvalidMetadata)
     }
 
     /// Preserves synthetic campaign associations and nested source fields.
-    fn list_campaigns(&self) -> Result<CampaignSnapshot, CharacterCampaignError> {
+    async fn list_campaigns(
+        &self,
+        _session: &Session,
+        _active_only: bool,
+    ) -> Result<CampaignSnapshot, CharacterCampaignError> {
         if self.scenario == "malformed" {
             return Err(CharacterCampaignError::InvalidMetadata);
         }
@@ -105,7 +118,7 @@ impl ReadOperations for Fixtures {
                 id: "campaign".into(),
                 name: None,
                 source_url: None,
-                character_ids: vec!["hero".into(), "hero\\two".into()],
+                character_ids: Some(vec!["hero".into(), "hero\\two".into()]),
                 raw: json!({"unknown_campaign": {"items": [true, 2]}}),
             }]
         };
@@ -117,8 +130,13 @@ impl ReadOperations for Fixtures {
     }
 
     /// Selects one synthetic campaign without inferring character visibility.
-    fn get_campaign(&self, id: &str) -> Result<Campaign, CharacterCampaignError> {
-        self.list_campaigns()?
+    async fn get_campaign(
+        &self,
+        _session: &Session,
+        id: &str,
+    ) -> Result<Campaign, CharacterCampaignError> {
+        self.list_campaigns(_session, false)
+            .await?
             .get(id)
             .cloned()
             .ok_or(CharacterCampaignError::InvalidMetadata)
@@ -321,6 +339,43 @@ fn list_contracts() {
         read_json(&run("normal", &["campaign", "show", "campaign"])),
         campaigns[0]
     );
+    for (resource, expected) in [("character", &characters), ("campaign", &campaigns)] {
+        for option in ["--output", "-o", "--format"] {
+            let value = read_json(&run("normal", &[resource, "list", option, "json"]));
+            assert_eq!(&value, expected, "{resource} output option {option}");
+        }
+    }
+    let character_tsv = run("normal", &["character", "show", "hero", "--output", "tsv"]);
+    let character_tsv = String::from_utf8_lossy(&character_tsv.stdout);
+    assert!(character_tsv.starts_with("id\tname\tsource_url\traw\n"));
+    assert!(character_tsv.contains(r#""unknown":{"nested""#));
+    let campaign_tsv = run(
+        "normal",
+        &["campaign", "show", "campaign", "-o", "tsv", "--no-headers"],
+    );
+    let campaign_tsv = String::from_utf8_lossy(&campaign_tsv.stdout);
+    assert!(!campaign_tsv.starts_with("id\t"));
+    assert!(campaign_tsv.contains(r#""unknown_campaign""#));
+    failure(
+        run(
+            "normal",
+            &[
+                "campaign",
+                "show",
+                "campaign",
+                "--output",
+                "json",
+                "--no-headers",
+            ],
+        ),
+        2,
+        "--no-headers",
+    );
+    let active_campaigns = read_json(&run(
+        "normal",
+        &["campaign", "list", "--active-only", "--output", "json"],
+    ));
+    assert_eq!(active_campaigns, campaigns);
     let books = read_json(&run("normal", &["book", "list", "--format", "json"]));
     assert_eq!(books[0]["access"], "purchased_and_shared");
     assert_eq!(books[0]["evidence"][0]["kind"], "purchased");

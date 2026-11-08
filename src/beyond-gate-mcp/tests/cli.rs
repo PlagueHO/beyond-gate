@@ -58,7 +58,7 @@ fn protocol_output(output: &Output) -> Vec<Value> {
         .collect()
 }
 
-/// Checks that help describes stdio serving without implying live reads.
+/// Checks that help describes the local stdio server and shared read scope.
 #[test]
 fn help_reports_local_server_scope() {
     let output = run(&["--help"]);
@@ -67,7 +67,7 @@ fn help_reports_local_server_scope() {
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Local read-only MCP server for Beyond Gate"));
-    assert!(stdout.contains("Other live reads are not implemented"));
+    assert!(stdout.contains("Character, campaign, and book reads"));
 }
 
 /// Checks that version output uses the shared workspace package version.
@@ -83,9 +83,9 @@ fn version_reports_package_version() {
     );
 }
 
-/// Checks initialization, discovery, validation, tool errors, cancellation, and EOF.
+/// Checks initialization, discovery, and invalid tool input without live reads.
 #[test]
-fn stdio_protocol_handles_read_tools_and_lifecycle() {
+fn stdio_protocol_handles_discovery_and_strict_input() {
     let output = run_protocol([
         json!({
             "jsonrpc": "2.0",
@@ -103,17 +103,6 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
             "params": {}
         }),
         json!({"jsonrpc": "2.0", "id": 2, "method": "tools/list", "params": {}}),
-        json!({
-            "jsonrpc": "2.0",
-            "id": 3,
-            "method": "tools/call",
-            "params": {"name": "character_list", "arguments": {}}
-        }),
-        json!({
-            "jsonrpc": "2.0",
-            "method": "notifications/cancelled",
-            "params": {"requestId": 3, "reason": "synthetic cancellation"}
-        }),
         json!({
             "jsonrpc": "2.0",
             "id": 4,
@@ -144,36 +133,9 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
         }),
         json!({
             "jsonrpc": "2.0",
-            "id": 7,
-            "method": "tools/call",
-            "params": {"name": "campaign_list", "arguments": {}}
-        }),
-        json!({
-            "jsonrpc": "2.0",
-            "id": 8,
-            "method": "tools/call",
-            "params": {"name": "campaign_show", "arguments": {"id": "campaign"}}
-        }),
-        json!({
-            "jsonrpc": "2.0",
             "id": 9,
             "method": "tools/call",
             "params": {"name": "book_list", "arguments": {"unexpected": true}}
-        }),
-        json!({
-            "jsonrpc": "2.0",
-            "id": 10,
-            "method": "tools/call",
-            "params": {"name": "book_outline", "arguments": {"book_id": "book"}}
-        }),
-        json!({
-            "jsonrpc": "2.0",
-            "id": 11,
-            "method": "tools/call",
-            "params": {
-                "name": "book_read",
-                "arguments": {"book_id": "book", "section_id": "section"}
-            }
         }),
     ]);
 
@@ -235,6 +197,15 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
         1
     );
     assert_eq!(book_read["inputSchema"]["additionalProperties"], false);
+    let campaign_list = tools
+        .iter()
+        .find(|tool| tool["name"] == "campaign_list")
+        .expect("campaign list tool");
+    assert_eq!(
+        campaign_list["inputSchema"]["properties"]["active_only"]["type"],
+        "boolean"
+    );
+    assert_eq!(campaign_list["inputSchema"]["additionalProperties"], false);
 
     let invalid = responses
         .iter()
@@ -262,23 +233,6 @@ fn stdio_protocol_handles_read_tools_and_lifecycle() {
         .find(|message| message["id"] == 9)
         .expect("strict library input");
     assert_eq!(strict_library["result"]["isError"], true);
-    for id in [7, 8, 10, 11] {
-        let response = responses
-            .iter()
-            .find(|message| message["id"] == id)
-            .expect("read tool response");
-        assert_eq!(response["result"]["isError"], true);
-        assert!(
-            response["result"]["content"][0]["text"]
-                .as_str()
-                .expect("tool error text")
-                .contains(if matches!(id, 10 | 11) {
-                    "metadata is invalid"
-                } else {
-                    "not implemented"
-                })
-        );
-    }
 }
 
 /// Keeps unsupported command-line arguments out of the server invocation.
