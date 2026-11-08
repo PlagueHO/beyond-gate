@@ -158,13 +158,13 @@ function Assert-PackagedProtocol {
     @{jsonrpc = '2.0'; id = 2; method = 'tools/list'; params = @{}}
   )
   $operations = @(
-    @{name = 'character_list'; arguments = @{}}
-    @{name = 'character_show'; arguments = @{id = 'synthetic'}}
-    @{name = 'campaign_list'; arguments = @{}}
-    @{name = 'campaign_show'; arguments = @{id = 'synthetic'}}
-    @{name = 'book_list'; arguments = $(if ($IsWindows) { @{unexpected = $true} } else { @{} })}
-    @{name = 'book_outline'; arguments = @{book_id = 'synthetic'}}
-    @{name = 'book_read'; arguments = @{book_id = 'synthetic'; section_id = 'opening'}}
+    @{name = 'character_list'; arguments = @{unexpected = $true}}
+    @{name = 'character_show'; arguments = @{id = 'synthetic'; unexpected = $true}}
+    @{name = 'campaign_list'; arguments = @{unexpected = $true}}
+    @{name = 'campaign_show'; arguments = @{id = 'synthetic'; unexpected = $true}}
+    @{name = 'book_list'; arguments = @{unexpected = $true}}
+    @{name = 'book_outline'; arguments = @{book_id = 'synthetic'; unexpected = $true}}
+    @{name = 'book_read'; arguments = @{book_id = 'synthetic'; section_id = 'opening'; unexpected = $true}}
   )
   for ($index = 0; $index -lt $operations.Count; $index++) {
     $messages += @{jsonrpc = '2.0'; id = $index + 3; method = 'tools/call'; params = $operations[$index]}
@@ -198,16 +198,9 @@ function Assert-PackagedProtocol {
   Assert-Package ($bookList.inputSchema.additionalProperties -eq $false) 'MCP library input must reject unknown fields.'
   for ($id = 3; $id -le 9; $id++) {
     $response = @($responses | Where-Object { $_.id -eq $id })
-    Assert-Package ($response.Count -eq 1 -and $response[0].result.isError -eq $true) 'Invalid or unsupported MCP reads must return tool errors.'
+    Assert-Package ($response.Count -eq 1 -and $response[0].result.isError -eq $true) 'Invalid MCP read input must return a tool error.'
     $text = $response[0].result.content | ConvertTo-Json -Depth 10 -Compress
-    if ($IsWindows -and $id -eq 7) {
-      # Invalid input must stop Windows discovery before credential or network access.
-      Assert-Package ($text -cmatch 'unknown field' -and $text -cmatch 'unexpected') 'MCP library input must fail before discovery.'
-    } elseif ($id -in @(8, 9)) {
-      Assert-Package ($text -cmatch 'metadata is invalid') 'Invalid book IDs must fail before session or network access.'
-    } else {
-      Assert-Package ($text -cmatch 'unsupported') 'MCP read failure must state the current implementation limit.'
-    }
+    Assert-Package ($text -cmatch 'unknown field' -and $text -cmatch 'unexpected') 'MCP read input must fail before session or network access.'
   }
 }
 
