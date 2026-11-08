@@ -6,6 +6,7 @@ use beyond_gate_core::{
     auth::{AuthError, session::SessionError},
     book::BookError,
     character_campaign::CharacterCampaignError,
+    class_catalog::ClassCatalogError,
     http::{ErrorKind, HttpError},
     library::LibraryError,
 };
@@ -21,6 +22,7 @@ pub(crate) enum Failure {
     Cancelled,
     Signal(io::Error),
     Character(CharacterCampaignError),
+    Class(ClassCatalogError),
     Library(LibraryError),
     Book(BookError),
     Cursor(BookError),
@@ -33,7 +35,10 @@ pub(crate) enum Failure {
 impl Failure {
     /// Preserves the existing usage/operation split in process exit codes.
     pub(crate) fn exit_code(&self) -> i32 {
-        if matches!(self, Self::Usage(_) | Self::Cursor(_)) {
+        if matches!(
+            self,
+            Self::Usage(_) | Self::Cursor(_) | Self::Class(ClassCatalogError::InvalidInput)
+        ) {
             2
         } else {
             1
@@ -64,6 +69,7 @@ impl fmt::Display for Failure {
             Self::Cancelled => formatter.write_str("cancelled")?,
             Self::Signal(_) => formatter.write_str("Session cancellation handler failed.")?,
             Self::Character(error) => write!(formatter, "{error}")?,
+            Self::Class(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
             Self::Mcp(error) => write!(formatter, "{error}")?,
@@ -108,6 +114,7 @@ impl Error for Failure {
             Self::Signal(error) => Some(error),
             Self::Cancelled => None,
             Self::Character(error) => Some(error),
+            Self::Class(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),
             Self::Mcp(error) => Some(error),

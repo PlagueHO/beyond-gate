@@ -13,6 +13,9 @@ and initial chunks. Live continuation and sharing remain unchecked.
 Character and campaign reads use fixed, bounded operations through the stored
 Windows session. Synthetic process checks cover successful reads and matching
 CLI/MCP data. No live character or campaign acceptance has been run.
+Class and subclass commands return metadata only through bounded Windows
+catalog reads. Browser metadata contracts were inspected under separate
+approvals. Native class/subclass acceptance has not been run.
 
 See [native installation](installation.md) for binary setup and
 [authentication](authentication.md#local-session-commands) for protected storage
@@ -37,7 +40,7 @@ The generated `help` command also supports nested paths, such as
 
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
-`character`, `campaign`, `book`, or `mcp`.
+`character`, `campaign`, `class`, `subclass`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -59,12 +62,76 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`character show`](#character-show) | Select one character | Windows; fixed source route |
 | [`campaign list`](#campaign-list) | List campaigns and associations | Windows; `--active-only` selects the active collection |
 | [`campaign show`](#campaign-show) | Select one campaign and active roster | Windows; selected roster only |
+| [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows; metadata only |
+| [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows; scoped or bounded global metadata |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
+
+## Class and subclass metadata
+
+```text
+beyond-gate class list
+beyond-gate class list --name Fighter
+beyond-gate class list -n fight --output json
+beyond-gate class show 2190879
+beyond-gate class show 10
+beyond-gate subclass list
+beyond-gate subclass list --name Champion
+beyond-gate subclass list --class-id 2190879
+beyond-gate subclass list --class-id 10 --name Champion --output json
+beyond-gate subclass show 7001 --class-id 2190879
+beyond-gate subclass show 7001
+```
+
+The two Fighter IDs were observed. Subclass `7001` and Champion are illustrative,
+not retained live subclass observations. Names find candidates; IDs select records.
+`--name` / `-n` uses local case-insensitive substring matching. `fight` and `ght`
+both match Fighter. Keep duplicate names. There is no query language, wildcard,
+fuzzy search, remote name filter, or implicit current/legacy preference.
+Filters must be nonempty, unpadded, control-free, and within 256 UTF-8 bytes.
+Class IDs must be positive canonical decimal integers that fit `u64`.
+
+Lists default to table. Show defaults to JSON. Both support `--output` / `-o`,
+the `--format` alias, and `table`, `json`, or `tsv`. `--no-headers` is invalid
+with JSON. Table/TSV uses identity, name, parent, and source-ID columns.
+JSON lists contain `kind`, `id`, `name`, `parent_class_id`, and `source_ids`.
+JSON show also contains `is_homebrew`, `slug`, `more_details_url`, and `sources`.
+Optional metadata is null when absent. Invalid supplied metadata fails.
+The [MCP reference](mcp.md#class_list-and-class_show) gives the shared JSON shape.
+
+Show is metadata-only. It does not return descriptions, feature text, equipment
+text, spell rules, or raw definitions. Unknown source-reference metadata is
+preserved in `sources`; arbitrary unknown definition fields are excluded.
+This intentionally narrows lossless raw-definition detail to metadata.
+Source IDs, names, and `is_homebrew` do not establish year, legacy/current state,
+ownership, sharing, or permission to read rules text.
+
+Only subclasses accept `--class-id`. Without it, discovery reads every checked
+parent sequentially. Equal subclass IDs under different parents remain distinct.
+An unscoped ambiguous show fails and requires a parent. A missing selected parent
+fails before any subclass request. No direct detail route or metadata link is fetched.
+Results sort by lowercase name, original name, numeric parent, then numeric ID.
+
+Each operation checks public source configuration and fresh protected catalogs.
+The global parent cap is 32. The combined raw class/subclass cap is 1,000 before
+filtering. Each response is at most 1 MiB; all resource bodies, including
+configuration, total at most 8 MiB. Compact canonical JSON results are at most
+1 MiB before formatting. The whole operation is at most 120 seconds, including
+session waits. There are no retries, redirects, or automatic continuation.
+Class/scoped operations can accept more than 32 roots within the raw-record cap.
+Conservative maximum explicit HTTP counts, including possible bearer exchanges,
+are 3 for class, 5 for scoped subclass, and 67 for global subclass operations.
+
+Empty lists require complete successful discovery. Missing IDs mean absent from
+the checked default catalog scope, not globally nonexistent. Denial, session
+expiry/rejection, invalid metadata, incomplete discovery, ambiguity, and exceeded
+bounds fail without partial results. Linux/macOS production session use remains
+unsupported. Native compatibility, live global traversal, and real sharing are
+unverified. More live account tests require separate approval.
 
 ## Authentication commands
 

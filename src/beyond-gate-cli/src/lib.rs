@@ -1,7 +1,7 @@
 //! CLI parsing and presentation for shared reads, with an offline test boundary.
 //!
-//! Library discovery uses the shared core session. Other live reads remain
-//! unsupported. Synthetic source selection belongs only to test processes.
+//! Resource reads use the shared core session. Class/subclass reads expose
+//! metadata only. Synthetic source selection belongs only to test processes.
 
 mod browser_setup;
 mod command;
@@ -26,6 +26,7 @@ use beyond_gate_core::{
     character_campaign::{
         self, Campaign, CampaignSnapshot, Character, CharacterCampaignError, CharacterSnapshot,
     },
+    class_catalog::{self, ClassCatalogError, ClassKind},
     library::{self, LibraryError, LibrarySnapshot},
 };
 use clap::ArgMatches;
@@ -41,6 +42,30 @@ use output::ListOptions;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Lists metadata only, preserving the shared catalog failures.
+    ///
+    /// # Errors
+    ///
+    /// Returns invalid input, discovery, source, session, or bound failures.
+    fn list_classes(
+        &self,
+        session: &Session,
+        kind: ClassKind,
+        name: Option<&str>,
+        class_id: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Value, ClassCatalogError>>;
+    /// Shows one metadata projection, never a raw definition.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared discovery, missing-record, or ambiguity failures.
+    fn show_class(
+        &self,
+        session: &Session,
+        kind: ClassKind,
+        id: &str,
+        class_id: Option<&str>,
+    ) -> impl std::future::Future<Output = Result<Value, ClassCatalogError>>;
     /// Lists characters, or returns the typed shared failure.
     ///
     /// # Errors
@@ -162,6 +187,27 @@ fn execute_mcp(
 pub struct LiveReads;
 
 impl ReadOperations for LiveReads {
+    /// Delegates complete metadata discovery and filtering to the core.
+    async fn list_classes(
+        &self,
+        session: &Session,
+        kind: ClassKind,
+        name: Option<&str>,
+        class_id: Option<&str>,
+    ) -> Result<Value, ClassCatalogError> {
+        class_catalog::list(session, kind, name, class_id).await
+    }
+
+    /// Delegates metadata selection and parent ambiguity checks to the core.
+    async fn show_class(
+        &self,
+        session: &Session,
+        kind: ClassKind,
+        id: &str,
+        class_id: Option<&str>,
+    ) -> Result<Value, ClassCatalogError> {
+        class_catalog::show(session, kind, id, class_id).await
+    }
     /// Preserves the core character-discovery result and failure classification.
     async fn list_characters(
         &self,
@@ -432,10 +478,62 @@ fn execute(
         .subcommand()
         .ok_or(Failure::Usage("Select a resource operation."))?;
     match resource {
+        "class" => execute_class(action, arguments, reads, session, ClassKind::Class),
+        "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
         "character" => execute_character(action, arguments, reads, session),
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
+    }
+}
+
+/// Renders shared class metadata without duplicating discovery or access logic.
+fn execute_class(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+    kind: ClassKind,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?;
+    let class_id = if kind == ClassKind::Subclass {
+        arguments.get_one::<String>("class-id").map(String::as_str)
+    } else {
+        None
+    };
+    let fields = ["id", "name", "parent_class_id", "source_ids"];
+    let (name, id) = match action {
+        "list" => (
+            arguments.get_one::<String>("name").map(String::as_str),
+            None,
+        ),
+        "show" => (None, Some(selection(arguments, "id")?)),
+        _ => return Err(Failure::Usage("Select class/subclass list or show.")),
+    };
+    class_catalog::validate_input(kind, name, class_id, id).map_err(Failure::Class)?;
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => {
+                signal.map_err(Failure::Signal)?;
+                Err(Failure::Cancelled)
+            }
+            result = async {
+                if let Some(id) = id {
+                    reads.show_class(session, kind, id, class_id).await
+                } else {
+                    reads.list_classes(session, kind, name, class_id).await
+                }
+            } => result.map_err(Failure::Class),
+        }
+    })?;
+    if id.is_some() {
+        render_record(&options, &fields, value)
+    } else {
+        let rows = value
+            .as_array()
+            .ok_or(Failure::Class(ClassCatalogError::InvalidMetadata))?;
+        output::list(&options, &fields, rows, None)
     }
 }
 

@@ -162,6 +162,8 @@ function Assert-PackagedProtocol {
     @{name = 'character_show'; arguments = @{id = 'synthetic'; unexpected = $true}}
     @{name = 'campaign_list'; arguments = @{unexpected = $true}}
     @{name = 'campaign_show'; arguments = @{id = 'synthetic'; unexpected = $true}}
+    @{name = 'class_list'; arguments = @{unexpected = $true}}
+    @{name = 'class_show'; arguments = @{id = '10'; unexpected = $true}}
     @{name = 'book_list'; arguments = @{unexpected = $true}}
     @{name = 'book_outline'; arguments = @{book_id = 'synthetic'; unexpected = $true}}
     @{name = 'book_read'; arguments = @{book_id = 'synthetic'; section_id = 'opening'; unexpected = $true}}
@@ -175,7 +177,7 @@ function Assert-PackagedProtocol {
   $responses = @($result.Out -split '\r?\n' | Where-Object { $_ -ne '' } | ForEach-Object {
     ConvertFrom-Json -InputObject $_ -AsHashtable
   })
-  Assert-Package ($responses.Count -eq 9) 'Expected initialization, discovery, and seven tool responses.'
+  Assert-Package ($responses.Count -eq ($operations.Count + 2)) 'Expected initialization, discovery, and all resource tool responses.'
   foreach ($response in $responses) {
     Assert-Package ($response.jsonrpc -ceq '2.0') 'MCP stdout must contain protocol messages only.'
   }
@@ -196,7 +198,7 @@ function Assert-PackagedProtocol {
   Assert-Package ($bookRead.inputSchema.properties.continuation.maxLength -eq 16384) 'MCP continuation input must remain bounded.'
   $bookList = $tools | Where-Object { $_.name -ceq 'book_list' }
   Assert-Package ($bookList.inputSchema.additionalProperties -eq $false) 'MCP library input must reject unknown fields.'
-  for ($id = 3; $id -le 9; $id++) {
+  for ($id = 3; $id -lt ($operations.Count + 3); $id++) {
     $response = @($responses | Where-Object { $_.id -eq $id })
     Assert-Package ($response.Count -eq 1 -and $response[0].result.isError -eq $true) 'Invalid MCP read input must return a tool error.'
     $text = $response[0].result.content | ConvertTo-Json -Depth 10 -Compress

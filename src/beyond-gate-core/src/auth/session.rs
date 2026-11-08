@@ -307,6 +307,9 @@ pub struct Session {
     /// Keeps only compiled synthetic character/campaign services alive.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) character_campaign_fixture: Option<Arc<crate::character_campaign::fixture::Source>>,
+    /// Keeps only compiled synthetic class catalog services alive.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) class_catalog_fixture: Option<Arc<crate::class_catalog::fixture::Source>>,
 }
 
 impl Default for Session {
@@ -324,6 +327,8 @@ impl Default for Session {
             library_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             character_campaign_fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            class_catalog_fixture: None,
         }
     }
 }
@@ -358,6 +363,8 @@ impl Session {
             library_fixture: self.library_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             character_campaign_fixture: self.character_campaign_fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            class_catalog_fixture: self.class_catalog_fixture.clone(),
         }
     }
 
@@ -651,6 +658,17 @@ impl Session {
         client: &HttpClient,
         url: &str,
     ) -> Result<T, SessionError> {
+        self.get_json_counted(client, url)
+            .await
+            .map(|(value, _)| value)
+    }
+
+    /// Keeps all protected read checks while reporting actual admitted resource bytes.
+    pub(crate) async fn get_json_counted<T: DeserializeOwned>(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<(T, usize), SessionError> {
         self.supported()?;
         client.check_url(url).map_err(SessionError::read)?;
         let deadline = Instant::now() + Duration::from_secs(30);
@@ -666,7 +684,7 @@ impl Session {
         }
         let headers = bearer.headers().map_err(SessionError::service)?;
         let read_deadline = deadline.min(bearer.deadline());
-        let result = timeout_at(read_deadline, client.get_json(url, Some(&headers))).await;
+        let result = timeout_at(read_deadline, client.get_json_counted(url, Some(&headers))).await;
         match result {
             Ok(Ok(value)) => {
                 if !state

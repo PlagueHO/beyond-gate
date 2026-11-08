@@ -152,6 +152,42 @@ fn invalid_resource_usage_has_no_result() {
     }
 }
 
+/// Rejects invalid catalog selectors and combinations in the actual shipped parser.
+#[test]
+fn class_metadata_help_and_invalid_usage() {
+    for resource in ["class", "subclass"] {
+        for action in ["list", "show"] {
+            let output = run(&[resource, action, "--help"]);
+            assert!(output.status.success());
+            assert!(output.stderr.is_empty());
+            assert!(String::from_utf8_lossy(&output.stdout).contains("metadata"));
+        }
+    }
+    for arguments in [
+        vec!["class", "show", "01"],
+        vec!["subclass", "show", "0"],
+        vec!["class", "show", "18446744073709551616"],
+        vec!["class", "show", "10", "--name", "Fighter"],
+        vec!["class", "list", "--class-id", "10"],
+        vec!["class", "list", "--name", ""],
+        vec!["class", "list", "--name", " padded"],
+        vec!["class", "list", "--query", "Fighter"],
+        vec!["class", "list", "10"],
+        vec!["subclass", "list", "--class-id", "-1"],
+        vec!["class", "list", "--output", "json", "--no-headers"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+    }
+    let output = run(&["completions", "powershell"]);
+    assert!(output.status.success());
+    let completions = String::from_utf8_lossy(&output.stdout);
+    assert!(completions.contains("subclass"));
+    assert!(completions.contains("--class-id"));
+    assert!(completions.contains("--name"));
+}
 /// Names the preferred output option when rejecting JSON header suppression.
 #[test]
 fn json_no_headers_error_uses_output_option_name() {

@@ -12,7 +12,7 @@ use std::{
 use beyond_gate_core::auth::session::fixture::{self, Scenario};
 use beyond_gate_core::{
     auth::session::Session, character_campaign::fixture as character_campaign_fixture,
-    library::fixture as library_fixture,
+    class_catalog::fixture as class_fixture, library::fixture as library_fixture,
 };
 use rmcp::{ServiceExt, transport::stdio};
 use serde_json::{Value, json};
@@ -38,6 +38,21 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    let class_source = match name {
+        "class-normal" => Some(class_fixture::Scenario::Normal),
+        "class-ambiguous" => Some(class_fixture::Scenario::Ambiguous),
+        "class-empty" => Some(class_fixture::Scenario::Empty),
+        "class-denied" => Some(class_fixture::Scenario::Denied),
+        "class-malformed" => Some(class_fixture::Scenario::Malformed),
+        "class-incomplete" => Some(class_fixture::Scenario::Incomplete),
+        "class-expired" => Some(class_fixture::Scenario::Expired),
+        "class-rejected" => Some(class_fixture::Scenario::Rejected),
+        "class-waiting" => Some(class_fixture::Scenario::Waiting),
+        _ => None,
+    };
+    if let Some(source) = class_source {
+        return class_fixture::session(source).expect("invented class services");
+    }
     let character_source = match name {
         "character-normal" => Some(character_campaign_fixture::Scenario::Normal),
         "character-denied-roster" => Some(character_campaign_fixture::Scenario::DeniedRoster),
@@ -683,6 +698,237 @@ fn character_campaign_contracts() {
     );
 }
 
+/// Checks each reviewed metadata workflow through actual CLI and MCP child processes.
+fn class_contracts() {
+    for (tool, arguments, command) in [
+        (
+            "class_list",
+            json!({}),
+            vec!["class", "list", "--output", "json"],
+        ),
+        (
+            "class_list",
+            json!({"name":"Fighter"}),
+            vec!["class", "list", "--name", "Fighter", "--output", "json"],
+        ),
+        (
+            "class_list",
+            json!({"name":"fight"}),
+            vec!["class", "list", "-n", "fight", "--output", "json"],
+        ),
+        (
+            "class_show",
+            json!({"id":"2190879"}),
+            vec!["class", "show", "2190879"],
+        ),
+        (
+            "class_show",
+            json!({"id":"10"}),
+            vec!["class", "show", "10"],
+        ),
+        (
+            "class_list",
+            json!({"kind":"subclass"}),
+            vec!["subclass", "list", "--output", "json"],
+        ),
+        (
+            "class_list",
+            json!({"kind":"subclass","name":"Champion"}),
+            vec!["subclass", "list", "--name", "Champion", "--output", "json"],
+        ),
+        (
+            "class_list",
+            json!({"kind":"subclass","class_id":"2190879"}),
+            vec![
+                "subclass",
+                "list",
+                "--class-id",
+                "2190879",
+                "--output",
+                "json",
+            ],
+        ),
+        (
+            "class_list",
+            json!({"kind":"subclass","class_id":"10","name":"Champion"}),
+            vec![
+                "subclass",
+                "list",
+                "--class-id",
+                "10",
+                "--name",
+                "Champion",
+                "--output",
+                "json",
+            ],
+        ),
+        (
+            "class_show",
+            json!({"kind":"subclass","id":"7001","class_id":"2190879"}),
+            vec!["subclass", "show", "7001", "--class-id", "2190879"],
+        ),
+        (
+            "class_show",
+            json!({"kind":"subclass","id":"7001"}),
+            vec!["subclass", "show", "7001"],
+        ),
+    ] {
+        let cli = cli("class-normal", &command);
+        assert!(
+            cli.status.success(),
+            "{command:?}: {}",
+            String::from_utf8_lossy(&cli.stderr)
+        );
+        assert!(cli.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&cli.stdout).expect("CLI metadata");
+        let (output, messages) = mcp_tool("class-normal", tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("result")["result"];
+        assert_eq!(result["isError"], false, "{tool}: {result}");
+        let text = result["content"][0]["text"]
+            .as_str()
+            .expect("metadata JSON");
+        assert!(!text.contains("DISCARDED"));
+        assert_eq!(
+            serde_json::from_str::<Value>(text).expect("JSON metadata"),
+            cli_value
+        );
+        let tools = messages
+            .iter()
+            .find(|message| message["id"] == 2)
+            .expect("tools")["result"]["tools"]
+            .as_array()
+            .expect("tools");
+        for name in ["class_list", "class_show"] {
+            let schema = &tools
+                .iter()
+                .find(|tool| tool["name"] == name)
+                .expect("class tool")["inputSchema"];
+            assert_eq!(schema["additionalProperties"], false);
+            assert!(
+                !schema["required"]
+                    .as_array()
+                    .is_some_and(|required| required.contains(&json!("kind")))
+            );
+            assert_eq!(schema["properties"]["class_id"]["type"], "string");
+        }
+    }
+    for (tool, arguments) in [
+        ("class_list", json!({"id":"10"})),
+        ("class_list", json!({"class_id":"10"})),
+        ("class_list", json!({"kind":"other"})),
+        ("class_list", json!({"name":null})),
+        ("class_list", json!({"name":""})),
+        ("class_list", json!({"kind":"subclass","class_id":null})),
+        ("class_list", json!({"unknown":true})),
+        ("class_show", json!({"id":"10","name":"Fighter"})),
+        ("class_show", json!({"id":"10","class_id":"10"})),
+        ("class_show", json!({"id":10})),
+        ("class_show", json!({"id":"01"})),
+        ("class_show", json!({"id":"18446744073709551616"})),
+        ("class_show", json!({})),
+    ] {
+        let (output, messages) = mcp_tool("absent", tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("invalid input response")["result"];
+        assert_eq!(result["isError"], true, "{tool}: {result}");
+        assert!(!result.to_string().contains("session_absent"));
+    }
+    for (scenario, command, tool, arguments, expected) in [
+        (
+            "class-ambiguous",
+            vec!["subclass", "show", "7001"],
+            "class_show",
+            json!({"kind":"subclass","id":"7001"}),
+            "ambiguous",
+        ),
+        (
+            "class-denied",
+            vec!["subclass", "list", "--output", "json"],
+            "class_list",
+            json!({"kind":"subclass"}),
+            "access_denied",
+        ),
+        (
+            "class-malformed",
+            vec!["class", "list", "--output", "json"],
+            "class_list",
+            json!({}),
+            "invalid class catalog metadata",
+        ),
+        (
+            "class-incomplete",
+            vec!["class", "list", "--output", "json"],
+            "class_list",
+            json!({}),
+            "complete terminal",
+        ),
+        (
+            "class-expired",
+            vec!["class", "list", "--output", "json"],
+            "class_list",
+            json!({}),
+            "session_expired",
+        ),
+        (
+            "class-rejected",
+            vec!["class", "list", "--output", "json"],
+            "class_list",
+            json!({}),
+            "session_rejected",
+        ),
+        (
+            "class-normal",
+            vec!["class", "show", "999"],
+            "class_show",
+            json!({"id":"999"}),
+            "not found",
+        ),
+    ] {
+        let cli = cli(scenario, &command);
+        assert_eq!(cli.status.code(), Some(1));
+        assert!(cli.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&cli.stderr).contains(expected));
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("failure result")["result"];
+        assert_eq!(result["isError"], true);
+        assert!(
+            result["content"][0]["text"]
+                .as_str()
+                .expect("failure")
+                .contains(expected)
+        );
+    }
+    let output = cli("class-empty", &["class", "list", "-o", "json"]);
+    assert!(output.status.success());
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).expect("empty array"),
+        json!([])
+    );
+    let output = cli(
+        "class-normal",
+        &["class", "list", "--format", "tsv", "--no-headers"],
+    );
+    assert!(output.status.success());
+    assert_eq!(String::from_utf8_lossy(&output.stdout).lines().count(), 2);
+    let output = cli("class-normal", &["class", "list"]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("source_ids"));
+    let (output, _) = mcp_tool("class-waiting", "class_list", json!({}), true);
+    assert!(output.status.success());
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
@@ -719,6 +965,7 @@ fn main() {
             library_contracts();
             book_contracts();
             character_campaign_contracts();
+            class_contracts();
         }
     }
 }

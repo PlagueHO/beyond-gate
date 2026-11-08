@@ -10,6 +10,9 @@ chunks. Live continuation and sharing remain unchecked.
 Character and campaign reads now use fixed, bounded Windows operations through
 the shared protected session. Synthetic process tests cover adapter parity;
 live source compatibility remains unvalidated.
+Issue #65 adds metadata-only Windows class/subclass list/show and two MCP tools.
+Synthetic checks cover bounded discovery and adapter parity. Full-content access,
+native compatibility, real sharing, and live global coverage remain unverified.
 Protected-store operations have synthetic offline
 tests; Windows login creates the protected entry after service validation.
 The core HTTP read boundary has offline policy tests and fixed Web-library
@@ -35,6 +38,7 @@ dependencies, tests, and documentation requirements.
 | [#8](https://github.com/PlagueHO/beyond-gate/issues/8) | Local stdio MCP and read parity | #5, #6; coordinate with #7 |
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
 | [#10](https://github.com/PlagueHO/beyond-gate/issues/10) | Native packages and first-run usability | #9 and its prerequisites |
+| [#65](https://github.com/PlagueHO/beyond-gate/issues/65) | Class/subclass metadata-only list/show; no raw definitions or rules text | #2, #30, #7, #8; browser evidence and synthetic adapter checks, not native acceptance |
 
 Authentication follow-up work remains open:
 

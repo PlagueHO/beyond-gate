@@ -147,6 +147,75 @@ These decisions are not yet production behavior.
 Missing records, denied access, malformed responses, expiry, and exact size limits still
 need synthetic tests. The successful live probes do not establish those failure contracts.
 
+## Class and subclass metadata evidence
+
+Issue [#65](https://github.com/PlagueHO/beyond-gate/issues/65) selected metadata-only
+browsing. Five separately approved browser scopes used 13 explicit requests.
+All scopes are consumed. They do not authorize native credential access or
+another account request.
+
+The first-party asset
+[`main.4ccf1602.js`](https://media.dndbeyond.com/character-app/static/js/main.4ccf1602.js)
+had SHA-256
+`84B06F44B9FD7D2F5318E289984EB24D62372C585CC4AE5C4A9D023631D815A4`.
+It declares class GET and subclass GET with `baseClassId`. Its chooser applies
+local lowercase substring matching and preserves duplicate names. No direct
+definition-detail route or upstream name filter was established.
+
+| Browser observation | Result |
+|---------------------|--------|
+| Classes GET with `sharingSetting=2` | 26 records; 578,185 decoded bytes in the corrected probe |
+| Fighter `2190879` and Fighter `10` | Same name; source IDs `[145]` and `[1]`; null parents |
+| Subclasses under `2190879` | 9 records; 183,454 decoded bytes |
+| Subclasses under `10` | 11 records; 204,990 decoded bytes |
+| Parent relations | All observed child parents matched |
+| Cross-parent name overlap | One case-insensitive overlap |
+| Public configuration | 269 sources, 50 categories; 713,412 decoded bytes |
+
+Envelopes had numeric `id`, boolean `success`, string `message`, array `data`,
+and null `pagination`. `totalCount` and additional envelope fields were absent.
+Records had numeric IDs, names, parent IDs, source references, `isHomebrew`,
+`slug`, `moreDetailsUrl`, and raw content fields. Top-level `sourceId`,
+`isLegacy`, `rulesVersion`, and `version` were absent. Source labels and link
+values were not retained. Cross-parent ID uniqueness, native compatibility,
+real sharing, and live global traversal remain unverified.
+Do not infer year/version/ownership from IDs, sources, names, or order.
+
+The pinned importer at
+[`a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5`](https://github.com/MrPrimate/ddb-importer/tree/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5)
+uses proxy class/subclass workflows and locally inferred rules years.
+Its subclass request uses name and year rather than proving a direct upstream
+name-search contract. The public proxy at
+[`a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a`](https://github.com/MrPrimate/ddb-proxy/tree/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a)
+has no matching classes/subclass handlers. No proxy runtime, cache, or inferred
+year mapping is adopted.
+
+The public renderer gates feature descriptions through a per-definition access
+lookup: FREE 1, OWNED 2, SHARED 3, NO_ACCESS 4. Missing entries are inaccessible.
+Character-context simulated OWNED is not a standalone grant.
+An initial selected-feature scope stopped before POST because an upstream typed
+key predicate did not match. The later public trace showed that optional-feature
+keys can be derived locally from numeric IDs, then parsed back into numbers for
+the selected-ID request. Response access lookup keys are decimal IDs.
+
+The corrected approved scope made exchange, classes GET, and one selected-feature
+collection POST. Fighter `2190879` had 24 positive numeric feature IDs; all 24
+lacked `definitionKey`. The selected POST returned HTTP 200 with 146 decoded
+bytes, zero `definitionData` entries, and zero `accessTypes` entries.
+The stop category was `missing_numeric_access_evidence`. No access code was
+observed. This is not content permission, explicit account denial, or proof
+of global nonexistence. No alternative ID/version or GET was tried.
+The selected-ID factory uses default character-service `v5`. A separate
+`makeLoadAvailableOptionalClassFeatures` GET helper uses an active definition ID,
+but does not establish whole-class authorization.
+
+The user then selected metadata-only list/show. The implementation validates
+fixed collections and source identities, not raw-content permission.
+Unknown source-reference metadata survives; arbitrary raw definition fields
+are intentionally excluded. No class-feature request is part of production
+browsing. See [RULE-01/RULE-02 limits](api-catalog.md#class-and-subclass-metadata-contract).
+Synthetic adapter checks are not native/live acceptance.
+
 ## Character-builder game data
 
 All routes in this section are Client evidence from the

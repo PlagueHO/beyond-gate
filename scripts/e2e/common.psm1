@@ -328,7 +328,7 @@ function Invoke-E2eProtocol {
             Assert-E2e ($tool.annotations.readOnlyHint -eq $true -and $tool.annotations.destructiveHint -eq $false)
             Assert-E2e ($tool.inputSchema.additionalProperties -eq $false)
             $read = (@($Inventory.reads) + $Inventory.session_validation) | Where-Object { $_.tool -ceq $tool.name }
-            $properties = @($read.arguments.Keys)
+            $properties = if ($read.ContainsKey('input_fields')) { @($read.input_fields) } else { @($read.arguments.Keys) }
             if ($tool.name -ceq 'book_read') { $properties += 'continuation' }
             $actualProperties = if ($tool.inputSchema.ContainsKey('properties')) { @($tool.inputSchema.properties.Keys | Sort-Object) } else { @() }
             Assert-E2e (($actualProperties -join ',') -ceq (@($properties | Sort-Object) -join ',')) 'inventory_invalid'

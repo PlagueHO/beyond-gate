@@ -22,6 +22,10 @@ process checks. Separately approved native acceptance passed for one selected
 chapter with matching outlines and initial chunks. Live continuation and sharing
 remain unchecked. Character and campaign live reads remain unsupported.
 Do not silently discard invalid sources.
+Class/subclass list/show returns bounded Windows catalog metadata only.
+It preserves source-reference metadata but excludes raw definitions and rules
+text. Native class compatibility, real sharing, and live global coverage remain
+unverified. Metadata presence and source IDs are not content-access grants.
 Linux production login and session use are tracked in #52.
 
 - Keep v1 read-only and local; do not add remote hosting or multiuser services.

@@ -33,6 +33,12 @@ pub fn command() -> Command {
                 .subcommand(show_options(Command::new("show").about("Show one campaign summary and its active roster").arg(identifier("id")))),
         )
         .subcommand(
+            class_resource("class", false),
+        )
+        .subcommand(
+            class_resource("subclass", true),
+        )
+        .subcommand(
             resource("book", "Bounded Windows library, outline, and selected-section reads")
                 .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
                 .subcommand(list_options(Command::new("outline").about("List at most 1,000 entries after fresh library and canonical source-page checks").arg(identifier("book-id"))))
@@ -74,6 +80,60 @@ pub fn command() -> Command {
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
         )
+}
+
+/// Builds metadata-only class/subclass commands from the same completion definition.
+fn class_resource(name: &'static str, subclass: bool) -> Command {
+    let list = list_options(Command::new("list").about("List complete bounded metadata; never rules text"))
+        .arg(Arg::new("name").long("name").short('n').value_name("NAME")
+            .value_parser(ValueParser::new(valid_class_name))
+            .help("Local case-insensitive substring filter; keeps duplicate names; at most 256 UTF-8 bytes"));
+    let show = show_options(
+        Command::new("show").about("Show selected metadata, not raw definitions or rules text"),
+    )
+    .arg(
+        Arg::new("id")
+            .required(true)
+            .value_parser(ValueParser::new(valid_class_identifier)),
+    );
+    resource(name, "Browse bounded Windows class catalog metadata")
+        .subcommand(if subclass { parent_option(list) } else { list })
+        .subcommand(if subclass { parent_option(show) } else { show })
+}
+
+/// Adds an optional parent selector only to subclass commands.
+fn parent_option(command: Command) -> Command {
+    command.arg(
+        Arg::new("class-id")
+            .long("class-id")
+            .value_name("ID")
+            .value_parser(ValueParser::new(valid_class_identifier))
+            .help("Scope to one parent; omitted means bounded global discovery"),
+    )
+}
+
+/// Requires canonical positive decimal IDs before any operation starts.
+fn valid_class_identifier(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::class_catalog::validate_input(
+        beyond_gate_core::class_catalog::ClassKind::Class,
+        None,
+        None,
+        Some(value),
+    )
+    .map(|()| value.to_owned())
+    .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
+}
+
+/// Validates local name filters without interpreting a query language.
+fn valid_class_name(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::class_catalog::validate_input(
+        beyond_gate_core::class_catalog::ClassKind::Class,
+        Some(value),
+        None,
+        None,
+    )
+    .map(|()| value.to_owned())
+    .map_err(|_| "name must be nonempty, unpadded, control-free text within 256 UTF-8 bytes")
 }
 
 /// Requires an explicit stable installation directory and browser for host setup.

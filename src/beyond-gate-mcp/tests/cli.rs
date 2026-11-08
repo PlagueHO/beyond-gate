@@ -177,7 +177,9 @@ fn stdio_protocol_handles_discovery_and_strict_input() {
             "campaign_list",
             "campaign_show",
             "character_list",
-            "character_show"
+            "character_show",
+            "class_list",
+            "class_show"
         ]
     );
     for tool in tools {

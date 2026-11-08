@@ -839,8 +839,10 @@ settings remain intact. Observe the actual client, not only its JSON file:
 | Claude Code | `claude mcp list` and its MCP tools view | Isolated user-level `.claude.json` |
 | Copilot CLI | `/mcp` dashboard | Isolated `COPILOT_HOME` `mcp-config.json` |
 
-Confirm all eight tools: `auth_validate`, `character_list`, `character_show`,
-`campaign_list`, `campaign_show`, `book_list`, `book_outline`, and `book_read`.
+Confirm all ten tools: `auth_validate`, `character_list`, `character_show`,
+`campaign_list`, `campaign_show`, `book_list`, `book_outline`, `book_read`,
+`class_list`, and `class_show`. Earlier retained eight-tool evidence does not
+establish real-client acceptance for the two new metadata tools.
 Discovery alone does not permit calling `auth_validate` or valid book operations.
 If the client supports an exact tool call without a model request, check one
 unsupported character/campaign operation or a book call with an unknown field.

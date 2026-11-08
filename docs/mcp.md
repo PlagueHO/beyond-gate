@@ -14,6 +14,9 @@ Windows session. Synthetic process checks cover successful reads and matching
 CLI/MCP data. No live character or campaign acceptance has been run.
 Windows `auth_validate` makes one fresh session check
 through the shared core without credential input.
+`class_list` and `class_show` provide bounded class/subclass metadata only.
+Browser catalog contracts were inspected; native compatibility, real sharing,
+and live global traversal remain unverified.
 
 The four character and campaign tools perform read-only source calls. Failures
 return MCP tool errors with `isError: true`; they do not return sample data or
@@ -87,8 +90,9 @@ absolute path; remove the old registration before installing the new path.
 
 ## Shared input rules
 
-Every tool takes a JSON object and rejects unknown fields. List tools require
-an empty object `{}`, not filters. There are no passwords, cookies, tokens for
+Every tool takes a JSON object and rejects unknown fields. Character and book
+list tools require an empty object `{}`. Campaign and class lists accept their
+documented filters. There are no passwords, cookies, tokens for
 authentication, arbitrary URL inputs, or account identities. The only token input
 is `book_read.continuation`, which represents a bounded section position, not a
 credential.
@@ -105,7 +109,7 @@ the wire format. Do not treat a schema length check as a substitute for runtime
 token validation.
 
 All tools advertise `readOnlyHint: true`, `destructiveHint: false`,
-and `openWorldHint: true`. The seven resource tools use `idempotentHint: true`.
+and `openWorldHint: true`. The nine resource tools use `idempotentHint: true`.
 `auth_validate` uses `idempotentHint: false` because it makes a fresh service
 exchange and updates transient evidence. These annotations do not grant
 access or make live reads available. Tool results are data, not instructions.
@@ -119,14 +123,80 @@ access or make live reads available. Tool results are data, not instructions.
 | [`character_show`](#character_show) | `beyond-gate character show <id> --output json` | One character object |
 | [`campaign_list`](#campaign_list) | `beyond-gate campaign list --format json [--active-only]` | Array of campaign objects |
 | [`campaign_show`](#campaign_show) | `beyond-gate campaign show <id> --output json` | One campaign object |
+| [`class_list`](#class_list-and-class_show) | `beyond-gate class/subclass list --output json` | Compact metadata array |
+| [`class_show`](#class_list-and-class_show) | `beyond-gate class/subclass show <id>` | Selected metadata object |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
 | [`book_outline`](#book_outline) | `beyond-gate book outline <book-id> --format json` | Outline envelope |
 | [`book_read`](#book_read) | `beyond-gate book read <book-id> <section-id> [--continuation <token>]` | One section chunk |
 
 The data shapes below match CLI JSON, not CLI table or TSV presentation.
-All example identifiers and source URLs are synthetic.
+Examples are synthetic except the two observed Fighter IDs in the class section.
 
 ## Tools
+
+### class_list and class_show
+
+`kind` is optional and defaults to `class`; `subclass` selects the parent-aware
+catalog. `class_list` accepts optional `name`. `class_show` requires string `id`.
+Only subclass operations accept optional string `class_id`. Supplied selectors
+cannot be null. Reject unknown fields, wrong types/kinds, IDs on list, names on
+show, and parent selectors on class reads before storage or network access.
+IDs must be canonical positive decimal integers that fit `u64`.
+Names must be nonempty, unpadded, control-free, and within 256 UTF-8 bytes.
+
+These are exact `tools/call` parameter examples:
+
+```json
+{"name":"class_list","arguments":{}}
+{"name":"class_list","arguments":{"name":"Fighter"}}
+{"name":"class_list","arguments":{"name":"fight"}}
+{"name":"class_show","arguments":{"id":"2190879"}}
+{"name":"class_show","arguments":{"id":"10"}}
+{"name":"class_list","arguments":{"kind":"subclass"}}
+{"name":"class_list","arguments":{"kind":"subclass","name":"Champion"}}
+{"name":"class_list","arguments":{"kind":"subclass","class_id":"2190879"}}
+{"name":"class_list","arguments":{"kind":"subclass","class_id":"10","name":"Champion"}}
+{"name":"class_show","arguments":{"kind":"subclass","id":"7001","class_id":"2190879"}}
+{"name":"class_show","arguments":{"kind":"subclass","id":"7001"}}
+```
+
+Fighter IDs were observed; subclass `7001` and Champion are illustrative.
+Names use local lowercase substring matching, not an API search parameter.
+Duplicate names remain separate. An unscoped subclass show rejects matching IDs
+under several parents instead of selecting the first.
+
+Synthetic selected metadata:
+
+```json
+{
+  "kind": "subclass",
+  "id": "7001",
+  "name": "Invented Champion",
+  "parent_class_id": "2190879",
+  "source_ids": [7],
+  "is_homebrew": false,
+  "slug": "invented",
+  "more_details_url": "https://www.dndbeyond.com/classes/invented#Example",
+  "sources": [{"sourceId": 7, "future_reference_flag": true}]
+}
+```
+
+Lists return an array with only `kind`, `id`, `name`, `parent_class_id`, and
+`source_ids`. Show adds the other fields above. A base class has a null parent.
+Missing optional slug/link metadata is null. Invalid supplied metadata fails.
+Source-reference extensions survive, but raw definition fields, descriptions,
+features, equipment text, and spell rules do not. This is metadata detail, not
+lossless raw-definition output or a content grant. No rules-year/legacy labels
+are inferred. Links are display metadata and never choose a request.
+
+The same core enforces [CLI bounds and errors](cli.md#class-and-subclass-metadata):
+32 global parents, 1,000 raw definitions before filtering, 1 MiB per response,
+8 MiB aggregate resource bodies, 1 MiB canonical result, and a 120-second whole
+deadline. Reads are sequential with single attempts and no automatic continuation.
+Class and scoped reads are not subject to the global parent count.
+Any failed parent prevents a partial result. Empty success requires complete
+checked discovery; missing IDs refer only to the default catalog scope.
+MCP cancellation drops pending work. Production session use remains Windows-only.
 
 ### auth_validate
 

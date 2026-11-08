@@ -56,6 +56,28 @@ impl Fixtures {
 }
 
 impl ReadOperations for Fixtures {
+    /// Uses the shared metadata operation with the explicitly supplied fixture owner.
+    async fn list_classes(
+        &self,
+        session: &Session,
+        kind: beyond_gate_core::class_catalog::ClassKind,
+        name: Option<&str>,
+        class_id: Option<&str>,
+    ) -> Result<Value, beyond_gate_core::class_catalog::ClassCatalogError> {
+        beyond_gate_core::class_catalog::list(session, kind, name, class_id).await
+    }
+
+    /// Uses shared metadata selection without creating a success-shaped fixture fallback.
+    async fn show_class(
+        &self,
+        session: &Session,
+        kind: beyond_gate_core::class_catalog::ClassKind,
+        id: &str,
+        class_id: Option<&str>,
+    ) -> Result<Value, beyond_gate_core::class_catalog::ClassCatalogError> {
+        beyond_gate_core::class_catalog::show(session, kind, id, class_id).await
+    }
+
     /// Builds validated characters with optional metadata and unknown JSON fields.
     async fn list_characters(
         &self,
