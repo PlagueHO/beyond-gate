@@ -34,7 +34,7 @@ pub enum CharacterCampaignError {
 }
 
 impl fmt::Display for CharacterCampaignError {
-    /// Gives a fixed diagnostic without displaying record or cursor values.
+    /// Gives a safe diagnostic without displaying record or cursor values.
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         let message = match self {
             Self::InvalidMetadata => "Character or campaign metadata is invalid.",
@@ -58,7 +58,12 @@ impl fmt::Display for CharacterCampaignError {
                 "A character or campaign page read failed; no snapshot is available."
             }
             Self::TimedOut => "The character or campaign operation reached its time limit.",
-            Self::SessionRead(_) => "The protected session could not read this source.",
+            Self::SessionRead(error) => {
+                return write!(
+                    formatter,
+                    "The protected session could not read this source: {error}"
+                );
+            }
         };
         formatter.write_str(message)
     }

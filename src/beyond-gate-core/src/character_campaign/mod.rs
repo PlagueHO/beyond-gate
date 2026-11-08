@@ -304,12 +304,24 @@ pub async fn get_campaign(session: &Session, id: &str) -> Result<Campaign, Chara
             .get_json(&client, &user_campaigns)
             .await
             .map_err(CharacterCampaignError::SessionRead)?;
-        let mut summaries = source::campaign_list(response)?;
+        let summaries = source::campaign_list(response)?;
+        let summaries = assemble_campaigns([Ok(CampaignPage {
+            cursor: None,
+            entries: summaries,
+            next_cursor: None,
+        })])?;
         let selected = summaries
+            .campaigns()
             .iter()
-            .position(|campaign| campaign.id == id)
+            .find(|campaign| campaign.id() == id)
             .ok_or(CharacterCampaignError::MissingRecord)?;
-        let mut summary = summaries.swap_remove(selected);
+        let mut summary = CampaignRecord {
+            id: selected.id().to_owned(),
+            name: selected.name().map(str::to_owned),
+            source_url: selected.source_url().map(|url| url.as_str().to_owned()),
+            character_ids: selected.character_ids().map(|ids| ids.to_vec()),
+            raw: selected.raw().clone(),
+        };
 
         let roster_url = format!("{origin}/api/campaign/stt/active-short-characters/{numeric_id}");
         let roster: Value = session
