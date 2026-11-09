@@ -1,6 +1,7 @@
 # D&D Beyond API call catalog
 
-Last reviewed: 2026-11-06. Research issues: [#31][issue-31] and [#32][issue-32].
+Last reviewed: 2026-11-09. Research issues: [#31][issue-31], [#32][issue-32],
+and [#65](https://github.com/PlagueHO/beyond-gate/issues/65).
 
 Use this shared index when planning or implementing another issue.
 It catalogs all calls identified in the [API survey](api-survey.md), including candidates
@@ -120,13 +121,14 @@ All rows use GET. Evidence: Client. Source: C1.
 Authentication and complete per-route inputs remain unverified.
 The source can add `campaignId`, `sharingSetting`, and `characterId` from current state;
 this does not prove that each row accepts or requires every parameter.
-Shapes, access, paging, size, and complete standalone catalog coverage remain unresolved.
-These are not implemented reads or approved bulk-search contracts.
+Except for the metadata-only RULE-01/RULE-02 contract below, shapes, access,
+paging, size, and complete standalone catalog coverage remain unresolved.
+These are not approved bulk-content extraction contracts.
 
 | ID | Service | Path | Purpose and remaining contract |
 |----|---------|------|--------------------------------|
-| RULE-01 | CHAR | `/game-data/classes` | Class metadata; rules version and access |
-| RULE-02 | CHAR | `/game-data/subclasses` | Subclasses; parent-class selection |
+| RULE-01 | CHAR | `/game-data/classes` | Implemented metadata-only GET with `sharingSetting=2`; Browser evidence; no rules-text grant |
+| RULE-02 | CHAR | `/game-data/subclasses` | Implemented metadata-only GET with `sharingSetting=2&baseClassId={id}`; parent-scoped; Browser evidence |
 | RULE-03 | CHAR | `/game-data/backgrounds` | Backgrounds; rules version |
 | RULE-04 | CHAR | `/game-data/races` | Species and legacy races; preserve upstream naming |
 | RULE-05 | CHAR | `/game-data/feats` | Feats; selection, prerequisites, and access |
@@ -147,6 +149,41 @@ These are not implemented reads or approved bulk-search contracts.
 | RULE-20 | CHAR | `/name/random/list` | Name support; semantics and limits not proven |
 
 Do not download a whole eligible dataset and describe local filtering as bounded API search.
+
+### Class and subclass metadata contract
+
+Issue [#65](https://github.com/PlagueHO/beyond-gate/issues/65) selected metadata-only
+list/show. [Browser evidence](api-survey.md#class-and-subclass-metadata-evidence)
+verified the class collection and two selected parent collections. Native
+compatibility, value-level link validation, real sharing, and live global
+coverage remain unverified. No direct detail route or remote name filter was
+established. Show selects locally by ID; names use local lowercase substring
+matching. Keep duplicate names and parent context.
+
+Require numeric `id`, true `success`, string `message`, array `data`, and explicit
+null `pagination`. Reject unknown/nonterminal envelope shapes. A supplied
+`totalCount` must equal the raw count. Validate positive IDs, names, parents,
+source references against CFG-01, and duplicate identities before filtering.
+Source configuration is identity metadata, not ownership or rules-text permission.
+Book-specific Hidden Sources selection does not apply to these metadata catalogs.
+
+Global subclass traversal uses sequential per-parent GETs. Bound it to 32 parents
+and 1,000 combined raw definitions. Class/scoped operations are not subject to
+the global parent count. Responses are at most 1 MiB each; actual admitted
+resource bodies total at most 8 MiB including configuration. Canonical JSON
+results are at most 1 MiB before adapter formatting. The whole deadline is
+120 seconds including session waits. Every request has one attempt, with no
+redirect, retry, or continuation. Conservative explicit HTTP maxima including
+exchanges are 3 for class, 5 for scoped subclass, and 67 for global subclass.
+Complete means the default checked catalog scope, not all D&D content.
+
+Metadata show preserves source-reference extensions but excludes raw definition
+fields, descriptions, features, equipment/spell text, and inferred version/access
+labels. Missing optional slug/link fields become null; malformed supplied fields
+fail. Links resolve only to HTTPS at the fixed website origin, without credentials
+or query. Display fragments are allowed; links never select fetches.
+Denied, expired/rejected, missing, ambiguous, malformed, incomplete, and over-limit
+results stay distinct. Never emit partial results after a failed parent.
 
 ## Definition collections and vehicles
 

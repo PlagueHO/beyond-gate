@@ -301,6 +301,17 @@ impl HttpClient {
         url: &str,
         session: Option<&SessionHeaders>,
     ) -> Result<T, HttpError> {
+        self.get_json_counted(url, session)
+            .await
+            .map(|(value, _)| value)
+    }
+
+    /// Returns parsed JSON and the exact admitted response body length, including whitespace.
+    pub(crate) async fn get_json_counted<T: DeserializeOwned>(
+        &self,
+        url: &str,
+        session: Option<&SessionHeaders>,
+    ) -> Result<(T, usize), HttpError> {
         let deadline = Instant::now() + self.policy.total;
         let url = self.check_url(url)?;
         let _permit = timeout_at(deadline, self.permits.acquire())
@@ -399,9 +410,11 @@ impl HttpClient {
         &self,
         url: &Url,
         session: Option<&SessionHeaders>,
-    ) -> Result<T, HttpError> {
+    ) -> Result<(T, usize), HttpError> {
         let body = self.body(url, session, false).await?;
-        serde_json::from_slice(&body).map_err(HttpError::json)
+        serde_json::from_slice(&body)
+            .map(|value| (value, body.len()))
+            .map_err(HttpError::json)
     }
 
     /// Shares status, encoding, byte, and time bounds without changing JSON media rules.

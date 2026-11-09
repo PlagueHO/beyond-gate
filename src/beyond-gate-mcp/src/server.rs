@@ -9,19 +9,81 @@ use beyond_gate_core::{
         SectionRequest,
     },
     character_campaign::{self, Campaign, Character},
+    class_catalog::{self, ClassKind},
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
 };
 use rmcp::{
     RoleServer, ServerHandler, handler::server::wrapper::Parameters, schemars::JsonSchema,
     service::RequestContext, tool, tool_handler, tool_router,
 };
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 /// Describes the empty input object shared by unfiltered list tools.
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct EmptyArguments {}
+
+/// Defaults to base classes without using a character's preference state.
+#[derive(Default, Deserialize, Serialize, JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum CatalogKind {
+    /// Base class catalog.
+    #[default]
+    Class,
+    /// Parent-aware subclass catalog.
+    Subclass,
+}
+
+impl CatalogKind {
+    /// Converts the input discriminator to the shared core kind.
+    fn core(&self) -> ClassKind {
+        match self {
+            Self::Class => ClassKind::Class,
+            Self::Subclass => ClassKind::Subclass,
+        }
+    }
+}
+
+/// Lists compact metadata with strict selectors and no raw-definition output.
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ClassListArguments {
+    /// Defaults to class; subclass enables the optional parent selector.
+    #[serde(default)]
+    kind: CatalogKind,
+    /// Local lowercase substring matching; at most 256 UTF-8 bytes.
+    #[serde(default, deserialize_with = "optional_selector")]
+    #[schemars(with = "String", length(min = 1, max = 256))]
+    name: Option<String>,
+    /// Positive decimal parent ID; valid only with kind subclass.
+    #[serde(default, deserialize_with = "optional_selector")]
+    #[schemars(with = "String", regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    class_id: Option<String>,
+}
+
+/// Selects one metadata record by ID, retaining optional subclass parent context.
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct ClassShowArguments {
+    /// Positive canonical decimal ID; never a name or URL.
+    #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    id: String,
+    /// Defaults to class.
+    #[serde(default)]
+    kind: CatalogKind,
+    /// Positive decimal parent ID, valid only with kind subclass.
+    #[serde(default, deserialize_with = "optional_selector")]
+    #[schemars(with = "String", regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    class_id: Option<String>,
+}
+
+/// Rejects explicit null selectors instead of silently widening discovery scope.
+fn optional_selector<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Option<String>, D::Error> {
+    String::deserialize(deserializer).map(Some)
+}
 
 /// Selects the default or explicitly active-only campaign collection.
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -74,6 +136,70 @@ pub struct BeyondGateServer {
 
 #[tool_router]
 impl BeyondGateServer {
+    /// Lists complete metadata using the same data and failure semantics as the CLI.
+    #[tool(
+        name = "class_list",
+        description = "List bounded class metadata, or subclass metadata with kind=subclass. Optional name is a local case-insensitive substring filter preserving duplicate names. class_id is subclass-only; omission means bounded global discovery. No rules text or content grants. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn class_list(
+        &self,
+        Parameters(arguments): Parameters<ClassListArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        let kind = arguments.kind.core();
+        class_catalog::validate_input(
+            kind,
+            arguments.name.as_deref(),
+            arguments.class_id.as_deref(),
+            None,
+        )
+        .map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = class_catalog::list(&self.session, kind, arguments.name.as_deref(), arguments.class_id.as_deref()) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Shows only selected metadata; never derives a detail URL or returns raw definitions.
+    #[tool(
+        name = "class_show",
+        description = "Show one class metadata record by positive decimal id, or subclass metadata with kind=subclass. Optional class_id is subclass-only. Unscoped subclass reads check the bounded global catalog and reject ambiguous IDs. No descriptions, features, raw definitions, or content grants. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn class_show(
+        &self,
+        Parameters(arguments): Parameters<ClassShowArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        let kind = arguments.kind.core();
+        class_catalog::validate_input(
+            kind,
+            None,
+            arguments.class_id.as_deref(),
+            Some(&arguments.id),
+        )
+        .map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = class_catalog::show(&self.session, kind, &arguments.id, arguments.class_id.as_deref()) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
     /// Supplies an explicit core owner without adding fixture selection to product tools.
     pub fn with_session(session: Session) -> Self {
         Self { session }

@@ -23,6 +23,10 @@ chapter with matching outlines and initial chunks. Live continuation and sharing
 remain unchecked. Character and campaign Windows reads have synthetic process
 coverage; live acceptance remains unverified.
 Do not silently discard invalid sources.
+Class/subclass list/show returns bounded Windows catalog metadata only.
+It preserves source-reference metadata but excludes raw definitions and rules
+text. Native class compatibility, real sharing, and live global coverage remain
+unverified. Metadata presence and source IDs are not content-access grants.
 Shared environment authentication, hidden CLI input, explicit protected save,
 and Linux production session/read support are tracked in #52. These paths are
 planned, not implemented. Browser assistance is optional for terminal-only use.

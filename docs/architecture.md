@@ -22,6 +22,7 @@ Windows browser setup and native/core completion are implemented.
 Approved real Chrome and Edge Dev login and protected-save checks passed.
 The MCP adapter serves local stdio with four character/campaign tools, three
 book tools, and a credential-free Windows `auth_validate` tool.
+Two class tools provide class/subclass metadata, not raw definitions.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -79,7 +80,8 @@ arguments. Help and version remain ordinary command-line output. During serving,
 stdout is reserved for MCP messages; server diagnostics use stderr.
 
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
-`campaign_show`, `book_list`, `book_outline`, and `book_read`. It calls the same
+`campaign_show`, `class_list`, `class_show`, `book_list`, `book_outline`, and
+`book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
 canonical cookie pages. Character and campaign operations use fixed bounded
 routes through the protected session. Failures return tool errors with
@@ -95,6 +97,45 @@ passed only to the core cursor validator. One section result remains bounded to
 fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
 book evidence, source attribution, and section completion state. Source content
 is data and is not executed or treated as instructions.
+
+## Class catalog metadata boundary
+
+`class_catalog` uses public source/category identities and fixed protected
+character-service collections. Library and class discovery share only generic
+configuration validation. The library retains its Hidden Sources and Web-catalog
+selection rules. Those rules do not become class visibility or ownership grants.
+
+Class list/show reads a fresh complete class collection. Scoped subclass reads
+also verify a parent and load its subclass collection. Global subclass reads
+visit all checked parents sequentially. One Session read scope pins cookie
+identity across the operation. A bearer can expire between calls; an exchange
+before each protected GET is included in the conservative request bounds.
+No returned link, prior candidate, or source ID selects a request or grants text.
+
+Internal typed models hold only identity and metadata output. Show retains
+unknown source-reference fields but never stores raw definition fields in its
+output model. It excludes descriptions, features, equipment/spell text, and
+inferred year/legacy/access labels. Display links permit section fragments at the
+fixed HTTPS website origin; the HTTP request allowlist remains unchanged.
+
+The counted JSON path returns actual admitted buffer length with parsed data.
+Ordinary `get_json` delegates to the same path and discards only the count.
+Existing queue, retry, origin, response, expiry, 401, and 403 behavior is preserved.
+Class operations use single-attempt clients and an overall 120-second deadline.
+Raw definitions count before filters. Global parents are capped at 32; combined
+definitions at 1,000; resource bytes at 1 MiB per response and 8 MiB per operation;
+canonical output at 1 MiB. Metadata errors, ambiguity, missing records, failed
+parents, and limits never produce partial success.
+
+The CLI separately preflights class/subclass tables against an 8 MiB presentation
+limit before allocating padded output. It counts escaped UTF-8 bytes, padding
+based on character widths, separators, newlines, and optional headers with checked
+arithmetic. Exceeded limits or arithmetic overflow fail with no stdout. JSON
+and TSV keep their existing metadata output; unrelated resources are unchanged.
+
+Production session use remains Windows-only. Browser contracts and synthetic
+process parity do not establish native compatibility, sharing, global coverage,
+or permission to return rules text.
 
 ## Local MCP client registration
 

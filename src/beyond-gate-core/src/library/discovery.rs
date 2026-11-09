@@ -1,13 +1,11 @@
 //! Fixed library JSON contracts; no crawling, arbitrary URLs, or content cache.
 
 use super::*;
+use crate::public_config::{Configuration, ConfigurationError};
 use crate::{auth::session::Session, http::HttpClient};
 use serde::Deserialize;
 use serde_json::Value;
-use std::{
-    collections::{HashMap, HashSet},
-    time::Duration,
-};
+use std::{collections::HashMap, time::Duration};
 use tokio::time::timeout;
 
 /// Bounds the complete unpaged metadata catalog independently of observation pages.
@@ -19,44 +17,16 @@ const ORIGIN: &str = "https://api.dndbeyond.com";
 const SOURCES: &str = "https://api.dndbeyond.com/library/sources?platform=Web";
 const OWNERSHIP: &str = "https://api.dndbeyond.com/library/sources/me";
 
-/// Reads only source/category identity, never configuration titles or URL fallbacks.
-#[derive(Deserialize)]
-struct Configuration {
-    sources: Vec<ConfiguredSource>,
-    #[serde(rename = "sourceCategories")]
-    categories: Vec<SourceCategory>,
-}
-
-/// Joins the public category classification to a library source ID.
-#[derive(Deserialize)]
-struct ConfiguredSource {
-    id: u64,
-    #[serde(rename = "sourceCategoryId")]
-    category: u64,
-}
-
-/// Resolves the upstream hidden category by name instead of a fixed numeric ID.
-#[derive(Deserialize)]
-struct SourceCategory {
-    id: u64,
-    name: String,
-}
-
 impl Configuration {
     /// Validates the complete bounded classification before accessing protected storage.
     fn selection(self) -> Result<HashMap<u64, bool>, LibraryError> {
-        if self.sources.len() > MAX_CATALOG_RECORDS || self.categories.len() > MAX_CATALOG_RECORDS {
-            return Err(LibraryError::LimitExceeded);
-        }
-        let mut categories = HashSet::new();
+        self.validate().map_err(|error| match error {
+            ConfigurationError::Invalid => LibraryError::InvalidMetadata,
+            ConfigurationError::Conflict => LibraryError::ConflictingMetadata,
+            ConfigurationError::Limit => LibraryError::LimitExceeded,
+        })?;
         let mut hidden = None;
         for category in self.categories {
-            if category.id == 0 || !valid_text(&category.name) {
-                return Err(LibraryError::InvalidMetadata);
-            }
-            if !categories.insert(category.id) {
-                return Err(LibraryError::ConflictingMetadata);
-            }
             if category.name.eq_ignore_ascii_case("Hidden Sources")
                 && hidden.replace(category.id).is_some()
             {
@@ -64,19 +34,11 @@ impl Configuration {
             }
         }
         let hidden = hidden.ok_or(LibraryError::InvalidMetadata)?;
-        let mut selection = HashMap::new();
-        for source in self.sources {
-            if source.id == 0 || !categories.contains(&source.category) {
-                return Err(LibraryError::InvalidMetadata);
-            }
-            if selection
-                .insert(source.id, source.category != hidden)
-                .is_some()
-            {
-                return Err(LibraryError::ConflictingMetadata);
-            }
-        }
-        Ok(selection)
+        Ok(self
+            .sources
+            .into_iter()
+            .map(|source| (source.id, source.category != hidden))
+            .collect())
     }
 }
 

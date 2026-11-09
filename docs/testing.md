@@ -76,6 +76,35 @@ selected contract cannot produce full success.
 
 ## Browser handoff offline checks
 
+### Class and subclass metadata checks
+
+The [core catalog tests](../src/beyond-gate-core/src/class_catalog/tests.rs)
+use invented definitions and real loopback transports. They check duplicate
+names, local substring matching, parent context, source extensions, absence of
+raw definition text, ambiguity, empty/missing results, invalid configuration,
+malformed/continued envelopes, denial, expiry/rejection, and cancellation.
+Threshold checks cover 32/33 global parents, scoped reads with 33 roots,
+1,000/1,001 raw records, 1 MiB canonical JSON, and 8 MiB admitted resource bytes.
+Padded valid JSON proves byte accounting uses the transport buffer, not
+re-serialization. Failed parents stop subsequent requests.
+
+The [CLI/MCP process suite](../src/beyond-gate-mcp/tests/session_process.rs)
+checks every reviewed command/tool workflow, matching metadata JSON, schemas,
+strict inputs, table/TSV defaults, failure categories, and cancellation.
+The actual CLI parser checks help, completions, invalid IDs, forbidden options,
+and JSON header rules. The capability inventory includes both new tools while
+the manual suite retains its zero live-request budget.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked class_catalog
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+These fixtures do not open native storage or contact live accounts.
+The five browser scopes for issue #65 are consumed. Native catalog compatibility,
+value-level link validation, live global discovery, and real sharing remain
+unverified. Another live check needs separate explicit approval.
+
 ### Live book source path checks
 
 The [core source tests](../src/beyond-gate-core/src/book/source/tests.rs) use

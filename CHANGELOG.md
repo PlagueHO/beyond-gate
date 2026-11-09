@@ -7,6 +7,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Metadata-only Windows class and subclass browsing through shared core reads,
+  CLI `class/subclass list/show`, and MCP `class_list`/`class_show`.
+  Local `--name` / `-n` matching keeps duplicate names. Global subclass discovery
+  is sequential and bounded; ambiguous IDs require a parent. Raw record,
+  response-byte, result-byte, and time limits fail without partial results.
+  Show preserves source-reference metadata extensions but excludes raw
+  definitions and rules text. Synthetic checks cover both adapters.
+  Native compatibility, live global traversal, and sharing remain unverified.
 - Fixed, bounded read-only character and campaign operations through the shared
   core, CLI, and MCP server. Character lists require a complete response;
   campaign lists support the active collection, and campaign show reads only
@@ -417,6 +425,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Class/subclass tables now check an 8 MiB presentation limit before allocating
+  padded output. Exceeded limits fail explicitly with empty stdout instead of
+  expanding bounded metadata into excessive padding. JSON and TSV remain complete.
 - Desktop acceptance guidance no longer proposes implemented character/campaign
   reads as account-free checks. Input rejection must stop before session access.
   Installation guidance distinguishes `auth_validate`'s lack of credential input

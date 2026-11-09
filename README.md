@@ -189,7 +189,8 @@ It does not copy that project's ROM operations or HTTP MCP transport.
 
 The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
-`campaign list/show`, and `book list/outline/read`.
+`campaign list/show`, `class list/show`, `subclass list/show`, and
+`book list/outline/read`.
 
 **Windows Web-library discovery is implemented and verified through both adapters.**
 `book list` uses public category classification and the fixed protected session.
@@ -203,6 +204,11 @@ Character and campaign reads use fixed, bounded Windows operations through the
 stored session. Failures exit with code 1, write a diagnostic to stderr, and
 leave stdout empty. Offline tests use synthetic services through
 the real shared transport and adapters; the product has no fixture mode.
+Class/subclass commands return bounded catalog metadata, not descriptions,
+features, or raw definitions. `--name` / `-n` matches locally and keeps duplicate
+names. Subclasses support a parent selector or bounded global discovery.
+Browser catalog contracts were inspected; native compatibility, sharing, and
+live global traversal remain unverified.
 See [output contracts](docs/cli.md#output-contracts) for table, JSON, and TSV
 fields, escaping, source attribution, and bounded explicit continuation.
 
@@ -220,6 +226,7 @@ MCP protocol messages. `book_list` uses shared Windows library discovery.
 `book_outline` and `book_read` use the shared checked source path.
 Character and campaign tools use the shared core reads. They have synthetic
 process coverage, but no live acceptance.
+`class_list` and `class_show` use the same metadata-only core operations.
 
 See the [MCP tool reference](docs/mcp.md) for startup, client registration, strict
 input schemas, output envelopes, errors, and CLI mappings.
