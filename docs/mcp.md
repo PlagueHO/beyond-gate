@@ -47,6 +47,16 @@ HTTP listener, port, remote endpoint, or remote-hosting mode. The CLI launcher
 starts the sibling executable without a shell, inherits its streams, and passes
 through its exit status.
 
+**Planned startup input:** [#52](https://github.com/PlagueHO/beyond-gate/issues/52)
+will let a client supply `CobaltSession` through the server environment.
+The shared core will use it only in process memory, without a browser or native
+credential store. An explicit environment value will override saved credentials
+and fail safely rather than silently fall back. Client secret-input references
+must not embed literal secrets in configuration. MCP will not prompt on its
+streams, accept credential-bearing tool arguments, or open a browser implicitly.
+This input path is not implemented yet. See the
+[agreed authentication follow-up](authentication.md#agreed-authentication-follow-up).
+
 The MCP client owns the process and connects its stdin and stdout. It initializes
 the session with `initialize`, sends `notifications/initialized`, discovers tools
 with `tools/list`, and invokes a tool with `tools/call`. Messages use JSON-RPC

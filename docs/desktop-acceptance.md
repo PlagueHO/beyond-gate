@@ -1,8 +1,9 @@
 # Desktop acceptance
 
 **Status: partial desktop evidence, not full desktop acceptance.**
-Issue [#34](https://github.com/PlagueHO/beyond-gate/issues/34) stays open until
-the required desktop evidence exists. A package check, synthetic registration,
+Issue [#34](https://github.com/PlagueHO/beyond-gate/issues/34) stays open for
+Windows/Linux simple-use acceptance and explicit claim decisions.
+A package check, synthetic registration,
 or development-machine run is not a clean desktop result.
 
 ## Issue completion checks
@@ -13,17 +14,26 @@ They do not change the overall partial acceptance status.
 | Completion check | Status | Evidence or remaining work |
 |------------------|--------|----------------------------|
 | Record candidate versions, platforms, commands, results, and gaps | completed for the checks run | [Candidate evidence](#candidate-and-evidence) and the [acceptance matrix](#remaining-acceptance-matrix) record results and limits |
-| Validate startup without development runtimes and state minimum OS/runtime requirements | partial | Windows startup and Linux shell startup have evidence; minimum versions and other clean desktops remain unverified |
-| Check locked or unavailable stores and cleanup using isolated state | incomplete | Linux synthetic lifecycle and failure states passed; Windows locked and unavailable states remain untested |
+| Validate terminal startup without development runtimes and state tested runtime requirements | partial | Windows startup and Linux shell startup have evidence; new-candidate and terminal-only coverage remain incomplete; older minimums stay separate |
+| Validate process-only environment authentication and hidden CLI input | blocked | #52 implementation is required; these paths do not exist yet |
+| Check explicit protected-save and locked/unavailable store claims separately | incomplete | Linux synthetic lifecycle and failure states passed; Windows locked and unavailable states remain untested |
 | Check real client discovery, shutdown, and supported reads when prerequisites exist | partial | VS Code discovery, shutdown, and one supported read passed; Copilot CLI discovery and shutdown passed offline; other client cases remain unverified or deferred |
 | Update installation and troubleshooting guidance and identify untested claims | completed | [Installation and troubleshooting](installation.md) and the [acceptance matrix](#remaining-acceptance-matrix) state known requirements and gaps |
-| Check extension installation, native-host setup, updates, and removal for each claimed browser/OS combination | partial | Windows Chrome and Edge setup, direct host launch, and removal passed; distinct-candidate updates and other lifecycle cases remain untested |
+| Check optional extension/native-host lifecycle for each claimed browser/OS combination | partial | Windows Chrome and Edge setup, direct host launch, and removal passed; distinct-candidate updates and other lifecycle cases remain untested |
 
 The user deferred Claude Code and macOS checks to [#62](https://github.com/PlagueHO/beyond-gate/issues/62).
-The original issue remains open because its full completion checks are not yet met.
-The remaining desktop checks are deferred while CLI and MCP functionality is
-completed, including the character and campaign work in
-[#31](https://github.com/PlagueHO/beyond-gate/issues/31). Reuse completed
+The user revised #34 to separate Windows/Linux terminal-only use from optional
+browser/protected-save paths and later hardening. Implement shared authentication
+and Linux session/read support in [#52](https://github.com/PlagueHO/beyond-gate/issues/52)
+first. Environment mode must not require native storage, a browser, desktop,
+D-Bus, or Secret Service. Then check identified packages through CLI and real
+VS Code/Copilot CLI clients. These new paths remain unimplemented.
+
+Windows character and campaign reads are now implemented, but their live
+acceptance remains unverified. No new native or live tests ran for this backlog
+revision. Hardening and required release claims remain explicit under
+[#41](https://github.com/PlagueHO/beyond-gate/issues/41).
+The original issue remains open. Reuse completed
 evidence within its recorded candidate, platform, and test scope. New checks
 are still required when changes or release claims exceed that scope.
 
@@ -56,6 +66,12 @@ settings, account snapshots, proprietary text, and raw child output.
 A source commit supplied to the checker is metadata, not build attestation.
 The archive hash identifies the tested bytes. Record local source changes
 separately instead of claiming that a dirty build came from an unchanged commit.
+
+Current character, campaign, and shared-session sources differ from the retained
+candidate sources. Earlier unsupported-read observations apply only to their
+tested binaries. They are not account-free test instructions for current builds.
+Review relevant source changes before reusing evidence for a new candidate.
+Do not rebuild or repeat a check solely because work resumes.
 
 ## Offline package checks
 
@@ -714,12 +730,16 @@ later desktop evidence is separate.
 | `package.linux-shell-lifecycle` | Linux GNU x64, noninteractive SSH | passed | [Package startup, login-shell PATH, reinstall, relocation, removal, and cleanup](#azure-linux-package-only-follow-up) |
 | `desktop.clean-inventory` | Ubuntu 24.04.5 x64 | blocked | Shell inventory is recorded, but a desktop baseline without development runtimes remains unverified |
 | `desktop.path-lifecycle` | Linux GNU x64 | blocked | Shell lifecycle passed; a new desktop terminal and desktop settings still need evidence |
-| `desktop.clean-install` | macOS ARM64 | blocked | CI is not a clean desktop; no disposable macOS desktop selected for this run |
-| `desktop.real-upgrade` | All three package targets | blocked | Two distinct identified candidates and an approved environment are required |
-| `desktop.trust` | All three package targets | blocked | Normal browser-download and OS trust behavior has no complete evidence |
-| `desktop.minimum-runtime` | All three package targets | blocked | Tested combinations are known; minimum supported versions are not established |
+| `desktop.clean-install` | macOS ARM64 | deferred | Tracked in #62; retained CI evidence is not a clean desktop |
+| `desktop.real-upgrade` | Windows x64, Linux GNU x64 | blocked | Two distinct identified candidates and an approved environment are required |
+| `desktop.real-upgrade` | macOS ARM64 | deferred | Tracked in #62 |
+| `desktop.trust` | Windows x64, Linux GNU x64 | blocked | Normal browser-download and OS trust behavior has no complete evidence |
+| `desktop.trust` | macOS ARM64 | deferred | Tracked in #62 |
+| `desktop.minimum-runtime` | Windows x64, Linux GNU x64 | blocked | Tested combinations are known; minimum supported versions are not established |
+| `desktop.minimum-runtime` | macOS ARM64 | deferred | Tracked in #62 |
 | `native.synthetic-lifecycle` | Windows Credential Manager | passed | [Synthetic native-store result](#synthetic-native-store-result); feature build only |
-| `native.release-lifecycle` | All three credential services | blocked | Packaged-binary store evidence needs disposable identities and exact approvals |
+| `native.release-lifecycle` | Windows Credential Manager, Linux Secret Service | blocked | Packaged-binary store evidence needs disposable identities and exact approvals |
+| `native.release-lifecycle` | macOS login Keychain | deferred | Tracked in #62 |
 | `native.synthetic-entry` | Linux Secret Service | passed | [Synthetic write, status, and removal](#linux-secret-service-synthetic-follow-up); feature build and user-observed results only |
 | `native.synthetic-lifecycle` | Linux Secret Service | passed | [Synthetic lifecycle](#linux-secret-service-complete-synthetic-run), including repeated CLI logout; feature build only |
 | `native.synthetic-lifecycle` | macOS login Keychain | deferred | Tracked in #62 |
@@ -732,12 +752,13 @@ later desktop evidence is separate.
 | `client.registration` | Windows x64, Copilot CLI | passed | [Offline client](#local-copilot-cli-offline-client); test configuration and synthetic setting only |
 | `client.discovery` | Windows x64, Copilot CLI offline | passed | [Offline client](#local-copilot-cli-offline-client); all eight tools before and after restart |
 | `client.discovery-lifecycle` | Windows x64, Copilot CLI | blocked | Offline stop, restart, and removal passed; safe-error and full settings isolation remain unverified |
-| `client.discovery-lifecycle` | Claude Code | deferred | The user did not prioritize this client |
+| `client.discovery-lifecycle` | Claude Code | deferred | Tracked in #62 |
 | `browser.manual-setup-removal` | Windows regular Chrome, stable Edge | passed | [Browser versions, setup/removal, and cleanup](#manual-browser-installation-result) |
 | `browser.host-no-pending` | Windows regular Chrome, stable Edge | passed | [Direct browser-to-host negative checks](#browser-to-native-host-negative-checks); no login or cookie handoff |
 | `browser.package-lifecycle` | Windows regular Chrome, stable Edge | blocked | Direct host launch has evidence; fallback, foreign preservation, mismatch/conflict cases, and distinct-candidate updates remain untested |
 | `account.client-read` | Windows x64, stable VS Code `book_list` | passed | [One approved Web-library read](#local-vs-code-web-library-read); no model-driven routing |
-| `account.client-reads` | Other supported reads and clients | blocked | Each live case needs a new exact account approval and client prerequisites |
+| `account.client-reads` | Other supported VS Code and Copilot CLI reads | blocked | Each live case needs a new exact account approval and client prerequisites |
+| `account.client-reads` | Claude Code | deferred | Tracked in #62 |
 | `account.production-login` | Linux and macOS | not_applicable | Not supported by this acceptance scope; Linux implementation is tracked in #52 |
 
 The separate stable VS Code approval permitted at most three MCP server starts,
@@ -749,6 +770,12 @@ The USD 10 total planning ceiling and one-VM limit applied to this run.
 This approval does not authorize the other gates below.
 
 ## Gate 1: clean desktop
+
+The gates below retain procedures for future separately approved work.
+Implement #52 before its new authentication acceptance. Desktop-specific,
+browser, and protected-store checks are separate from terminal-only environment
+use. macOS desktop and Keychain checks and Claude Code client checks belong to
+issue #62, not #34 completion. This revision grants no test approval.
 
 Use a disposable desktop VM or a separate test OS account. A clean-machine claim
 also requires no development runtimes installed, not just another account on a
@@ -845,9 +872,13 @@ Confirm all ten tools: `auth_validate`, `character_list`, `character_show`,
 establish real-client acceptance for the two new metadata tools.
 Discovery alone does not permit calling `auth_validate` or valid resource operations.
 If the client supports an exact tool call without a model request, check one
-character, campaign, class, or book call with an unknown field. This must fail
-before credential access or network requests.
-Otherwise record that tool-call case as blocked pending an approved method.
+unknown-field rejection only after verifying that the selected candidate rejects
+that input before credential or network access. For current resource tools,
+`character_list` with `{"unexpected": true}` is one such input.
+Do not use a valid character, campaign, class, book, or `auth_validate` call as an
+account-free check. Synthetic identifiers do not make valid reads account-free.
+If an approved exact-call method or verified rejection contract is unavailable,
+record that tool-call case as blocked.
 Verify the explicit error and absence of account data.
 
 Stop the server through the client. Verify its owned child exits. Restart and

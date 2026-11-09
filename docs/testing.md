@@ -27,6 +27,23 @@ candidate metadata, host versions, and cleanup. Manual acceptance cases remain
 blocked, and `full_coverage` stays false. These reports do not replace the manual
 suite or its separately approved native-store evidence.
 
+Implement [#52](https://github.com/PlagueHO/beyond-gate/issues/52)'s shared input
+and Linux production session/read paths before their new
+[#34](https://github.com/PlagueHO/beyond-gate/issues/34) acceptance checks.
+Environment mode must prove zero native-store calls and work without a browser,
+desktop, D-Bus, or Secret Service. Hidden CLI input, explicit-source precedence,
+no silent fallback, exchange/renewal bounds, and read parity need synthetic
+process coverage. These checks are planned, not current passes.
+Keep optional browser/protected-save and deeper hardening evidence separate.
+macOS desktop and Keychain checks and Claude Code client checks are deferred to
+[#62](https://github.com/PlagueHO/beyond-gate/issues/62).
+Retain completed evidence within its tested candidate and scope. Earlier
+unsupported character/campaign results do not authorize valid calls on current
+builds. Use verified input rejection before session access for account-free
+checks. Synthetic resource identifiers alone do not prevent live requests.
+Backlog changes do not authorize native-store, browser, real-client, account,
+or cloud tests.
+
 The [Linux package-only follow-up](desktop-acceptance.md#azure-linux-package-only-follow-up)
 records a disposable VM's command/runtime inventory, both binaries' startup,
 new-login-shell PATH, reinstall, relocation, removal, and verified cleanup.

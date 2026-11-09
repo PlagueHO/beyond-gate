@@ -24,6 +24,34 @@ assessment remains historical evidence, not a development stop gate.
 Each issue includes acceptance criteria,
 dependencies, tests, and documentation requirements.
 
+## Current simple-use priorities
+
+Prioritize Windows and Linux native CLI and local MCP use, including terminal-only
+machines. Browser-assisted authentication is optional. The agreed common design
+also applies to macOS, but its native acceptance stays low priority.
+
+| Order | Work item | Boundary |
+|-------|-----------|----------|
+| First | [#52](https://github.com/PlagueHO/beyond-gate/issues/52): shared authentication and Linux terminal use | Process-only `CobaltSession` environment input, hidden CLI input, explicit protected save, and existing Linux resource reads; not implemented yet |
+| After implementation | [#34](https://github.com/PlagueHO/beyond-gate/issues/34): Windows/Linux CLI and MCP simple-use acceptance | Identified native candidate, terminal-only operation, real VS Code/Copilot CLI, and bounded read parity |
+| Optional path | [#46](https://github.com/PlagueHO/beyond-gate/issues/46): browser extension | Keep consent, native messaging, and browser evidence separate; Linux browser integration is a later #52 stage |
+| Alongside implementation | [#40](https://github.com/PlagueHO/beyond-gate/issues/40): privacy and support | Explain process-only lifetime, environment inheritance, explicit save, tested baselines, and unverified combinations |
+| Release decision | [#41](https://github.com/PlagueHO/beyond-gate/issues/41): candidate acceptance | Decide required claims from evidence; a missing test is not a pass |
+| Deferred | [#62](https://github.com/PlagueHO/beyond-gate/issues/62): macOS and Claude Code | Common design does not establish verified native behavior |
+
+Environment input will not require a browser, desktop, D-Bus, or Secret Service.
+Explicit input will override stored credentials without silent fallback.
+Persist only through explicit login/import. Keep derived bearers in memory.
+See the [agreed authentication follow-up](authentication.md#agreed-authentication-follow-up).
+
+Keep older minimum-runtime claims, real upgrades, trust prompts, and deeper
+browser/store failure cases as separate hardening work. They do not block #52
+implementation. Signing, repository protections, distribution, the documentation
+site, artwork, and new resource families remain separate workstreams.
+This priority does not waive any check required for a selected release claim.
+New live-account, credential-store, browser, client, and cloud checks still need
+separate bounded approval. Reuse unchanged evidence within its recorded scope.
+
 ## Implementation issues
 
 | Issue | Scope | Prerequisites |
@@ -46,7 +74,7 @@ Authentication follow-up work remains open:
 |-------|-------|--------------------|
 | [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | Windows implementation and #46 integration verified. Hosted CI and approved Chrome/Edge Dev login/save/restart/logout passed. Shared core contract agreed with #30. Code is on the feature branch, not merged. |
 | [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Windows fresh validation and bounded process-local reuse implemented locally with portable synthetic and CLI/MCP process checks. Uses the agreed #29 establishment contract. Local presence is not upstream validation; live reads remain separate. |
-| [#52](https://github.com/PlagueHO/beyond-gate/issues/52) | Human-controlled Linux login and shared production session use | Reuse #30's portable core policy. Define Linux native-host and local-communication contracts; coordinate #34 and #46. Does not block #30's Windows work. |
+| [#52](https://github.com/PlagueHO/beyond-gate/issues/52) | Shared CLI/MCP authentication and Linux terminal use | Reuse #30's lifecycle; implement process-only environment input, hidden CLI input, explicit save, and existing Linux reads before optional Linux browser integration. |
 | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Windows product integration and separate browser CI passed against the accepted #29 contracts. Review and merge remain separate. |
 
 The user reported one successful
