@@ -127,6 +127,12 @@ definitions at 1,000; resource bytes at 1 MiB per response and 8 MiB per operati
 canonical output at 1 MiB. Metadata errors, ambiguity, missing records, failed
 parents, and limits never produce partial success.
 
+The CLI separately preflights class/subclass tables against an 8 MiB presentation
+limit before allocating padded output. It counts escaped UTF-8 bytes, padding
+based on character widths, separators, newlines, and optional headers with checked
+arithmetic. Exceeded limits or arithmetic overflow fail with no stdout. JSON
+and TSV keep their existing metadata output; unrelated resources are unchanged.
+
 Production session use remains Windows-only. Browser contracts and synthetic
 process parity do not establish native compatibility, sharing, global coverage,
 or permission to return rules text.

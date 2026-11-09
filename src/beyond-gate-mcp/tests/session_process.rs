@@ -48,6 +48,7 @@ fn session(name: &str) -> Session {
         "class-expired" => Some(class_fixture::Scenario::Expired),
         "class-rejected" => Some(class_fixture::Scenario::Rejected),
         "class-waiting" => Some(class_fixture::Scenario::Waiting),
+        "class-wide-table" => Some(class_fixture::Scenario::WideTable),
         _ => None,
     };
     if let Some(source) = class_source {
@@ -698,6 +699,49 @@ fn character_campaign_contracts() {
     );
 }
 
+/// Rejects padded amplification while preserving complete compact metadata formats.
+fn class_table_limit_contracts() {
+    for options in [vec![], vec!["--no-headers"], vec!["--format", "table"]] {
+        let mut arguments = vec!["class", "list"];
+        arguments.extend(options);
+        let output = cli("class-wide-table", &arguments);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(
+            String::from_utf8_lossy(&output.stderr)
+                .contains("Table presentation exceeds the 8388608-byte limit")
+        );
+    }
+    let output = cli("class-wide-table", &["class", "list", "-o", "json"]);
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let rows: Value = serde_json::from_slice(&output.stdout).expect("complete metadata");
+    let rows = rows.as_array().expect("metadata list");
+    assert_eq!(rows.len(), 1_000);
+    assert_eq!(rows.last().expect("long name")["name"], "x".repeat(9_000));
+    for options in [
+        vec!["--output", "tsv"],
+        vec!["--format", "tsv", "--no-headers"],
+    ] {
+        let mut arguments = vec!["class", "list"];
+        arguments.extend(options);
+        let output = cli("class-wide-table", &arguments);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(output.stdout.len() < 1024 * 1024);
+        let text = String::from_utf8(output.stdout).expect("UTF-8 TSV");
+        assert!(text.contains(&"x".repeat(9_000)));
+        assert_eq!(
+            text.lines().count(),
+            if arguments.contains(&"--no-headers") {
+                1_000
+            } else {
+                1_001
+            }
+        );
+    }
+}
+
 /// Checks each reviewed metadata workflow through actual CLI and MCP child processes.
 fn class_contracts() {
     for (tool, arguments, command) in [
@@ -965,6 +1009,7 @@ fn main() {
             library_contracts();
             book_contracts();
             character_campaign_contracts();
+            class_table_limit_contracts();
             class_contracts();
         }
     }

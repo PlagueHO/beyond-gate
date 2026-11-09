@@ -29,6 +29,7 @@ pub(crate) enum Failure {
     Mcp(crate::mcp::McpError),
     Json(serde_json::Error),
     Output(io::Error),
+    PresentationLimit(usize),
     Usage(&'static str),
 }
 
@@ -75,6 +76,10 @@ impl fmt::Display for Failure {
             Self::Mcp(error) => write!(formatter, "{error}")?,
             Self::Json(_) => formatter.write_str("Result JSON could not be encoded.")?,
             Self::Output(_) => formatter.write_str("Result output could not be written.")?,
+            Self::PresentationLimit(bytes) => write!(
+                formatter,
+                "Table presentation exceeds the {bytes}-byte limit; use --output json or --output tsv."
+            )?,
             Self::Usage(message) => formatter.write_str(message)?,
         }
         if let Some(http) = self.http() {
@@ -120,6 +125,7 @@ impl Error for Failure {
             Self::Mcp(error) => Some(error),
             Self::Json(error) => Some(error),
             Self::Output(error) => Some(error),
+            Self::PresentationLimit(_) => None,
             Self::Usage(_) => None,
         }
     }

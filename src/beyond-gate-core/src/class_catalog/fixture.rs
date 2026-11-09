@@ -53,6 +53,8 @@ pub enum Scenario {
     TooManyRecords,
     /// One response exceeds the 1 MiB transport limit.
     Oversized,
+    /// Valid compact metadata expands beyond 8 MiB when table rows are padded.
+    WideTable,
     /// Valid JSON with whitespace exceeds the aggregate response-byte budget.
     AggregateBytes,
     /// Leaves the first protected resource waiting until the owner stops it.
@@ -227,6 +229,19 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         }
         let records = match scenario {
             Scenario::Empty => vec![],
+            Scenario::WideTable => (1..=1_000)
+                .map(|id| {
+                    record(
+                        id,
+                        None,
+                        &if id == 1 {
+                            "x".repeat(9_000)
+                        } else {
+                            "Invented".to_owned()
+                        },
+                    )
+                })
+                .collect(),
             Scenario::ParentLimit
             | Scenario::TooManyParents
             | Scenario::TooManyRecords

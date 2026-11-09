@@ -103,6 +103,13 @@ JSON show also contains `is_homebrew`, `slug`, `more_details_url`, and `sources`
 Optional metadata is null when absent. Invalid supplied metadata fails.
 The [MCP reference](mcp.md#class_list-and-class_show) gives the shared JSON shape.
 
+Class/subclass tables are limited to 8 MiB (8,388,608 bytes). Before allocating
+padded output, the CLI counts escaped UTF-8 cells, character-based column padding,
+separators, newlines, and headers when selected. A table above this limit fails
+with exit code 1, an explicit stderr diagnostic, and empty stdout. Metadata is
+never truncated. Use JSON or TSV for a bounded result that exceeds the table
+limit; these formats do not add column padding and keep their existing behavior.
+
 Show is metadata-only. It does not return descriptions, feature text, equipment
 text, spell rules, or raw definitions. Unknown source-reference metadata is
 preserved in `sources`; arbitrary unknown definition fields are excluded.

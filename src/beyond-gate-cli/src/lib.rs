@@ -37,6 +37,9 @@ pub use command::command;
 use error::Failure;
 use output::ListOptions;
 
+/// Maximum class/subclass table bytes, including escaped cells, padding, and framing.
+const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
+
 /// Supplies only the shared resource operations required by the command runner.
 ///
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
@@ -495,7 +498,7 @@ fn execute_class(
     session: &Session,
     kind: ClassKind,
 ) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?;
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(MAX_CLASS_TABLE_BYTES);
     let class_id = if kind == ClassKind::Subclass {
         arguments.get_one::<String>("class-id").map(String::as_str)
     } else {

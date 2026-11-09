@@ -425,6 +425,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Class/subclass tables now check an 8 MiB presentation limit before allocating
+  padded output. Exceeded limits fail explicitly with empty stdout instead of
+  expanding bounded metadata into excessive padding. JSON and TSV remain complete.
 - Desktop acceptance guidance no longer proposes implemented character/campaign
   reads as account-free checks. Input rejection must stop before session access.
   Installation guidance distinguishes `auth_validate`'s lack of credential input
