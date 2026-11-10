@@ -188,6 +188,74 @@ fn class_metadata_help_and_invalid_usage() {
     assert!(completions.contains("--class-id"));
     assert!(completions.contains("--name"));
 }
+/// Checks shipped monster help, completions, and input failures without session access.
+#[test]
+fn monster_help_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["monster", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("monster"));
+    }
+    for arguments in [
+        vec!["monster"],
+        vec!["monster", "show"],
+        vec!["monster", "show", "01"],
+        vec!["monster", "show", "0"],
+        vec!["monster", "show", "18446744073709551616"],
+        vec!["monster", "show", "17", "--name", "beast"],
+        vec!["monster", "show", "17", "--output", "json", "--no-headers"],
+        vec!["monster", "list", "--name", ""],
+        vec!["monster", "list", "--name", " padded"],
+        vec!["monster", "list", "--skip", "-1"],
+        vec!["monster", "list", "--skip", "0"],
+        vec!["monster", "list", "--take", "20"],
+        vec![
+            "monster",
+            "list",
+            "--skip",
+            "18446744073709551615",
+            "--take",
+            "1",
+        ],
+        vec!["monster", "list", "--take", "0"],
+        vec!["monster", "list", "--take", "101"],
+        vec!["monster", "list", "--take", "1.5"],
+        vec!["monster", "list", "--page", "0"],
+        vec!["monster", "list", "--page", "-1"],
+        vec!["monster", "list", "--size-id", "0"],
+        vec!["monster", "list", "--size-id", "4", "--size-id", "4"],
+        vec!["monster", "list", "--cr-min", "2", "--cr-max", "1/2"],
+        vec![
+            "monster",
+            "list",
+            "--armor-class-min",
+            "10",
+            "--armor-class-max",
+            "9",
+        ],
+        vec!["monster", "list", "--legendary", "yes"],
+        vec!["monster", "list", "--partnered-content", "false"],
+        vec!["monster", "list", "--output", "json", "--no-headers"],
+        vec!["monster", "list", "--output", "yaml"],
+        vec!["monster", "list", "--homebrew"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        for expected in ["monster", "page", "size-id", "partnered-content"] {
+            assert!(text.contains(expected), "{shell}: {expected}");
+        }
+    }
+}
+
 /// Names the preferred output option when rejecting JSON header suppression.
 #[test]
 fn json_no_headers_error_uses_output_option_name() {

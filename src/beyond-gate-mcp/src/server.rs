@@ -11,6 +11,7 @@ use beyond_gate_core::{
     character_campaign::{self, Campaign, Character},
     class_catalog::{self, ClassKind},
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
+    monster,
 };
 use rmcp::{
     RoleServer, ServerHandler, handler::server::wrapper::Parameters, schemars::JsonSchema,
@@ -23,6 +24,18 @@ use serde_json::{Value, json};
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct EmptyArguments {}
+
+/// Requests one monster page; omission uses fixed defaults, while null is invalid.
+type MonsterListArguments = monster::MonsterQuery;
+
+/// Selects one monster by canonical positive decimal source ID.
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MonsterShowArguments {
+    /// Positive decimal ID, never a name, URL, or grant from an earlier page.
+    #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    id: String,
+}
 
 /// Defaults to base classes without using a character's preference state.
 #[derive(Default, Deserialize, Serialize, JsonSchema)]
@@ -136,6 +149,56 @@ pub struct BeyondGateServer {
 
 #[tool_router]
 impl BeyondGateServer {
+    /// Returns one checked page, preserving numeric continuation but never following it.
+    #[tool(
+        name = "monster_list",
+        description = "Read one website-filtered monster page with explicit page (default 1) and pagination.next_page. Supports name, literal CR bounds, repeated website option IDs, AC/average-HP bounds, legendary/mythic/lair booleans, and partnered_content yes/no/any (default no). Arrays have at most 50 unique positive IDs each and 256 total; IDs are checked against the public form, not treated as grants. Uses one website read and one exact selected-ID collection for nonempty pages. Only fresh access code 1 permits output; code 4 denies the whole page and other codes are unsupported. Requires the stored Windows session. Never follows pages automatically.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn monster_list(
+        &self,
+        Parameters(arguments): Parameters<MonsterListArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        arguments.validate().map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = monster::list(&self.session, &arguments) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Returns unchanged selected raw detail only after its own verified grant.
+    #[tool(
+        name = "monster_show",
+        description = "Read one monster by positive canonical decimal id, preserving unknown raw detail fields and source_url. Makes one selected request and checks fresh access code 1; code 4 is denied, and unverified codes, including 2 and 3, are unsupported. Does not substitute list metadata for detail or claim complete source-book text. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn monster_show(
+        &self,
+        Parameters(arguments): Parameters<MonsterShowArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        monster::validate_id(&arguments.id).map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = monster::show(&self.session, &arguments.id) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
     /// Lists complete metadata using the same data and failure semantics as the CLI.
     #[tool(
         name = "class_list",

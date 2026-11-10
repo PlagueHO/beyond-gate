@@ -27,6 +27,16 @@ Class/subclass list/show returns bounded Windows catalog metadata only.
 It preserves source-reference metadata but excludes raw definitions and rules
 text. Native class compatibility, real sharing, and live global coverage remain
 unverified. Metadata presence and source IDs are not content-access grants.
+Monster list/show returns one explicit page or unchanged selected raw detail
+through shared Windows reads. Lists use website filters and explicit page/next_page,
+not skip/take. One cookie-only candidate page and one exact selected-ID bearer
+collection share a session identity. Empty pages require the observed marker.
+Website links/options are not grants; the book-page URL guard stays unchanged.
+Only observed access code 1 permits output.
+Code 4 is denied; unverified numeric codes, including 2 and 3, are unsupported.
+One failed row fails the page. Browser probes checked selected routes; native
+cookie compatibility, account acceptance, larger batches, and owned/shared behavior
+remain unverified.
 Shared environment authentication, hidden CLI input, explicit protected save,
 and Linux production session/read support are tracked in #52. These paths are
 planned, not implemented. Browser assistance is optional for terminal-only use.

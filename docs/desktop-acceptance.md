@@ -866,16 +866,17 @@ settings remain intact. Observe the actual client, not only its JSON file:
 | Claude Code | `claude mcp list` and its MCP tools view | Isolated user-level `.claude.json` |
 | Copilot CLI | `/mcp` dashboard | Isolated `COPILOT_HOME` `mcp-config.json` |
 
-Confirm all ten tools: `auth_validate`, `character_list`, `character_show`,
+Confirm all twelve tools: `auth_validate`, `character_list`, `character_show`,
 `campaign_list`, `campaign_show`, `book_list`, `book_outline`, `book_read`,
-`class_list`, and `class_show`. Earlier retained eight-tool evidence does not
-establish real-client acceptance for the two new metadata tools.
+`class_list`, `class_show`, `monster_list`, and `monster_show`. Earlier retained
+eight-tool evidence does not establish real-client acceptance for the later
+class and monster tools.
 Discovery alone does not permit calling `auth_validate` or valid resource operations.
 If the client supports an exact tool call without a model request, check one
 unknown-field rejection only after verifying that the selected candidate rejects
 that input before credential or network access. For current resource tools,
 `character_list` with `{"unexpected": true}` is one such input.
-Do not use a valid character, campaign, class, book, or `auth_validate` call as an
+Do not use a valid character, campaign, class, monster, book, or `auth_validate` call as an
 account-free check. Synthetic identifiers do not make valid reads account-free.
 If an approved exact-call method or verified rejection contract is unavailable,
 record that tool-call case as blocked.

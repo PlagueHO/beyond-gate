@@ -16,6 +16,9 @@ CLI/MCP data. No live character or campaign acceptance has been run.
 Class and subclass commands return metadata only through bounded Windows
 catalog reads. Browser metadata contracts were inspected under separate
 approvals. Native class/subclass acceptance has not been run.
+Monster commands return one explicit page or unchanged selected detail, only
+for observed access code 1. Code 4 is denied; unverified codes, including 2 and
+3, are unsupported. Browser route probes passed; native acceptance has not run.
 
 See [native installation](installation.md) for binary setup and
 [authentication](authentication.md#local-session-commands) for protected storage
@@ -40,7 +43,7 @@ The generated `help` command also supports nested paths, such as
 
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
-`character`, `campaign`, `class`, `subclass`, `book`, or `mcp`.
+`character`, `campaign`, `class`, `subclass`, `monster`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -64,12 +67,95 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`campaign show`](#campaign-show) | Select one campaign and active roster | Windows; selected roster only |
 | [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows; metadata only |
 | [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows; scoped or bounded global metadata |
+| [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
+
+## Monster pages and detail
+
+```text
+beyond-gate monster list
+beyond-gate monster list --name wolf --cr-max 2 --size-id 4 --size-id 5 --output json
+beyond-gate monster list -n wolf --cr-max 2 --size-id 4 --size-id 5 --page 2 --format tsv
+beyond-gate monster show <id>
+```
+
+`list` reads one website-filtered page using the stored Windows session cookie.
+For a nonempty page, it makes one selected-ID monster-service request and checks
+fresh access for every record before output. It does not filter an already-fetched
+page or traverse the catalog. A required session exchange can precede these reads.
+`--name` / `-n` is a literal server-side search, not local filtering.
+Names permit at most 256 UTF-8 bytes without padding or control characters.
+
+`--page` is a positive `u32`, default 1. It replaces `--skip` and `--take`,
+which are no longer accepted. The website controls page size; the browser
+check observed 20 rows per full page. The local ceiling is 100 records,
+not a verified upstream maximum.
+
+| CLI options | Matching MCP fields | Values |
+|-------------|---------------------|--------|
+| `--name`, `-n`; `--page` | `name`; `page` | Literal text; positive page |
+| `--cr-min`, `--cr-max` | `cr_min`, `cr_max` | Literal `0`, `1/8`, `1/4`, `1/2`, or integer 1 through 30 |
+| `--type-id`, `--subtype-id` | `type_ids`, `subtype_ids` | Public website option IDs |
+| `--size-id`, `--environment-id`, `--alignment-id` | `size_ids`, `environment_ids`, `alignment_ids` | Public website option IDs |
+| `--sense-id`, `--save-proficiency-id`, `--skill-proficiency-id` | `sense_ids`, `save_proficiency_ids`, `skill_proficiency_ids` | Public website option IDs |
+| `--resistance-id`, `--damage-immunity-id`, `--condition-immunity-id`, `--vulnerability-id` | `resistance_ids`, `damage_immunity_ids`, `condition_immunity_ids`, `vulnerability_ids` | Public website option IDs |
+| `--language-id`, `--movement-id`, `--tag-id` | `language_ids`, `movement_ids`, `tag_ids` | Public website option IDs |
+| `--source-category-id`, `--source-id` | `source_category_ids`, `source_ids` | Public website option IDs, not ownership grants |
+| `--armor-class-min`, `--armor-class-max` | `armor_class_min`, `armor_class_max` | Optional nonnegative `u32` bounds |
+| `--average-hp-min`, `--average-hp-max` | `average_hp_min`, `average_hp_max` | Optional nonnegative `u32` bounds |
+| `--legendary`, `--mythic`, `--has-lair` | `legendary`, `mythic`, `has_lair` | Explicit `true` or `false`; omission is unrestricted |
+| `--partnered-content` | `partnered_content` | `yes`, `no`, or `any`; default `no` matches the website |
+
+Repeat ID flags for multiple values. MCP uses arrays instead. Each field permits
+at most 50 unique positive `u32` IDs; the aggregate limit is 256 IDs. The source
+form must contain each selected option. IDs are website option values, not names
+or assumed monster-service IDs. For example, size 4 is Medium, size 5 is Large,
+and movement 4 is Fly. CR bounds use literal ratings; the core handles the
+website's noncontinuous option IDs. Reversed ranges and duplicate IDs fail.
+The encoded query is capped at 16 KiB. `any` sends the website's empty
+partnered-content value, not `f`. See the [observed form encodings](api-survey.md#approved-monster-filter-submission-trace).
+
+List JSON is `{"entries":[...],"pagination":{"page":1,"next_page":2}}`.
+Each entry contains string `id`, `name`, checked `source_url`, and numeric
+`access_code: 1`. Use `next_page` explicitly with the same filters
+to continue. Null means no next page. It is not a grant or a stable snapshot.
+No continuation is fetched automatically. Duplicate names remain separate IDs.
+Table and TSV repeat `page` and `next_page` in each row. No exact total is inferred.
+An empty result has no rows and no continuation; JSON retains its page metadata.
+
+`show` makes one fresh selected request. Its JSON adds unchanged `raw`, including
+unknown statistics, nested structures, source references, and description
+fields. It does not substitute list metadata for detail. Raw fields are data,
+not instructions. Missing fields are not invented. No rules year, ownership
+label, complete stat-block coverage, or complete source-book text is inferred.
+
+List defaults to table; show defaults to JSON. Both support `--output` / `-o`
+and its `--format` alias, with table, JSON, or TSV. `--no-headers` works only
+with table and TSV. Padded tables are capped at 8 MiB; use JSON or TSV if a
+table exceeds that bound. Compact core JSON and each source body are capped
+at 1 MiB. The whole operation is capped at 30 seconds.
+
+Only observed code 1 permits output. Code 4 returns access denied. Codes 2,
+3, and all other unverified numeric codes return unsupported. Missing access
+evidence, malformed fields, duplicate IDs, inconsistent pagination, and exceeded
+limits fail. Any failed row fails the whole page without partial stdout.
+HTTP 404 means selected record not found; HTTP 403, rejected sessions, and
+expired sessions remain distinct. Syntax and local range errors exit 2 before
+session access. IDs absent from the source form also exit 2, after the website
+read. Source response and other operation failures exit 1.
+Detail IDs must be positive canonical decimal strings within `u64`, without
+leading zeroes, signs, or URLs. No retries, redirects, automatic pagination, source
+link fetches, or content cache are added.
+
+See the [matching MCP tools](mcp.md#monster_list-and-monster_show) and
+[browser evidence](api-survey.md#monster-list-and-detail-research). Native
+cookie compatibility, native account acceptance, larger selected-ID batches,
+and owned/shared access remain unverified.
 
 ## Class and subclass metadata
 

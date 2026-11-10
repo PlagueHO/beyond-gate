@@ -77,7 +77,10 @@ complete standalone rules catalog without evidence.
 
 The following names were found on the public forms. `page` was also found in links on spells,
 monsters, magic items, and equipment. Query names, accepted values, server-side behavior, and
-JSON service parameters are separate contracts. No filter or next page was requested.
+JSON service parameters are separate contracts. No filter or next page was requested in this
+initial survey. A later [approved monster filter trace](#approved-monster-filter-submission-trace)
+checked real submissions and filtered server HTML, but not a next page or equivalent JSON
+service parameters.
 
 All eight pages include a general `search` input. Classes and species had no additional
 matching filter names. Backgrounds and feats had no observed paging parameter.
@@ -103,7 +106,7 @@ origin comes from the [third-party endpoint definitions][candidate-endpoints].
 | `https://character-service.dndbeyond.com` | Characters and character-builder game data; Live and Client | Resource reads not implemented |
 | `https://www.dndbeyond.com` | Campaign endpoints and HTML listings; Live, Client, and Page | Resource reads not implemented |
 | `https://gamedata-service.dndbeyond.com` | Separate definition and vehicle rule-data service; Client | No live contract |
-| `https://monster-service.dndbeyond.com` | Separate monster service; Candidate | Not queried |
+| `https://monster-service.dndbeyond.com` | Separate monster service | Later approved code-1 page/detail and code-4 listing probes; native acceptance unverified |
 | `https://api.dndbeyond.com` | Production API configuration string; Client | Individual route bindings still need verification |
 | `https://dice-service.dndbeyond.com` | Production dice configuration string; Client | Individual route bindings still need verification |
 | `https://media.dndbeyond.com` | Public scripts and assets; Client and Page | Research source, not an access grant |
@@ -289,7 +292,8 @@ semantics, safe retry rules, and its own tests.
 
 The following routes come from the pinned
 [third-party endpoint definitions][candidate-endpoints] and
-[reference implementation][candidate-reference]. They were not queried.
+[reference implementation][candidate-reference]. Later approved monster probes
+are recorded [below](#monster-list-and-detail-research).
 
 | Candidate method | URL | Candidate parameters or shape |
 |------------------|-----|-------------------------------|
@@ -300,7 +304,8 @@ The following routes come from the pinned
 The candidate monster search shape has array `data`, an `accessType` map, and pagination
 fields `take`, `skip`, `currentPage`, `pages`, and `total`.
 The candidate detail shape has object `data` and scalar `accessType`.
-Numeric access meanings are not verified. A visible name, partial record, or successful
+Only access cases 1 and 4 were observed in the later monster probes.
+A visible name, partial record, or successful
 HTTP response must not be treated as permission to return a full stat block.
 
 The candidate config contains lookup arrays for challenge ratings, monster types,
@@ -312,6 +317,334 @@ requests, caches large datasets, and can tolerate partial results.
 It filters item and feat datasets locally. These are implementation choices, not evidence
 of supported standalone bounded-search APIs. Beyond Gate must not copy these behaviors.
 Hardcoded source maps and guessed access-type meanings are also unsuitable.
+
+### Monster list and detail research
+
+Issue [#72](https://github.com/PlagueHO/beyond-gate/issues/72) requires a verified
+detail contract before implementation. The selected list behavior is one bounded
+page with explicit continuation, not automatic catalog traversal.
+The metadata-only scope selected for class issue #65 does not apply to monsters.
+
+The pinned [importer monster factory][importer-monster-factory] selects
+`POST /proxy/monsters/ids` when IDs are supplied and `POST /proxy/monster`
+otherwise. Its [source types][importer-monster-types] describe proxy records with
+statistics, source references, nested arrays, and description fields. These
+types do not prove direct upstream field availability or content permission.
+Beyond Gate does not use this proxy or send credentials to it.
+
+The pinned [public proxy route builder][mrprimate-proxy-config] constructs
+`GET /v1/Monster` with `search`, `skip`, `take`, `showHomebrew`, and repeated
+`sources`. Selected IDs use repeated `ids` on that same collection route.
+The [proxy monster reader][mrprimate-proxy-monsters] collects pages and filters
+records with `isReleased === true` or homebrew state. That filter is not a
+monster-specific access-map check. Its bulk traversal, image rewriting, and
+partial-failure behavior are not adopted. It does not establish a separate
+direct-detail operation or numeric access meanings.
+
+The first-party character client also declares `game-data/monsters`.
+`makeLoadAvailableMonsters` calls that collection through `Sy`, then `Sf`
+applies `filterNonRestrictedEntityDefinitions`. The extras chooser consumes the
+returned creature definitions. This is character-builder evidence, not proof
+that a standalone service record has the same access contract. The class
+feature access enum cannot establish monster-service access meanings.
+The inspected asset is the same pinned `main.4ccf1602.js` described in the
+[class evidence](#class-and-subclass-metadata-evidence). Its SHA-256 matched.
+
+A separately approved built-in-browser scope opened the official `/monsters`
+listing once and made three explicit credential-free public script reads.
+The page loaded without an observed access-denial title. The inspected resource
+routes included the site's normal authentication exchange but no monster-service
+request. This is not a direct API probe or proof that no such route exists.
+`/js/waterdeep` returned 134,636 bytes with SHA-256
+`71327e8d6d49b7b268ddbebd3ae6ccf0c3559409130990e16141a2c98c367628`.
+It contained no tested monster-service route or access-map identifier.
+The second read inspected the pinned character client above.
+The third read, `/js/cobalt`, returned 452,435 bytes with SHA-256
+`92925618f6bf788af005a9665bc3e477e27df672415a4a6bb288a8a699e69eda`.
+It contained no tested monster or access-map identifier. These negative matches
+do not establish the absence of another client or route.
+
+A later credential-free documentation check made one GET to
+`https://monster-service.dndbeyond.com/swagger/v1/swagger.json`.
+It returned HTTP 403 with content type `text/html`. The check stopped without
+reading the body, following redirects, retrying, or trying another route.
+No cookies, bearer, or default credentials were sent. This failure does not
+establish that a public specification or the candidate resource routes are absent.
+
+Two later account scopes were explicitly approved. The first made exactly five
+requests, all HTTP 200, with no redirects or retries:
+
+| Request | Decoded bytes | Structural result |
+|---------|---------------|-------------------|
+| Authentication exchange | 1,509 | Bearer accepted inside browser memory |
+| MON-01, `search=wolf&skip=0&take=1&showHomebrew=f` | 2,550 | One record, total 18, ID `4775850`, code 1 |
+| Same list with `skip=1` | 2,650 | One record, ID `17062`, code 1 |
+| MON-01, `ids=4775850` | 4,161 | One selected array record, code 1 |
+| MON-02, ID `4775850` | 4,113 | Selected object record, scalar code 1 |
+
+List `accessType` is an object keyed by decimal ID. `pagination` contains numeric
+`take`, `skip`, and `total`, with null `currentPage` and `pages`. List `stats`
+and `metaData` are objects. Selected-ID collection pagination, stats, and metadata
+are null. Direct detail has object `data`, numeric `accessType`, and null `stats`.
+No class-style `success` or `message` discriminator was present.
+
+The code-1 records exposed these raw fields. Types describe only the sampled
+responses, not a complete schema or a guarantee for every monster:
+
+| Raw fields | Observed shape |
+|------------|----------------|
+| `id`, `entityTypeId`, `collectionUserId`, `homebrewStatus` | Numbers; no account-related field values were retained |
+| `name`, `url` | Strings; production validates identity and fixed-website attribution |
+| `alignmentId`, `sizeId`, `typeId`, `challengeRatingId` | Numbers; no lookup labels or challenge-rating conversion inferred |
+| `armorClass`, `averageHitPoints`, `passivePerception` | Numbers |
+| `sourceId`, `sourcePageNumber` | Numbers; source IDs are not access grants |
+| `initiativeBonus` | Number or null |
+| `isReleased`, `isHomebrew`, `isLegendary`, `isMythic`, `hasLair`, `hideCr`, `isLegacy` | Booleans |
+| `armorClassDescription`, `conditionImmunitiesHtml`, `sensesHtml`, `skillsHtml` | Strings |
+| `specialTraitsDescription`, `actionsDescription`, `reactionsDescription`, `legendaryActionsDescription`, `lairDescription`, `languageNote` | Strings; content was not retained |
+| `characteristicsDescription`, `languageDescription` | String or null |
+| `avatarUrl`, `largeAvatarUrl`; `basicAvatarUrl` | Strings; basic avatar can be null; no images fetched |
+| `version`, `swarm` | Null; non-null contracts not established |
+| `stats` | Array; sampled entries have numeric `statId` and `value`, with null `name`; six entries observed |
+| `skills` | Array; sampled entries have numeric `skillId` and `value`, with null `additionalBonus` |
+| `senses` | Array; sampled entries have numeric `senseId` and string `notes` |
+| `movements` | Array; sampled entries have numeric `movementId` and `speed`, with null `notes` |
+| `sources` | Array; sampled entries have numeric `sourceId`, `pageNumber`, and `sourceType` |
+| `hitPointDice` | Object; numeric `diceCount`, `diceValue`, `diceMultiplier`, `fixedValue`, and string `diceString` |
+| `savingThrows`, `languages` | Empty arrays; element contracts not established |
+| `subTypes`, `environments`, `tags`, `damageAdjustments`, `conditionImmunities` | Arrays; no complete element schema established |
+
+Production validates required identity, name, URL, envelope, access, pagination,
+and bounds. It does not impose a guessed schema on optional combat or source
+fields. Unknown detail fields remain in `raw`. Preserving HTML strings does not
+execute them, fetch embedded resources, or establish complete stat-block text.
+
+The second scope made one exchange and one MON-01 request with
+`search=Strahd&skip=0&take=1&showHomebrew=f`. Both returned HTTP 200, with 1,509
+and 1,562 decoded bytes. The list total was 8. Selected ID `6491389` had code 4;
+its inspected description fields were empty or null. The check stopped at that
+denied case. No selected detail request or page open followed. Unused allowance
+does not authorize a replacement target.
+The inspected `mythicActionsDescription` and `bonusActionsDescription` fields
+were null in that denied listing. This does not establish their non-null
+detail contracts.
+
+The user then chose implementation of the verified cases now. Shared core reads,
+CLI `monster list/show`, and MCP `monster_list`/`monster_show` accept code 1,
+reject code 4, and return explicit unsupported errors for all other numeric
+codes, including 2 and 3. Missing or malformed access evidence fails. One denied
+or unsupported row fails the whole page; no rows are silently removed.
+This policy does not label code 1 as a universal ownership or content grant.
+
+List and detail both contain description fields. Their presence does not prove
+complete content. Detail preserves the selected authorized raw object, including
+unknown statistics, source references, and future fields. No rules version,
+full source-book coverage, owned access, or shared access is inferred.
+The [implementation contract](api-catalog.md#monsters-and-configuration) separates
+local limits from the two observed one-record pages.
+
+Credentials and raw responses remained in browser memory. Only structural
+metadata, public IDs, counts, sizes, and field types were retained. No raw account
+snapshot or proprietary text was saved. Probe references were cleared without
+claiming guaranteed JavaScript zeroization. The browser login stayed unchanged.
+No native credential read, native CLI/MCP account acceptance, or detail-page open
+occurred. Both account scopes are consumed; further live work requires a new
+approval with fixed operations, budgets, stop conditions, and cleanup.
+
+### Approved monster filter submission trace
+
+The user later requested website filter support in both the CLI and MCP.
+A separately approved browser trace submitted the real monster form three times.
+The form uses `GET https://www.dndbeyond.com/monsters`. It sends website
+`filter-*` query parameters, not an observed browser request to MON-01.
+The trace establishes filtered HTML from the website backend. It does not
+establish equivalent monster-service JSON parameters or the website backend's
+internal service calls.
+
+The approved scope allowed three form submissions and at most five additional
+explicit reads at the website, monster-service, authentication, and media origins.
+Each explicit read had a 15-second deadline. JSON/HTML reads were capped at
+1 MiB and public scripts at 8 MiB. The active trace had a five-minute deadline.
+Access denial, bot protection, an unexpected route, or a bound breach required
+a stop. Detail reads, pagination, account writes, native credential access,
+and raw account snapshots were excluded.
+
+The form exposed these encodings. An observed control does not by itself
+establish the independent effect of that filter.
+
+| Controls | Observed encoding and limit of evidence |
+|----------|----------------------------------------|
+| `filter-search` | Text; the submissions used `wolf` |
+| `filter-type` | Fifteen checkboxes; default `0` is All Monsters; other type labels were not established |
+| `filter-cr-min`, `filter-cr-max` | Option IDs, not literal challenge ratings; ID `1` means CR 0 and ID `6` means CR 2 |
+| `filter-size`, `filter-environment`, `filter-alignment`, `filter-sub-types` | Multiple selections use repeated query keys; two size values were submitted together |
+| `filter-senses`, `filter-save-proficiency`, `filter-skill-proficiency` | Multiple-select controls |
+| `filter-resistance`, `filter-damage-immunity`, `filter-condition-immunity`, `filter-vulnerability` | Multiple-select controls |
+| `filter-language`, `filter-movement`, `filter-tags`, `filter-source-category`, `filter-source` | Multiple-select controls |
+| `filter-armor-class-min`, `filter-armor-class-max`, `filter-average-hp-min`, `filter-average-hp-max` | Text controls with numeric-looking submitted values; accepted numeric ranges were not established |
+| `filter-is-legendary`, `filter-is-mythic`, `filter-has-lair`, `filter-partnered-content` | Empty, `t` (Yes), or `f` (No); the site selected `filter-partnered-content=f` by default |
+
+Other observed CR options were ID `2` for CR 1/8, `3` for CR 1/4,
+`4` for CR 1/2, `5` for CR 1, and `7` for CR 3. The trace did not retain
+the complete CR map. Size IDs were `2` Tiny, `3` Small, `4` Medium,
+`5` Large, `6` Huge, `7` Gargantuan, and `10` Medium or Small.
+Movement IDs were `1` Walk, `2` Burrow, `3` Climb, `4` Fly, and `5` Swim.
+Sense IDs were `1` Blindsight, `2` Darkvision, `3` Tremorsense, and
+`4` Truesight. Save IDs were `1` STR, `2` DEX, `3` CON, `4` INT,
+`5` WIS, and `6` CHA. Only part of the skill map was inspected.
+Do not infer missing option maps or equate these website IDs with JSON
+service selectors without evidence.
+
+The first submission sent these nonempty values:
+
+```text
+filter-type=0
+filter-search=wolf
+filter-cr-min=1
+filter-cr-max=6
+filter-size=4
+filter-is-legendary=f
+filter-partnered-content=f
+```
+
+The second kept those values and added a second `filter-size=5` key,
+`filter-is-mythic=f`, and `filter-has-lair=f`. The third kept the second
+query and added `filter-armor-class-min=99`, `filter-armor-class-max=99`,
+`filter-average-hp-min=1`, `filter-average-hp-max=1000`, and
+`filter-movement=1`. Blank form fields could also appear as empty query values.
+
+| Submission | HTTP status | Decoded document bytes | Observed `.listing-body .info` rows |
+|------------|-------------|------------------------|------------------------------------|
+| 1 | 200 | 382,606 | 4 |
+| 2 | 200 | 386,779 | 6 |
+| 3 | 200 | 374,910 | 0 |
+
+Several controls changed together. These observations do not isolate every
+filter's effect. The third response had no observed rows, but a narrow check
+did not establish an explicit empty-result marker. It is not yet a verified
+successful-empty-page contract.
+
+Three additional explicit reads completed:
+
+| Read | HTTP status | Bytes | Structural result |
+|------|-------------|-------|-------------------|
+| Credential-free [`/js/cobalt`](https://www.dndbeyond.com/js/cobalt) | 200 | 452,435 | Listing and form submission code; no monster-service origin string |
+| Credential-free [`/js/waterdeep`](https://www.dndbeyond.com/js/waterdeep) | 200 | 134,636 | Relevant `filter-*` names and form submission code; no monster-service origin string |
+| Browser-authenticated GET of the exact submission-2 URL | 200 | 386,779 | `text/html`; six listing rows already present in the initial response |
+
+The script SHA-256 values were:
+
+- Cobalt: `92925618f6bf788af005a9665bc3e477e27df672415a4a6bb288a8a699e69eda`.
+- Waterdeep: `71327e8d6d49b7b268ddbebd3ae6ccf0c3559409130990e16141a2c98c367628`.
+
+The HTML read rejected redirects and used a streamed 1 MiB cap. It was parsed
+in an inert template, not executed or attached to the page. Its six rows matched
+the live DOM and had numeric monster links. Only the count, not the selected
+record IDs or names, was retained. Row classes included `monster-icon`,
+`monster-challenge`, `monster-name`, `monster-type`, `monster-size`,
+`monster-alignment`, `monster-environment`, and `monster-tags`.
+Their presence is not an access grant.
+
+No monster-service request appeared in the inspected browser resource lists.
+This observation is not exhaustive network capture and cannot rule out
+internal service calls by the website backend. Normal page-generated traffic
+was counted separately. No explicit reads targeted ancillary analytics or
+asset origins.
+
+The trace ended after 244,133 ms with three submissions and three explicit
+reads. Temporary window and session-storage references were removed. Login
+was unchanged. No credentials, account snapshot, record text, or raw page
+was saved. The scope is closed; its unused read allowance cannot be reused.
+
+At this stage, advanced filters were not implemented. A safe implementation had to
+establish either equivalent JSON-service selectors or a website-page contract.
+The latter still needs verified paging, empty-result detection, native cookie
+transport, and fresh access checks for returned data. Do not send unverified
+`filter-*` keys to MON-01, filter only one already-fetched JSON page, or scan
+the whole catalog to emulate server filtering. Keep source selection, access
+policy, and query validation in shared core code for both adapters.
+
+### Approved website paging and selected-ID check
+
+The user selected website-filtered lists with explicit page-based pagination
+in both adapters. This replaces the earlier `skip`/`take` list interface.
+Detail reads and access checks must keep their existing behavior.
+
+A new approved browser scope allowed six explicit requests at the website,
+authentication, and monster-service origins. Each response had a streamed
+1 MiB cap and a 15-second deadline. The whole scope had a five-minute deadline.
+No detail reads, native credential access, account writes, raw snapshots, or
+saved credentials were allowed. The check completed all six requests in
+55,681 ms and removed its temporary scope reference. Login stayed unchanged.
+This scope is also closed.
+
+| Request | HTTP status | Response bytes | Structural result |
+|---------|-------------|----------------|-------------------|
+| `/monsters?filter-type=0&filter-search=dragon&filter-partnered-content=f&page=1` | 200 | 418,926 | Twenty rows; active page 1; next link selects page 2 |
+| Exact same-filter page-2 link | 200 | 418,061 | Twenty rows; next link selects page 3 |
+| Earlier combined zero-row query | 200 | 374,910 | Explicit `li.alert.no-results` marker inside the monster listing |
+| Same zero-row query with `page=2` | 200 | 374,910 | Same empty-result marker; no listing pagination |
+| Browser-managed authentication exchange | 200 | 1,509 | Token remained in browser memory |
+| `/v1/Monster?ids=4775850&ids=17062` | 200 | 8,127 | Exactly both selected records; both code 1; ID-keyed access map; null pagination |
+
+The exact next link preserved the nonempty filter pairs, reordered them,
+and advanced `page`. Top and bottom pagination controls repeated the same
+links. Active-page elements used `span.b-pagination-item.s-active.active`.
+Next links used `rel="next"` inside `.b-pagination-list`. Unrelated
+fragment links also inherited the current query, so collecting every link
+with a `page` parameter is not a valid pagination parser.
+
+The listing container was `div.listing-body` with
+`ul.listing.listing-rpgmonster.rpgmonster-listing`. Empty results had a child
+`li.alert.no-results` with the fixed message
+`You failed your Investigation check.` This resolves the earlier missing
+empty-result marker. It does not establish how a nonempty result handles
+a page beyond its final page; only page 2 of a known empty query was checked.
+
+The complete CR option map showed a gap: CR 23 uses ID `27`, CR 24 uses
+ID `29`, and CR 30 uses ID `35`. Do not derive all IDs by adding a constant
+to the literal rating. Other option groups were present, but not every
+individual filter value was submitted. Type checkbox IDs included `0`,
+`1`, `2`, `3`, `4`, `6`, `7`, `8`, `9`, `10`, `11`, `13`, `14`,
+`15`, and `16`; individual type labels were not established by this check.
+
+The selected-ID collection returned `accessType`, `pagination`, `stats`,
+`metaData`, and `data`. Pagination was null. This extends the earlier
+single-ID observation to one two-ID request. It does not verify an upstream
+maximum batch size or owned/shared cases. A future filtered-list implementation
+must check the exact requested ID set, reject duplicate or extra records,
+and apply the existing fresh code-1 policy before returning any row.
+Website order must not depend on collection response order.
+
+Only public filter metadata, page structure, counts, selected IDs, and
+access classifications were retained. No raw HTML, raw record, account
+snapshot, or credential was saved. No native CLI/MCP account acceptance
+was performed.
+
+### Shared filtered-list implementation
+
+The user approved implementation of the website-page direction. Shared core
+queries now expose all observed filter controls through both adapters.
+CLI repeated ID flags and MCP arrays use the same validated website encodings.
+Literal CR bounds use the complete observed map, including the missing ID 28.
+Unknown MCP fields, explicit null selectors, invalid ranges, duplicate/zero IDs,
+and local limit violations fail. Requested option IDs must exist in the
+same response's public filter form.
+
+List now reads one cookie-only website page, then one bearer-only selected-ID
+collection for nonempty pages. Empty results require the observed marker and
+no collection read. One session identity spans both reads. Every selected
+identity and fresh code-1 grant must match before output; the core restores
+website order. Detail and its independent fresh access check are unchanged.
+Pagination is `page`/`next_page`, not the earlier `skip`/`take` interface.
+The source controls page size; total counts are not inferred.
+
+Synthetic checks cover filter serialization, CR mapping, strict input,
+page/empty parsing, fixed URLs, exact selected sets, access errors, session
+identity changes, size bounds, cancellation, and actual CLI/MCP process parity.
+These checks do not replace native cookie compatibility, native account
+acceptance, larger-batch evidence, or owned/shared evidence. No new account
+calls followed the closed research scopes.
 
 ## Books, sources, and access checks
 
@@ -1398,6 +1731,9 @@ No search-result claim is used as endpoint evidence without source inspection.
 [selected-chapter]: https://www.dndbeyond.com/sources/dnd/cos/introduction#RunningtheAdventure
 [candidate-endpoints]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/api/endpoints.ts
 [candidate-reference]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/tools/reference.ts
+[importer-monster-factory]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/parser/DDBMonsterFactory.ts
+[importer-monster-types]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/types/ddb-monster-source.d.ts
+[mrprimate-proxy-monsters]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/monsters.js
 [avrae-entitlements]: https://github.com/avrae/avrae/blob/15258cb884c1085582a710a9791f890371afb6c4/ddb/entitlements.py
 [avrae-client]: https://github.com/avrae/avrae/blob/15258cb884c1085582a710a9791f890371afb6c4/ddb/client.py
 [importer-book-data]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/muncher/adventure/native/BookData.ts

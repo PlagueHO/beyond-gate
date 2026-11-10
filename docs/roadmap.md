@@ -13,6 +13,13 @@ live source compatibility remains unvalidated.
 Issue #65 adds metadata-only Windows class/subclass list/show and two MCP tools.
 Synthetic checks cover bounded discovery and adapter parity. Full-content access,
 native compatibility, real sharing, and live global coverage remain unverified.
+Issue #72 adds website-filtered monster pages and selected raw detail through both
+adapters. Filters share one strict query and explicit page-based continuation.
+Nonempty pages use one website read and one exact selected-ID access check.
+Only observed code 1 is supported. Code 4 is denied; unverified
+numeric cases, including 2 and 3, are unsupported. Browser probes checked the
+selected routes; native cookie compatibility, account acceptance, larger batches,
+and owned/shared cases remain unverified.
 Protected-store operations have synthetic offline
 tests; Windows login creates the protected entry after service validation.
 The core HTTP read boundary has offline policy tests and fixed Web-library
@@ -201,10 +208,13 @@ Character and campaign show commands also support `--output` / `-o`, with
 `--format` as an alias. There is no product fixture input, cached content, or
 account snapshot.
 
-Issue #8 provides a local rmcp stdio server. With issue #65, it has nine resource
-read tools. The separate `auth_validate` tool brings the total to ten.
+Issue #8 provides a local rmcp stdio server. With issues #65 and #72, it has eleven
+resource read tools. The separate `auth_validate` tool brings the total to twelve.
 Character and campaign tools call the same bounded core operations as the CLI.
 `class_list` and `class_show` expose class/subclass metadata only.
+Issue #72 adds CLI `monster list/show` and MCP `monster_list`/`monster_show`.
+One website-filtered list page returns explicit `next_page`; detail preserves raw fields after
+its own access check. Neither operation traverses the catalog or caches content.
 `campaign_list` can select the active collection with `active_only`; campaign
 show returns the selected active roster. Tool schemas, read-only annotations,
 bounded continuation input, and synthetic protocol process tests are

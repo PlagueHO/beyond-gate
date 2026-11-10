@@ -39,6 +39,12 @@ pub fn command() -> Command {
             class_resource("subclass", true),
         )
         .subcommand(
+            resource("monster", "Read bounded monster pages and selected detail; only verified access code 1")
+                .subcommand(monster_list())
+                .subcommand(show_options(Command::new("show").about("Read one selected monster with unchanged raw detail"))
+                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_monster_id)))),
+        )
+        .subcommand(
             resource("book", "Bounded Windows library, outline, and selected-section reads")
                 .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
                 .subcommand(list_options(Command::new("outline").about("List at most 1,000 entries after fresh library and canonical source-page checks").arg(identifier("book-id"))))
@@ -80,6 +86,70 @@ pub fn command() -> Command {
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
         )
+}
+
+/// Checks literal monster searches without interpreting upstream query syntax.
+fn valid_monster_name(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::monster::MonsterQuery {
+        name: Some(value.to_owned()),
+        ..Default::default()
+    }
+    .validate()
+    .map(|()| value.to_owned())
+    .map_err(|_| "name must be nonempty, unpadded, control-free text within 256 UTF-8 bytes")
+}
+
+/// Builds website filter flags from shared field mappings for parsing and completions.
+fn monster_list() -> Command {
+    use beyond_gate_core::monster::query::{
+        BOOL_FILTERS, CHALLENGE_RATINGS, ID_FILTERS, NUMBER_FILTERS,
+    };
+    let mut command = list_options(Command::new("list").about("Read one website-filtered monster page with fresh access checks; never follows continuation"))
+        .arg(Arg::new("name").long("name").short('n').value_name("NAME")
+            .value_parser(ValueParser::new(valid_monster_name)).help("Literal name search; at most 256 UTF-8 bytes"))
+        .arg(Arg::new("page").long("page").default_value("1").value_parser(value_parser!(u32).range(1..))
+            .help("Explicit website page; use pagination.next_page to continue"))
+        .arg(Arg::new("partnered-content").long("partnered-content").default_value("no")
+            .value_parser(["yes", "no", "any"]).help("Website partnered-content choice; no matches the site default"));
+    for flag in ["cr-min", "cr-max"] {
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_parser(clap::builder::PossibleValuesParser::new(
+                    CHALLENGE_RATINGS.iter().map(|(label, _)| *label),
+                ))
+                .help("Literal challenge rating, not a website option ID"),
+        );
+    }
+    for (_, flag, _) in ID_FILTERS {
+        command = command.arg(Arg::new(flag).long(flag).value_name("ID")
+            .value_parser(value_parser!(u32).range(1..)).action(ArgAction::Append)
+            .help("Public website option ID; repeat for multiple values (maximum 50); not an access grant"));
+    }
+    for (_, flag, _) in NUMBER_FILTERS {
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_parser(value_parser!(u32))
+                .help("Nonnegative bound; minimum must not exceed maximum"),
+        );
+    }
+    for (_, flag, _) in BOOL_FILTERS {
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_parser(value_parser!(bool))
+                .help("Website true/false filter; omission leaves it unrestricted"),
+        );
+    }
+    command
+}
+
+/// Checks a canonical selected ID before the command accesses a session.
+fn valid_monster_id(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::monster::validate_id(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
 }
 
 /// Builds metadata-only class/subclass commands from the same completion definition.

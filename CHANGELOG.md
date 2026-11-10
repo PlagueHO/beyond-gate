@@ -7,6 +7,20 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows monster reads through shared core operations, CLI
+  `monster list/show`, and MCP `monster_list`/`monster_show`. List returns one
+  website-filtered page with explicit `page`/`next_page` continuation instead
+  of offset/size input. Both adapters share literal CR bounds, repeated website
+  option IDs, AC/HP ranges, state booleans, and partnered-content selection.
+  Nonempty pages use one cookie HTML read and one exact selected-ID collection
+  with fresh access evidence. Empty pages require the observed marker.
+  Show preserves unchanged raw detail.
+  Only observed access code 1 permits output. Code 4 is denied; all other
+  numeric cases, including 2 and 3, are explicitly unsupported. Limits and
+  invalid, denied, or incomplete pages fail without partial results. Approved
+  browser probes checked selected routes; synthetic checks cover adapter parity.
+  Native cookie compatibility, account acceptance, larger batches, and
+  owned/shared cases remain unverified.
 - Metadata-only Windows class and subclass browsing through shared core reads,
   CLI `class/subclass list/show`, and MCP `class_list`/`class_show`.
   Local `--name` / `-n` matching keeps duplicate names. Global subclass discovery
