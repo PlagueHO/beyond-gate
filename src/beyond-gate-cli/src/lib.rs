@@ -28,10 +28,11 @@ use beyond_gate_core::{
     },
     class_catalog::{self, ClassCatalogError, ClassKind},
     library::{self, LibraryError, LibrarySnapshot},
+    monster::{self, MonsterError},
 };
 use clap::ArgMatches;
 use clap_complete::Shell;
-use serde_json::Value;
+use serde_json::{Value, json};
 
 pub use command::command;
 use error::Failure;
@@ -45,6 +46,26 @@ const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Reads one explicit monster page with shared access and continuation semantics.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared input, session, source, access, pagination, or bound failures.
+    fn list_monsters(
+        &self,
+        session: &Session,
+        query: &monster::MonsterQuery,
+    ) -> impl std::future::Future<Output = Result<Value, MonsterError>>;
+    /// Reads one selected raw monster after a fresh source grant.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared missing, denied, unsupported-access, source, or input failures.
+    fn show_monster(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Value, MonsterError>>;
     /// Lists metadata only, preserving the shared catalog failures.
     ///
     /// # Errors
@@ -190,6 +211,19 @@ fn execute_mcp(
 pub struct LiveReads;
 
 impl ReadOperations for LiveReads {
+    /// Delegates one page without following its numeric continuation.
+    async fn list_monsters(
+        &self,
+        session: &Session,
+        query: &monster::MonsterQuery,
+    ) -> Result<Value, MonsterError> {
+        monster::list(session, query).await
+    }
+
+    /// Preserves the selected detail and typed access failure from the core.
+    async fn show_monster(&self, session: &Session, id: &str) -> Result<Value, MonsterError> {
+        monster::show(session, id).await
+    }
     /// Delegates complete metadata discovery and filtering to the core.
     async fn list_classes(
         &self,
@@ -483,11 +517,116 @@ fn execute(
     match resource {
         "class" => execute_class(action, arguments, reads, session, ClassKind::Class),
         "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
+        "monster" => execute_monster(action, arguments, reads, session),
         "character" => execute_character(action, arguments, reads, session),
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
     }
+}
+
+/// Presents shared monster results without copying access or paging logic.
+fn execute_monster(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    let id = (action == "show")
+        .then(|| selection(arguments, "id"))
+        .transpose()?;
+    let query = if action == "list" {
+        monster_query(arguments)?
+    } else if let Some(id) = id {
+        monster::validate_id(id).map_err(Failure::Monster)?;
+        monster::MonsterQuery::default()
+    } else {
+        return Err(Failure::Usage("Select monster list or show."));
+    };
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => {
+                signal.map_err(Failure::Signal)?;
+                Err(Failure::Cancelled)
+            }
+            result = async {
+                if let Some(id) = id {
+                    reads.show_monster(session, id).await
+                } else {
+                    reads.list_monsters(session, &query).await
+                }
+            } => result.map_err(Failure::Monster),
+        }
+    })?;
+    if id.is_some() {
+        return render_record(
+            &options,
+            &["id", "name", "source_url", "access_code", "raw"],
+            value,
+        );
+    }
+    let entries = value["entries"]
+        .as_array()
+        .ok_or(Failure::Monster(MonsterError::InvalidResponse))?;
+    let mut rows = entries.clone();
+    for row in &mut rows {
+        for field in ["page", "next_page"] {
+            row[field] = value["pagination"][field].clone();
+        }
+    }
+    output::list(
+        &options,
+        &[
+            "id",
+            "name",
+            "source_url",
+            "access_code",
+            "page",
+            "next_page",
+        ],
+        &rows,
+        Some(&value),
+    )
+}
+
+/// Converts parsed flags to the same strict query model used by MCP.
+fn monster_query(arguments: &ArgMatches) -> Result<monster::MonsterQuery, Failure> {
+    use monster::query::{BOOL_FILTERS, ID_FILTERS, NUMBER_FILTERS};
+    let mut value = serde_json::Map::new();
+    value.insert("page".to_owned(), json!(arguments.get_one::<u32>("page")));
+    for (field, flag) in [
+        ("name", "name"),
+        ("cr_min", "cr-min"),
+        ("cr_max", "cr-max"),
+        ("partnered_content", "partnered-content"),
+    ] {
+        if let Some(text) = arguments.get_one::<String>(flag) {
+            value.insert(field.to_owned(), json!(text));
+        }
+    }
+    for (field, flag, _) in ID_FILTERS {
+        if let Some(ids) = arguments.get_many::<u32>(flag) {
+            value.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
+        }
+    }
+    for (field, flag, _) in NUMBER_FILTERS {
+        if let Some(number) = arguments.get_one::<u32>(flag) {
+            value.insert(field.to_owned(), json!(number));
+        }
+    }
+    for (field, flag, _) in BOOL_FILTERS {
+        if let Some(boolean) = arguments.get_one::<bool>(flag) {
+            value.insert(field.to_owned(), json!(boolean));
+        }
+    }
+    let query: monster::MonsterQuery = serde_json::from_value(Value::Object(value))
+        .map_err(|_| Failure::Usage("Invalid monster filters."))?;
+    query
+        .validate()
+        .map_err(|_| Failure::Usage("Invalid monster filters or page."))?;
+    Ok(query)
 }
 
 /// Renders shared class metadata without duplicating discovery or access logic.

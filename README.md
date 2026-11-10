@@ -189,7 +189,7 @@ It does not copy that project's ROM operations or HTTP MCP transport.
 
 The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
-`campaign list/show`, `class list/show`, `subclass list/show`, and
+`campaign list/show`, `class list/show`, `subclass list/show`, `monster list/show`, and
 `book list/outline/read`.
 
 **Windows Web-library discovery is implemented and verified through both adapters.**
@@ -209,6 +209,14 @@ features, or raw definitions. `--name` / `-n` matches locally and keeps duplicat
 names. Subclasses support a parent selector or bounded global discovery.
 Browser catalog contracts were inspected; native compatibility, sharing, and
 live global traversal remain unverified.
+Monster commands support website filters and explicit `--page` continuation,
+or one selected raw detail. Repeated ID filters, literal CR bounds, AC/HP ranges,
+state booleans, and partnered content have matching MCP inputs.
+Nonempty lists use one website read and one exact selected-ID access check.
+Only observed access code 1 permits output; code 4 is denied, and
+unverified codes, including 2 and 3, are unsupported. Browser probes checked
+selected routes. Native cookie compatibility, native monster account acceptance,
+larger batches, and owned/shared behavior remain unverified.
 See [output contracts](docs/cli.md#output-contracts) for table, JSON, and TSV
 fields, escaping, source attribution, and bounded explicit continuation.
 
@@ -227,6 +235,7 @@ MCP protocol messages. `book_list` uses shared Windows library discovery.
 Character and campaign tools use the shared core reads. They have synthetic
 process coverage, but no live acceptance.
 `class_list` and `class_show` use the same metadata-only core operations.
+`monster_list` and `monster_show` use the same bounded monster core operations.
 
 See the [MCP tool reference](docs/mcp.md) for startup, client registration, strict
 input schemas, output envelopes, errors, and CLI mappings.

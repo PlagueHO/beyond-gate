@@ -23,6 +23,8 @@ Approved real Chrome and Edge Dev login and protected-save checks passed.
 The MCP adapter serves local stdio with four character/campaign tools, three
 book tools, and a credential-free Windows `auth_validate` tool.
 Two class tools provide class/subclass metadata, not raw definitions.
+Two monster tools provide explicit pages and selected raw detail, limited to
+observed access code 1. Denied and unverified access cases return no content.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -80,7 +82,8 @@ arguments. Help and version remain ordinary command-line output. During serving,
 stdout is reserved for MCP messages; server diagnostics use stderr.
 
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
-`campaign_show`, `class_list`, `class_show`, `book_list`, `book_outline`, and
+`campaign_show`, `class_list`, `class_show`, `monster_list`, `monster_show`,
+`book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
 canonical cookie pages. Character and campaign operations use fixed bounded
@@ -97,6 +100,53 @@ passed only to the core cursor validator. One section result remains bounded to
 fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
 book evidence, source attribution, and section completion state. Source content
 is data and is not executed or treated as instructions.
+
+## Monster read boundary
+
+`monster` owns shared input, access, pagination, result, and error policy.
+Both adapters use it directly. One Session read scope pins the protected
+identity. Production is Windows-only; compiled synthetic services never provide
+a product URL override.
+
+List uses a shared strict query model and JSON Schema for both adapters.
+It maps literal CR bounds, repeated website option IDs, numeric AC/HP ranges,
+optional state booleans, and partnered-content choices to the observed form.
+It reads one filtered website page with the current cookie, then makes one
+bearer-only selected-ID collection GET for nonempty pages. Empty results require
+the known marker and no collection request. The source-book cookie guard is
+unchanged; monster HTML has a separate fixed-path and known-query guard.
+Detail makes one GET selected only by a canonical positive
+decimal ID. Returned website links are checked against the fixed HTTPS origin
+and matching ID, but never fetched. There are no redirects, retries, implicit
+pages, proxy calls, content caches, or per-row detail requests.
+
+The parser checks the known listing, requested form options, canonical candidate
+IDs, active page, and same-filter next link. It ignores unrelated page-query links.
+The selected collection must have exactly the candidate IDs and one-to-one
+ID-keyed access evidence. Output restores website order, independent of collection
+order. Duplicate names survive; duplicate IDs fail.
+Only observed code 1 permits output. Code 4 denies it. Other numeric codes,
+including 2 and 3, are unsupported; absent or malformed grants fail. Any bad
+row fails the whole page. Direct detail requires fresh scalar access and an
+exact selected ID. It preserves the raw object without a guessed full schema,
+rules year, source ownership grant, or metadata-only fallback.
+
+Local policy bounds pages to 100 records, searches to 256 UTF-8
+bytes, source bodies and compact results to 1 MiB each, and whole operations to
+30 seconds. The CLI preflights padded tables against 8 MiB using the existing
+shared formatter. Each ID filter permits at most 50 unique positive values,
+with at most 256 IDs overall and 16 KiB query text. Page defaults to 1; the
+website controls page size. JSON metadata has `page` and explicit `next_page`,
+not inferred totals. Table/TSV repeat page metadata per row.
+Cancellation drops the in-flight core future. Typed HTTP and
+session causes remain distinct, with fixed redacted diagnostics.
+
+Approved browser probes checked filtered pages, the empty marker, a two-ID
+collection, code-1 selected detail, and code-4 listing denial.
+Synthetic tests check the source path and CLI/MCP parity. Neither establishes
+native cookie compatibility, native account acceptance, larger batches,
+owned/shared behavior, or complete source-book text.
+See the [source contract](api-catalog.md#monsters-and-configuration).
 
 ## Class catalog metadata boundary
 

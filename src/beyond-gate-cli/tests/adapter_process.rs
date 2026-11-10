@@ -56,6 +56,23 @@ impl Fixtures {
 }
 
 impl ReadOperations for Fixtures {
+    /// Uses the shared monster page operation without a product fixture selector.
+    async fn list_monsters(
+        &self,
+        session: &Session,
+        query: &beyond_gate_core::monster::MonsterQuery,
+    ) -> Result<Value, beyond_gate_core::monster::MonsterError> {
+        beyond_gate_core::monster::list(session, query).await
+    }
+
+    /// Uses shared selected detail, including its access gate.
+    async fn show_monster(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> Result<Value, beyond_gate_core::monster::MonsterError> {
+        beyond_gate_core::monster::show(session, id).await
+    }
     /// Uses the shared metadata operation with the explicitly supplied fixture owner.
     async fn list_classes(
         &self,

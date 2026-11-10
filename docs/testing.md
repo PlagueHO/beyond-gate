@@ -76,6 +76,44 @@ selected contract cannot produce full success.
 
 ## Browser handoff offline checks
 
+### Monster page and detail checks
+
+The [core tests](../src/beyond-gate-core/src/monster/tests.rs) use invented
+records and loopback services. They check every website filter encoding,
+repeated keys, the CR mapping gap, partnered-content states, explicit pages,
+the known empty marker, malformed HTML, source options, duplicate names, raw
+detail extensions, exact selected-ID sets, fixed website links, and count/byte
+limits. Locally invalid selectors must produce no exchange or source request.
+IDs absent from the source form fail after the website read, with no collection
+request. Denied
+code 4, unverified codes 2/3, missing access, HTTP denial, rejected/expired
+sessions, malformed pages, and partial pages must not return content.
+Nonempty pages make one cookie-only website request and one bearer-only
+collection request. Empty pages make no collection request. Session tests
+check unchanged book URL guards and a cookie change between the two reads.
+
+The [paired process suite](../src/beyond-gate-mcp/tests/session_process.rs)
+compares actual CLI JSON with MCP tool text JSON. It also checks strict schemas,
+all filter fields, removed offset/size inputs, wrong/null fields, missing records,
+shared failures, table/TSV headers, aliases,
+padded-table limits, and MCP cancellation. Shipped CLI tests check help,
+completions, invalid paging, and exit/stream behavior. Capability and package
+inventories include both monster tools.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked monster
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test cli --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+Approved [browser probes](api-survey.md#monster-list-and-detail-research)
+observed code-1 pages and selected detail, then code-4 listing denial. Both
+scopes are consumed. Later approved filter/paging scopes checked server HTML,
+the empty marker, and a two-ID collection; those scopes are also closed.
+These are not native CLI/MCP account acceptance. Native cookie compatibility,
+larger batches, owned/shared cases, and complete source-book coverage remain unverified.
+No live credentials or proprietary text are used by offline checks.
+
 ### Class and subclass metadata checks
 
 The [core catalog tests](../src/beyond-gate-core/src/class_catalog/tests.rs)

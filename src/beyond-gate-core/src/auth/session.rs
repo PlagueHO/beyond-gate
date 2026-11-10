@@ -310,6 +310,9 @@ pub struct Session {
     /// Keeps only compiled synthetic class catalog services alive.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) class_catalog_fixture: Option<Arc<crate::class_catalog::fixture::Source>>,
+    /// Keeps only compiled synthetic monster services alive.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) monster_fixture: Option<Arc<crate::monster::fixture::Source>>,
 }
 
 impl Default for Session {
@@ -329,6 +332,8 @@ impl Default for Session {
             character_campaign_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             class_catalog_fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            monster_fixture: None,
         }
     }
 }
@@ -365,6 +370,8 @@ impl Session {
             character_campaign_fixture: self.character_campaign_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             class_catalog_fixture: self.class_catalog_fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            monster_fixture: self.monster_fixture.clone(),
         }
     }
 
@@ -465,6 +472,40 @@ impl Session {
         {
             return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
         }
+        self.get_cookie_html(client, url).await
+    }
+
+    /// Reads only the fixed monster listing and known filters using this scope's cookie.
+    pub(crate) async fn get_monster_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        if !website
+            || !target.username().is_empty()
+            || target.password().is_some()
+            || !crate::monster::query::allowed_list_url(&target)
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        self.get_cookie_html(client, url).await
+    }
+
+    /// Shares cookie/session checks after the caller applies its resource-specific URL guard.
+    async fn get_cookie_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut state = self.lock(deadline).await?;
         let prior_bearer = state.bearer.take();

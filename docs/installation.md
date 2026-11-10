@@ -278,11 +278,17 @@ VS Code uses Copilot Global settings. VS Code and Copilot CLI share
 No entry contains a secret, remote URL, Python command, or Node.js command.
 
 Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
-`claude mcp list` in Claude Code. The server exposes nine resource read tools:
+`claude mcp list` in Claude Code. The server exposes eleven resource read tools:
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
-`book_outline`, `book_read`, `class_list`, and `class_show`.
+`book_outline`, `book_read`, `class_list`, `class_show`, `monster_list`, and
+`monster_show`.
 Class tools return bounded class/subclass metadata, not raw definitions or rules
 text. Native class compatibility has not been validated.
+Monster lists support website filters and explicit page-based continuation,
+with a fresh selected-ID access check before output. Monster tools permit
+only observed access code 1; code 4 is denied, and
+unverified codes, including 2 and 3, are unsupported. Native monster account
+acceptance has not run.
 Windows book reads use fresh library evidence
 and checked canonical cookie pages. Character and campaign reads use fixed
 bounded routes through the protected session. The additional `auth_validate`

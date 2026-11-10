@@ -241,5 +241,6 @@ pub fn session(scenario: Scenario) -> Result<Session, SessionError> {
         library_fixture: None,
         character_campaign_fixture: None,
         class_catalog_fixture: None,
+        monster_fixture: None,
     })
 }

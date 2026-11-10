@@ -206,16 +206,80 @@ Do not add a generic POST escape hatch.
 
 ## Monsters and configuration
 
-Evidence: Candidate for monsters; native metadata comparison for configuration.
-Sources: T1/T2; config forwarding also appears in T6.
-The third-party monster clients use bearer authentication, but the monster routes were not
-tested with Beyond Gate. A separately approved credential-free `CFG-01` read succeeded.
+Evidence: Approved browser monster probes; native metadata comparison for configuration.
+Sources: T1/T2; the public proxy also constructs MON-01, and config forwarding
+appears in T6.
+Approved bearer-only browser probes checked MON-01 and MON-02. Native monster
+CLI/MCP account acceptance has not run. A separately approved credential-free
+`CFG-01` read succeeded.
 
 | ID | Service | Method and path | Candidate inputs and result | Remaining contract |
 |----|---------|-----------------|-----------------------------|--------------------|
-| MON-01 | MONSTER | GET `/v1/Monster` | `search`, `skip`, `take`, `showHomebrew`, `sources`, repeated `ids`; array `data`, `accessType` map, pagination | Verify bounded search, paging, and numeric access meanings |
-| MON-02 | MONSTER | GET `/v1/Monster/{id}` | Object `data`, scalar `accessType` | Verify selected detail and full-content access |
+| MON-01 | MONSTER | GET `/v1/Monster` | Implemented repeated `ids` for website candidates; array `data`, ID-keyed `accessType`, null pagination | Browser checked one/two selected IDs; native acceptance and larger batches unverified; codes 2/3 unsupported |
+| MON-02 | MONSTER | GET `/v1/Monster/{id}` | Implemented selected object `data`, scalar `accessType`; preserves raw detail | Browser checked one code-1 detail; code 4 denied, codes 2/3 unsupported; native acceptance unverified |
 | CFG-01 | WEB | GET `/api/config/json` | Credential-free JSON accepted within 1 MiB; 268 sources and 50 categories; all 177 `LIB-01` IDs matched; named `Hidden Sources` category selects eight library records for exclusion | Source/category identity only; configured ownership-only IDs are valid outside Web results, not replacement books or ownership grants; native adapter parity passed |
+
+The [monster follow-up research](api-survey.md#monster-list-and-detail-research)
+traces selected IDs to the same MON-01 collection in the public proxy. Its
+release/homebrew filter is not an access-map check. Importer detail fields are
+proxy evidence, not a direct-detail contract. The first-party builder
+uses RULE-12; that does not establish standalone service coverage or permission.
+Later explicitly approved account probes checked both routes and numeric paging.
+The user selected support for observed code 1, rejection of code 4, and explicit
+unsupported errors for all other numeric codes. Missing or malformed access
+evidence fails. A page with any denied, unsupported, duplicate, or malformed row
+fails as a whole.
+
+Production list makes one cookie-only website GET with validated filters
+and an explicit page. A nonempty page adds one bearer-only MON-01 request
+for exactly the candidate IDs. Empty pages require the explicit marker
+and no collection request. One session scope pins the protected identity
+across both transports. Detail makes one direct selected GET. Neither
+operation retries, follows redirects, fetches display links, follows another
+page, uses a proxy, or caches content. A session exchange can precede reads.
+Website candidate IDs, collection IDs, and one-to-one access keys must agree.
+Output preserves website order. Display links require the fixed HTTPS website origin and
+matching selected ID without credentials, queries, or fragments.
+
+Local policy, not verified upstream maxima: maximum 100 raw records, name
+limit 256 UTF-8 bytes, 1 MiB per body and compact result, a 30-second
+whole-operation deadline, and an 8 MiB padded-table limit. IDs are canonical
+positive decimal strings within `u64`. Result entries contain `id`, `name`,
+`source_url`, and `access_code: 1`; list adds `page` (default 1) and explicit
+`next_page`, while detail adds unchanged `raw`. The website controls page size;
+no total is inferred. ID arrays permit 50 unique positive values each and 256
+overall. Encoded queries are capped at 16 KiB. No rules year, source ownership,
+complete stat-block coverage, or owned/shared case is inferred.
+
+The later [approved monster filter trace](api-survey.md#approved-monster-filter-submission-trace)
+confirmed real `GET /monsters?filter-*` submissions. A bounded read of one
+selected response contained six filtered rows in the initial HTML. Repeated
+keys encode multiple selections. CR selectors use option IDs, not literal CR
+values. Boolean controls have empty, `t`, and `f` values; partnered content
+defaults to `f` on the site.
+
+This website route is not MON-01. No monster-service browser request or
+equivalent JSON filter mapping was observed. The user chose website-filtered lists with explicit
+page-based pagination, replacing the earlier `skip`/`take` list interface.
+Detail reads and access checks stay unchanged.
+
+A separately approved [paging and selected-ID check](api-survey.md#approved-website-paging-and-selected-id-check)
+confirmed two twenty-row website pages, matching next-page links, the
+`li.alert.no-results` empty marker, and one two-ID MON-01 collection read.
+That collection returned exactly the selected records with code 1, an
+ID-keyed access map, and null pagination. Nonempty filtered pages can therefore
+use a website candidate read followed by one exact selected-ID collection
+read. Restore website order and check every returned identity and grant
+before summary output. Neither a listing link nor prior access is a grant.
+
+The shared query and parser are implemented with synthetic CLI/MCP process
+coverage. Unsupported option IDs, malformed HTML, missing empty markers, and
+inconsistent pages fail explicitly. The source-book cookie guard stays unchanged.
+Native cookie compatibility, native
+CLI/MCP account acceptance, larger batches, and owned/shared cases remain
+unverified. Do not infer an upstream batch maximum from the two-ID check.
+Do not fetch per-row details, scan pages to emulate filters, or widen the
+existing book-page URL guard. Both filter research scopes are closed.
 
 The [configuration comparison](api-survey.md#alternative-configuration-catalog-comparison)
 stopped at failed diagnostics. Its initial URL mapping rejected a relative form
@@ -252,7 +316,9 @@ The later [approved Web scope](api-survey.md#approved-web-catalog-result-scope)
 keeps full raw ownership validation against configuration without emitting
 ownership-only sources.
 
-Monster pagination candidates include `take`, `skip`, `currentPage`, `pages`, and `total`.
+Earlier monster-service pagination observations included `take`, `skip`,
+`currentPage`, `pages`, and `total`. Current filtered list output uses website
+`page`/`next_page`, not that earlier offset interface.
 A visible name, partial record, or HTTP success is not a full-content grant.
 Pinned proxy item code uses `v5`; first-party `RULE-09` explicitly selects `v5.1`.
 Do not replace stronger version evidence with a third-party assumption.
@@ -392,7 +458,9 @@ Evidence: Page. Sources: P1/P2 and C2.
 The first eight returned HTML without credentials. The last three were found in navigation
 only; their content was not fetched. GET describes normal page navigation, not a tested API.
 See the [public filter inventory](api-survey.md#public-listing-filters) for exact form names.
-No filter selection, next page, or selected record was requested.
+No filter selection, next page, or selected record was requested in the initial survey.
+The later [monster trace](api-survey.md#approved-monster-filter-submission-trace)
+checked filter submissions and server HTML, but not pagination.
 
 | ID | Path | Purpose and limit |
 |----|------|-------------------|
@@ -401,7 +469,7 @@ No filter selection, next page, or selected record was requested.
 | PAGE-03 | `/species` | Public species listing; upstream API uses `races` |
 | PAGE-04 | `/feats` | Public feat filters; paging not observed |
 | PAGE-05 | `/spells` | Public spell filters and `page` links |
-| PAGE-06 | `/monsters` | Public monster filters and `page` links |
+| PAGE-06 | `/monsters` | Implemented filtered candidate pages and explicit next-page checks; browser HTML evidence does not establish native account acceptance |
 | PAGE-07 | `/magic-items` | Public item filters and `page` links |
 | PAGE-08 | `/equipment` | Public equipment filters and `page` links |
 | PAGE-09 | `/sources/dnd/br-2024` | Basic Rules navigation only; no content fetched |

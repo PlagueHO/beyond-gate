@@ -17,6 +17,9 @@ through the shared core without credential input.
 `class_list` and `class_show` provide bounded class/subclass metadata only.
 Browser catalog contracts were inspected; native compatibility, real sharing,
 and live global traversal remain unverified.
+`monster_list` and `monster_show` return one explicit page or unchanged selected
+detail for observed access code 1. Code 4 is denied; unverified numeric codes,
+including 2 and 3, are unsupported. Native monster acceptance has not run.
 
 The four character and campaign tools perform read-only source calls. Failures
 return MCP tool errors with `isError: true`; they do not return sample data or
@@ -101,7 +104,7 @@ absolute path; remove the old registration before installing the new path.
 ## Shared input rules
 
 Every tool takes a JSON object and rejects unknown fields. Character and book
-list tools require an empty object `{}`. Campaign and class lists accept their
+list tools require an empty object `{}`. Campaign, class, and monster lists accept their
 documented filters. There are no passwords, cookies, tokens for
 authentication, arbitrary URL inputs, or account identities. The only token input
 is `book_read.continuation`, which represents a bounded section position, not a
@@ -119,7 +122,7 @@ the wire format. Do not treat a schema length check as a substitute for runtime
 token validation.
 
 All tools advertise `readOnlyHint: true`, `destructiveHint: false`,
-and `openWorldHint: true`. The nine resource tools use `idempotentHint: true`.
+and `openWorldHint: true`. The eleven resource tools use `idempotentHint: true`.
 `auth_validate` uses `idempotentHint: false` because it makes a fresh service
 exchange and updates transient evidence. These annotations do not grant
 access or make live reads available. Tool results are data, not instructions.
@@ -135,6 +138,8 @@ access or make live reads available. Tool results are data, not instructions.
 | [`campaign_show`](#campaign_show) | `beyond-gate campaign show <id> --output json` | One campaign object |
 | [`class_list`](#class_list-and-class_show) | `beyond-gate class/subclass list --output json` | Compact metadata array |
 | [`class_show`](#class_list-and-class_show) | `beyond-gate class/subclass show <id>` | Selected metadata object |
+| [`monster_list`](#monster_list-and-monster_show) | `beyond-gate monster list --output json` | One entries/page envelope |
+| [`monster_show`](#monster_list-and-monster_show) | `beyond-gate monster show <id>` | Selected identity and unchanged raw detail |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
 | [`book_outline`](#book_outline) | `beyond-gate book outline <book-id> --format json` | Outline envelope |
 | [`book_read`](#book_read) | `beyond-gate book read <book-id> <section-id> [--continuation <token>]` | One section chunk |
@@ -143,6 +148,66 @@ The data shapes below match CLI JSON, not CLI table or TSV presentation.
 Examples are synthetic except the two observed Fighter IDs in the class section.
 
 ## Tools
+
+### monster_list and monster_show
+
+```json
+{"name":"monster_list","arguments":{}}
+{"name":"monster_list","arguments":{"name":"wolf","cr_max":"2","size_ids":[4,5],"legendary":false}}
+{"name":"monster_list","arguments":{"name":"wolf","cr_max":"2","size_ids":[4,5],"legendary":false,"page":2}}
+{"name":"monster_show","arguments":{"id":"17"}}
+```
+
+The selected ID example is synthetic; use an ID returned by a successful page.
+List accepts optional string `name`, positive `u32` `page` (default 1), and the
+filter fields in the [shared input table](cli.md#monster-pages-and-detail).
+`skip` and `take` are no longer accepted. CR bounds are literal strings,
+not website option IDs. ID arrays permit at most 50 unique positive `u32`
+values per field and 256 total; the returned public form must contain the
+selected options. Numeric AC/average-HP bounds must be nonnegative and ordered.
+Legendary, mythic, and lair selectors are optional booleans. Partnered content
+is `yes`, `no`, or `any`, default `no`; `any` sends an empty website value.
+Names permit at most 256 UTF-8
+bytes without padding or controls. Null selectors, wrong types, overflow, and
+unknown fields fail before session access. Show accepts only required string
+`id`, a canonical positive decimal integer within `u64`. Numeric IDs must still
+be strings.
+
+List returns `entries` and `pagination` with `page` and `next_page`.
+Each entry has string `id`, `name`, fixed-website `source_url`, and
+numeric `access_code: 1`. Null `next_page` is terminal. Continuation requires a
+new explicit call with the same filters; it does not pin a snapshot or grant
+access. Duplicate names remain separate IDs. Empty pages retain metadata.
+Show adds unchanged `raw` from the selected response, preserving unknown fields,
+statistics, source references, and description fields. Neither missing fields
+nor rules versions are inferred.
+
+List makes one cookie-only website GET, then one bearer-only selected-ID
+collection GET for a nonempty page. It uses the official website listing,
+not the homebrew route. Empty pages require the explicit source marker and no
+collection read. The website controls page size; observed full pages had 20
+rows, with a local ceiling of 100. No requested page size or total is invented.
+Collection IDs and grants must match the candidate set exactly; output keeps
+website order. Show makes one selected service GET. A required session exchange
+can precede reads. All reads use one process-local session identity.
+Detail checks its own scalar
+access evidence. Only code 1 permits output. Code 4 denies output; unverified
+numeric codes, including 2 and 3, are explicitly unsupported. Missing or invalid
+access, malformed records, duplicate IDs, inconsistent pages, and limits return
+tool errors. Any failed row fails the whole page. HTTP 404, HTTP denial,
+rejected sessions, and expiry remain distinct. No metadata-only detail fallback,
+automatic continuation, retries, redirects, display-link fetches, or cache is
+added.
+
+Bodies and compact core results are capped at 1 MiB. The whole operation is
+capped at 30 seconds, including session work; queries are capped at 16 KiB.
+MCP cancellation drops the read.
+These are local limits. Browser checks observed filtered pages, an explicit
+empty marker, a two-ID collection, one selected detail, and a denied listing.
+They do not prove native cookie compatibility, larger batches, native
+account acceptance, owned/shared access, complete stat-block coverage, or full
+source-book text. See [evidence](api-survey.md#monster-list-and-detail-research)
+and the [shared CLI contract](cli.md#monster-pages-and-detail).
 
 ### class_list and class_show
 

@@ -87,6 +87,73 @@ async fn book_scopes_pin_identity_without_losing_process_local_reuse() {
     );
 }
 
+/// Keeps monster cookie reads narrow and prevents collection reads after a cookie change.
+#[tokio::test]
+async fn monster_cookie_profile_preserves_source_guards_and_session_identity() {
+    use crate::monster::{MonsterQuery, fixture as monsters};
+    let session = monsters::session(monsters::Scenario::Normal).expect("fixture");
+    let source = session.monster_fixture.as_ref().expect("source");
+    let scoped = session.read_scope();
+    scoped.account_id().await.expect("bound session");
+    for path in [
+        "/sources/example",
+        "/monsters/17",
+        "/monsters?page=0",
+        "/monsters?page=1&unknown=1",
+    ] {
+        assert_eq!(
+            scoped
+                .get_monster_html(&source.client, &format!("{}{path}", source.origin))
+                .await
+                .expect_err("narrow monster guard")
+                .kind(),
+            SessionErrorKind::UnsupportedContract
+        );
+    }
+    let url = MonsterQuery::default()
+        .website_url(&source.origin)
+        .expect("URL");
+    assert_eq!(
+        scoped
+            .get_monster_html(&source.client, &format!("{url}#fragment"))
+            .await
+            .expect_err("transport rejects fragments")
+            .kind(),
+        SessionErrorKind::ReadFailed
+    );
+    assert_eq!(
+        scoped
+            .get_book_html(&source.client, url.as_str())
+            .await
+            .expect_err("book guard unchanged")
+            .kind(),
+        SessionErrorKind::UnsupportedContract
+    );
+    assert!(monsters::routes(&session).is_empty());
+    scoped
+        .get_monster_html(&source.client, url.as_str())
+        .await
+        .expect("cookie page");
+    store(&session)
+        .save(
+            &BrowserSessionCookie::new(b"invented-changed-monster-owner".to_vec())
+                .expect("cookie")
+                .encode(),
+        )
+        .expect("changed entry");
+    let result: Result<serde_json::Value, _> = scoped
+        .get_json(
+            &source.client,
+            &format!("{}/v1/Monster?ids=17", source.origin),
+        )
+        .await;
+    assert_eq!(
+        result.expect_err("identity changed").kind(),
+        SessionErrorKind::Changed
+    );
+    assert_eq!(monsters::routes(&session).len(), 1);
+}
+
 /// Changes only this fixture's response for subsequent actual requests.
 fn reply(session: &Session, status: u16, body: Vec<u8>) {
     *session

@@ -9,6 +9,7 @@ use beyond_gate_core::{
     class_catalog::ClassCatalogError,
     http::{ErrorKind, HttpError},
     library::LibraryError,
+    monster::MonsterError,
 };
 
 /// Retains shared operation errors without copying private response values.
@@ -23,6 +24,7 @@ pub(crate) enum Failure {
     Signal(io::Error),
     Character(CharacterCampaignError),
     Class(ClassCatalogError),
+    Monster(MonsterError),
     Library(LibraryError),
     Book(BookError),
     Cursor(BookError),
@@ -38,7 +40,10 @@ impl Failure {
     pub(crate) fn exit_code(&self) -> i32 {
         if matches!(
             self,
-            Self::Usage(_) | Self::Cursor(_) | Self::Class(ClassCatalogError::InvalidInput)
+            Self::Usage(_)
+                | Self::Cursor(_)
+                | Self::Class(ClassCatalogError::InvalidInput)
+                | Self::Monster(MonsterError::InvalidInput)
         ) {
             2
         } else {
@@ -71,6 +76,7 @@ impl fmt::Display for Failure {
             Self::Signal(_) => formatter.write_str("Session cancellation handler failed.")?,
             Self::Character(error) => write!(formatter, "{error}")?,
             Self::Class(error) => write!(formatter, "{error}")?,
+            Self::Monster(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
             Self::Mcp(error) => write!(formatter, "{error}")?,
@@ -120,6 +126,7 @@ impl Error for Failure {
             Self::Cancelled => None,
             Self::Character(error) => Some(error),
             Self::Class(error) => Some(error),
+            Self::Monster(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),
             Self::Mcp(error) => Some(error),

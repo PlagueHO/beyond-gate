@@ -13,6 +13,7 @@ use beyond_gate_core::auth::session::fixture::{self, Scenario};
 use beyond_gate_core::{
     auth::session::Session, character_campaign::fixture as character_campaign_fixture,
     class_catalog::fixture as class_fixture, library::fixture as library_fixture,
+    monster::fixture as monster_fixture,
 };
 use rmcp::{ServiceExt, transport::stdio};
 use serde_json::{Value, json};
@@ -38,6 +39,28 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    let monster_source = match name {
+        "monster-normal" => Some(monster_fixture::Scenario::Normal),
+        "monster-empty" => Some(monster_fixture::Scenario::Empty),
+        "monster-denied" => Some(monster_fixture::Scenario::Denied),
+        "monster-rejected" => Some(monster_fixture::Scenario::Rejected),
+        "monster-expired" => Some(monster_fixture::Scenario::Expired),
+        "monster-denied-code" => Some(monster_fixture::Scenario::DeniedCode),
+        "monster-unsupported" => Some(monster_fixture::Scenario::UnsupportedCode),
+        "monster-shared" => Some(monster_fixture::Scenario::SharedCode),
+        "monster-mixed" => Some(monster_fixture::Scenario::MixedAccess),
+        "monster-missing-access" => Some(monster_fixture::Scenario::MissingAccess),
+        "monster-malformed" => Some(monster_fixture::Scenario::Malformed),
+        "monster-incomplete" => Some(monster_fixture::Scenario::Incomplete),
+        "monster-changed" => Some(monster_fixture::Scenario::ChangedIdentity),
+        "monster-oversized" => Some(monster_fixture::Scenario::Oversized),
+        "monster-waiting" => Some(monster_fixture::Scenario::Waiting),
+        "monster-wide-table" => Some(monster_fixture::Scenario::WideTable),
+        _ => None,
+    };
+    if let Some(source) = monster_source {
+        return monster_fixture::session(source).expect("invented monster services");
+    }
     let class_source = match name {
         "class-normal" => Some(class_fixture::Scenario::Normal),
         "class-ambiguous" => Some(class_fixture::Scenario::Ambiguous),
@@ -973,6 +996,387 @@ fn class_contracts() {
     assert!(output.status.success());
 }
 
+/// Checks monster data parity, strict inputs, paging, presentation, and safe failures.
+fn monster_contracts() {
+    for (scenario, tool, arguments, command) in [
+        (
+            "monster-normal",
+            "monster_list",
+            json!({}),
+            vec!["monster", "list", "-o", "json"],
+        ),
+        (
+            "monster-normal",
+            "monster_list",
+            json!({"name":"beast & take=100","cr_min":"1/8","cr_max":"24","size_ids":[4,5],"legendary":false,"partnered_content":"any"}),
+            vec![
+                "monster",
+                "list",
+                "-n",
+                "beast & take=100",
+                "--cr-min",
+                "1/8",
+                "--cr-max",
+                "24",
+                "--size-id",
+                "4",
+                "--size-id",
+                "5",
+                "--legendary",
+                "false",
+                "--partnered-content",
+                "any",
+                "--format",
+                "json",
+            ],
+        ),
+        (
+            "monster-normal",
+            "monster_list",
+            json!({"page":2}),
+            vec!["monster", "list", "--page", "2", "-o", "json"],
+        ),
+        (
+            "monster-normal",
+            "monster_list",
+            json!({"name":"missing"}),
+            vec!["monster", "list", "--name", "missing", "-o", "json"],
+        ),
+        (
+            "monster-empty",
+            "monster_list",
+            json!({}),
+            vec!["monster", "list", "-o", "json"],
+        ),
+        (
+            "monster-normal",
+            "monster_list",
+            json!({"page":2,"type_ids":[1],"subtype_ids":[1],"size_ids":[1],"environment_ids":[1],
+                "alignment_ids":[1],"sense_ids":[1],"save_proficiency_ids":[1],"skill_proficiency_ids":[1],
+                "resistance_ids":[1],"damage_immunity_ids":[1],"condition_immunity_ids":[1],
+                "vulnerability_ids":[1],"language_ids":[1],"movement_ids":[1],"tag_ids":[1],
+                "source_category_ids":[1],"source_ids":[1,2],"armor_class_min":0,"armor_class_max":99,
+                "average_hp_min":1,"average_hp_max":1000,"legendary":true,"mythic":false,"has_lair":true,"partnered_content":"yes"}),
+            vec![
+                "monster",
+                "list",
+                "--page",
+                "2",
+                "--type-id",
+                "1",
+                "--subtype-id",
+                "1",
+                "--size-id",
+                "1",
+                "--environment-id",
+                "1",
+                "--alignment-id",
+                "1",
+                "--sense-id",
+                "1",
+                "--save-proficiency-id",
+                "1",
+                "--skill-proficiency-id",
+                "1",
+                "--resistance-id",
+                "1",
+                "--damage-immunity-id",
+                "1",
+                "--condition-immunity-id",
+                "1",
+                "--vulnerability-id",
+                "1",
+                "--language-id",
+                "1",
+                "--movement-id",
+                "1",
+                "--tag-id",
+                "1",
+                "--source-category-id",
+                "1",
+                "--source-id",
+                "1",
+                "--source-id",
+                "2",
+                "--armor-class-min",
+                "0",
+                "--armor-class-max",
+                "99",
+                "--average-hp-min",
+                "1",
+                "--average-hp-max",
+                "1000",
+                "--legendary",
+                "true",
+                "--mythic",
+                "false",
+                "--has-lair",
+                "true",
+                "--partnered-content",
+                "yes",
+                "-o",
+                "json",
+            ],
+        ),
+        (
+            "monster-normal",
+            "monster_show",
+            json!({"id":"17"}),
+            vec!["monster", "show", "17"],
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert!(
+            output.status.success(),
+            "{command:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&output.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("response")["result"];
+        assert_eq!(result["isError"], false, "{result}");
+        let value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("JSON"))
+                .expect("MCP JSON");
+        assert_eq!(value, cli_value);
+        let tools = messages
+            .iter()
+            .find(|message| message["id"] == 2)
+            .expect("discovery")["result"]["tools"]
+            .as_array()
+            .expect("tools");
+        for name in ["monster_list", "monster_show"] {
+            let schema = &tools
+                .iter()
+                .find(|tool| tool["name"] == name)
+                .expect("monster tool")["inputSchema"];
+            assert_eq!(schema["additionalProperties"], false);
+            assert_eq!(
+                schema["properties"]["id"]["type"],
+                if name == "monster_show" {
+                    json!("string")
+                } else {
+                    Value::Null
+                }
+            );
+            if name == "monster_list" {
+                assert_eq!(schema["properties"]["name"]["type"], "string");
+                assert_eq!(schema["properties"]["page"]["minimum"], 1);
+                assert_eq!(schema["properties"]["size_ids"]["type"], "array");
+                assert!(schema["properties"].get("skip").is_none());
+                assert!(schema["properties"].get("take").is_none());
+            }
+        }
+    }
+    for (tool, arguments) in [
+        ("monster_list", json!({"unknown":true})),
+        ("monster_list", json!({"id":"17"})),
+        ("monster_list", json!({"name":null})),
+        ("monster_list", json!({"name":""})),
+        ("monster_list", json!({"name":" padded"})),
+        ("monster_list", json!({"name":"x".repeat(257)})),
+        ("monster_list", json!({"skip":null})),
+        ("monster_list", json!({"skip":-1})),
+        ("monster_list", json!({"skip":"1"})),
+        ("monster_list", json!({"skip":u64::MAX,"take":1})),
+        ("monster_list", json!({"take":0})),
+        ("monster_list", json!({"take":101})),
+        ("monster_list", json!({"take":1.5})),
+        ("monster_list", json!({"take":null})),
+        ("monster_list", json!({"page":0})),
+        ("monster_list", json!({"page":null})),
+        ("monster_list", json!({"size_ids":[0]})),
+        ("monster_list", json!({"size_ids":[4,4]})),
+        ("monster_list", json!({"legendary":null})),
+        (
+            "monster_list",
+            json!({"armor_class_min":2,"armor_class_max":1}),
+        ),
+        ("monster_list", json!({"cr_min":"24","cr_max":"23"})),
+        ("monster_list", json!({"partnered_content":"invalid"})),
+        ("monster_show", json!({"id":17})),
+        ("monster_show", json!({"id":null})),
+        ("monster_show", json!({"id":"01"})),
+        ("monster_show", json!({"id":"0"})),
+        ("monster_show", json!({"id":"18446744073709551616"})),
+        ("monster_show", json!({"id":"17","name":"beast"})),
+        ("monster_show", json!({})),
+    ] {
+        let (output, messages) = mcp_tool("absent", tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("invalid response")["result"];
+        assert_eq!(result["isError"], true, "{result}");
+        assert!(!result.to_string().contains("session_absent"));
+    }
+    for (scenario, expected) in [
+        ("monster-denied", "access_denied"),
+        ("monster-rejected", "session_rejected"),
+        ("monster-expired", "session_expired"),
+        ("monster-denied-code", "monster access denied"),
+        ("monster-unsupported", "not supported"),
+        ("monster-shared", "not supported"),
+        ("monster-missing-access", "invalid monster response"),
+        ("monster-malformed", "invalid monster response"),
+        ("monster-oversized", "authenticated_read_failed"),
+    ] {
+        for (command, tool, arguments) in [
+            (
+                vec!["monster", "list", "-o", "json"],
+                "monster_list",
+                json!({}),
+            ),
+            (
+                vec!["monster", "show", "17"],
+                "monster_show",
+                json!({"id":"17"}),
+            ),
+        ] {
+            let output = cli(scenario, &command);
+            assert_eq!(output.status.code(), Some(1), "{scenario}");
+            assert!(output.stdout.is_empty());
+            assert!(
+                String::from_utf8_lossy(&output.stderr).contains(expected),
+                "{scenario}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+            assert!(output.status.success());
+            let result = &messages
+                .iter()
+                .find(|message| message["id"] == 3)
+                .expect("failure")["result"];
+            assert_eq!(result["isError"], true);
+            assert!(
+                result["content"][0]["text"]
+                    .as_str()
+                    .expect("error")
+                    .contains(expected),
+                "{scenario}: {result}"
+            );
+        }
+    }
+    for (scenario, command, tool, arguments, expected, exit_code) in [
+        (
+            "monster-normal",
+            vec!["monster", "show", "99"],
+            "monster_show",
+            json!({"id":"99"}),
+            "not found",
+            1,
+        ),
+        (
+            "monster-changed",
+            vec!["monster", "show", "17"],
+            "monster_show",
+            json!({"id":"17"}),
+            "invalid monster response",
+            1,
+        ),
+        (
+            "monster-incomplete",
+            vec!["monster", "list", "-o", "json"],
+            "monster_list",
+            json!({}),
+            "incomplete",
+            1,
+        ),
+        (
+            "monster-mixed",
+            vec!["monster", "list", "-o", "json"],
+            "monster_list",
+            json!({}),
+            "monster access denied",
+            1,
+        ),
+        (
+            "monster-normal",
+            vec!["monster", "list", "--size-id", "99", "-o", "json"],
+            "monster_list",
+            json!({"size_ids":[99]}),
+            "invalid monster input",
+            2,
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert_eq!(output.status.code(), Some(exit_code));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains(expected));
+        let (_, messages) = mcp_tool(scenario, tool, arguments, false);
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("failure")["result"];
+        assert_eq!(result["isError"], true);
+        assert!(
+            result["content"][0]["text"]
+                .as_str()
+                .expect("error")
+                .contains(expected)
+        );
+    }
+    for (format, headers) in [
+        ("table", true),
+        ("table", false),
+        ("tsv", true),
+        ("tsv", false),
+    ] {
+        let mut command = vec!["monster", "list", "-o", format];
+        if !headers {
+            command.push("--no-headers");
+        }
+        let output = cli("monster-normal", &command);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8(output.stdout).expect("table/TSV");
+        assert!(text.contains("Invented Beast"));
+        assert_eq!(text.lines().count(), if headers { 3 } else { 2 });
+        if headers {
+            assert!(text.contains("next_page"));
+        }
+        let output = cli("monster-normal", &["monster", "show", "17", "-o", format]);
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("Synthetic action only."));
+    }
+    let output = cli("monster-wide-table", &["monster", "list"]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("8388608-byte limit"));
+    for format in ["json", "tsv"] {
+        let output = cli("monster-wide-table", &["monster", "list", "-o", format]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+    }
+    for tool in ["monster_list", "monster_show"] {
+        let (output, messages) = mcp_tool(
+            "monster-waiting",
+            tool,
+            if tool == "monster_show" {
+                json!({"id":"17"})
+            } else {
+                json!({})
+            },
+            true,
+        );
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(messages.iter().any(|message| message["id"] == 4));
+        assert!(
+            !messages
+                .iter()
+                .any(|message| message["id"] == 3 && message["result"]["isError"] == false)
+        );
+    }
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
@@ -1011,6 +1415,7 @@ fn main() {
             character_campaign_contracts();
             class_table_limit_contracts();
             class_contracts();
+            monster_contracts();
         }
     }
 }
