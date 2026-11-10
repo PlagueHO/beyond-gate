@@ -43,7 +43,7 @@ The generated `help` command also supports nested paths, such as
 
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
-`character`, `campaign`, `class`, `subclass`, `monster`, `book`, or `mcp`.
+`character`, `campaign`, `class`, `subclass`, `monster`, `background`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -68,12 +68,78 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows; metadata only |
 | [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows; scoped or bounded global metadata |
 | [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
+| [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
+
+## Background metadata and selected detail
+
+```text
+beyond-gate background list --output json
+beyond-gate background list -n acolyte --skill-id 240 --skill-id 241 --partnered-content any -o tsv
+beyond-gate background show <id>
+```
+
+List reads one filtered website result. Show selects one raw source definition
+from a fresh complete authenticated collection, not a guessed detail route.
+Both use the shared Windows session and fail without partial output.
+
+| CLI option | MCP field | Website control |
+|------------|-----------|-----------------|
+| `--name`, `-n` | `name` | `filter-name` |
+| Repeated `--skill-id` | `skill_ids` | `filter-skills` |
+| Repeated `--tag-id` | `tag_ids` | `filter-tags` |
+| Repeated `--source-id` | `source_ids` | `filter-source` |
+| Repeated `--source-category-id` | `source_category_ids` | `filter-source-category` |
+| `--partnered-content yes/no/any` | `partnered_content` | `filter-partnered-content` |
+
+Name is literal, nonempty, unpadded, control-free text within 256 UTF-8 bytes.
+Each ID filter permits at most 50 unique positive `u32` values. IDs must be
+options in the returned website form, not assumed API IDs or access grants.
+Partnered content defaults to `no`, as on the website. `any` leaves this filter
+unspecified. There is no `page`, `skip`, or `take`; paging was not verified.
+The encoded query is at most 16 KiB.
+
+List JSON is an array of metadata objects with `id`, `name`, `source`, and
+`source_url`. `source` is the displayed source label, not ownership evidence.
+Duplicate names survive. Duplicate IDs fail. Empty results require the known
+website marker. Missing structure, challenge pages, and paging fail.
+No rules text or per-row detail request is part of list.
+
+Show requires one canonical positive decimal ID that fits `u64`, without
+leading zeroes. It reads public configuration, then the fixed authenticated
+background collection with `sharingSetting=2`. It checks every record and
+source reference before selection. JSON contains `id`, `name`, `source_url`,
+`sources`, and the unchanged selected `raw` definition. Unknown raw fields
+and source-reference extensions survive. A missing ID means absent from that
+complete checked collection. Website and API coverage are not assumed equal.
+No full website page or source-book text coverage is claimed.
+
+Both actions support `--output` / `-o` with `json`, `table`, or `tsv` and
+`--format` as an alias. List defaults to table; show defaults to JSON.
+`--no-headers` works only with table/TSV. Columns use the JSON field order
+above; structured show cells use compact JSON with the shared escaping rules.
+Padded tables are preflighted against 8 MiB before output.
+
+Local bounds are 1,000 raw rows/definitions, 1,000 references per definition,
+1 MiB per response and compact result, and 30/60 seconds for list/show.
+**The observed live collection was 1,160,568 bytes. Show rejects that response
+with `BodyTooLarge` under the unchanged 1 MiB cap.** It does not truncate,
+increase limits, cache content, or invent a server-side ID filter.
+Denial, rejected/expired sessions, missing records, invalid input, malformed
+data, incomplete results, unsupported operations, and limits remain distinct.
+Local input errors exit 2; source/read errors exit 1. Errors leave stdout empty.
+Ctrl-C cancels the shared read.
+
+The first-party reader returns definitions directly without the monster access
+map. No numeric access code or ownership claim is inferred. Unexpected access
+fields are unsupported. Native compatibility, native account acceptance, and
+real sharing remain unverified. See the [source contract](api-catalog.md#background-read-contract)
+and [matching MCP tools](mcp.md#background_list-and-background_show).
 
 ## Monster pages and detail
 

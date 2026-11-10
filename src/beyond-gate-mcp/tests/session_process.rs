@@ -11,7 +11,8 @@ use std::{
 
 use beyond_gate_core::auth::session::fixture::{self, Scenario};
 use beyond_gate_core::{
-    auth::session::Session, character_campaign::fixture as character_campaign_fixture,
+    auth::session::Session, background::fixture as background_fixture,
+    character_campaign::fixture as character_campaign_fixture,
     class_catalog::fixture as class_fixture, library::fixture as library_fixture,
     monster::fixture as monster_fixture,
 };
@@ -39,6 +40,25 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    let background_source = match name {
+        "background-normal" => Some(background_fixture::Scenario::Normal),
+        "background-empty" => Some(background_fixture::Scenario::Empty),
+        "background-denied" => Some(background_fixture::Scenario::Denied),
+        "background-rejected" => Some(background_fixture::Scenario::Rejected),
+        "background-expired" => Some(background_fixture::Scenario::Expired),
+        "background-malformed" => Some(background_fixture::Scenario::Malformed),
+        "background-incomplete" => Some(background_fixture::Scenario::Incomplete),
+        "background-duplicate" => Some(background_fixture::Scenario::Duplicate),
+        "background-invalid-source" => Some(background_fixture::Scenario::InvalidSource),
+        "background-unsupported" => Some(background_fixture::Scenario::Unsupported),
+        "background-oversized" => Some(background_fixture::Scenario::Oversized),
+        "background-waiting" => Some(background_fixture::Scenario::Waiting),
+        "background-wide-table" => Some(background_fixture::Scenario::WideTable),
+        _ => None,
+    };
+    if let Some(source) = background_source {
+        return background_fixture::session(source).expect("invented background services");
+    }
     let monster_source = match name {
         "monster-normal" => Some(monster_fixture::Scenario::Normal),
         "monster-empty" => Some(monster_fixture::Scenario::Empty),
@@ -1377,6 +1397,326 @@ fn monster_contracts() {
     }
 }
 
+/// Requires actual CLI/MCP background data, strict schemas, errors, presentation, and cancellation parity.
+fn background_contracts() {
+    for (scenario, tool, arguments, command) in [
+        (
+            "background-normal",
+            "background_list",
+            json!({}),
+            vec!["background", "list", "-o", "json"],
+        ),
+        (
+            "background-normal",
+            "background_list",
+            json!({"name":"beast & take=100","skill_ids":[240,241],"tag_ids":[7],"source_ids":[7],"source_category_ids":[8],"partnered_content":"any"}),
+            vec![
+                "background",
+                "list",
+                "-n",
+                "beast & take=100",
+                "--skill-id",
+                "240",
+                "--skill-id",
+                "241",
+                "--tag-id",
+                "7",
+                "--source-id",
+                "7",
+                "--source-category-id",
+                "8",
+                "--partnered-content",
+                "any",
+                "--format",
+                "json",
+            ],
+        ),
+        (
+            "background-empty",
+            "background_list",
+            json!({}),
+            vec!["background", "list", "-o", "json"],
+        ),
+        (
+            "background-normal",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&output.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], false, "{result}");
+        let value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
+                .expect("MCP JSON");
+        assert_eq!(value, cli_value);
+        if tool == "background_show" {
+            assert_eq!(value["raw"]["future"]["nested"], json!([true, null, 3]));
+            assert_eq!(value["sources"][0]["future"], true);
+        } else {
+            assert!(
+                value
+                    .as_array()
+                    .expect("metadata")
+                    .iter()
+                    .all(|v| v.get("raw").is_none())
+            );
+        }
+        let tools = messages.iter().find(|m| m["id"] == 2).expect("discovery")["result"]["tools"]
+            .as_array()
+            .expect("tools");
+        for name in ["background_list", "background_show"] {
+            let tool = tools
+                .iter()
+                .find(|t| t["name"] == name)
+                .expect("background tool");
+            let schema = &tool["inputSchema"];
+            assert_eq!(schema["additionalProperties"], false);
+            assert_eq!(tool["annotations"]["readOnlyHint"], true);
+            if name == "background_list" {
+                assert_eq!(schema["properties"]["name"]["type"], "string");
+                assert_eq!(schema["properties"]["skill_ids"]["type"], "array");
+                assert_eq!(schema["properties"]["skill_ids"]["maxItems"], 50);
+                assert_eq!(schema["properties"]["skill_ids"]["uniqueItems"], true);
+                assert!(schema["properties"].get("page").is_none());
+                assert!(schema["properties"].get("skip").is_none());
+            } else {
+                assert_eq!(schema["properties"]["id"]["type"], "string");
+            }
+        }
+    }
+    for (tool, arguments) in [
+        ("background_list", json!({"page":1})),
+        ("background_list", json!({"name":null})),
+        ("background_list", json!({"skill_ids":null})),
+        ("background_list", json!({"skill_ids":[0]})),
+        ("background_list", json!({"skill_ids":[7,7]})),
+        ("background_list", json!({"name":" padded"})),
+        ("background_list", json!({"partnered_content":"false"})),
+        ("background_show", json!({"id":"01"})),
+        ("background_show", json!({"id":17})),
+        ("background_show", json!({"id":"17","unknown":true})),
+    ] {
+        let (output, messages) = mcp_tool("background-normal", tool, arguments, false);
+        assert!(output.status.success());
+        let result = messages.iter().find(|m| m["id"] == 3).expect("response");
+        assert!(
+            result.get("error").is_some() || result["result"]["isError"] == true,
+            "{result}"
+        );
+    }
+    for (scenario, tool, arguments, command, diagnostic) in [
+        (
+            "background-denied",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "access_denied",
+        ),
+        (
+            "background-rejected",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "session_rejected",
+        ),
+        (
+            "background-expired",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "session_expired",
+        ),
+        (
+            "background-malformed",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "invalid background response",
+        ),
+        (
+            "background-incomplete",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "not complete",
+        ),
+        (
+            "background-duplicate",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "conflicting",
+        ),
+        (
+            "background-invalid-source",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "invalid background response",
+        ),
+        (
+            "background-unsupported",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "unsupported",
+        ),
+        (
+            "background-oversized",
+            "background_show",
+            json!({"id":"17"}),
+            vec!["background", "show", "17"],
+            "BodyTooLarge",
+        ),
+        (
+            "background-normal",
+            "background_show",
+            json!({"id":"999"}),
+            vec!["background", "show", "999"],
+            "not found",
+        ),
+        (
+            "background-denied",
+            "background_list",
+            json!({}),
+            vec!["background", "list", "-o", "json"],
+            "access_denied",
+        ),
+        (
+            "background-incomplete",
+            "background_list",
+            json!({}),
+            vec!["background", "list", "-o", "json"],
+            "unsupported",
+        ),
+        (
+            "background-normal",
+            "background_list",
+            json!({"skill_ids":[999]}),
+            vec!["background", "list", "--skill-id", "999", "-o", "json"],
+            "invalid background input",
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert_eq!(
+            output.status.code(),
+            Some(if diagnostic == "invalid background input" {
+                2
+            } else {
+                1
+            })
+        );
+        assert!(output.stdout.is_empty());
+        let cli_error = String::from_utf8(output.stderr).expect("diagnostic");
+        assert!(cli_error.contains(diagnostic), "{cli_error}");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], true, "{result}");
+        let error = result["content"][0]["text"].as_str().expect("error");
+        assert!(error.contains(diagnostic), "{error}");
+        assert!(cli_error.contains(error));
+    }
+    for (action, format) in [
+        ("list", "table"),
+        ("list", "tsv"),
+        ("show", "table"),
+        ("show", "tsv"),
+    ] {
+        let mut args = vec!["background", action];
+        if action == "show" {
+            args.push("17");
+        }
+        args.extend(["-o", format]);
+        let output = cli("background-normal", &args);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let text = String::from_utf8(output.stdout).expect("text");
+        assert!(text.contains("Invented Origin"));
+        assert!(text.contains("source_url"));
+        args.push("--no-headers");
+        let output = cli("background-normal", &args);
+        assert!(output.status.success());
+        let text = String::from_utf8(output.stdout).expect("text");
+        if action == "list" {
+            assert!(!text.contains("source_url"));
+        }
+    }
+    for (tool, args) in [
+        ("background_list", json!({})),
+        ("background_show", json!({"id":"17"})),
+    ] {
+        let (output, messages) = mcp_tool("background-waiting", tool, args, true);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(messages.iter().any(|m| m["id"] == 4));
+        assert!(
+            !messages
+                .iter()
+                .any(|m| m["id"] == 3 && m["result"]["isError"] == false)
+        );
+    }
+}
+
+/// Checks background padded-table bounds separately from complete JSON/TSV output.
+fn background_table_limit_contracts() {
+    let output = cli(
+        "background-wide-table",
+        &["background", "list", "-o", "json"],
+    );
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let rows: Value = serde_json::from_slice(&output.stdout).expect("JSON");
+    assert_eq!(rows.as_array().expect("rows").len(), 1000);
+    for extra in [vec![], vec!["--no-headers"]] {
+        let mut args = vec!["background", "list", "-o", "table"];
+        args.extend(extra);
+        let output = cli("background-wide-table", &args);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("limit"));
+    }
+    let output = cli(
+        "background-wide-table",
+        &["background", "list", "-o", "tsv", "--no-headers"],
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        String::from_utf8(output.stdout)
+            .expect("TSV")
+            .lines()
+            .count(),
+        1000
+    );
+    let output = cli(
+        "background-normal",
+        &["background", "show", "17", "-o", "tsv"],
+    );
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).expect("TSV");
+    assert_eq!(text.lines().count(), 2);
+    assert!(!text.contains('\u{1b}'));
+    assert!(text.contains("\\\\t"));
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
@@ -1416,6 +1756,8 @@ fn main() {
             class_table_limit_contracts();
             class_contracts();
             monster_contracts();
+            background_contracts();
+            background_table_limit_contracts();
         }
     }
 }

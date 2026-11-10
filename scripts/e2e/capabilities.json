@@ -26,6 +26,9 @@
     { "path": "monster", "arguments": [] },
     { "path": "monster list", "arguments": ["alignment-id", "armor-class-max", "armor-class-min", "average-hp-max", "average-hp-min", "condition-immunity-id", "cr-max", "cr-min", "damage-immunity-id", "environment-id", "has-lair", "language-id", "legendary", "movement-id", "mythic", "name", "no-headers", "output", "page", "partnered-content", "resistance-id", "save-proficiency-id", "sense-id", "size-id", "skill-proficiency-id", "source-category-id", "source-id", "subtype-id", "tag-id", "type-id", "vulnerability-id"] },
     { "path": "monster show", "arguments": ["id", "no-headers", "output"] },
+    { "path": "background", "arguments": [] },
+    { "path": "background list", "arguments": ["name", "no-headers", "output", "partnered-content", "skill-id", "source-category-id", "source-id", "tag-id"] },
+    { "path": "background show", "arguments": ["id", "no-headers", "output"] },
     { "path": "book", "arguments": [] },
     { "path": "book list", "arguments": ["no-headers", "output"] },
     { "path": "book outline", "arguments": ["book-id", "no-headers", "output"] },
@@ -49,6 +52,8 @@
     { "path": "class show", "tool": "class_show", "arguments": { "id": "10" }, "input_fields": ["class_id", "id", "kind"], "list": false, "requires_session": true },
     { "path": "monster list", "tool": "monster_list", "arguments": {}, "input_fields": ["alignment_ids", "armor_class_max", "armor_class_min", "average_hp_max", "average_hp_min", "condition_immunity_ids", "cr_max", "cr_min", "damage_immunity_ids", "environment_ids", "has_lair", "language_ids", "legendary", "movement_ids", "mythic", "name", "page", "partnered_content", "resistance_ids", "save_proficiency_ids", "sense_ids", "size_ids", "skill_proficiency_ids", "source_category_ids", "source_ids", "subtype_ids", "tag_ids", "type_ids", "vulnerability_ids"], "list": true, "requires_session": true },
     { "path": "monster show", "tool": "monster_show", "arguments": { "id": "17" }, "input_fields": ["id"], "list": false, "requires_session": true },
+    { "path": "background list", "tool": "background_list", "arguments": {}, "input_fields": ["name", "partnered_content", "skill_ids", "source_category_ids", "source_ids", "tag_ids"], "list": true, "requires_session": true },
+    { "path": "background show", "tool": "background_show", "arguments": { "id": "17" }, "input_fields": ["id"], "list": false, "requires_session": true },
     { "path": "book list", "tool": "book_list", "arguments": {}, "list": true, "requires_session": true },
     { "path": "book outline", "tool": "book_outline", "arguments": { "book_id": "synthetic" }, "list": true, "requires_session": true },
     { "path": "book read", "tool": "book_read", "arguments": { "book_id": "synthetic", "section_id": "opening" }, "list": false, "requires_session": true }

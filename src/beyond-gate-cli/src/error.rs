@@ -4,6 +4,7 @@ use std::{error::Error, fmt, io};
 
 use beyond_gate_core::{
     auth::{AuthError, session::SessionError},
+    background::BackgroundError,
     book::BookError,
     character_campaign::CharacterCampaignError,
     class_catalog::ClassCatalogError,
@@ -25,6 +26,7 @@ pub(crate) enum Failure {
     Character(CharacterCampaignError),
     Class(ClassCatalogError),
     Monster(MonsterError),
+    Background(BackgroundError),
     Library(LibraryError),
     Book(BookError),
     Cursor(BookError),
@@ -44,6 +46,7 @@ impl Failure {
                 | Self::Cursor(_)
                 | Self::Class(ClassCatalogError::InvalidInput)
                 | Self::Monster(MonsterError::InvalidInput)
+                | Self::Background(BackgroundError::InvalidInput)
         ) {
             2
         } else {
@@ -77,6 +80,7 @@ impl fmt::Display for Failure {
             Self::Character(error) => write!(formatter, "{error}")?,
             Self::Class(error) => write!(formatter, "{error}")?,
             Self::Monster(error) => write!(formatter, "{error}")?,
+            Self::Background(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
             Self::Mcp(error) => write!(formatter, "{error}")?,
@@ -127,6 +131,7 @@ impl Error for Failure {
             Self::Character(error) => Some(error),
             Self::Class(error) => Some(error),
             Self::Monster(error) => Some(error),
+            Self::Background(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),
             Self::Mcp(error) => Some(error),

@@ -45,6 +45,12 @@ pub fn command() -> Command {
                     .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_monster_id)))),
         )
         .subcommand(
+            resource("background", "Browse website-filtered background metadata and selected source definitions")
+                .subcommand(background_list())
+                .subcommand(show_options(Command::new("show").about("Select a raw background from a fresh complete collection; fails above 1 MiB"))
+                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_background_id)))),
+        )
+        .subcommand(
             resource("book", "Bounded Windows library, outline, and selected-section reads")
                 .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
                 .subcommand(list_options(Command::new("outline").about("List at most 1,000 entries after fresh library and canonical source-page checks").arg(identifier("book-id"))))
@@ -86,6 +92,49 @@ pub fn command() -> Command {
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
         )
+}
+
+/// Builds background flags from the shared observed website control mapping.
+fn background_list() -> Command {
+    let mut command = list_options(Command::new("list").about(
+        "Read complete bounded background metadata with website filters; no automatic paging",
+    ))
+    .arg(
+        Arg::new("name")
+            .long("name")
+            .short('n')
+            .value_parser(ValueParser::new(valid_background_name))
+            .help("Literal website name filter; at most 256 UTF-8 bytes"),
+    )
+    .arg(
+        Arg::new("partnered-content")
+            .long("partnered-content")
+            .default_value("no")
+            .value_parser(["yes", "no", "any"])
+            .help("Website partnered-content choice; defaults to no"),
+    );
+    for (_, flag, _) in beyond_gate_core::background::query::ID_FILTERS {
+        command = command.arg(Arg::new(flag).long(flag).value_name("ID").value_parser(value_parser!(u32).range(1..)).action(ArgAction::Append).help("Public website option ID; repeat up to 50 distinct values; not an access grant"));
+    }
+    command
+}
+
+/// Checks a canonical background ID before credential or source access.
+fn valid_background_id(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::background::validate_id(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
+}
+
+/// Checks literal background filter text without interpreting upstream syntax.
+fn valid_background_name(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::background::BackgroundQuery {
+        name: Some(value.to_owned()),
+        ..Default::default()
+    }
+    .validate()
+    .map(|()| value.to_owned())
+    .map_err(|_| "name must be nonempty, unpadded, control-free text within 256 UTF-8 bytes")
 }
 
 /// Checks literal monster searches without interpreting upstream query syntax.

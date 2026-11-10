@@ -1,7 +1,8 @@
 # D&D Beyond API call catalog
 
-Last reviewed: 2026-11-09. Research issues: [#31][issue-31], [#32][issue-32],
-and [#65](https://github.com/PlagueHO/beyond-gate/issues/65).
+Last reviewed: 2026-11-11. Research issues: [#31][issue-31], [#32][issue-32],
+[#65](https://github.com/PlagueHO/beyond-gate/issues/65), and
+[#66](https://github.com/PlagueHO/beyond-gate/issues/66).
 
 Use this shared index when planning or implementing another issue.
 It catalogs all calls identified in the [API survey](api-survey.md), including candidates
@@ -129,7 +130,7 @@ These are not approved bulk-content extraction contracts.
 |----|---------|------|--------------------------------|
 | RULE-01 | CHAR | `/game-data/classes` | Implemented metadata-only GET with `sharingSetting=2`; Browser evidence; no rules-text grant |
 | RULE-02 | CHAR | `/game-data/subclasses` | Implemented metadata-only GET with `sharingSetting=2&baseClassId={id}`; parent-scoped; Browser evidence |
-| RULE-03 | CHAR | `/game-data/backgrounds` | Backgrounds; rules version |
+| RULE-03 | CHAR | `/game-data/backgrounds` | Fresh bearer GET with `sharingSetting=2`; show selects a checked raw definition; observed 85-record response exceeds unchanged 1 MiB production cap; [contract](#background-read-contract) |
 | RULE-04 | CHAR | `/game-data/races` | Species and legacy races; preserve upstream naming |
 | RULE-05 | CHAR | `/game-data/feats` | Feats; selection, prerequisites, and access |
 | RULE-06 | CHAR | `/game-data/spells` | Character-eligible spells; standalone coverage not proven |
@@ -184,6 +185,54 @@ fail. Links resolve only to HTTPS at the fixed website origin, without credentia
 or query. Display fragments are allowed; links never select fetches.
 Denied, expired/rejected, missing, ambiguous, malformed, incomplete, and over-limit
 results stay distinct. Never emit partial results after a failed parent.
+
+### Background read contract
+
+Issue [#66](https://github.com/PlagueHO/beyond-gate/issues/66) requires metadata
+browsing and full selected detail where access is verified. Its
+[public browser checks](api-survey.md#background-filter-evidence) confirmed
+GET `/backgrounds`, repeated website skill selectors, partnered-content values,
+and an explicit empty-result marker. The unfiltered page exposed 171 distinct
+numeric background links without observed pagination controls.
+
+An initial browser-only GET exceeded a 1 MiB probe cap and was cancelled before
+JSON parsing. A later structural read used an 8 MiB browser-only cap and
+returned HTTP 200, 85 records, and 1,160,568 bytes. The envelope had numeric
+`id`, true `success`, string `message`, array `data`, and null `pagination`.
+Source references had `sourceId`, `pageNumber`, and `sourceType`.
+No content-access field or access map was present; `grantedFeats` is rules
+data, not a grant. See the [structural evidence](api-survey.md#authenticated-background-response-limit).
+
+Public client inspection traced direct background definition rendering.
+Its local restricted-definition filter checks preferences and active sources,
+not ownership. Show follows this returned-source contract: one fresh bearer
+GET to the fixed collection, preceded by credential-free public configuration.
+The complete envelope must be terminal, with unique positive IDs, valid names,
+and source references that exist in the checked configuration. Every row must
+pass before selection. Display links must use the exact website origin and
+match the raw ID. They never select a fetch. Unexpected access maps or fields
+are unsupported; HTTP denial remains denied. Unknown raw fields and source
+extensions survive unchanged. A missing ID means absent from this checked
+collection, not absent from the whole website.
+
+List uses a cookie-only fixed website GET with the observed controls. It returns
+`id`, `name`, source label, and `source_url`, not rules text. Requested option
+IDs must exist in the same response's form. Unknown paging is unsupported.
+No background page, skip, take, or API filter is invented.
+
+Local bounds are 1,000 raw rows/definitions, 1,000 references per definition,
+1 MiB response/result, and 30/60 seconds for list/show. Both adapters share
+these bounds and typed failures. The observed 1,160,568-byte collection
+**fails** the production cap with `BodyTooLarge`, even if the selected record
+would fit. No limit increase, truncation, automatic continuation, rules engine,
+bulk output, or cache is added. No metadata-only show fallback is used.
+The [CLI contract](cli.md#background-metadata-and-selected-detail) and
+[MCP contract](mcp.md#background_list-and-background_show) specify the inputs.
+
+Website links/options and source IDs are not access grants. One checked website
+detail page does not establish general collection access or full website text.
+Native compatibility, native account acceptance, website/API identity coverage,
+and real sharing remain unverified.
 
 ## Definition collections and vehicles
 

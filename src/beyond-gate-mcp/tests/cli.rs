@@ -171,6 +171,8 @@ fn stdio_protocol_handles_discovery_and_strict_input() {
         names,
         [
             "auth_validate",
+            "background_list",
+            "background_show",
             "book_list",
             "book_outline",
             "book_read",

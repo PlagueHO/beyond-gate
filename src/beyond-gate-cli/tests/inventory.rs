@@ -51,6 +51,8 @@ fn manual_inventory_matches_parser() {
         ("subclass show", "output", "formats"),
         ("monster list", "output", "formats"),
         ("monster show", "output", "formats"),
+        ("background list", "output", "formats"),
+        ("background show", "output", "formats"),
         ("book list", "output", "formats"),
         ("book outline", "output", "formats"),
         ("completions", "shell", "shells"),

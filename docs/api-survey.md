@@ -219,6 +219,142 @@ are intentionally excluded. No class-feature request is part of production
 browsing. See [RULE-01/RULE-02 limits](api-catalog.md#class-and-subclass-metadata-contract).
 Synthetic adapter checks are not native/live acceptance.
 
+## Background filter evidence
+
+Issue [#66](https://github.com/PlagueHO/beyond-gate/issues/66) selected catalog
+metadata plus full selected detail where access is verified. Its separately
+approved browser scope permits bounded page and API inspection with
+human-controlled login. During the initial public pass, the browser was not
+signed in, and the user was not available to log in. That pass made no
+authenticated API request, token exchange, native credential read, or
+selected-detail request.
+
+The public [background listing][backgrounds-page] had one GET filter form
+with action `/backgrounds`. Its controls were:
+
+| Control | Observed shape |
+|---------|----------------|
+| `filter-name` | Text input; initially empty |
+| `filter-source-category` | Multiple select; 33 options |
+| `filter-source` | Multiple select; 186 options |
+| `filter-skills` | Multiple select; 18 options |
+| `filter-tags` | Multiple select; 18 options |
+| `filter-partnered-content` | Single select; empty unspecified, `t` Yes, `f` No; initially `f` |
+
+These are website option IDs, not inferred API IDs or access grants. For example,
+the skill options included Arcana `240` and History `241`. A real form submission
+with those two selections produced:
+
+```text
+/backgrounds?filter-name=&filter-skills=240&filter-skills=241&filter-partnered-content=f
+```
+
+The unfiltered page had 171 distinct numeric background links. The filtered
+response had 38 listing rows and 38 numeric background links. No
+`.b-pagination-list` controls were observed on either page. This is not proof of
+global completeness, a page API, or the absence of other result limits.
+The monster implementation's 100-record page cap cannot be copied unchanged
+and described as a complete unfiltered background result.
+
+A second real form submission cleared the multiple selections and used an
+invented no-match name. The response had zero numeric background links and
+one `li.alert.no-results` child inside
+`ul.listing.listing-rpgbackground.rpgbackground-listing`.
+That marker distinguishes the observed empty result from a missing listing.
+No bot-protection marker was observed during these three page operations.
+
+This initial evidence established public form behavior only. Implementation
+paused until the authenticated structural and first-party reader checks below.
+Public links and website option IDs still provide no content-access grant.
+The website's 171 links do not define the authenticated API's 85-record scope.
+
+The initial pass consumed three page operations and made no explicit API
+request or public script read. No probe data was stored in the browser, and no
+account responses or proprietary detail were retained.
+
+### Authenticated background response limit
+
+On resume, the browser showed a sign-out control instead of sign-in controls.
+Two bounded credential-free reads checked the same first-party character
+asset used by the class research. Its SHA-256 was unchanged. It still declares
+the background GET and applies a local restricted-definition filter in the
+available-background adapter. No separate background detail declaration was
+found in the inspected matches. These observations do not establish content
+access.
+
+One browser-only token exchange succeeded. A bearer-only
+`GET https://character-service.dndbeyond.com/character/v5/game-data/backgrounds?sharingSetting=2`
+then returned HTTP 200. Its body crossed the 1 MiB probe limit. The streaming
+reader cancelled the body at 1,100,304 received bytes, before JSON parsing.
+This is a lower bound, not the complete response size. No response fields,
+record count, source identities, or access values were returned or retained.
+The bearer stayed inside the browser operation and was not persisted.
+
+That probe stopped at its byte limit. The approved scope bounded research
+request counts but did not set a 1 MiB research response cap; the 1 MiB value
+is the production transport limit. A later structural probe used an 8 MiB
+browser-only cap without changing production limits.
+
+The later probe used one fresh exchange and one background GET. It returned
+HTTP 200, 1,160,568 bytes, and 85 records. Its envelope had numeric `id`,
+boolean `success`, string `message`, array `data`, and null `pagination`.
+`success` was true. All observed record IDs were positive safe integers, and
+all records had source arrays. Source-reference keys were `sourceId`,
+`pageNumber`, and `sourceType`.
+
+Observed identity fields included `id`, `entityTypeId`, `definitionKey`,
+`name`, `slug`, `moreDetailsUrl`, `isHomebrew`, and `sources`.
+Records also had descriptions, proficiency/language/equipment descriptions,
+feature name and description, `featureIsFeat`, card text, appearance fields,
+ability data, organization data, characteristics arrays, spell-list IDs,
+`featList`, and `grantedFeats`. No raw values or rules text were retained.
+There was no content-access field or access map in the envelope or records.
+`grantedFeats` is rules data, not a content-access grant.
+
+A separate selected website navigation to `/backgrounds/7-acolyte` had a
+matching canonical path and a 440,153-byte decoded HTML body. It contained
+the normal background detail container and description structure without an
+observed bot-protection marker. This one selected page is not evidence that
+every collection record grants full standalone detail.
+
+A third public client read traced background description/feature rendering
+and the local restricted-definition filter. That filter applies homebrew
+preferences and active source selection. It is not a standalone content-access
+check. The background helper had no observed access-type getter. The inspected
+chooser can also include a definition from an existing character, which
+cannot establish standalone access. No separate detail declaration was found
+in the inspected matches. These observations do not prove that no such route
+exists.
+
+The implementation follows that direct authenticated source-reader contract.
+Show selects one unchanged definition only after a fresh successful collection
+read and complete-envelope validation. It does not claim that public metadata,
+source IDs, or a character-attached definition grants access. No monster-style
+access map is invented. An unexpected access field is unsupported; HTTP denial
+returns no content. This is selection from the returned source collection,
+not a claim of full website detail or source-book coverage.
+
+The whole observed collection exceeds the unchanged production 1 MiB transport
+limit. Production show therefore fails explicitly with `BodyTooLarge` for that
+response. It does not raise the limit, truncate, cache, or return partial data.
+No selected-ID API filter, separate detail route, or paging contract was
+verified. Native cookie compatibility, native show acceptance, website/API
+identity coverage, and owned/shared behavior remain unverified.
+
+List reads only metadata from the filtered website result. It requires the
+checked form, listing, footer, and explicit empty marker, and rejects paging
+controls rather than inventing continuation. Local limits are 1,000 raw rows
+or definitions, 1,000 source references per definition, and 1 MiB compact
+result. List has a 30-second deadline; show has a 60-second deadline for its
+configuration and collection reads. Neither operation retries or fans out.
+
+Total research consumption is five of eight page operations, four of six
+explicit API requests including two exchanges, and three of four public script
+reads. Temporary public-source probe data was removed from the browser.
+No native credential access or live CLI/MCP check ran.
+Unused operations do not authorize another host, native account tests, or
+an automatic retry after an access denial or bot-protection stop.
+
 ## Character-builder game data
 
 All routes in this section are Client evidence from the

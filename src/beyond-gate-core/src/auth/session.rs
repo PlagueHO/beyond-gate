@@ -313,6 +313,9 @@ pub struct Session {
     /// Keeps only compiled synthetic monster services alive.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) monster_fixture: Option<Arc<crate::monster::fixture::Source>>,
+    /// Keeps only this owner's compiled synthetic background service alive.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) background_fixture: Option<Arc<crate::background::fixture::Source>>,
 }
 
 impl Default for Session {
@@ -334,6 +337,8 @@ impl Default for Session {
             class_catalog_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             monster_fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            background_fixture: None,
         }
     }
 }
@@ -372,6 +377,8 @@ impl Session {
             class_catalog_fixture: self.class_catalog_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             monster_fixture: self.monster_fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            background_fixture: self.background_fixture.clone(),
         }
     }
 
@@ -493,6 +500,31 @@ impl Session {
             || !target.username().is_empty()
             || target.password().is_some()
             || !crate::monster::query::allowed_list_url(&target)
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        self.get_cookie_html(client, url).await
+    }
+
+    /// Reads only the fixed background listing with checked website filter names.
+    pub(crate) async fn get_background_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        if !website
+            || !target.username().is_empty()
+            || target.password().is_some()
+            || !crate::background::query::allowed_list_url(&target)
             || self.binding.is_none()
         {
             return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
