@@ -22,6 +22,7 @@ use std::{
 
 use beyond_gate_core::{
     auth::{self, SessionStatus, SessionStore, session::Session},
+    background::{self, BackgroundError, BackgroundQuery},
     book::{self, BookError, BookOutline, SectionChunk, SectionCursor, SectionRequest},
     character_campaign::{
         self, Campaign, CampaignSnapshot, Character, CharacterCampaignError, CharacterSnapshot,
@@ -46,6 +47,26 @@ const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Reads background metadata with the shared verified website filters.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared source, session, input, completeness, or limit failures.
+    fn list_backgrounds(
+        &self,
+        session: &Session,
+        query: &BackgroundQuery,
+    ) -> impl std::future::Future<Output = Result<Value, BackgroundError>>;
+    /// Selects one unchanged background from a fresh complete source collection.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared missing, denied, incomplete, source, or bound failures.
+    fn show_background(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Value, BackgroundError>>;
     /// Reads one explicit monster page with shared access and continuation semantics.
     ///
     /// # Errors
@@ -211,6 +232,18 @@ fn execute_mcp(
 pub struct LiveReads;
 
 impl ReadOperations for LiveReads {
+    /// Delegates website filtering and metadata validation to the core.
+    async fn list_backgrounds(
+        &self,
+        session: &Session,
+        query: &BackgroundQuery,
+    ) -> Result<Value, BackgroundError> {
+        background::list(session, query).await
+    }
+    /// Delegates fresh checked collection selection to the core.
+    async fn show_background(&self, session: &Session, id: &str) -> Result<Value, BackgroundError> {
+        background::show(session, id).await
+    }
     /// Delegates one page without following its numeric continuation.
     async fn list_monsters(
         &self,
@@ -518,10 +551,71 @@ fn execute(
         "class" => execute_class(action, arguments, reads, session, ClassKind::Class),
         "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
         "monster" => execute_monster(action, arguments, reads, session),
+        "background" => execute_background(action, arguments, reads, session),
         "character" => execute_character(action, arguments, reads, session),
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
+    }
+}
+
+/// Presents background results without duplicating source or access policy.
+fn execute_background(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    let id = if action == "show" {
+        Some(selection(arguments, "id")?)
+    } else {
+        None
+    };
+    let query = if action == "list" {
+        let mut value = serde_json::Map::new();
+        for (field, flag) in [("name", "name"), ("partnered_content", "partnered-content")] {
+            if let Some(text) = arguments.get_one::<String>(flag) {
+                value.insert(field.to_owned(), json!(text));
+            }
+        }
+        for (field, flag, _) in background::query::ID_FILTERS {
+            if let Some(ids) = arguments.get_many::<u32>(flag) {
+                value.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
+            }
+        }
+        serde_json::from_value::<BackgroundQuery>(Value::Object(value))
+            .map_err(|_| Failure::Usage("Invalid background filters."))?
+    } else if let Some(id) = id {
+        background::validate_id(id).map_err(Failure::Background)?;
+        BackgroundQuery::default()
+    } else {
+        return Err(Failure::Usage("Select background list or show."));
+    };
+    query.validate().map_err(Failure::Background)?;
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal=tokio::signal::ctrl_c()=>{signal.map_err(Failure::Signal)?;Err(Failure::Cancelled)}
+            result=async {if let Some(id)=id {reads.show_background(session,id).await} else {reads.list_backgrounds(session,&query).await}}=>result.map_err(Failure::Background),
+        }
+    })?;
+    if id.is_some() {
+        render_record(
+            &options,
+            &["id", "name", "source_url", "sources", "raw"],
+            value,
+        )
+    } else {
+        let rows = value
+            .as_array()
+            .ok_or(Failure::Background(BackgroundError::InvalidResponse))?;
+        output::list(
+            &options,
+            &["id", "name", "source", "source_url"],
+            rows,
+            None,
+        )
     }
 }
 

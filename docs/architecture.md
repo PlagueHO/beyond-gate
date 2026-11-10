@@ -25,6 +25,8 @@ book tools, and a credential-free Windows `auth_validate` tool.
 Two class tools provide class/subclass metadata, not raw definitions.
 Two monster tools provide explicit pages and selected raw detail, limited to
 observed access code 1. Denied and unverified access cases return no content.
+Two background tools provide website-filtered metadata and selected unchanged
+definitions from a fresh complete collection, subject to the existing 1 MiB cap.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -83,6 +85,7 @@ stdout is reserved for MCP messages; server diagnostics use stderr.
 
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `class_list`, `class_show`, `monster_list`, `monster_show`,
+`background_list`, `background_show`,
 `book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
@@ -100,6 +103,44 @@ passed only to the core cursor validator. One section result remains bounded to
 fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
 book evidence, source attribution, and section completion state. Source content
 is data and is not executed or treated as instructions.
+
+## Background read boundary
+
+`background` owns the strict shared query, website parsing, source-definition
+selection, attribution validation, and typed errors. Both adapters use that
+core. A read scope pins the protected session identity. The background HTML
+guard permits only the fixed listing and observed query fields; book and
+monster guards are unchanged.
+
+List uses a fresh cookie-only website read with actual form controls.
+It checks supplied options against the same response, validates listing and
+footer structure, preserves duplicate names, and requires the explicit empty
+marker. Unknown paging is unsupported. Metadata excludes rules text.
+Show checks credential-free public configuration, then makes one fresh
+bearer-only GET to the fixed background collection with `sharingSetting=2`.
+It validates the terminal envelope and every raw identity, display link, and
+source reference before selecting an unchanged definition. The source must
+return a complete bounded collection; no selected-ID API filter is invented.
+Unknown raw and source-reference fields survive.
+
+Unlike monsters, the first-party reader renders returned definitions without
+an access map. This contract does not infer ownership or make source IDs,
+website links, or character-attached definitions into access grants.
+HTTP denial returns no content; unexpected access fields are unsupported.
+No full website or source-book coverage is claimed.
+
+Local bounds are 1,000 rows/definitions, 1,000 references per definition,
+1 MiB source/result bytes, and 30/60-second list/show deadlines. Filter arrays
+allow 50 unique positive option IDs each, names 256 UTF-8 bytes, and encoded
+queries 16 KiB. CLI tables retain the shared 8 MiB padded-output preflight.
+Cancellation drops the active future. No redirects, retries, detail fan-out,
+automatic continuation, cache, or partial results are added.
+
+The observed 1,160,568-byte collection exceeds production's unchanged 1 MiB cap.
+Show fails explicitly with `BodyTooLarge` for it, even if a selected record
+would fit. Browser schema evidence and synthetic adapter parity do not prove
+native acceptance, website/API identity coverage, or real sharing.
+See the [source contract](api-catalog.md#background-read-contract).
 
 ## Monster read boundary
 

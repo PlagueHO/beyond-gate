@@ -56,6 +56,22 @@ impl Fixtures {
 }
 
 impl ReadOperations for Fixtures {
+    /// Uses the shared background listing with the supplied synthetic owner.
+    async fn list_backgrounds(
+        &self,
+        session: &Session,
+        query: &beyond_gate_core::background::BackgroundQuery,
+    ) -> Result<Value, beyond_gate_core::background::BackgroundError> {
+        beyond_gate_core::background::list(session, query).await
+    }
+    /// Uses shared background selection without a product fixture switch.
+    async fn show_background(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> Result<Value, beyond_gate_core::background::BackgroundError> {
+        beyond_gate_core::background::show(session, id).await
+    }
     /// Uses the shared monster page operation without a product fixture selector.
     async fn list_monsters(
         &self,

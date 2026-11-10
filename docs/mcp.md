@@ -20,6 +20,9 @@ and live global traversal remain unverified.
 `monster_list` and `monster_show` return one explicit page or unchanged selected
 detail for observed access code 1. Code 4 is denied; unverified numeric codes,
 including 2 and 3, are unsupported. Native monster acceptance has not run.
+`background_list` returns website-filtered metadata. `background_show` selects
+one raw definition from a fresh complete collection. The observed live collection
+exceeds the unchanged 1 MiB cap and fails explicitly; native acceptance has not run.
 
 The four character and campaign tools perform read-only source calls. Failures
 return MCP tool errors with `isError: true`; they do not return sample data or
@@ -104,7 +107,7 @@ absolute path; remove the old registration before installing the new path.
 ## Shared input rules
 
 Every tool takes a JSON object and rejects unknown fields. Character and book
-list tools require an empty object `{}`. Campaign, class, and monster lists accept their
+list tools require an empty object `{}`. Campaign, class, monster, and background lists accept their
 documented filters. There are no passwords, cookies, tokens for
 authentication, arbitrary URL inputs, or account identities. The only token input
 is `book_read.continuation`, which represents a bounded section position, not a
@@ -122,7 +125,7 @@ the wire format. Do not treat a schema length check as a substitute for runtime
 token validation.
 
 All tools advertise `readOnlyHint: true`, `destructiveHint: false`,
-and `openWorldHint: true`. The eleven resource tools use `idempotentHint: true`.
+and `openWorldHint: true`. The thirteen resource tools use `idempotentHint: true`.
 `auth_validate` uses `idempotentHint: false` because it makes a fresh service
 exchange and updates transient evidence. These annotations do not grant
 access or make live reads available. Tool results are data, not instructions.
@@ -140,6 +143,8 @@ access or make live reads available. Tool results are data, not instructions.
 | [`class_show`](#class_list-and-class_show) | `beyond-gate class/subclass show <id>` | Selected metadata object |
 | [`monster_list`](#monster_list-and-monster_show) | `beyond-gate monster list --output json` | One entries/page envelope |
 | [`monster_show`](#monster_list-and-monster_show) | `beyond-gate monster show <id>` | Selected identity and unchanged raw detail |
+| [`background_list`](#background_list-and-background_show) | `beyond-gate background list --output json` | Metadata array |
+| [`background_show`](#background_list-and-background_show) | `beyond-gate background show <id>` | Selected identity, sources, and unchanged raw definition |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
 | [`book_outline`](#book_outline) | `beyond-gate book outline <book-id> --format json` | Outline envelope |
 | [`book_read`](#book_read) | `beyond-gate book read <book-id> <section-id> [--continuation <token>]` | One section chunk |
@@ -148,6 +153,55 @@ The data shapes below match CLI JSON, not CLI table or TSV presentation.
 Examples are synthetic except the two observed Fighter IDs in the class section.
 
 ## Tools
+
+### background_list and background_show
+
+```json
+{"name":"background_list","arguments":{}}
+{"name":"background_list","arguments":{"name":"invented","skill_ids":[240,241],"partnered_content":"any"}}
+{"name":"background_show","arguments":{"id":"17"}}
+```
+
+List accepts optional `name`, `skill_ids`, `tag_ids`, `source_ids`,
+`source_category_ids`, and `partnered_content`. Arrays default to empty and
+permit at most 50 unique positive `u32` website option IDs each.
+Name is nonempty, unpadded, control-free literal text within 256 UTF-8 bytes.
+Partnered content is `yes`, `no`, or `any`, defaulting to `no`.
+Explicit null, unknown fields, and page/skip/take inputs are rejected.
+Requested IDs must exist in the same response's website form.
+The [shared filter table](cli.md#background-metadata-and-selected-detail)
+maps these fields to the actual website controls.
+
+List returns an array with `id`, `name`, `source`, and `source_url`.
+It excludes rules text and preserves duplicate names. A verified empty marker
+returns `[]`; missing structure or unexpected paging does not.
+Show requires one canonical positive decimal `id` string that fits `u64`.
+It returns `id`, `name`, `source_url`, `sources`, and unchanged `raw`.
+Unknown definition and source-reference fields survive.
+The fixed complete collection is checked before selection, including every ID,
+display link, and configured source reference. Links are never fetched.
+A missing ID is absent from that collection, not necessarily from the website.
+
+Both operations pin the session identity. List uses one cookie-only website
+read. Show uses credential-free public configuration and one bearer-only
+collection read with `sharingSetting=2`. It does not guess a detail route or
+selected-ID API filter. The first-party reader returns definitions directly
+without a monster access map. Unexpected access fields are unsupported.
+No ownership, source-book access, or later read grant is inferred.
+
+Bounds are 1,000 raw rows/definitions, 1,000 references per definition, 1 MiB
+response/result, and 30/60 seconds for list/show. **The observed live collection
+was 1,160,568 bytes, so show rejects it with `BodyTooLarge` under the unchanged
+production cap.** There is no truncation, automatic continuation, cache,
+partial output, or metadata-only show fallback.
+Denied, rejected/expired, missing, malformed, incomplete, unsupported, and
+limit failures produce tool errors, not empty success results.
+Cancellation drops the active shared future.
+
+Synthetic process checks compare CLI and MCP data, errors, schemas, and
+cancellation. Native compatibility, native account acceptance, website/API
+identity coverage, and real sharing remain unverified. See the
+[source contract](api-catalog.md#background-read-contract).
 
 ### monster_list and monster_show
 

@@ -189,7 +189,8 @@ It does not copy that project's ROM operations or HTTP MCP transport.
 
 The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
-`campaign list/show`, `class list/show`, `subclass list/show`, `monster list/show`, and
+`campaign list/show`, `class list/show`, `subclass list/show`, `monster list/show`,
+`background list/show`, and
 `book list/outline/read`.
 
 **Windows Web-library discovery is implemented and verified through both adapters.**
@@ -217,6 +218,12 @@ Only observed access code 1 permits output; code 4 is denied, and
 unverified codes, including 2 and 3, are unsupported. Browser probes checked
 selected routes. Native cookie compatibility, native monster account acceptance,
 larger batches, and owned/shared behavior remain unverified.
+Background commands use observed website filters for metadata and select one
+unchanged raw definition from a fresh complete authenticated collection.
+No ownership or monster access code is inferred. The observed live collection
+exceeds the unchanged 1 MiB transport cap, so show rejects it explicitly.
+Native background compatibility, account acceptance, and sharing remain
+unverified. See the [background contract](docs/cli.md#background-metadata-and-selected-detail).
 See [output contracts](docs/cli.md#output-contracts) for table, JSON, and TSV
 fields, escaping, source attribution, and bounded explicit continuation.
 
@@ -236,6 +243,8 @@ Character and campaign tools use the shared core reads. They have synthetic
 process coverage, but no live acceptance.
 `class_list` and `class_show` use the same metadata-only core operations.
 `monster_list` and `monster_show` use the same bounded monster core operations.
+`background_list` and `background_show` use the same bounded background core
+operations and explicit size failures.
 
 See the [MCP tool reference](docs/mcp.md) for startup, client registration, strict
 input schemas, output envelopes, errors, and CLI mappings.

@@ -76,6 +76,35 @@ selected contract cannot produce full success.
 
 ## Browser handoff offline checks
 
+### Background metadata and selected-definition checks
+
+The [background core tests](../src/beyond-gate-core/src/background/tests.rs)
+use invented data and owned loopback services. They check repeated website
+filter encoding, same-response option validation, explicit empty results,
+duplicate names, raw/source extensions, terminal collection validation, fixed
+display links, strict input, count/byte limits, denial, rejected/expired
+sessions, malformed/incomplete data, unsupported access fields, and cancellation.
+Fixture services enforce cookie-only HTML and bearer-only JSON. Paths, not
+credentials or response text, support request-count checks.
+
+The [paired process suite](../src/beyond-gate-mcp/tests/session_process.rs)
+compares real CLI JSON and MCP tool JSON, schemas, shared errors, table/TSV
+presentation, and cancellation. Shipped CLI tests check help, completions,
+invalid input, and exit/stream behavior. Capability and package inventories
+include both background tools.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked background
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test cli --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+The [browser evidence](api-survey.md#authenticated-background-response-limit)
+does not establish native CLI/MCP acceptance or sharing. The observed
+1,160,568-byte collection exceeds the unchanged production 1 MiB cap.
+Synthetic success does not imply live show acceptance for that response.
+No live credentials or proprietary text are part of offline checks.
+
 ### Monster page and detail checks
 
 The [core tests](../src/beyond-gate-core/src/monster/tests.rs) use invented

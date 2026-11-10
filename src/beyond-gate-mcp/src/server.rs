@@ -4,6 +4,7 @@ use std::fmt::Display;
 
 use beyond_gate_core::{
     auth::session::Session,
+    background::{self, BackgroundQuery},
     book::{
         self, BookError, BookOutline, MAX_SECTION_BYTES, SectionChunk, SectionCursor,
         SectionRequest,
@@ -33,6 +34,15 @@ type MonsterListArguments = monster::MonsterQuery;
 #[serde(deny_unknown_fields)]
 struct MonsterShowArguments {
     /// Positive decimal ID, never a name, URL, or grant from an earlier page.
+    #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    id: String,
+}
+
+/// Selects one background definition without accepting names, URLs, or grants.
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct BackgroundShowArguments {
+    /// Positive canonical decimal source identifier.
     #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
     id: String,
 }
@@ -149,6 +159,56 @@ pub struct BeyondGateServer {
 
 #[tool_router]
 impl BeyondGateServer {
+    /// Lists bounded background metadata using the actual public website controls.
+    #[tool(
+        name = "background_list",
+        description = "List bounded background metadata with optional name, skill_ids, tag_ids, source_ids, source_category_ids, and partnered_content yes/no/any (default no). IDs are public website option IDs, not grants; arrays allow up to 50 unique positive IDs. No unverified paging, rules text, detail fan-out, or automatic continuation. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn background_list(
+        &self,
+        Parameters(arguments): Parameters<BackgroundQuery>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        arguments.validate().map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _=context.ct.cancelled()=>return Err("cancelled".to_owned()),
+            result=background::list(&self.session,&arguments)=>result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Selects one source definition after fresh complete collection validation.
+    #[tool(
+        name = "background_show",
+        description = "Select one background by positive canonical decimal id from a fresh authenticated collection. Preserves raw source fields and attribution without ownership claims or later access grants. No guessed detail route or selected-ID API filter. The complete response must fit the unchanged 1 MiB transport cap, otherwise the operation fails explicitly. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn background_show(
+        &self,
+        Parameters(arguments): Parameters<BackgroundShowArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        background::validate_id(&arguments.id).map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _=context.ct.cancelled()=>return Err("cancelled".to_owned()),
+            result=background::show(&self.session,&arguments.id)=>result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
     /// Returns one checked page, preserving numeric continuation but never following it.
     #[tool(
         name = "monster_list",

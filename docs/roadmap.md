@@ -20,6 +20,11 @@ Only observed code 1 is supported. Code 4 is denied; unverified
 numeric cases, including 2 and 3, are unsupported. Browser probes checked the
 selected routes; native cookie compatibility, account acceptance, larger batches,
 and owned/shared cases remain unverified.
+Issue #66 adds background metadata filters and selected raw definitions through
+both adapters. It requires a complete bounded source response. The observed
+collection exceeds the unchanged 1 MiB cap, so show fails explicitly for that
+response. Native compatibility, account acceptance, and real sharing remain
+unverified. See the [background contract](api-catalog.md#background-read-contract).
 Protected-store operations have synthetic offline
 tests; Windows login creates the protected entry after service validation.
 The core HTTP read boundary has offline policy tests and fixed Web-library
@@ -208,13 +213,16 @@ Character and campaign show commands also support `--output` / `-o`, with
 `--format` as an alias. There is no product fixture input, cached content, or
 account snapshot.
 
-Issue #8 provides a local rmcp stdio server. With issues #65 and #72, it has eleven
-resource read tools. The separate `auth_validate` tool brings the total to twelve.
+Issue #8 provides a local rmcp stdio server. With issues #65, #66, and #72, it has
+thirteen resource read tools. The separate `auth_validate` tool brings the total
+to fourteen.
 Character and campaign tools call the same bounded core operations as the CLI.
 `class_list` and `class_show` expose class/subclass metadata only.
 Issue #72 adds CLI `monster list/show` and MCP `monster_list`/`monster_show`.
 One website-filtered list page returns explicit `next_page`; detail preserves raw fields after
 its own access check. Neither operation traverses the catalog or caches content.
+Issue #66 adds CLI `background list/show` and MCP `background_list`/`background_show`
+with shared metadata filters and complete bounded collection selection.
 `campaign_list` can select the active collection with `active_only`; campaign
 show returns the selected active roster. Tool schemas, read-only annotations,
 bounded continuation input, and synthetic protocol process tests are

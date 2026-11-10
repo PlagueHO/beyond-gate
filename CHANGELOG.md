@@ -7,6 +7,17 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows background metadata and selected source definitions through
+  shared core reads, CLI `background list/show`, and MCP
+  `background_list`/`background_show`. Lists use observed website filters,
+  repeated public option IDs, and the explicit empty marker, without rules
+  text or invented paging. Show selects one unchanged raw record only from a
+  fresh complete checked collection and preserves source-reference extensions.
+  Denied, expired/rejected, missing, malformed, incomplete, unsupported, and
+  over-limit results fail without partial output. No ownership or monster
+  access code is inferred. The observed live collection exceeds the unchanged
+  1 MiB transport cap; show rejects that response explicitly. Native
+  compatibility, account acceptance, and real sharing remain unverified.
 - Bounded Windows monster reads through shared core operations, CLI
   `monster list/show`, and MCP `monster_list`/`monster_show`. List returns one
   website-filtered page with explicit `page`/`next_page` continuation instead

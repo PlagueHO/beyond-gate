@@ -256,6 +256,56 @@ fn monster_help_and_invalid_usage() {
     }
 }
 
+/// Checks background filters, help, completions, and input failures before native access.
+#[test]
+fn background_help_completions_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["background", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("background"));
+    }
+    for args in [
+        vec!["background"],
+        vec!["background", "show"],
+        vec!["background", "show", "01"],
+        vec!["background", "show", "0"],
+        vec!["background", "show", "18446744073709551616"],
+        vec!["background", "list", "--name", ""],
+        vec!["background", "list", "--name", " padded"],
+        vec!["background", "list", "--skill-id", "0"],
+        vec!["background", "list", "--skill-id", "7", "--skill-id", "7"],
+        vec!["background", "list", "--partnered-content", "false"],
+        vec!["background", "list", "--page", "1"],
+        vec!["background", "list", "--take", "1"],
+        vec!["background", "list", "--skip", "0"],
+        vec!["background", "list", "--output", "json", "--no-headers"],
+        vec![
+            "background",
+            "show",
+            "17",
+            "--output",
+            "json",
+            "--no-headers",
+        ],
+        vec!["background", "show", "17", "--skill-id", "7"],
+    ] {
+        let output = run(&args);
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        for expected in ["background", "skill-id", "tag-id", "partnered-content"] {
+            assert!(text.contains(expected), "{shell}: {expected}");
+        }
+    }
+}
+
 /// Names the preferred output option when rejecting JSON header suppression.
 #[test]
 fn json_no_headers_error_uses_output_option_name() {
