@@ -1196,6 +1196,55 @@ fn species_contracts() {
             "authenticated_read_failed",
         ),
         (
+            "species-denied",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "access_denied",
+        ),
+        (
+            "species-rejected",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "session_rejected",
+        ),
+        (
+            "species-expired",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "session_expired",
+        ),
+        (
+            "species-malformed",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "invalid species response",
+        ),
+        (
+            "species-incomplete",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "incomplete or inconsistent",
+        ),
+        (
+            "species-limit",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "species result limit exceeded",
+        ),
+        (
+            "species-oversized",
+            vec!["species", "show", "17", "--output", "json"],
+            "species_show",
+            json!({"id":"17"}),
+            "authenticated_read_failed",
+        ),
+        (
             "species-normal",
             vec!["species", "show", "999"],
             "species_show",
@@ -1215,6 +1264,7 @@ fn species_contracts() {
             .find(|message| message["id"] == 3)
             .expect("failure result")["result"];
         assert_eq!(result["isError"], true, "{result}");
+        assert!(result.get("structuredContent").is_none(), "{result}");
         assert!(
             result["content"][0]["text"]
                 .as_str()
