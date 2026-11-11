@@ -164,6 +164,8 @@ function Assert-PackagedProtocol {
     @{name = 'campaign_show'; arguments = @{id = 'synthetic'; unexpected = $true}}
     @{name = 'class_list'; arguments = @{unexpected = $true}}
     @{name = 'class_show'; arguments = @{id = '10'; unexpected = $true}}
+    @{name = 'species_list'; arguments = @{unexpected = $true}}
+    @{name = 'species_show'; arguments = @{id = '17'; unexpected = $true}}
     @{name = 'monster_list'; arguments = @{unexpected = $true}}
     @{name = 'monster_show'; arguments = @{id = '17'; unexpected = $true}}
     @{name = 'background_list'; arguments = @{unexpected = $true}}
