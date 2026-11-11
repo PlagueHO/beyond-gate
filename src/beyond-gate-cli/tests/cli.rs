@@ -115,8 +115,10 @@ fn invalid_resource_usage_has_no_result() {
         vec!["character"],
         vec!["campaign"],
         vec!["book"],
+        vec!["species"],
         vec!["character", "show"],
         vec!["campaign", "show"],
+        vec!["species", "show"],
         vec!["book", "outline"],
         vec!["book", "read", "book"],
         vec!["character", "show", " padded"],
@@ -254,6 +256,36 @@ fn monster_help_and_invalid_usage() {
             assert!(text.contains(expected), "{shell}: {expected}");
         }
     }
+}
+
+/// Checks shipped species help, completions, and input failures before session access.
+#[test]
+fn species_help_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["species", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("species"));
+    }
+    for arguments in [
+        vec!["species"],
+        vec!["species", "show"],
+        vec!["species", "show", "01"],
+        vec!["species", "show", "0"],
+        vec!["species", "show", "18446744073709551616"],
+        vec!["species", "show", "17", "--name", "Origin"],
+        vec!["species", "list", "--page", "1"],
+        vec!["species", "list", "--output", "json", "--no-headers"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    let output = run(&["completions", "powershell"]);
+    assert!(output.status.success());
+    assert!(String::from_utf8_lossy(&output.stdout).contains("species"));
 }
 
 /// Checks background filters, help, completions, and input failures before native access.

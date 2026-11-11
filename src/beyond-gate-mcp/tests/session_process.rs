@@ -14,7 +14,7 @@ use beyond_gate_core::{
     auth::session::Session, background::fixture as background_fixture,
     character_campaign::fixture as character_campaign_fixture,
     class_catalog::fixture as class_fixture, library::fixture as library_fixture,
-    monster::fixture as monster_fixture,
+    monster::fixture as monster_fixture, species::fixture as species_fixture,
 };
 use rmcp::{ServiceExt, transport::stdio};
 use serde_json::{Value, json};
@@ -40,6 +40,24 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    let species_source = match name {
+        "species-normal" => Some(species_fixture::Scenario::Normal),
+        "species-empty" => Some(species_fixture::Scenario::Empty),
+        "species-denied" => Some(species_fixture::Scenario::Denied),
+        "species-rejected" => Some(species_fixture::Scenario::Rejected),
+        "species-expired" => Some(species_fixture::Scenario::Expired),
+        "species-malformed" => Some(species_fixture::Scenario::Malformed),
+        "species-incomplete" => Some(species_fixture::Scenario::Incomplete),
+        "species-unsupported" => Some(species_fixture::Scenario::Unsupported),
+        "species-duplicate" => Some(species_fixture::Scenario::Duplicate),
+        "species-limit" => Some(species_fixture::Scenario::TooManyRecords),
+        "species-oversized" => Some(species_fixture::Scenario::Oversized),
+        "species-waiting" => Some(species_fixture::Scenario::Waiting),
+        _ => None,
+    };
+    if let Some(source) = species_source {
+        return species_fixture::session(source).expect("invented species service");
+    }
     let background_source = match name {
         "background-normal" => Some(background_fixture::Scenario::Normal),
         "background-empty" => Some(background_fixture::Scenario::Empty),
@@ -1016,6 +1034,196 @@ fn class_contracts() {
     assert!(output.status.success());
 }
 
+/// Checks species data parity, strict tool schemas, and typed shared failures.
+fn species_contracts() {
+    for (scenario, tool, arguments, command) in [
+        (
+            "species-normal",
+            "species_list",
+            json!({}),
+            vec!["species", "list", "--output", "json"],
+        ),
+        (
+            "species-normal",
+            "species_show",
+            json!({"id":"18"}),
+            vec!["species", "show", "18"],
+        ),
+    ] {
+        let cli = cli(scenario, &command);
+        assert!(
+            cli.status.success(),
+            "{command:?}: {}",
+            String::from_utf8_lossy(&cli.stderr)
+        );
+        assert!(cli.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&cli.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("tool result")["result"];
+        assert_eq!(result["isError"], false, "{result}");
+        let text = result["content"][0]["text"].as_str().expect("JSON text");
+        assert_eq!(
+            serde_json::from_str::<Value>(text).expect("MCP JSON"),
+            cli_value
+        );
+        if tool == "species_show" {
+            assert_eq!(
+                cli_value["raw"]["future_definition"]["nested"],
+                json!([true, null, 3])
+            );
+            assert_eq!(cli_value["is_subrace"], true);
+            assert_eq!(cli_value["is_legacy"], true);
+        }
+        let tools = messages
+            .iter()
+            .find(|message| message["id"] == 2)
+            .expect("tool discovery")["result"]["tools"]
+            .as_array()
+            .expect("tools");
+        for name in ["species_list", "species_show"] {
+            let schema = &tools
+                .iter()
+                .find(|candidate| candidate["name"] == name)
+                .expect("species tool");
+            assert_eq!(schema["inputSchema"]["additionalProperties"], false);
+            assert_eq!(schema["annotations"]["readOnlyHint"], true);
+            assert_eq!(schema["annotations"]["destructiveHint"], false);
+        }
+        let show_schema = &tools
+            .iter()
+            .find(|candidate| candidate["name"] == "species_show")
+            .expect("species show");
+        assert_eq!(
+            show_schema["inputSchema"]["properties"]["id"]["pattern"],
+            "^[1-9][0-9]{0,19}$"
+        );
+    }
+
+    for (tool, arguments) in [
+        ("species_list", json!({"id":"17"})),
+        ("species_list", json!({"unknown":true})),
+        ("species_show", json!({"id":17})),
+        ("species_show", json!({"id":"01"})),
+        ("species_show", json!({"id":"18446744073709551616"})),
+        ("species_show", json!({"id":"18","unknown":true})),
+    ] {
+        let (output, messages) = mcp_tool("species-normal", tool, arguments, false);
+        assert!(output.status.success());
+        let response = messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("response");
+        assert!(
+            response.get("error").is_some() || response["result"]["isError"] == true,
+            "{response}"
+        );
+    }
+
+    for (scenario, command, tool, arguments, expected) in [
+        (
+            "species-empty",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "incomplete",
+        ),
+        (
+            "species-denied",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "access_denied",
+        ),
+        (
+            "species-rejected",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "session_rejected",
+        ),
+        (
+            "species-expired",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "session_expired",
+        ),
+        (
+            "species-malformed",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "incomplete",
+        ),
+        (
+            "species-incomplete",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "unsupported",
+        ),
+        (
+            "species-duplicate",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "conflicting",
+        ),
+        (
+            "species-unsupported",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "unsupported",
+        ),
+        (
+            "species-limit",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "limit exceeded",
+        ),
+        (
+            "species-oversized",
+            vec!["species", "list", "--output", "json"],
+            "species_list",
+            json!({}),
+            "authenticated_read_failed",
+        ),
+        (
+            "species-normal",
+            vec!["species", "show", "999"],
+            "species_show",
+            json!({"id":"999"}),
+            "not found",
+        ),
+    ] {
+        let cli = cli(scenario, &command);
+        assert_eq!(cli.status.code(), Some(1), "{command:?}");
+        assert!(cli.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&cli.stderr);
+        assert!(diagnostic.contains(expected), "{diagnostic}");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("failure result")["result"];
+        assert_eq!(result["isError"], true, "{result}");
+        assert!(
+            result["content"][0]["text"]
+                .as_str()
+                .expect("error text")
+                .contains(expected)
+        );
+    }
+}
+
 /// Checks monster data parity, strict inputs, paging, presentation, and safe failures.
 fn monster_contracts() {
     for (scenario, tool, arguments, command) in [
@@ -1755,6 +1963,7 @@ fn main() {
             character_campaign_contracts();
             class_table_limit_contracts();
             class_contracts();
+            species_contracts();
             monster_contracts();
             background_contracts();
             background_table_limit_contracts();

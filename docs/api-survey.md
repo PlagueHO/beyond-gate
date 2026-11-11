@@ -58,7 +58,7 @@ and Unearthed Arcana paths were observed in navigation only. Their content was n
 |------|--------------|--------------------|-----------------------|
 | Classes | `/classes` | Character `game-data/classes` | Selected class metadata |
 | Backgrounds | `/backgrounds` | Character `game-data/backgrounds` | Selected background metadata |
-| Species | `/species` | Character `game-data/races` | Species metadata, with upstream naming preserved |
+| Species | `/species` | Public HTML; candidate Character `game-data/races` for selected detail | Bounded website metadata; selected source record, live contract unverified |
 | Feats | `/feats` | Character `game-data/feats` | Bounded search and selected feat |
 | Spells | `/spells` | Character spell game data | Bounded search and selected spell |
 | Equipment | `/equipment` | Character item and starting-equipment game data | Equipment metadata |
@@ -82,8 +82,11 @@ initial survey. A later [approved monster filter trace](#approved-monster-filter
 checked real submissions and filtered server HTML, but not a next page or equivalent JSON
 service parameters.
 
-All eight pages include a general `search` input. Classes and species had no additional
-matching filter names. Backgrounds and feats had no observed paging parameter.
+The initial survey found general `search` inputs on all eight pages. A later
+issue #67 browser pass found the species search as an unnamed client-side input,
+with no GET form. No server-side species query was tested or inferred. Classes
+and species had no additional matching filter names. Backgrounds and feats
+had no observed paging parameter.
 
 | Listing | Additional observed input names |
 |---------|---------------------------------|
@@ -378,7 +381,7 @@ The following paths use GET and the base
 | `game-data/classes` | Classes | Rules version, source coverage, and access |
 | `game-data/subclasses` | Subclasses | Parent-class selection and access |
 | `game-data/backgrounds` | Backgrounds | Rules version and access |
-| `game-data/races` | Species and legacy race data | Upstream naming and rules version |
+| `game-data/races` | Species and legacy race data | Complete coverage, access, and rules version; see [candidate review](#species-and-legacy-race-candidate) |
 | `game-data/feats` | Feats | Search or selection, prerequisites, and access |
 | `game-data/spells` | Character-eligible spells | Selection context and standalone catalog coverage |
 | `game-data/always-known-spells` | Class spell support | Class and level parameters, completeness, and access |
@@ -398,6 +401,33 @@ The following paths use GET and the base
 
 Downloading a whole eligible catalog and filtering it locally is not a proven bounded search.
 Limiting displayed results after a large download does not meet the product's request limit.
+
+### Species and legacy-race candidate
+
+The first-party character application contains the `game-data/races` route
+builder. A pinned third-party endpoint definition names
+`GET /character/v5/game-data/races` without a query. Its race search uses the
+authenticated character-service client and reads `entityRaceId`, `fullName`,
+`baseName`, `baseRaceName`, `isLegacy`, and `isSubRace`. The candidate client
+unwraps character-service `data` responses and sends bearer authentication.
+See [T11](#sources) and [T12](#sources).
+
+This evidence does not establish the current response envelope, pagination,
+complete standalone coverage, or per-record access rules. No protected route
+or live account was tested. The selected-detail implementation uses one fixed
+collection read, without a guessed detail route or selected-ID filter. It
+rejects non-null pagination and returns no partial result. Its `pagination:
+null` requirement, access behavior, native compatibility, and account
+acceptance remain unverified.
+
+The bounded issue #67 browser pass inspected the public `/species` page. It
+found 242 cards in 42 source groups. Each card had one title, source label, and
+link shaped as `/species/<id>-<slug>`. Each group had a footer. The page showed
+no pagination links. Its search input had no `name` and no GET form, so the
+implementation does not send a search query. The Browser canvas did not expose
+response headers or bodies. One selected detail navigation redirected to
+Marketplace; this did not establish a detail API or access contract. The pass
+made no direct API request and read no account data.
 
 ## Definition collections and vehicles
 
@@ -1838,6 +1868,8 @@ denied access. Leave unknown contracts explicitly unsupported.
 | T8 | [Pinned scraper picker][scraper-source-filter] and [configuration client][scraper-source-catalog] | Hidden-category candidate; incomplete attribution and weaker validation |
 | T9 | [Pinned TypeScript source parser][sdk-source-parser] | Selected-page DOM parsing, not complete library discovery |
 | T10 | [Pinned sources userscript][sources-userscript] | Historical DOM ownership/sharing heuristics, not a numeric-ID contract |
+| T11 | [Pinned race endpoint and reference tool][candidate-races] | Candidate route, bearer client use, and species field names |
+| T12 | [Pinned character API client][candidate-api-client] | Candidate character-service envelope handling and bearer transport |
 | B1 | [Library][library-page], [selected source][selected-book], and [selected chapter][selected-chapter] | Separately approved three-page browser inspection; structure and metadata only |
 | L1 | [Issue #31][issue-31] | Earlier bounded approved probes and accepted character/campaign decisions, preserved in the issue artifacts |
 | L2 | [Issue #32][issue-32] | Separately approved three-attempt native library metadata check; partial contract evidence only |
@@ -1867,6 +1899,8 @@ No search-result claim is used as endpoint evidence without source inspection.
 [selected-chapter]: https://www.dndbeyond.com/sources/dnd/cos/introduction#RunningtheAdventure
 [candidate-endpoints]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/api/endpoints.ts
 [candidate-reference]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/tools/reference.ts
+[candidate-races]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/tools/reference.ts
+[candidate-api-client]: https://github.com/AlexWorland/dndbeyond-mcp/blob/61d6f3caae27b539d5a1ba7b0668074c27672702/src/api/client.ts
 [importer-monster-factory]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/parser/DDBMonsterFactory.ts
 [importer-monster-types]: https://github.com/MrPrimate/ddb-importer/blob/a6ea7cc50b4012cc805a8d5880a2a4378f8ec2f5/src/types/ddb-monster-source.d.ts
 [mrprimate-proxy-monsters]: https://github.com/MrPrimate/ddb-proxy/blob/a181c5433df9f7a6765e38bc7fc1b4b7d9e0c17a/monsters.js

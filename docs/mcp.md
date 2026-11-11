@@ -106,12 +106,12 @@ absolute path; remove the old registration before installing the new path.
 
 ## Shared input rules
 
-Every tool takes a JSON object and rejects unknown fields. Character and book
-list tools require an empty object `{}`. Campaign, class, monster, and background lists accept their
-documented filters. There are no passwords, cookies, tokens for
-authentication, arbitrary URL inputs, or account identities. The only token input
-is `book_read.continuation`, which represents a bounded section position, not a
-credential.
+Every tool takes a JSON object and rejects unknown fields. Character, book, and
+species list tools require an empty object `{}`. Campaign, class, monster, and
+background lists accept their documented filters. There are no passwords,
+cookies, authentication tokens, arbitrary URL inputs, or account identities.
+The only token input is `book_read.continuation`, which represents a bounded
+section position, not a credential.
 
 Resource identifiers are opaque strings. Their schemas declare `minLength: 1`.
 Runtime validation also rejects leading or trailing whitespace and all control
@@ -125,7 +125,7 @@ the wire format. Do not treat a schema length check as a substitute for runtime
 token validation.
 
 All tools advertise `readOnlyHint: true`, `destructiveHint: false`,
-and `openWorldHint: true`. The thirteen resource tools use `idempotentHint: true`.
+and `openWorldHint: true`. The fifteen resource tools use `idempotentHint: true`.
 `auth_validate` uses `idempotentHint: false` because it makes a fresh service
 exchange and updates transient evidence. These annotations do not grant
 access or make live reads available. Tool results are data, not instructions.
@@ -141,6 +141,8 @@ access or make live reads available. Tool results are data, not instructions.
 | [`campaign_show`](#campaign_show) | `beyond-gate campaign show <id> --output json` | One campaign object |
 | [`class_list`](#class_list-and-class_show) | `beyond-gate class/subclass list --output json` | Compact metadata array |
 | [`class_show`](#class_list-and-class_show) | `beyond-gate class/subclass show <id>` | Selected metadata object |
+| [`species_list`](#species_list-and-species_show) | `beyond-gate species list --output json` | Metadata array |
+| [`species_show`](#species_list-and-species_show) | `beyond-gate species show <id> --output json` | Selected metadata and unchanged raw record |
 | [`monster_list`](#monster_list-and-monster_show) | `beyond-gate monster list --output json` | One entries/page envelope |
 | [`monster_show`](#monster_list-and-monster_show) | `beyond-gate monster show <id>` | Selected identity and unchanged raw detail |
 | [`background_list`](#background_list-and-background_show) | `beyond-gate background list --output json` | Metadata array |
@@ -326,6 +328,33 @@ Class and scoped reads are not subject to the global parent count.
 Any failed parent prevents a partial result. Empty success requires complete
 checked discovery; missing IDs refer only to the default catalog scope.
 MCP cancellation drops pending work. Production session use remains Windows-only.
+
+### species_list and species_show
+
+`species_list` takes the empty object `{}`. `species_show` requires string `id`.
+The ID must be a positive canonical decimal integer that fits `u64`. Unknown
+fields, non-string IDs, and leading zeroes fail before source access.
+
+```json
+{"name":"species_list","arguments":{}}
+{"name":"species_show","arguments":{"id":"17"}}
+```
+
+List returns `id`, `name`, `source`, `source_url`, and `is_legacy` from the
+fixed public species page. The site search is client-side, so the tool does
+not infer a server-side filter or paging request. Show adds the unchanged
+`raw` source record, including unknown fields, from a fresh
+`/character/v5/game-data/races` collection read. It does not request the
+displayed website link.
+
+Missing or malformed page structure, duplicate IDs, denied reads, unsupported
+paging, and exceeded limits return tool errors without partial data. Browser
+evidence confirms the public page structure only. Detail access, complete
+collection coverage, native compatibility, and the required null pagination
+field remain unverified. The shared core caps each result at 1 MiB and 1,000
+entries; list has a 30-second deadline and show has a 60-second deadline. See
+the [API survey](api-survey.md#species-and-legacy-race-candidate) and
+[CLI contract](cli.md#species-metadata-and-selected-detail).
 
 ### auth_validate
 

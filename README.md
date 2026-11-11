@@ -3,10 +3,10 @@
 [![CI](https://github.com/PlagueHO/beyond-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/PlagueHO/beyond-gate/actions/workflows/ci.yml)
 
 Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
-project for access to your authorized D&D Beyond characters, campaigns, and
-purchased or shared books.
+project for access to your authorized D&D Beyond characters, campaigns,
+species, and purchased or shared books.
 
-**Status: Windows login, Web-library discovery, and bounded book reads.**
+**Status: Windows login, Web-library discovery, bounded book reads, and synthetic-tested species reads.**
 The CLI and MCP binaries provide `--help` and `--version`.
 The CLI also provides local `auth status` and `auth logout`.
 Windows `auth validate` and MCP `auth_validate` now make one fresh service check
@@ -30,6 +30,10 @@ for one selected chapter. Live continuation and sharing remain unchecked.
 Character and campaign reads use fixed, bounded operations through the stored
 Windows session. Synthetic process checks cover adapter parity; live source
 compatibility has not been validated.
+Species lists parse bounded metadata from the fixed public website page.
+Selected detail uses a fresh candidate character-service collection and
+preserves the complete raw record. Synthetic process checks cover adapter
+parity. Live detail access and native compatibility remain unverified.
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.

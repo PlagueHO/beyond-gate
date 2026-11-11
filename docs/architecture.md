@@ -25,6 +25,9 @@ book tools, and a credential-free Windows `auth_validate` tool.
 Two class tools provide class/subclass metadata, not raw definitions.
 Two monster tools provide explicit pages and selected raw detail, limited to
 observed access code 1. Denied and unverified access cases return no content.
+Two species tools parse metadata from the fixed public website page and select
+unchanged raw detail from a fresh candidate collection. They do not infer
+ownership; live detail access remains unverified.
 Two background tools provide website-filtered metadata and selected unchanged
 definitions from a fresh complete collection, subject to the existing 1 MiB cap.
 The core now also exports a Windows-only
@@ -85,7 +88,7 @@ stdout is reserved for MCP messages; server diagnostics use stderr.
 
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `class_list`, `class_show`, `monster_list`, `monster_show`,
-`background_list`, `background_show`,
+`species_list`, `species_show`, `background_list`, `background_show`,
 `book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
@@ -227,6 +230,26 @@ and TSV keep their existing metadata output; unrelated resources are unchanged.
 Production session use remains Windows-only. Browser contracts and synthetic
 process parity do not establish native compatibility, sharing, global coverage,
 or permission to return rules text.
+
+## Species read boundary
+
+`species` owns the fixed public-page URL guard, HTML checks, canonical linked
+IDs, metadata projection, and bounded selected-record output. Both adapters
+call the same core operations. List makes one cookie-backed GET to `/species`
+and parses source-grouped cards. It rejects missing footers, malformed cards,
+duplicate IDs, observed pagination, and over-limit pages. The site search is
+client-side; no server-side query or paging contract is inferred.
+
+Show makes one fresh bearer GET to `/character/v5/game-data/races`. It
+requires a successful character-service envelope with array `data` and null
+`pagination`, then preserves unknown fields in the selected record. The
+collection and canonical result are limited to 1 MiB, collection size to
+1,000 records, and show time to 60 seconds. List time is limited to 30 seconds.
+Production use is Windows-only. Browser evidence supports the public page
+structure, but the detail route still has only first-party client and
+pinned-candidate evidence. Live detail access, completeness, native
+compatibility, and account acceptance remain unverified.
+See the [source contract](api-catalog.md#species-browse-and-detail-contract).
 
 ## Local MCP client registration
 
