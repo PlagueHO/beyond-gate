@@ -97,7 +97,7 @@ async fn invalid_identifiers_do_not_read_the_source() {
     assert!(fixture::requested_routes(&session).is_empty());
 }
 
-/// Separates denied access, rejected sessions, malformed pages, and unsupported paging.
+/// Separates source and collection failures for both list and bearer-backed show.
 #[tokio::test]
 async fn source_failures_keep_their_classification() {
     let session = fixture::session(Scenario::Denied).expect("synthetic session");
@@ -108,6 +108,11 @@ async fn source_failures_keep_their_classification() {
             .to_string()
             .contains("access_denied")
     );
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::SessionRead(error))
+            if error.kind() == SessionErrorKind::AccessDenied
+    ));
 
     let session = fixture::session(Scenario::Rejected).expect("synthetic session");
     assert!(
@@ -117,6 +122,11 @@ async fn source_failures_keep_their_classification() {
             .to_string()
             .contains("session_rejected")
     );
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::SessionRead(error))
+            if error.kind() == SessionErrorKind::Rejected
+    ));
 
     let session = fixture::session(Scenario::Expired).expect("synthetic session");
     assert!(
@@ -126,11 +136,20 @@ async fn source_failures_keep_their_classification() {
             .to_string()
             .contains("session_expired")
     );
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::SessionRead(error))
+            if error.kind() == SessionErrorKind::Expired
+    ));
 
     let session = fixture::session(Scenario::Malformed).expect("synthetic session");
     assert!(matches!(
         list(&session).await,
         Err(SpeciesError::IncompleteResult)
+    ));
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::InvalidResponse)
     ));
 
     let session = fixture::session(Scenario::Incomplete).expect("synthetic session");
@@ -138,11 +157,25 @@ async fn source_failures_keep_their_classification() {
         list(&session).await,
         Err(SpeciesError::UnsupportedOperation)
     ));
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::IncompleteResult)
+    ));
 
     let session = fixture::session(Scenario::Oversized).expect("synthetic session");
     assert!(matches!(
         list(&session).await,
         Err(SpeciesError::SessionRead(error)) if error.kind() == SessionErrorKind::ReadFailed
+    ));
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::SessionRead(error)) if error.kind() == SessionErrorKind::ReadFailed
+    ));
+
+    let session = fixture::session(Scenario::TooManyRecords).expect("synthetic session");
+    assert!(matches!(
+        show(&session, "17").await,
+        Err(SpeciesError::LimitExceeded)
     ));
 }
 
