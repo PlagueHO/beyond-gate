@@ -56,6 +56,39 @@ impl Fixtures {
 }
 
 impl ReadOperations for Fixtures {
+    /// Supplies synthetic website metadata for two species.
+    async fn list_species(
+        &self,
+        _session: &Session,
+    ) -> Result<Value, beyond_gate_core::species::SpeciesError> {
+        if self.scenario == "empty" {
+            return Err(beyond_gate_core::species::SpeciesError::IncompleteResult);
+        }
+        Ok(json!([
+            {"id":"17","name":"Invented Origin","source":"Invented Source",
+                "source_url":"https://www.dndbeyond.com/species/17-invented","is_legacy":false},
+            {"id":"18","name":"Invented Coastal Origin","source":"Invented Source",
+                "source_url":"https://www.dndbeyond.com/species/18-invented","is_legacy":true}
+        ]))
+    }
+
+    /// Supplies one selected invented record with an unknown nested field.
+    async fn show_species(
+        &self,
+        _session: &Session,
+        id: &str,
+    ) -> Result<Value, beyond_gate_core::species::SpeciesError> {
+        if id != "18" || self.scenario == "empty" {
+            return Err(beyond_gate_core::species::SpeciesError::MissingRecord);
+        }
+        Ok(json!({
+            "id":"18","name":"Invented Coastal Origin","is_homebrew":false,
+            "is_legacy":true,"is_subrace":true,"base_race_name":"Invented Origin",
+            "raw":{"entityRaceId":18,"fullName":"Invented Coastal Origin",
+                "isLegacy":true,"isSubRace":true,"future_definition":{"nested":[true,null,3]}}
+        }))
+    }
+
     /// Uses the shared background listing with the supplied synthetic owner.
     async fn list_backgrounds(
         &self,
@@ -450,6 +483,37 @@ fn list_contracts() {
     }
 }
 
+/// Checks species table/JSON output, selected raw preservation, and missing IDs.
+fn species_contracts() {
+    let rows = read_json(&run("normal", &["species", "list", "--output", "json"]));
+    assert_eq!(rows.as_array().expect("species rows").len(), 2);
+    assert_eq!(rows[1]["is_legacy"], true);
+    assert_eq!(rows[1]["source"], "Invented Source");
+    let shown = read_json(&run("normal", &["species", "show", "18"]));
+    assert_eq!(shown["id"], "18");
+    assert_eq!(
+        shown["raw"]["future_definition"]["nested"],
+        json!([true, null, 3])
+    );
+    let tsv = run("normal", &["species", "list", "--format", "tsv"]);
+    assert!(tsv.status.success());
+    let tsv_output = String::from_utf8_lossy(&tsv.stdout);
+    assert!(
+        tsv_output.starts_with("id\tname\tsource\tsource_url\tis_legacy\n"),
+        "{tsv_output}"
+    );
+    failure(
+        run("normal", &["species", "show", "17"]),
+        1,
+        "species record not found",
+    );
+    failure(
+        run("empty", &["species", "list", "-o", "json"]),
+        1,
+        "species result is incomplete",
+    );
+}
+
 /// Reconstructs section text across separate processes with explicit tokens only.
 fn section_contracts() {
     for scenario in ["normal", "unicode", "exact", "empty"] {
@@ -758,6 +822,7 @@ fn main() {
         ));
     }
     list_contracts();
+    species_contracts();
     section_contracts();
     output_failures();
 }

@@ -30,6 +30,7 @@ use beyond_gate_core::{
     class_catalog::{self, ClassCatalogError, ClassKind},
     library::{self, LibraryError, LibrarySnapshot},
     monster::{self, MonsterError},
+    species::{self, SpeciesError},
 };
 use clap::ArgMatches;
 use clap_complete::Shell;
@@ -47,6 +48,25 @@ const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Lists species metadata from the fixed bounded public website page.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared malformed, incomplete, duplicate, access, session, or limit failures.
+    fn list_species(
+        &self,
+        session: &Session,
+    ) -> impl std::future::Future<Output = Result<Value, SpeciesError>>;
+    /// Shows one selected species with unchanged raw source fields.
+    ///
+    /// # Errors
+    ///
+    /// Returns shared invalid-input, missing, access, session, or source failures.
+    fn show_species(
+        &self,
+        session: &Session,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Value, SpeciesError>>;
     /// Reads background metadata with the shared verified website filters.
     ///
     /// # Errors
@@ -232,6 +252,16 @@ fn execute_mcp(
 pub struct LiveReads;
 
 impl ReadOperations for LiveReads {
+    /// Delegates bounded website parsing and metadata projection to the core.
+    async fn list_species(&self, session: &Session) -> Result<Value, SpeciesError> {
+        species::list(session).await
+    }
+
+    /// Delegates selected-record validation and raw preservation to the core.
+    async fn show_species(&self, session: &Session, id: &str) -> Result<Value, SpeciesError> {
+        species::show(session, id).await
+    }
+
     /// Delegates website filtering and metadata validation to the core.
     async fn list_backgrounds(
         &self,
@@ -548,6 +578,7 @@ fn execute(
         .subcommand()
         .ok_or(Failure::Usage("Select a resource operation."))?;
     match resource {
+        "species" => execute_species(action, arguments, reads, session),
         "class" => execute_class(action, arguments, reads, session, ClassKind::Class),
         "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
         "monster" => execute_monster(action, arguments, reads, session),
@@ -556,6 +587,58 @@ fn execute(
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
+    }
+}
+
+/// Presents shared species results without copying source or access policy.
+fn execute_species(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    let id = (action == "show")
+        .then(|| selection(arguments, "id"))
+        .transpose()?;
+    if let Some(id) = id {
+        species::validate_id(id).map_err(Failure::Species)?;
+    } else if action != "list" {
+        return Err(Failure::Usage("Select species list or show."));
+    }
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => {
+                signal.map_err(Failure::Signal)?;
+                Err(Failure::Cancelled)
+            }
+            result = async {
+                if let Some(id) = id {
+                    reads.show_species(session, id).await
+                } else {
+                    reads.list_species(session).await
+                }
+            } => result.map_err(Failure::Species),
+        }
+    })?;
+    if id.is_some() {
+        let fields = [
+            "id",
+            "name",
+            "is_homebrew",
+            "is_legacy",
+            "is_subrace",
+            "base_race_name",
+            "raw",
+        ];
+        render_record(&options, &fields, value)
+    } else {
+        let fields = ["id", "name", "source", "source_url", "is_legacy"];
+        let rows = value
+            .as_array()
+            .ok_or(Failure::Species(SpeciesError::InvalidResponse))?;
+        output::list(&options, &fields, rows, None)
     }
 }
 

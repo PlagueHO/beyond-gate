@@ -51,6 +51,12 @@ pub fn command() -> Command {
                     .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_background_id)))),
         )
         .subcommand(
+            resource("species", "Browse bounded species and legacy-race metadata")
+                .subcommand(list_options(Command::new("list").about("List species metadata from the fixed public website page")))
+                .subcommand(show_options(Command::new("show").about("Show one selected species with unchanged raw data"))
+                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_species_id)))),
+        )
+        .subcommand(
             resource("book", "Bounded Windows library, outline, and selected-section reads")
                 .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
                 .subcommand(list_options(Command::new("outline").about("List at most 1,000 entries after fresh library and canonical source-page checks").arg(identifier("book-id"))))
@@ -122,6 +128,13 @@ fn background_list() -> Command {
 /// Checks a canonical background ID before credential or source access.
 fn valid_background_id(value: &str) -> Result<String, &'static str> {
     beyond_gate_core::background::validate_id(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
+}
+
+/// Checks a canonical species ID before credential or source access.
+fn valid_species_id(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::species::validate_id(value)
         .map(|()| value.to_owned())
         .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
 }

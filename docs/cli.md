@@ -67,6 +67,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`campaign show`](#campaign-show) | Select one campaign and active roster | Windows; selected roster only |
 | [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows; metadata only |
 | [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows; scoped or bounded global metadata |
+| [`species list/show`](#species-metadata-and-selected-detail) | Browse website metadata and selected raw detail | Windows; detail route is a candidate; live access unverified |
 | [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
 | [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
@@ -291,6 +292,35 @@ expiry/rejection, invalid metadata, incomplete discovery, ambiguity, and exceede
 bounds fail without partial results. Linux/macOS production session use remains
 unsupported. Native compatibility, live global traversal, and real sharing are
 unverified. More live account tests require separate approval.
+
+## Species metadata and selected detail
+
+```text
+beyond-gate species list
+beyond-gate species list --output json
+beyond-gate species show 17
+```
+
+List returns an array with `id`, `name`, `source`, `source_url`, and
+`is_legacy`. It parses the fixed public page. The site search is client-side,
+so no search filter or paging input is inferred. Show defaults to JSON and
+adds `raw`, which preserves the selected source record and unknown fields.
+IDs are positive canonical decimal integers that fit `u64`. List defaults to
+a table. Both commands support `--output` / `-o`, the `--format` alias, and
+`table`, `json`, or `tsv`.
+
+Show reads the fixed `/character/v5/game-data/races` collection once and
+selects an ID from that fresh response. It does not request the displayed
+website link. The response must have a successful character-service envelope,
+an array `data`, and null `pagination`. Missing or malformed page structure,
+duplicate IDs, denied reads, unsupported paging, and over-limit results fail
+without partial output. The list has a 1,000-entry, 1 MiB, and 30-second limit.
+Show has a 1,000-record, 1 MiB response/result, and 60-second limit.
+
+Browser evidence confirms the public page structure, not detail access. The
+candidate detail route still lacks live response and access evidence. See the
+[API survey](api-survey.md#species-and-legacy-race-candidate) and
+[matching MCP tools](mcp.md#species_list-and-species_show).
 
 ## Authentication commands
 

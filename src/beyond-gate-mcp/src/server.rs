@@ -12,7 +12,7 @@ use beyond_gate_core::{
     character_campaign::{self, Campaign, Character},
     class_catalog::{self, ClassKind},
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
-    monster,
+    monster, species,
 };
 use rmcp::{
     RoleServer, ServerHandler, handler::server::wrapper::Parameters, schemars::JsonSchema,
@@ -43,6 +43,15 @@ struct MonsterShowArguments {
 #[serde(deny_unknown_fields)]
 struct BackgroundShowArguments {
     /// Positive canonical decimal source identifier.
+    #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    id: String,
+}
+
+/// Selects one species by canonical positive decimal source ID.
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SpeciesShowArguments {
+    /// Selects one source identity, never a name, URL, or prior access result.
     #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
     id: String,
 }
@@ -159,6 +168,55 @@ pub struct BeyondGateServer {
 
 #[tool_router]
 impl BeyondGateServer {
+    /// Lists bounded species metadata from the fixed public website page.
+    #[tool(
+        name = "species_list",
+        description = "List bounded species metadata from the fixed public species page. Results include source IDs, names, source titles, canonical website links, and legacy labels. The page has no observed server-side search or paging contract. The 1 MiB transport and 1,000-entry limits fail explicitly; no partial results or ownership claims are returned. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn species_list(
+        &self,
+        Parameters(_arguments): Parameters<EmptyArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = species::list(&self.session) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Returns one selected complete source record without inventing a detail route.
+    #[tool(
+        name = "species_show",
+        description = "Select one species by positive canonical decimal ID from a fresh complete authenticated collection. Returns available legacy/subrace metadata and the unchanged raw record, including unknown fields. No direct detail route, ownership grant, or metadata-based access grant is inferred. Missing IDs, denied access, malformed data, unsupported contracts, and over-limit results are tool errors. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn species_show(
+        &self,
+        Parameters(arguments): Parameters<SpeciesShowArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        species::validate_id(&arguments.id).map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = species::show(&self.session, &arguments.id) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
     /// Lists bounded background metadata using the actual public website controls.
     #[tool(
         name = "background_list",

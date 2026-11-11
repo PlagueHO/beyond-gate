@@ -10,6 +10,7 @@
 //! protected Windows session. Synthetic tests validate adapter behavior, not
 //! live source compatibility. No operation caches book content.
 //! Class/subclass reads expose only checked catalog metadata, never raw rules definitions.
+//! Species reads return bounded identity and legacy/subrace metadata, with unchanged selected records.
 //! Monster reads expose one explicit page or unchanged selected detail with access code 1;
 //! denied code 4 and unverified access cases never produce content.
 //! Background reads expose website metadata or one raw definition selected from a fresh,
@@ -24,6 +25,7 @@ pub mod http;
 pub mod library;
 pub mod monster;
 mod public_config;
+pub mod species;
 
 /// Describes the current boundary of the runnable foundation.
 ///

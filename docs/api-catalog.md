@@ -9,8 +9,10 @@ It catalogs all calls identified in the [API survey](api-survey.md), including c
 and known failures. It is not a complete list of D&D Beyond's internal APIs.
 **Cataloged does not mean implemented, supported upstream, or approved for a live test.**
 Windows Web-library and bounded book reads are implemented. Character and campaign
-live reads remain unsupported. Native book adapter acceptance passed for one
-selected chapter; live continuation and sharing remain unchecked.
+live reads remain unsupported. Species listing metadata comes from the public
+website page; selected detail uses a candidate route with live access and
+completeness still unverified. Native book adapter acceptance passed for one selected
+chapter; live continuation and sharing remain unchecked.
 
 ## How to use and maintain this catalog
 
@@ -131,7 +133,7 @@ These are not approved bulk-content extraction contracts.
 | RULE-01 | CHAR | `/game-data/classes` | Implemented metadata-only GET with `sharingSetting=2`; Browser evidence; no rules-text grant |
 | RULE-02 | CHAR | `/game-data/subclasses` | Implemented metadata-only GET with `sharingSetting=2&baseClassId={id}`; parent-scoped; Browser evidence |
 | RULE-03 | CHAR | `/game-data/backgrounds` | Fresh bearer GET with `sharingSetting=2`; show selects a checked raw definition; observed 85-record response exceeds unchanged 1 MiB production cap; [contract](#background-read-contract) |
-| RULE-04 | CHAR | `/game-data/races` | Species and legacy races; preserve upstream naming |
+| RULE-04 | CHAR | `/game-data/races` | Candidate collection for selected species detail; see [species contract](#species-browse-and-detail-contract) |
 | RULE-05 | CHAR | `/game-data/feats` | Feats; selection, prerequisites, and access |
 | RULE-06 | CHAR | `/game-data/spells` | Character-eligible spells; standalone coverage not proven |
 | RULE-07 | CHAR | `/game-data/always-known-spells` | Class spell support; class, level, and completeness |
@@ -233,6 +235,36 @@ Website links/options and source IDs are not access grants. One checked website
 detail page does not establish general collection access or full website text.
 Native compatibility, native account acceptance, website/API identity coverage,
 and real sharing remain unverified.
+
+### Species browse and detail contract
+
+Issue [#67](https://github.com/PlagueHO/beyond-gate/issues/67) adds
+`species list/show`. List reads the fixed public `/species` page with the
+stored cookie and parses card IDs, names, source titles, canonical links, and
+legacy labels. It does not submit the page's client-side search input or infer
+pagination. Empty or malformed page structure, duplicate IDs, observed paging,
+and limits fail without partial output. List is limited to 1,000 entries,
+1 MiB, and 30 seconds.
+
+Show makes one fresh bearer request to the candidate character-service route
+`GET /character/v5/game-data/races`. The first-party character application
+contains the route family. A pinned third-party implementation uses the same
+route without a query and reads race IDs and variant metadata. Its generic
+client unwraps a character-service `data` envelope. Show requires the `id`,
+`success`, `message`, array `data`, and null `pagination` fields. If present,
+`totalCount` must match the array length. It returns the unchanged selected
+record, including unknown fields, and does not request the displayed website
+link. Denial, malformed or incomplete collections, unsupported access maps,
+missing IDs, and limits fail without partial output.
+
+The detail collection and canonical result are each limited to 1 MiB, the
+collection to 1,000 records, and show to 60 seconds. Browser evidence confirms
+the public page structure only. The detail route and basic field names have
+client/candidate evidence; live response shape, completeness, access
+semantics, native compatibility, and account acceptance remain unverified.
+See the [API survey](api-survey.md#species-and-legacy-race-candidate),
+[CLI contract](cli.md#species-metadata-and-selected-detail), and
+[MCP contract](mcp.md#species_list-and-species_show).
 
 ## Definition collections and vehicles
 
@@ -515,7 +547,7 @@ checked filter submissions and server HTML, but not pagination.
 |----|------|-------------------|
 | PAGE-01 | `/classes` | Public class listing; no JSON contract |
 | PAGE-02 | `/backgrounds` | Public background filters; paging not observed |
-| PAGE-03 | `/species` | Public species listing; upstream API uses `races` |
+| PAGE-03 | `/species` | Public species listing; bounded HTML metadata; no server-side search or paging contract observed |
 | PAGE-04 | `/feats` | Public feat filters; paging not observed |
 | PAGE-05 | `/spells` | Public spell filters and `page` links |
 | PAGE-06 | `/monsters` | Implemented filtered candidate pages and explicit next-page checks; browser HTML evidence does not establish native account acceptance |

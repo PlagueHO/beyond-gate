@@ -7,6 +7,16 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows species and legacy-race metadata browsing and selected raw
+  detail through shared core operations, CLI `species list/show`, and MCP
+  `species_list`/`species_show`. List parses bounded identity and source
+  metadata from the public species page; it does not infer a server-side
+  search or paging contract. Show selects from one fresh candidate
+  `game-data/races` collection and preserves unknown fields. Invalid, denied,
+  incomplete, duplicate, unsupported, missing, and over-limit results fail
+  without partial output. Synthetic tests cover core and adapter parity. The
+  detail route has first-party client and pinned candidate evidence, but live
+  access, completeness, and native compatibility remain unverified.
 - Bounded Windows background metadata and selected source definitions through
   shared core reads, CLI `background list/show`, and MCP
   `background_list`/`background_show`. Lists use observed website filters,
