@@ -154,6 +154,62 @@ async fn monster_cookie_profile_preserves_source_guards_and_session_identity() {
     assert_eq!(monsters::routes(&session).len(), 1);
 }
 
+/// Keeps spell cookie reads bound to one identity without widening book routes.
+#[tokio::test]
+async fn spell_cookie_profile_preserves_guards_and_session_identity() {
+    use crate::spell::{SpellQuery, fixture as spells};
+    let session = spells::session(spells::Scenario::Normal).expect("fixture");
+    let source = session.spell_fixture.as_ref().expect("source");
+    let scoped = session.read_scope();
+    scoped.account_id().await.expect("bound identity");
+    let url = SpellQuery::default()
+        .website_url(&source.origin)
+        .expect("URL");
+    for path in ["/sources/example", "/spells/17", "/spells?page=1&unknown=1"] {
+        assert_eq!(
+            scoped
+                .get_spell_html(&source.client, &format!("{}{path}", source.origin))
+                .await
+                .expect_err("spell guard")
+                .kind(),
+            SessionErrorKind::UnsupportedContract
+        );
+    }
+    assert_eq!(
+        scoped
+            .get_book_html(&source.client, url.as_str())
+            .await
+            .expect_err("book guard unchanged")
+            .kind(),
+        SessionErrorKind::UnsupportedContract
+    );
+    assert!(spells::requested_routes(&session).is_empty());
+    scoped
+        .get_spell_html(&source.client, url.as_str())
+        .await
+        .expect("cookie page");
+    store(&session)
+        .save(
+            &BrowserSessionCookie::new(b"invented-changed-spell-owner".to_vec())
+                .expect("cookie")
+                .encode(),
+        )
+        .expect("synthetic change");
+    assert_eq!(
+        scoped
+            .get_spell_html(
+                &source.client,
+                &format!("{}/spells/900001-invented-spell", source.origin)
+            )
+            .await
+            .expect_err("changed identity")
+            .kind(),
+        SessionErrorKind::Changed
+    );
+    assert_eq!(spells::requested_routes(&session).len(), 1);
+    assert_eq!(request_count(&session), 1);
+}
+
 /// Changes only this fixture's response for subsequent actual requests.
 fn reply(session: &Session, status: u16, body: Vec<u8>) {
     *session

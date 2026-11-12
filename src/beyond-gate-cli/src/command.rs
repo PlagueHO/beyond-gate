@@ -45,6 +45,12 @@ pub fn command() -> Command {
                     .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_monster_id)))),
         )
         .subcommand(
+            resource("spell", "Browse explicit website spell pages and selected HTML detail")
+                .subcommand(spell_list())
+                .subcommand(show_options(Command::new("show").about("Read selected untrusted HTML; never render or execute raw_html"))
+                    .arg(Arg::new("slug").required(true).value_parser(ValueParser::new(valid_spell_slug)))),
+        )
+        .subcommand(
             resource("background", "Browse website-filtered background metadata and selected source definitions")
                 .subcommand(background_list())
                 .subcommand(show_options(Command::new("show").about("Select a raw background from a fresh complete collection; fails above 1 MiB"))
@@ -287,6 +293,63 @@ fn browser_setup(name: &'static str, about: &'static str) -> Command {
                 .action(ArgAction::SetTrue)
                 .help("Check conflicts and show setup without prompting or writing"),
         )
+}
+
+/// Builds the shared spell filter surface without character-context API selectors.
+fn spell_list() -> Command {
+    let mut command = list_options(
+        Command::new("list").about("Read one complete website page; never follows next_page"),
+    )
+    .arg(
+        Arg::new("name")
+            .long("name")
+            .short('n')
+            .value_parser(ValueParser::new(valid_monster_name)),
+    )
+    .arg(
+        Arg::new("page")
+            .long("page")
+            .default_value("1")
+            .value_parser(value_parser!(u32).range(1..)),
+    )
+    .arg(
+        Arg::new("partnered-content")
+            .long("partnered-content")
+            .default_value("no")
+            .value_parser(["no", "any", "yes"]),
+    );
+    for (field, flag, _) in beyond_gate_core::spell::query::ID_FILTERS {
+        let parser = if field == "levels" {
+            value_parser!(u32).range(0..=9)
+        } else if field == "school_ids" {
+            value_parser!(u32).range(3..=10)
+        } else {
+            value_parser!(u32).range(1..)
+        };
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_parser(parser)
+                .action(ArgAction::Append)
+                .help("Website option ID; repeat for distinct values; level 0 means cantrips"),
+        );
+    }
+    for (_, flag, _) in beyond_gate_core::spell::query::BOOL_FILTERS {
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_parser(value_parser!(bool))
+                .help("Optional true/false website restriction"),
+        );
+    }
+    command
+}
+
+/// Checks a complete website identity before any session access.
+fn valid_spell_slug(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::spell::validate_slug(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "slug must be a complete canonical numeric-ID/slug key within 256 ASCII bytes")
 }
 
 /// Requires an explicit action and makes nested help deterministic.

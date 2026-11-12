@@ -31,6 +31,7 @@ use beyond_gate_core::{
     library::{self, LibraryError, LibrarySnapshot},
     monster::{self, MonsterError},
     species::{self, SpeciesError},
+    spell::{self, SpellError, SpellQuery},
 };
 use clap::ArgMatches;
 use clap_complete::Shell;
@@ -48,6 +49,32 @@ const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Reads one explicit spell page through the shared core.
+    ///
+    /// # Errors
+    ///
+    /// Preserves typed input, access, session, response, and limit failures.
+    fn list_spells<'a>(
+        &self,
+        session: &'a Session,
+        query: &'a SpellQuery,
+    ) -> impl std::future::Future<Output = Result<Value, SpellError>> {
+        spell::list(session, query)
+    }
+
+    /// Reads one selected spell subtree as untrusted HTML through the shared core.
+    ///
+    /// # Errors
+    ///
+    /// Preserves typed missing, unsupported, denied, session, and limit failures.
+    fn show_spell<'a>(
+        &self,
+        session: &'a Session,
+        slug: &'a str,
+    ) -> impl std::future::Future<Output = Result<Value, SpellError>> {
+        spell::show(session, slug)
+    }
+
     /// Lists species metadata from the fixed bounded public website page.
     ///
     /// # Errors
@@ -579,6 +606,7 @@ fn execute(
         .ok_or(Failure::Usage("Select a resource operation."))?;
     match resource {
         "species" => execute_species(action, arguments, reads, session),
+        "spell" => execute_spell(action, arguments, reads, session),
         "class" => execute_class(action, arguments, reads, session, ClassKind::Class),
         "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
         "monster" => execute_monster(action, arguments, reads, session),
@@ -587,6 +615,87 @@ fn execute(
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
+    }
+}
+
+/// Presents spell metadata and untrusted detail without copying access policy.
+fn execute_spell(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    let slug = if action == "show" {
+        Some(selection(arguments, "slug")?)
+    } else {
+        None
+    };
+    let mut query = SpellQuery::default();
+    if let Some(slug) = slug {
+        spell::validate_slug(slug).map_err(Failure::Spell)?;
+    } else if action == "list" {
+        let mut fields = serde_json::Map::new();
+        fields.insert("page".to_owned(), json!(arguments.get_one::<u32>("page")));
+        for (field, flag) in [("name", "name"), ("partnered_content", "partnered-content")] {
+            if let Some(value) = arguments.get_one::<String>(flag) {
+                fields.insert(field.to_owned(), json!(value));
+            }
+        }
+        for (field, flag, _) in spell::query::ID_FILTERS {
+            if let Some(ids) = arguments.get_many::<u32>(flag) {
+                fields.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
+            }
+        }
+        for (field, flag, _) in spell::query::BOOL_FILTERS {
+            if let Some(value) = arguments.get_one::<bool>(flag) {
+                fields.insert(field.to_owned(), json!(value));
+            }
+        }
+        query = serde_json::from_value(fields.into())
+            .map_err(|_| Failure::Usage("Invalid spell filters."))?;
+        query.validate().map_err(Failure::Spell)?;
+    } else {
+        return Err(Failure::Usage("Select spell list or show."));
+    }
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => { signal.map_err(Failure::Signal)?; Err(Failure::Cancelled) }
+            result = async { if let Some(slug) = slug { reads.show_spell(session,slug).await }
+                else { reads.list_spells(session,&query).await } } => result.map_err(Failure::Spell),
+        }
+    })?;
+    if slug.is_some() {
+        render_record(
+            &options,
+            &["id", "slug", "name", "source_url", "raw_html"],
+            value,
+        )
+    } else {
+        let mut rows = value["entries"]
+            .as_array()
+            .cloned()
+            .ok_or(Failure::Spell(SpellError::InvalidResponse))?;
+        for row in &mut rows {
+            row["page"] = value["pagination"]["page"].clone();
+            row["next_page"] = value["pagination"]["next_page"].clone();
+        }
+        output::list(
+            &options,
+            &[
+                "id",
+                "slug",
+                "name",
+                "level",
+                "school",
+                "source_url",
+                "page",
+                "next_page",
+            ],
+            &rows,
+            Some(&value),
+        )
     }
 }
 

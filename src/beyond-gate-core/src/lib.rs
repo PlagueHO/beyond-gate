@@ -26,6 +26,7 @@ pub mod library;
 pub mod monster;
 mod public_config;
 pub mod species;
+pub mod spell;
 
 /// Describes the current boundary of the runnable foundation.
 ///

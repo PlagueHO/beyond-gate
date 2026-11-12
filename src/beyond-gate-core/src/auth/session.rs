@@ -319,6 +319,9 @@ pub struct Session {
     /// Keeps only this owner's compiled synthetic species service alive.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) species_fixture: Option<Arc<crate::species::fixture::Source>>,
+    /// Keeps only this owner's compiled synthetic spell service alive.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) spell_fixture: Option<Arc<crate::spell::fixture::Source>>,
 }
 
 impl Default for Session {
@@ -344,6 +347,8 @@ impl Default for Session {
             background_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             species_fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            spell_fixture: None,
         }
     }
 }
@@ -386,6 +391,8 @@ impl Session {
             background_fixture: self.background_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             species_fixture: self.species_fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            spell_fixture: self.spell_fixture.clone(),
         }
     }
 
@@ -557,6 +564,31 @@ impl Session {
             || !target.username().is_empty()
             || target.password().is_some()
             || !crate::species::website::allowed_list_url(&target)
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        self.get_cookie_html(client, url).await
+    }
+
+    /// Reads only the spell listing controls or one canonical selected detail.
+    pub(crate) async fn get_spell_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        if !website
+            || !target.username().is_empty()
+            || target.password().is_some()
+            || !crate::spell::query::allowed_url(&target)
             || self.binding.is_none()
         {
             return Err(SessionError::new(SessionErrorKind::UnsupportedContract));

@@ -18,6 +18,33 @@ The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
 this blocked-first stage. It does not authorize live tests. A supplied cookie
 does not change this suite's zero live-request budget.
 
+## Spell synthetic checks
+
+The [spell core tests](../src/beyond-gate-core/src/spell/tests.rs) use invented
+HTML and owner-scoped loopback services. They check explicit pages, repeated
+classes and levels, cantrips, terminal and empty results, strict inputs,
+form echoes, identity conflicts, pagination, missing detail, denial,
+rejection/expiry, unsupported access structure, response/result limits,
+deadlines, selected unknown HTML, and request budgets.
+They do not read native credentials or a live account.
+
+The [session process tests](../src/beyond-gate-mcp/tests/session_process.rs)
+run the real CLI runner and rmcp stdio server with those synthetic sources.
+They compare list/detail JSON, check safe error parity and empty failure stdout,
+reject invalid/null/unknown input before session access, and check cancellation.
+Inventories and package invalid-input checks include both spell tools.
+The ordinary product binary has no spell fixture selector or endpoint override.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked spell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+Browser evidence is [separate](api-survey.md#spell-browser-evidence).
+Native spell acceptance, denied HTML, ownership/sharing behavior, and unchecked
+filter combinations remain unverified. No live acceptance is authorized by
+these offline checks.
+
 ## Results and coverage
 
 For archive-based checks and separate approval gates, use the

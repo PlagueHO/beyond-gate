@@ -2,6 +2,20 @@
 
 use std::process::Command;
 
+/// Refuses resource fixture and endpoint switches in the shipped parser.
+#[test]
+fn spells_have_no_product_fixture_or_endpoint_override() {
+    for flag in ["--fixture", "--spell-fixture", "--endpoint"] {
+        let output = Command::new(env!("CARGO_BIN_EXE_beyond-gate"))
+            .args(["spell", "list", flag, "synthetic-only"])
+            .output()
+            .expect("run binary");
+        assert_eq!(output.status.code(), Some(2));
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+}
+
 /// Checks the build handshake without reading or writing a credential.
 #[test]
 fn context_handshake_is_not_a_product_import_interface() {

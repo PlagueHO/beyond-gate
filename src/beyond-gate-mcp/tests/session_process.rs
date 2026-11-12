@@ -40,6 +40,32 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    if let Some(name) = name.strip_prefix("spell-") {
+        use beyond_gate_core::spell::fixture::{self, Scenario};
+        let scenario = match name {
+            "normal" => Scenario::Normal,
+            "next" => Scenario::Next,
+            "empty" => Scenario::Empty,
+            "denied" => Scenario::Denied,
+            "rejected" => Scenario::Rejected,
+            "expired" => Scenario::Expired,
+            "missing" => Scenario::Missing,
+            "malformed" => Scenario::Malformed,
+            "incomplete" => Scenario::Incomplete,
+            "duplicate" => Scenario::Duplicate,
+            "limit" => Scenario::TooManyRecords,
+            "oversized" => Scenario::Oversized,
+            "unsupported" => Scenario::Unsupported,
+            "wrong-identity" => Scenario::WrongIdentity,
+            "wrong-canonical" => Scenario::WrongCanonical,
+            "missing-markers" => Scenario::MissingMarkers,
+            "unsafe-detail" => Scenario::UnsafeDetail,
+            "waiting" => Scenario::Waiting,
+            "redirect" => Scenario::Redirect,
+            _ => panic!("unknown synthetic spell scenario"),
+        };
+        return fixture::session(scenario).expect("invented spell service");
+    }
     let species_source = match name {
         "species-normal" => Some(species_fixture::Scenario::Normal),
         "species-empty" => Some(species_fixture::Scenario::Empty),
@@ -1975,10 +2001,207 @@ fn background_table_limit_contracts() {
     assert!(text.contains("\\\\t"));
 }
 
+/// Checks spell CLI/MCP parity, strict inputs, no partial output, and cancellation.
+fn spell_contracts() {
+    for (scenario, command, tool, arguments) in [
+        (
+            "spell-normal",
+            vec!["spell", "list", "-o", "json"],
+            "spell_list",
+            json!({}),
+        ),
+        (
+            "spell-empty",
+            vec!["spell", "list", "-o", "json"],
+            "spell_list",
+            json!({}),
+        ),
+        (
+            "spell-next",
+            vec![
+                "spell",
+                "list",
+                "--class-id",
+                "17",
+                "--class-id",
+                "18",
+                "--level",
+                "0",
+                "--level",
+                "9",
+                "--verbal",
+                "false",
+                "--concentration",
+                "true",
+                "--ritual",
+                "false",
+                "-o",
+                "json",
+            ],
+            "spell_list",
+            json!({"class_ids":[17,18],"levels":[0,9],"verbal":false,"concentration":true,"ritual":false}),
+        ),
+        (
+            "spell-normal",
+            vec!["spell", "list", "--page", "2", "--level", "9", "-o", "json"],
+            "spell_list",
+            json!({"page":2,"levels":[9]}),
+        ),
+        (
+            "spell-normal",
+            vec![
+                "spell",
+                "list",
+                "--school-id",
+                "9",
+                "--school-id",
+                "10",
+                "-o",
+                "json",
+            ],
+            "spell_list",
+            json!({"school_ids":[9,10]}),
+        ),
+        (
+            "spell-normal",
+            vec!["spell", "show", "900001-invented-spell"],
+            "spell_show",
+            json!({"slug":"900001-invented-spell"}),
+        ),
+    ] {
+        let cli = cli(scenario, &command);
+        assert!(
+            cli.status.success(),
+            "{}",
+            String::from_utf8_lossy(&cli.stderr)
+        );
+        assert!(cli.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&cli.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_ne!(result["isError"], true, "{result}");
+        let mcp_value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
+                .expect("MCP JSON");
+        assert_eq!(cli_value, mcp_value);
+    }
+    for (scenario, action) in [
+        ("denied", "list"),
+        ("rejected", "list"),
+        ("expired", "list"),
+        ("malformed", "list"),
+        ("incomplete", "list"),
+        ("duplicate", "list"),
+        ("limit", "list"),
+        ("oversized", "list"),
+        ("redirect", "list"),
+        ("missing", "show"),
+        ("unsupported", "show"),
+        ("wrong-identity", "show"),
+        ("wrong-canonical", "show"),
+        ("missing-markers", "show"),
+        ("unsafe-detail", "show"),
+    ] {
+        let scenario = format!("spell-{scenario}");
+        let command = if action == "list" {
+            vec!["spell", "list", "-o", "json"]
+        } else {
+            vec!["spell", "show", "900001-invented-spell"]
+        };
+        let cli = cli(&scenario, &command);
+        assert_eq!(cli.status.code(), Some(1), "{scenario}");
+        assert!(cli.stdout.is_empty(), "{scenario}");
+        let (output, messages) = mcp_tool(
+            &scenario,
+            if action == "list" {
+                "spell_list"
+            } else {
+                "spell_show"
+            },
+            if action == "list" {
+                json!({})
+            } else {
+                json!({"slug":"900001-invented-spell"})
+            },
+            false,
+        );
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|m| m["id"] == 3)
+            .expect("error response")["result"];
+        assert_eq!(result["isError"], true);
+        assert_eq!(
+            String::from_utf8_lossy(&cli.stderr).trim(),
+            format!(
+                "error: {}",
+                result["content"][0]["text"].as_str().expect("error")
+            )
+        );
+    }
+    for (tool, arguments) in [
+        ("spell_list", json!({"unknown":1})),
+        ("spell_list", json!({"name":null})),
+        ("spell_list", json!({"verbal":null})),
+        ("spell_list", json!({"class_ids":[17,17]})),
+        ("spell_list", json!({"levels":[10]})),
+        ("spell_list", json!({"levels":[0,0]})),
+        ("spell_list", json!({"school_ids":[2]})),
+        ("spell_list", json!({"school_ids":[11]})),
+        ("spell_list", json!({"page":0})),
+        ("spell_show", json!({"slug":"17"})),
+        ("spell_show", json!({"slug":"01-invented"})),
+        ("spell_show", json!({"slug":"17-a%2fb"})),
+        (
+            "spell_show",
+            json!({"slug":"https://www.dndbeyond.com/spells/17-a"}),
+        ),
+        ("spell_show", json!({"slug":"17-a","unknown":1})),
+    ] {
+        let (output, messages) = mcp_tool("absent", tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages
+            .iter()
+            .find(|m| m["id"] == 3)
+            .expect("strict response")["result"];
+        assert_eq!(result["isError"], true);
+        assert!(!result.to_string().contains("session_absent"));
+    }
+    for format in ["table", "tsv"] {
+        let output = cli("spell-normal", &["spell", "list", "-o", format]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("next_page"));
+        let output = cli(
+            "spell-normal",
+            &["spell", "list", "-o", format, "--no-headers"],
+        );
+        assert!(output.status.success());
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("next_page"));
+    }
+    for (tool, args) in [
+        ("spell_list", json!({})),
+        ("spell_show", json!({"slug":"900001-invented-spell"})),
+    ] {
+        let (output, messages) = mcp_tool("spell-waiting", tool, args, true);
+        assert!(output.status.success());
+        assert!(messages.iter().any(|m| m["id"] == 4));
+        assert!(
+            !messages
+                .iter()
+                .any(|m| m["id"] == 3 && m["result"]["isError"] == false)
+        );
+    }
+}
+
 /// Selects a synthetic child before running parent checks; no native entry is accessed.
 fn main() {
     let mut arguments = std::env::args().skip(1);
     match arguments.next().as_deref() {
+        Some("--spell-contracts") => spell_contracts(),
         Some("--cli-child") => {
             let session = session(&arguments.next().expect("scenario"));
             let args = std::iter::once("beyond-gate".to_owned()).chain(arguments);
@@ -2017,6 +2240,7 @@ fn main() {
             monster_contracts();
             background_contracts();
             background_table_limit_contracts();
+            spell_contracts();
         }
     }
 }

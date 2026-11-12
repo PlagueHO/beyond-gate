@@ -43,7 +43,8 @@ The generated `help` command also supports nested paths, such as
 
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
-`character`, `campaign`, `class`, `subclass`, `monster`, `background`, `book`, or `mcp`.
+`character`, `campaign`, `class`, `subclass`, `species`, `spell`, `monster`,
+`background`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -70,6 +71,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`species list/show`](#species-metadata-and-selected-detail) | Browse website metadata and selected raw detail | Windows; detail route is a candidate; live access unverified |
 | [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
 | [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
+| [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows; browser structure checked; native acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
@@ -926,6 +928,79 @@ Offline operation errors preserve distinctions such as denied access, unknown
 access, rejected sessions, malformed sources, and invalid continuation.
 A rejected session does not prove expiry. Browser login remains unavailable;
 never supply a password, cookie, or token as a workaround.
+
+## Spell pages and selected HTML
+
+```shell
+beyond-gate spell list --output json
+beyond-gate spell list --class-id 17 --class-id 18 --level 0 --level 9 --page 2 -o json
+beyond-gate spell show 900001-invented-spell
+```
+
+These IDs and names are synthetic. Show requires the complete numeric-ID/slug
+key from a website link. Bare IDs, names, URLs, escapes, and padded text fail
+before session access. The key permits at most 256 ASCII bytes.
+
+| CLI flag | MCP field | Website control |
+|----------|-----------|-----------------|
+| `--name`, `-n` | `name` | `filter-search` |
+| `--page` | `page` | `page` |
+| `--class-id` | `class_ids` | `filter-class` |
+| `--level` | `levels` | `filter-level` |
+| `--school-id` | `school_ids` | `filter-school` |
+| `--casting-time-id` | `casting_time_ids` | `filter-casting-time` |
+| `--attack-type-id` | `attack_type_ids` | `filter-attack-type` |
+| `--save-id` | `save_ids` | `filter-save-required` |
+| `--damage-type-id` | `damage_type_ids` | `filter-damage-type` |
+| `--condition-id` | `condition_ids` | `filter-condition` |
+| `--tag-id` | `tag_ids` | `filter-tags` |
+| `--source-id` | `source_ids` | `filter-source` |
+| `--source-category-id` | `source_category_ids` | `filter-source-category` |
+| `--verbal` | `verbal` | `filter-verbal` |
+| `--somatic` | `somatic` | `filter-somatic` |
+| `--material` | `material` | `filter-material` |
+| `--concentration` | `concentration` | `filter-concentration` |
+| `--ritual` | `ritual` | `filter-ritual` |
+| `--partnered-content` | `partnered_content` | `filter-partnered-content` |
+
+Repeat option flags for distinct IDs. Current and legacy class IDs stay distinct.
+Levels are 0 through 9; zero means cantrips. Schools use option IDs 3 through 10.
+Each other option filter allows at most 50 unique positive IDs. All option
+filters together allow at most 256 IDs. The returned GET form must contain each
+requested option and must echo consistent selections. IDs are not access grants.
+Name allows 256 UTF-8 bytes. Page is a positive `u32`, default 1.
+Encoded queries allow at most 16 KiB.
+
+Boolean flags take `true` or `false`. Omission leaves that restriction unset.
+The website uses `1`/`2` for concentration and `t`/`f` for other booleans.
+Partnered content takes `no` (default), `any`, or `yes`.
+
+List JSON returns `entries` and `pagination` with `page` and `next_page`.
+Each entry contains `id`, `slug`, `name`, `level`, `school`, and `source_url`.
+Website order is preserved. Table and TSV add page fields to each row.
+The explicit empty marker returns no entries, not an error. Missing or
+conflicting rows and paging fail the whole page. There is no automatic
+continuation, selected-detail fan-out, or class/level API scan.
+
+Show returns `id`, `slug`, `name`, `source_url`, and `raw_html`.
+Only the checked `detail-content` subtree is serialized. Unknown elements and
+stat fields survive. Serialization can normalize HTML.
+Treat `raw_html` as untrusted text. Do not execute it, render it as trusted HTML,
+log it, or cache it. Unexpected scripts, forms, and account/comment containers
+inside that subtree fail the operation. Surrounding page chrome is not copied.
+
+Both operations validate the session and selected response on every call.
+They permit one cookie-only HTML read and at most one session exchange within
+30 seconds. Limits are 100 raw listing rows, 1 MiB per response, 1 MiB compact
+JSON, and the existing 8 MiB table presentation cap. Excess output fails; fields
+are not truncated. HTTP 403 is denied, HTTP 401 is rejected rather than proven
+expired, and HTTP 404 on detail means missing. Unsupported access structures
+return no content. Monster access codes do not apply.
+
+Browser structure checks are not native acceptance. Native cookie compatibility,
+denied HTML, ownership, sharing, and unchecked filter combinations remain
+unverified. See the [spell source contract](api-catalog.md#spell-read-contract)
+and [MCP tools](mcp.md#spell_list-and-spell_show).
 
 ## Contract sources
 

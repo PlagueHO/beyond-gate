@@ -185,7 +185,9 @@ fn stdio_protocol_handles_discovery_and_strict_input() {
             "monster_list",
             "monster_show",
             "species_list",
-            "species_show"
+            "species_show",
+            "spell_list",
+            "spell_show"
         ]
     );
     for tool in tools {

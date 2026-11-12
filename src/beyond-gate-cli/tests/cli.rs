@@ -288,6 +288,47 @@ fn species_help_and_invalid_usage() {
     assert!(String::from_utf8_lossy(&output.stdout).contains("species"));
 }
 
+/// Checks spell parsing, completions, and failures without native storage access.
+#[test]
+fn spell_help_completions_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["spell", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+    }
+    for args in [
+        vec!["spell"],
+        vec!["spell", "show"],
+        vec!["spell", "show", "17"],
+        vec!["spell", "show", "01-invented"],
+        vec!["spell", "show", "17-a%2fb"],
+        vec!["spell", "show", "https://www.dndbeyond.com/spells/17-a"],
+        vec!["spell", "list", "--level", "10"],
+        vec!["spell", "list", "--level", "0", "--level", "0"],
+        vec!["spell", "list", "--class-id", "17", "--class-id", "17"],
+        vec!["spell", "list", "--school-id", "2"],
+        vec!["spell", "list", "--school-id", "11"],
+        vec!["spell", "list", "--page", "0"],
+        vec!["spell", "list", "--verbal", "null"],
+        vec!["spell", "list", "--take", "1"],
+        vec!["spell", "list", "--output", "json", "--no-headers"],
+        vec!["spell", "show", "17-a", "--class-id", "17"],
+    ] {
+        let output = run(&args);
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        for expected in ["spell", "casting-time-id", "school-id", "concentration"] {
+            assert!(text.contains(expected), "{shell}: {expected}");
+        }
+    }
+}
+
 /// Checks background filters, help, completions, and input failures before native access.
 #[test]
 fn background_help_completions_and_invalid_usage() {

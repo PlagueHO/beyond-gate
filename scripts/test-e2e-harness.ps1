@@ -40,6 +40,9 @@ if ($IsWindows) {
     Assert-Harness ($login[0].data.error -ceq 'no working session handoff')
 }
 Assert-Harness ($inventory.reads.Where({ $_.tool -eq 'book_list' })[0].requires_session)
+$spellShow = @($cases | Where-Object { $_.id -ceq 'contract.cli.spell.show.json' })
+Assert-Harness ($spellShow.Count -eq 1)
+Assert-Harness (($spellShow[0].data.arguments -join ' ') -ceq 'spell show 900001-invented-spell --unexpected')
 foreach ($case in $cases.Where({ $_.id.StartsWith('contract.cli.book.list.') })) {
     Assert-Harness ($case.data.code -eq 2 -and $case.data.arguments -contains '--unexpected')
 }
