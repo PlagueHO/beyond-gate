@@ -844,6 +844,41 @@ fn spell_contracts() {
     failure(run("spell-normal", &["spell", "show", "17"]), 2, "slug");
 }
 
+/// Checks real feat CLI output against shared invented website and collection sources.
+fn feat_contracts() {
+    let rows = read_json(&run("feat-normal", &["feat", "list", "-o", "json"]));
+    assert_eq!(rows.as_array().expect("rows").len(), 2);
+    assert!(rows[0].get("raw").is_none());
+    let value = read_json(&run("feat-normal", &["feat", "show", "18"]));
+    assert_eq!(value["is_repeatable"], true);
+    assert_eq!(value["repeatable_parent_id"], "17");
+    assert_eq!(value["raw"]["future"]["nested"], json!([true, null, 3]));
+    assert_eq!(value["sources"][0]["future"], true);
+    assert_eq!(
+        read_json(&run("feat-empty", &["feat", "list", "-o", "json"])),
+        json!([])
+    );
+    let output = run(
+        "feat-normal",
+        &["feat", "list", "--format", "tsv", "--no-headers"],
+    );
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).expect("TSV");
+    assert_eq!(text.lines().count(), 2);
+    assert!(!text.contains("source_url"));
+    let output = run("feat-normal", &["feat", "show", "18", "--format", "tsv"]);
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).expect("TSV");
+    assert_eq!(text.lines().count(), 2);
+    assert!(!text.contains('\u{1b}'));
+    failure(
+        run("feat-denied", &["feat", "list", "-o", "json"]),
+        1,
+        "access_denied",
+    );
+    failure(run("feat-normal", &["feat", "show", "999"]), 1, "not found");
+}
+
 /// Runs parent assertions or a child with the real command runner and synthetic reads.
 fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
@@ -858,6 +893,24 @@ fn main() {
             .into_owned();
         let cli_arguments = std::iter::once(std::ffi::OsString::from("beyond-gate"))
             .chain(arguments.into_iter().skip(3));
+        if let Some(name) = scenario.strip_prefix("feat-") {
+            use beyond_gate_core::feat::fixture::{self, Scenario};
+            let source = match name {
+                "normal" => Scenario::Normal,
+                "empty" => Scenario::Empty,
+                "denied" => Scenario::Denied,
+                _ => panic!("unknown synthetic feat source"),
+            };
+            let session = fixture::session(source).expect("invented feat service");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
         if let Some(name) = scenario.strip_prefix("spell-") {
             use beyond_gate_core::spell::fixture::{self, Scenario};
             let source = match name {
@@ -887,6 +940,7 @@ fn main() {
     list_contracts();
     species_contracts();
     spell_contracts();
+    feat_contracts();
     section_contracts();
     output_failures();
 }

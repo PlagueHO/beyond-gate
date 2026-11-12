@@ -243,6 +243,7 @@ pub fn session(scenario: Scenario) -> Result<Session, SessionError> {
         class_catalog_fixture: None,
         monster_fixture: None,
         background_fixture: None,
+        feat_fixture: None,
         species_fixture: None,
         spell_fixture: None,
     })

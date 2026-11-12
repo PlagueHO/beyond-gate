@@ -1903,6 +1903,75 @@ New live checks need a selected operation, fixed hosts, a request budget, stop c
 and cleanup. Do not crawl categories, guess hidden endpoints, probe staging, or bypass
 denied access. Leave unknown contracts explicitly unsupported.
 
+## Feat public-source evidence
+
+Issue [#68](https://github.com/PlagueHO/beyond-gate/issues/68) used
+credential-free public page and client reads, then one approved bounded
+structural pass. No account identifier or raw response content was retained.
+
+The [first-party character client][character-client] declares `game-data/feats`
+through its GET factory and character-service route builder. The available-feat
+wrapper reads the returned `data` and applies a local restricted-definition
+preference filter. This does not establish an ownership or content-access grant.
+No separate feat detail request or bounded selected-ID filter was established.
+The working protected candidate is
+`/character/v5/game-data/feats?sharingSetting=2`, not a verified live contract.
+
+Definition helpers read `id`, `entityTypeId`, `name`, `sources`, prerequisites,
+`isRepeatable`, and `repeatableParentId`. The character builder checks
+prerequisites locally and groups repeatable options.
+Beyond Gate preserves source fields rather than reproducing those rules.
+
+The approved Windows check made four requests within the six-request and
+60-second limits: one public configuration GET, one fixed session exchange,
+one cookie-backed listing GET, and one bearer collection GET. The configuration
+validated with 270 sources and 50 categories. The listing returned 329 rows.
+The protected response was 388,729 bytes and had 145 rows, `success: true`, and
+`pagination: null`. Its envelope had `data`, `id`, `message`, `pagination`, and
+`success`; no `totalCount` field appeared. The union of row fields included
+`id`, `name`, `sources`, `sourceId`, `isRepeatable`, `repeatableParentId`,
+`prerequisites`, and definition fields. No top-level access-named field
+appeared. The check printed only counts and field names, then discarded the
+response.
+
+This confirms one accepted protected collection response below the current
+1 MiB limit. The envelope's null `pagination` matches the terminal-collection
+contract used by Backgrounds; `totalCount`, when present, must equal the row
+count. Feat show follows that contract and returns only a selected, checked
+definition. No separate feat detail route or selected-ID filter was established.
+The response had no access-named field, so the implementation does not infer
+ownership or sharing from source IDs. Broader account coverage remains
+unverified.
+
+The [public feat page][feats-page] returned 950,054 UTF-8 bytes and 329 distinct
+numeric links. It had one GET form with action `/feats`, the listing
+`ul.listing.listing-rpgfeat.rpgfeat-listing`, and a listing footer.
+No pagination control was observed.
+
+| Control | Observed cardinality and encoding |
+|---------|-----------------------------------|
+| `filter-name` | One literal text input |
+| `filter-prereq-subtype` | One prerequisite option; not a feat ID |
+| `filter-tags` | Multi-select; repeated keys echoed both selected values |
+| `filter-source` | Multi-select; repeated keys echoed both selected values |
+| `filter-source-category` | Multi-select; repeated keys echoed both selected values |
+| `filter-partnered-content` | Single select; existing website yes/no/any encodings |
+
+A synthetic no-match name with partnered-content `f` returned 299,479 bytes
+and one `li.alert.no-results` inside the listing. A second public GET combined
+that name, one prerequisite option, and two options for each multi-select.
+It returned 299,612 bytes, the same empty marker, and matching selected options.
+These checks establish public form behavior, not general protected detail
+access, account acceptance, or sharing.
+The unfiltered page is close to the unchanged 1 MiB cap. Later growth must
+fail explicitly rather than truncate or silently increase the limit.
+
+Production `feat_show` uses the observed bounded collection route. Selected raw
+records, repeatable relationships, source validation, and error parity have
+synthetic coverage. Native CLI/MCP acceptance and broader account coverage
+remain unverified.
+See the [catalog status](api-catalog.md#feat-browse-and-detail-status).
+
 ## Sources
 
 | ID | Source | Use |

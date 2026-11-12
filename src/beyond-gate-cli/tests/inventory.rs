@@ -55,6 +55,8 @@ fn manual_inventory_matches_parser() {
         ("monster show", "output", "formats"),
         ("background list", "output", "formats"),
         ("background show", "output", "formats"),
+        ("feat list", "output", "formats"),
+        ("feat show", "output", "formats"),
         ("spell list", "output", "formats"),
         ("spell show", "output", "formats"),
         ("book list", "output", "formats"),

@@ -188,7 +188,7 @@ These are not approved bulk-content extraction contracts.
 | RULE-02 | CHAR | `/game-data/subclasses` | Implemented metadata-only GET with `sharingSetting=2&baseClassId={id}`; parent-scoped; Browser evidence |
 | RULE-03 | CHAR | `/game-data/backgrounds` | Fresh bearer GET with `sharingSetting=2`; show selects a checked raw definition; observed 85-record response exceeds unchanged 1 MiB production cap; [contract](#background-read-contract) |
 | RULE-04 | CHAR | `/game-data/races` | Candidate collection for selected species detail; see [species contract](#species-browse-and-detail-contract) |
-| RULE-05 | CHAR | `/game-data/feats` | Feats; selection, prerequisites, and access |
+| RULE-05 | CHAR | `/game-data/feats` | Fresh bounded bearer GET; show returns one checked raw definition; [status](#feat-browse-and-detail-status) |
 | RULE-06 | CHAR | `/game-data/spells` | Character-eligible spells; standalone coverage not proven |
 | RULE-07 | CHAR | `/game-data/always-known-spells` | Class spell support; class, level, and completeness |
 | RULE-08 | CHAR | `/game-data/always-prepared-spells` | Class spell support; class, level, and completeness |
@@ -289,6 +289,49 @@ Website links/options and source IDs are not access grants. One checked website
 detail page does not establish general collection access or full website text.
 Native compatibility, native account acceptance, website/API identity coverage,
 and real sharing remain unverified.
+
+### Feat browse and detail status
+
+Issue [#68](https://github.com/PlagueHO/beyond-gate/issues/68) adds
+`feat list/show` and matching MCP tools. The
+[public research](api-survey.md#feat-public-source-evidence) checked the GET
+form, multi-select versus scalar controls, repeated-key echoes, and explicit
+empty marker. No paging control was observed.
+
+List makes one cookie-only fixed website GET after shared session validation.
+The form and returned selectors must agree. It returns checked identities,
+names, source labels, and canonical display URLs, not rules text.
+Limits are 1,000 raw rows, 1 MiB response/result, 256 name bytes,
+50 distinct positive IDs per multi-select, 16 KiB encoded query, and
+30 seconds. Unknown paging is unsupported; malformed, duplicate, or incomplete
+rows fail the whole result. Empty results require the observed marker.
+
+**Production detail selects one record from a fresh bounded collection.**
+The public character client defines the feat GET collection and reads
+`isRepeatable`, `repeatableParentId`, and prerequisites. The approved structural
+pass returned 145 rows in 388,729 bytes, with `success: true` and
+`pagination: null`; `totalCount` was absent. This matches the bounded terminal
+collection pattern used by Backgrounds. If `totalCount` is present, it must
+match the returned row count.
+
+The fixed request is
+`GET /character/v5/game-data/feats?sharingSetting=2`. The core validates public
+configuration, a numeric collection ID, true `success`, string `message`,
+array `data`, null `pagination`, unique positive row IDs, valid names,
+configured source references, and canonical ID-matching display links.
+Unexpected access fields/maps fail closed. Only the selected row is returned,
+with unknown raw/source extensions and optional repeatable-parent metadata.
+Missing optional repeatable flags remain null. Definitions are not grouped,
+interpreted, or traversed. Source IDs do not imply ownership or sharing.
+
+Detail limits remain 1,000 definitions/references, 1 MiB source/result, and
+60 seconds. There is no partial collection, selected-ID query, guessed detail
+route, rules engine, cache, or metadata-only fallback. Denied, rejected/expired,
+missing, malformed, incomplete, conflicting, unsupported, and limit errors
+remain distinct. Native CLI/MCP acceptance and broader owned/shared coverage
+remain unverified.
+See the [CLI contract](cli.md#feat-metadata-and-detail-status) and
+[MCP contract](mcp.md#feat_list-and-feat_show).
 
 ### Species browse and detail contract
 
@@ -602,7 +645,7 @@ checked filter submissions and server HTML, but not pagination.
 | PAGE-01 | `/classes` | Public class listing; no JSON contract |
 | PAGE-02 | `/backgrounds` | Public background filters; paging not observed |
 | PAGE-03 | `/species` | Public species listing; bounded HTML metadata; no server-side search or paging contract observed |
-| PAGE-04 | `/feats` | Public feat filters; paging not observed |
+| PAGE-04 | `/feats` | Bounded metadata, checked filter echoes, explicit empty marker; no observed paging; native acceptance unverified |
 | PAGE-05 | `/spells` | Explicit cookie-only filtered pages; [spell contract](#spell-read-contract) |
 | PAGE-05-D | `/spells/{numeric-id}-{slug}` | Selected cookie-only HTML detail; no raw JSON route |
 | PAGE-06 | `/monsters` | Implemented filtered candidate pages and explicit next-page checks; browser HTML evidence does not establish native account acceptance |

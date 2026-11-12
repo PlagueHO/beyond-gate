@@ -51,6 +51,12 @@ pub fn command() -> Command {
                     .arg(Arg::new("slug").required(true).value_parser(ValueParser::new(valid_spell_slug)))),
         )
         .subcommand(
+            resource("feat", "Browse bounded feat metadata and select checked definitions")
+                .subcommand(feat_list())
+                .subcommand(show_options(Command::new("show").about("Select one feat from the fresh checked collection"))
+                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_feat_id)))),
+        )
+        .subcommand(
             resource("background", "Browse website-filtered background metadata and selected source definitions")
                 .subcommand(background_list())
                 .subcommand(show_options(Command::new("show").about("Select a raw background from a fresh complete collection; fails above 1 MiB"))
@@ -104,6 +110,61 @@ pub fn command() -> Command {
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
         )
+}
+
+/// Builds feat flags from the shared website controls without adding API filters.
+fn feat_list() -> Command {
+    let mut command = list_options(
+        Command::new("list")
+            .about("Read complete bounded feat metadata with website filters; no automatic paging"),
+    )
+    .arg(
+        Arg::new("name")
+            .long("name")
+            .short('n')
+            .value_parser(ValueParser::new(valid_feat_name))
+            .help("Literal website name filter; at most 256 UTF-8 bytes"),
+    )
+    .arg(
+        Arg::new("prerequisite-subtype-id")
+            .long("prerequisite-subtype-id")
+            .value_name("ID")
+            .value_parser(value_parser!(u32).range(1..))
+            .help("One public prerequisite option ID; not a feat identity or access grant"),
+    )
+    .arg(
+        Arg::new("partnered-content")
+            .long("partnered-content")
+            .default_value("no")
+            .value_parser(["yes", "no", "any"])
+            .help("Website partnered-content choice; defaults to no"),
+    );
+    for (_, flag, _) in beyond_gate_core::feat::query::ID_FILTERS {
+        command = command.arg(Arg::new(flag).long(flag).value_name("ID")
+            .value_parser(value_parser!(u32).range(1..)).action(ArgAction::Append)
+            .help("Public website option ID; repeat up to 50 distinct values; not an access grant"));
+    }
+    command
+}
+
+/// Checks a canonical feat ID before protected storage or network access.
+fn valid_feat_id(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::feat::validate_id(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
+}
+
+/// Validates a literal name through the shared feat query policy.
+fn valid_feat_name(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::feat::FeatQuery {
+        name: Some(value.to_owned()),
+        ..Default::default()
+    }
+    .validate()
+    .map(|()| value.to_owned())
+    .map_err(
+        |_| "Name must be valid text within 256 UTF-8 bytes without padding or control characters",
+    )
 }
 
 /// Builds background flags from the shared observed website control mapping.

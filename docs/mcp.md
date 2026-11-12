@@ -23,6 +23,8 @@ including 2 and 3, are unsupported. Native monster acceptance has not run.
 `background_list` returns website-filtered metadata. `background_show` selects
 one raw definition from a fresh complete collection. The observed live collection
 exceeds the unchanged 1 MiB cap and fails explicitly; native acceptance has not run.
+`feat_list` returns bounded website metadata. `feat_show` selects one checked
+raw definition from a fresh bounded bearer collection.
 
 The four character and campaign tools perform read-only source calls. Failures
 return MCP tool errors with `isError: true`; they do not return sample data or
@@ -108,7 +110,7 @@ absolute path; remove the old registration before installing the new path.
 
 Every tool takes a JSON object and rejects unknown fields. Character, book, and
 species list tools require an empty object `{}`. Campaign, class, monster, and
-background and spell lists accept their documented filters. There are no passwords,
+background, feat, and spell lists accept their documented filters. There are no passwords,
 cookies, authentication tokens, arbitrary URL inputs, or account identities.
 The only token input is `book_read.continuation`, which represents a bounded
 section position, not a credential.
@@ -125,7 +127,7 @@ the wire format. Do not treat a schema length check as a substitute for runtime
 token validation.
 
 All tools advertise `readOnlyHint: true`, `destructiveHint: false`,
-and `openWorldHint: true`. The fifteen resource tools use `idempotentHint: true`.
+and `openWorldHint: true`. Resource tools use `idempotentHint: true`.
 `auth_validate` uses `idempotentHint: false` because it makes a fresh service
 exchange and updates transient evidence. These annotations do not grant
 access or make live reads available. Tool results are data, not instructions.
@@ -147,6 +149,8 @@ access or make live reads available. Tool results are data, not instructions.
 | [`monster_show`](#monster_list-and-monster_show) | `beyond-gate monster show <id>` | Selected identity and unchanged raw detail |
 | [`background_list`](#background_list-and-background_show) | `beyond-gate background list --output json` | Metadata array |
 | [`background_show`](#background_list-and-background_show) | `beyond-gate background show <id>` | Selected identity, sources, and unchanged raw definition |
+| [`feat_list`](#feat_list-and-feat_show) | `beyond-gate feat list --output json` | Metadata array |
+| [`feat_show`](#feat_list-and-feat_show) | `beyond-gate feat show <id>` | Unsupported protected detail |
 | [`spell_list`](#spell_list-and-spell_show) | `beyond-gate spell list --output json` | Entries and explicit page/next_page |
 | [`spell_show`](#spell_list-and-spell_show) | `beyond-gate spell show <slug>` | Selected identity and untrusted raw_html |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
@@ -157,6 +161,32 @@ The data shapes below match CLI JSON, not CLI table or TSV presentation.
 Examples are synthetic except the two observed Fighter IDs in the class section.
 
 ## Tools
+
+### feat_list and feat_show
+
+```json
+{"name":"feat_list","arguments":{}}
+{"name":"feat_list","arguments":{"name":"invented","partnered_content":"any"}}
+{"name":"feat_show","arguments":{"id":"17"}}
+```
+
+List accepts optional `name`, one `prerequisite_subtype_id`, `tag_ids`,
+`source_ids`, `source_category_ids`, and `partnered_content`.
+The [shared input table](cli.md#feat-metadata-and-detail-status) defines their
+limits. Unknown fields, explicit null, invalid IDs, duplicate array values,
+and page/skip/take are rejected. Website IDs are not access grants.
+List returns `id`, `name`, `source`, and `source_url`, without rules text.
+Requested options and form echoes must agree. Valid empty results require
+the observed marker. The source/result cap is 1 MiB, the row cap is 1,000,
+and the deadline is 30 seconds.
+
+Show requires a string canonical positive decimal `u64` ID. It reads public
+source configuration and one fixed protected collection, then returns only the
+selected row after the complete response passes validation. A tool error uses
+`isError: true`; no sample or empty success is returned. The selected record
+preserves unknown `raw` and source fields, repeatable flags, and parent IDs.
+No rules engine, parent traversal, ownership inference, or detail fallback is
+implemented. See the [source status](api-catalog.md#feat-browse-and-detail-status).
 
 ### background_list and background_show
 

@@ -379,6 +379,70 @@ fn background_help_completions_and_invalid_usage() {
     }
 }
 
+/// Checks feat help, completions, and invalid inputs before protected session access.
+#[test]
+fn feat_help_completions_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["feat", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("feat"));
+    }
+    for args in [
+        vec!["feat"],
+        vec!["feat", "show"],
+        vec!["feat", "show", "01"],
+        vec!["feat", "show", "0"],
+        vec!["feat", "show", "18446744073709551616"],
+        vec!["feat", "list", "--name", ""],
+        vec!["feat", "list", "--name", " padded"],
+        vec!["feat", "list", "--prerequisite-subtype-id", "0"],
+        vec![
+            "feat",
+            "list",
+            "--prerequisite-subtype-id",
+            "7",
+            "--prerequisite-subtype-id",
+            "8",
+        ],
+        vec!["feat", "list", "--tag-id", "7", "--tag-id", "7"],
+        vec!["feat", "list", "--partnered-content", "false"],
+        vec!["feat", "list", "--page", "1"],
+        vec!["feat", "list", "--take", "1"],
+        vec!["feat", "list", "--skip", "0"],
+        vec!["feat", "list", "--output", "json", "--no-headers"],
+        vec!["feat", "show", "17", "--tag-id", "7"],
+    ] {
+        let output = run(&args);
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!output.stderr.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        for expected in [
+            "feat",
+            "prerequisite-subtype-id",
+            "tag-id",
+            "partnered-content",
+        ] {
+            assert!(text.contains(expected), "{shell}: {expected}");
+        }
+    }
+}
+
+/// Invalid detail IDs fail before session storage or network access.
+#[test]
+fn feat_show_rejects_invalid_id_before_session_access() {
+    let output = run(&["feat", "show", "01"]);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("canonical positive decimal integer"));
+}
+
 /// Names the preferred output option when rejecting JSON header suppression.
 #[test]
 fn json_no_headers_error_uses_output_option_name() {

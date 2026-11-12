@@ -28,6 +28,7 @@ use beyond_gate_core::{
         self, Campaign, CampaignSnapshot, Character, CharacterCampaignError, CharacterSnapshot,
     },
     class_catalog::{self, ClassCatalogError, ClassKind},
+    feat::{self, FeatError, FeatQuery},
     library::{self, LibraryError, LibrarySnapshot},
     monster::{self, MonsterError},
     species::{self, SpeciesError},
@@ -73,6 +74,32 @@ pub trait ReadOperations {
         slug: &'a str,
     ) -> impl std::future::Future<Output = Result<Value, SpellError>> {
         spell::show(session, slug)
+    }
+
+    /// Reads bounded feat metadata through the shared website contract.
+    ///
+    /// # Errors
+    ///
+    /// Preserves typed input, access, malformed, incomplete, and limit failures.
+    fn list_feats<'a>(
+        &self,
+        session: &'a Session,
+        query: &'a FeatQuery,
+    ) -> impl std::future::Future<Output = Result<Value, FeatError>> {
+        feat::list(session, query)
+    }
+
+    /// Checks selected feat detail without enabling unverified production access.
+    ///
+    /// # Errors
+    ///
+    /// Returns unsupported production detail or the shared synthetic source error.
+    fn show_feat<'a>(
+        &self,
+        session: &'a Session,
+        id: &'a str,
+    ) -> impl std::future::Future<Output = Result<Value, FeatError>> {
+        feat::show(session, id)
     }
 
     /// Lists species metadata from the fixed bounded public website page.
@@ -611,6 +638,7 @@ fn execute(
         "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
         "monster" => execute_monster(action, arguments, reads, session),
         "background" => execute_background(action, arguments, reads, session),
+        "feat" => execute_feat(action, arguments, reads, session),
         "character" => execute_character(action, arguments, reads, session),
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
@@ -748,6 +776,83 @@ fn execute_species(
             .as_array()
             .ok_or(Failure::Species(SpeciesError::InvalidResponse))?;
         output::list(&options, &fields, rows, None)
+    }
+}
+
+/// Presents shared feat results without duplicating source, access, or bound policy.
+fn execute_feat(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    let id = if action == "show" {
+        Some(selection(arguments, "id")?)
+    } else {
+        None
+    };
+    let query = if action == "list" {
+        let mut value = serde_json::Map::new();
+        for (field, flag) in [("name", "name"), ("partnered_content", "partnered-content")] {
+            if let Some(text) = arguments.get_one::<String>(flag) {
+                value.insert(field.to_owned(), json!(text));
+            }
+        }
+        if let Some(id) = arguments.get_one::<u32>("prerequisite-subtype-id") {
+            value.insert("prerequisite_subtype_id".to_owned(), json!(id));
+        }
+        for (field, flag, _) in feat::query::ID_FILTERS {
+            if let Some(ids) = arguments.get_many::<u32>(flag) {
+                value.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
+            }
+        }
+        serde_json::from_value::<FeatQuery>(Value::Object(value))
+            .map_err(|_| Failure::Usage("Invalid feat filters."))?
+    } else if let Some(id) = id {
+        feat::validate_id(id).map_err(Failure::Feat)?;
+        FeatQuery::default()
+    } else {
+        return Err(Failure::Usage("Select feat list or show."));
+    };
+    query.validate().map_err(Failure::Feat)?;
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => {
+                signal.map_err(Failure::Signal)?;
+                Err(Failure::Cancelled)
+            }
+            result = async {
+                if let Some(id) = id { reads.show_feat(session, id).await }
+                else { reads.list_feats(session, &query).await }
+            } => result.map_err(Failure::Feat),
+        }
+    })?;
+    if id.is_some() {
+        render_record(
+            &options,
+            &[
+                "id",
+                "name",
+                "source_url",
+                "sources",
+                "is_repeatable",
+                "repeatable_parent_id",
+                "raw",
+            ],
+            value,
+        )
+    } else {
+        let rows = value
+            .as_array()
+            .ok_or(Failure::Feat(FeatError::InvalidResponse))?;
+        output::list(
+            &options,
+            &["id", "name", "source", "source_url"],
+            rows,
+            None,
+        )
     }
 }
 
