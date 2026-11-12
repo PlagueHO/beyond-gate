@@ -39,6 +39,12 @@ and selected untrusted HTML detail. They do not scan character-context spell
 APIs or infer access from metadata. Browser structure checks are complete;
 native cookie compatibility, denied HTML, ownership, and sharing remain
 unverified. See the [spell contract](docs/cli.md#spell-pages-and-selected-html).
+Feat list and `feat_list` return bounded website-filtered metadata.
+`feat show` and `feat_show` select one raw definition from a fresh checked
+collection. The approved live structural check returned 145 rows below the
+unchanged 1 MiB cap. The code does not infer ownership or sharing. Native
+CLI/MCP acceptance remains unverified.
+See the [feat contract](docs/cli.md#feat-metadata-and-detail-status).
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
@@ -199,6 +205,7 @@ It does not copy that project's ROM operations or HTTP MCP transport.
 The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
 `campaign list/show`, `class list/show`, `subclass list/show`, `monster list/show`,
+`feat list/show`,
 `background list/show`, and
 `book list/outline/read`.
 

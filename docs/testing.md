@@ -18,6 +18,37 @@ The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
 this blocked-first stage. It does not authorize live tests. A supplied cookie
 does not change this suite's zero live-request budget.
 
+## Feat synthetic checks
+
+The [feat core tests](../src/beyond-gate-core/src/feat/tests.rs) use invented
+records and owned loopback sources. They check metadata, single prerequisite
+selectors, repeated option IDs, form echoes, explicit empty results, duplicate
+names, unchanged raw/source extensions, repeatable parents, and exact count/byte
+limits. Invalid, denied, rejected/expired, missing, malformed, incomplete,
+conflicting, unsupported, and over-limit cases remain separate.
+Wire checks enforce cookie-only website reads and bearer-only synthetic
+collection reads. Cancellation does not retry or follow another route.
+
+The [CLI adapter checks](../src/beyond-gate-cli/tests/adapter_process.rs) and
+[MCP session checks](../src/beyond-gate-mcp/tests/session_process.rs) compare
+actual CLI and rmcp data/errors, strict schemas, safe TSV output, and cancellation.
+Invalid input and unverified production show are checked before credential
+access. Compiled fixtures do not provide a product runtime selector.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked feat
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test adapter_process --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+```
+
+Public form/client evidence is [separate](api-survey.md#feat-public-source-evidence).
+One approved Windows structural pass used four requests within its six-request
+budget and 60-second deadline. It confirmed the cookie-backed listing and one
+bearer collection response under 1 MiB. It did not retain raw response data.
+The live collection shape supports the same bounded selected-record contract
+as Backgrounds. Native CLI/MCP acceptance and broader sharing coverage remain
+unverified. Offline checks do not authorize live reads.
+
 ## Spell synthetic checks
 
 The [spell core tests](../src/beyond-gate-core/src/spell/tests.rs) use invented

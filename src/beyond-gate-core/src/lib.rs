@@ -15,12 +15,15 @@
 //! denied code 4 and unverified access cases never produce content.
 //! Background reads expose website metadata or one raw definition selected from a fresh,
 //! complete authenticated collection. Oversized collections fail at the unchanged 1 MiB cap.
+//! Feat reads expose bounded website metadata. Protected detail is unsupported before
+//! credential access until its source contract is verified; selected raw data is synthetic-only.
 
 pub mod auth;
 pub mod background;
 pub mod book;
 pub mod character_campaign;
 pub mod class_catalog;
+pub mod feat;
 pub mod http;
 pub mod library;
 pub mod monster;

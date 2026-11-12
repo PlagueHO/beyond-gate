@@ -11,6 +11,7 @@ use beyond_gate_core::{
     },
     character_campaign::{self, Campaign, Character},
     class_catalog::{self, ClassKind},
+    feat::{self, FeatQuery},
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
     monster, species, spell,
 };
@@ -55,6 +56,15 @@ struct MonsterShowArguments {
 #[serde(deny_unknown_fields)]
 struct BackgroundShowArguments {
     /// Positive canonical decimal source identifier.
+    #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
+    id: String,
+}
+
+/// Selects a feat identity without accepting a URL, name, or prior access result.
+#[derive(Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct FeatShowArguments {
+    /// Canonical positive decimal ID selected from the checked collection.
     #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
     id: String,
 }
@@ -275,6 +285,56 @@ impl BeyondGateServer {
             biased;
             _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
             result = species::show(&self.session, &arguments.id) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Lists bounded metadata using the observed feat website controls.
+    #[tool(
+        name = "feat_list",
+        description = "Read complete bounded feat website metadata with optional name, one prerequisite_subtype_id, tag_ids, source_ids, source_category_ids, and partnered_content yes/no/any (default no). Arrays allow 50 unique positive website option IDs, not access grants. Returns id, name, source, source_url. Limits are 1,000 rows, 1 MiB, and 30 seconds. No rules text, guessed paging, detail fan-out, or automatic continuation. Requires the stored Windows session.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn feat_list(
+        &self,
+        Parameters(arguments): Parameters<FeatQuery>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        arguments.validate().map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = feat::list(&self.session, &arguments) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Selects one feat definition from the checked protected collection.
+    #[tool(
+        name = "feat_show",
+        description = "Select one feat by canonical positive decimal id from the checked protected collection. Reads fresh public source configuration, then one fixed bearer collection; returns only the selected definition after every row, source reference, and terminal envelope pass validation. Keeps the 1,000-record and 1 MiB limits. Metadata and prerequisite IDs are not access grants. Does not infer ownership, traverse repeatable parents, or add a rules engine.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn feat_show(
+        &self,
+        Parameters(arguments): Parameters<FeatShowArguments>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        feat::validate_id(&arguments.id).map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = feat::show(&self.session, &arguments.id) => result.map_err(display_error)?,
         };
         json_text(value)
     }

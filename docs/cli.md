@@ -44,7 +44,7 @@ The generated `help` command also supports nested paths, such as
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
 `character`, `campaign`, `class`, `subclass`, `species`, `spell`, `monster`,
-`background`, `book`, or `mcp`.
+`background`, `feat`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -71,6 +71,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`species list/show`](#species-metadata-and-selected-detail) | Browse website metadata and selected raw detail | Windows; detail route is a candidate; live access unverified |
 | [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
 | [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
+| [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows; bounded protected collection |
 | [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows; browser structure checked; native acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
@@ -78,6 +79,56 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
+
+## Feat metadata and detail status
+
+```text
+beyond-gate feat list --output json
+beyond-gate feat list --name invented --partnered-content any --format tsv
+beyond-gate feat list --prerequisite-subtype-id <option-id> --tag-id <option-id>
+beyond-gate feat show <id>
+```
+
+List reads the fixed `/feats` website GET form through the stored Windows
+session. It returns `id`, `name`, `source`, and `source_url` in website order,
+not descriptions, snippets, prerequisites text, or rules. Duplicate names
+remain separate when their IDs differ. Returned links never select a fetch.
+
+| Option | Shared input and limit |
+|--------|------------------------|
+| `--name` / `-n` | Literal unpadded text, at most 256 UTF-8 bytes |
+| `--prerequisite-subtype-id` | One positive `u32` website option ID |
+| `--tag-id` | Up to 50 distinct positive website tag IDs |
+| `--source-id` | Up to 50 distinct positive website source IDs |
+| `--source-category-id` | Up to 50 distinct positive website category IDs |
+| `--partnered-content` | `yes`, `no`, or `any`; default `no` |
+
+Repeat only the three multi-select ID flags. The prerequisite control is
+single-select; its IDs are not feat record IDs. IDs must exist in the same
+response's form, and requested values must be echoed. None of these inputs
+is an access grant. There is no page, skip, take, or automatic continuation.
+An empty result requires the observed explicit marker. Missing structure,
+unknown paging, conflicting IDs, and incomplete results fail without output.
+List is bounded to 1,000 rows, 1 MiB response/result, and 30 seconds.
+
+Show validates a canonical positive decimal `u64` ID, reads public source
+configuration, then makes one fixed bearer GET to the checked feat collection.
+It validates the terminal envelope and every row before returning one selected
+definition with `id`, `name`, `source_url`, `sources`, `is_repeatable`,
+`repeatable_parent_id`, and unchanged `raw`. Unknown source extensions,
+prerequisites, and child fields survive. A missing selected ID means that it is
+absent from this checked collection. No ownership or sharing is inferred.
+
+The collection and selected result are limited to 1,000 definitions/references
+and 1 MiB; show has a 60-second deadline. An oversized collection fails even
+when the selected definition would fit. No selected-ID request, parent
+traversal, grouping, eligibility calculation, rules engine, cache, or
+metadata-only fallback is added. Invalid IDs exit with code 2.
+
+See the [MCP tools](mcp.md#feat_list-and-feat_show) and
+[source contract](api-catalog.md#feat-browse-and-detail-status).
+The approved structural pass confirmed the collection shape and size.
+Native CLI/MCP acceptance and broader owned/shared coverage remain unverified.
 
 ## Background metadata and selected detail
 

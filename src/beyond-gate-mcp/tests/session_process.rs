@@ -40,6 +40,25 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    if let Some(name) = name.strip_prefix("feat-") {
+        use beyond_gate_core::feat::fixture::{self, Scenario};
+        let scenario = match name {
+            "normal" => Scenario::Normal,
+            "empty" => Scenario::Empty,
+            "denied" => Scenario::Denied,
+            "rejected" => Scenario::Rejected,
+            "expired" => Scenario::Expired,
+            "malformed" => Scenario::Malformed,
+            "incomplete" => Scenario::Incomplete,
+            "duplicate" => Scenario::Duplicate,
+            "invalid-source" => Scenario::InvalidSource,
+            "unsupported" => Scenario::Unsupported,
+            "oversized" => Scenario::Oversized,
+            "waiting" => Scenario::Waiting,
+            _ => panic!("unknown synthetic feat scenario"),
+        };
+        return fixture::session(scenario).expect("invented feat service");
+    }
     if let Some(name) = name.strip_prefix("spell-") {
         use beyond_gate_core::spell::fixture::{self, Scenario};
         let scenario = match name {
@@ -2002,6 +2021,169 @@ fn background_table_limit_contracts() {
     assert!(text.contains("\\\\t"));
 }
 
+/// Checks shared feat CLI/MCP data, strict schemas, safe errors, and cancellation.
+fn feat_contracts() {
+    for (scenario, command, tool, arguments) in [
+        (
+            "feat-normal",
+            vec!["feat", "list", "-o", "json"],
+            "feat_list",
+            json!({}),
+        ),
+        (
+            "feat-empty",
+            vec!["feat", "list", "-o", "json"],
+            "feat_list",
+            json!({}),
+        ),
+        (
+            "feat-normal",
+            vec!["feat", "show", "18"],
+            "feat_show",
+            json!({"id":"18"}),
+        ),
+        (
+            "feat-normal",
+            vec![
+                "feat",
+                "list",
+                "-n",
+                "literal & take=10",
+                "--prerequisite-subtype-id",
+                "240",
+                "--tag-id",
+                "7",
+                "--tag-id",
+                "8",
+                "--source-id",
+                "7",
+                "--source-category-id",
+                "8",
+                "--partnered-content",
+                "any",
+                "-o",
+                "json",
+            ],
+            "feat_list",
+            json!({"name":"literal & take=10","prerequisite_subtype_id":240,"tag_ids":[7,8],
+                "source_ids":[7],"source_category_ids":[8],"partnered_content":"any"}),
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&output.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], false, "{result}");
+        let value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
+                .expect("MCP JSON");
+        assert_eq!(value, cli_value);
+        if tool == "feat_show" {
+            assert_eq!(value["raw"]["future"]["nested"], json!([true, null, 3]));
+            assert_eq!(value["repeatable_parent_id"], "17");
+        } else {
+            assert!(
+                value
+                    .as_array()
+                    .expect("rows")
+                    .iter()
+                    .all(|v| v.get("raw").is_none())
+            );
+        }
+        let tools = messages.iter().find(|m| m["id"] == 2).expect("discovery")["result"]["tools"]
+            .as_array()
+            .expect("tools");
+        for name in ["feat_list", "feat_show"] {
+            let tool = tools.iter().find(|t| t["name"] == name).expect("feat tool");
+            let schema = &tool["inputSchema"];
+            assert_eq!(schema["additionalProperties"], false);
+            assert_eq!(tool["annotations"]["readOnlyHint"], true);
+            if name == "feat_list" {
+                assert_eq!(
+                    schema["properties"]["prerequisite_subtype_id"]["type"],
+                    "integer"
+                );
+                assert_eq!(schema["properties"]["tag_ids"]["maxItems"], 50);
+                assert_eq!(schema["properties"]["tag_ids"]["uniqueItems"], true);
+            } else {
+                assert_eq!(schema["properties"]["id"]["pattern"], "^[1-9][0-9]{0,19}$");
+            }
+        }
+    }
+    for (tool, arguments) in [
+        ("feat_list", json!({"page":1})),
+        ("feat_list", json!({"name":null})),
+        ("feat_list", json!({"tag_ids":null})),
+        ("feat_list", json!({"tag_ids":[0]})),
+        ("feat_list", json!({"tag_ids":[7,7]})),
+        ("feat_list", json!({"name":" padded"})),
+        ("feat_list", json!({"prerequisite_subtype_id":null})),
+        ("feat_list", json!({"prerequisite_subtype_id":[7,8]})),
+        ("feat_list", json!({"prerequisite_subtype_id":0})),
+        ("feat_list", json!({"partnered_content":"false"})),
+        ("feat_show", json!({"id":"01"})),
+        ("feat_show", json!({"id":17})),
+        ("feat_show", json!({"id":"17","unknown":true})),
+    ] {
+        let (output, messages) = mcp_tool("absent", tool, arguments, false);
+        assert!(output.status.success());
+        let response = messages.iter().find(|m| m["id"] == 3).expect("response");
+        assert!(response.get("error").is_some() || response["result"]["isError"] == true);
+        assert!(!response.to_string().contains("session_absent"));
+    }
+    for (scenario, action, id, diagnostic) in [
+        ("feat-denied", "show", "17", "access_denied"),
+        ("feat-rejected", "show", "17", "session_rejected"),
+        ("feat-expired", "show", "17", "session_expired"),
+        ("feat-malformed", "show", "17", "invalid feat response"),
+        ("feat-incomplete", "show", "17", "not complete"),
+        ("feat-duplicate", "show", "17", "conflicting"),
+        ("feat-invalid-source", "show", "17", "invalid feat response"),
+        ("feat-unsupported", "show", "17", "unsupported"),
+        ("feat-oversized", "show", "17", "BodyTooLarge"),
+        ("feat-normal", "show", "999", "not found"),
+        ("feat-denied", "list", "", "access_denied"),
+        ("feat-incomplete", "list", "", "unsupported"),
+    ] {
+        let (command, tool, arguments) = if action == "show" {
+            (vec!["feat", action, id], "feat_show", json!({"id":id}))
+        } else {
+            (vec!["feat", action, "-o", "json"], "feat_list", json!({}))
+        };
+        let output = cli(scenario, &command);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let cli_error = String::from_utf8(output.stderr).expect("diagnostic");
+        assert!(cli_error.contains(diagnostic), "{cli_error}");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], true, "{result}");
+        let error = result["content"][0]["text"].as_str().expect("error");
+        assert!(error.contains(diagnostic), "{error}");
+        assert!(cli_error.contains(error));
+    }
+    for (tool, args) in [("feat_list", json!({})), ("feat_show", json!({"id":"17"}))] {
+        let (output, messages) = mcp_tool("feat-waiting", tool, args, true);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(messages.iter().any(|m| m["id"] == 4));
+        assert!(
+            !messages
+                .iter()
+                .any(|m| m["id"] == 3 && m["result"]["isError"] == false)
+        );
+    }
+}
+
 /// Checks spell CLI/MCP parity, strict inputs, no partial output, and cancellation.
 fn spell_contracts() {
     for (scenario, command, tool, arguments) in [
@@ -2243,6 +2425,7 @@ fn main() {
             background_contracts();
             background_table_limit_contracts();
             spell_contracts();
+            feat_contracts();
         }
     }
 }

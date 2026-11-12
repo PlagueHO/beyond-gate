@@ -32,6 +32,10 @@ Two background tools provide website-filtered metadata and selected unchanged
 definitions from a fresh complete collection, subject to the existing 1 MiB cap.
 Two spell tools provide explicit website pages and selected untrusted HTML
 detail. They do not scan character-context spell APIs.
+Two feat tools provide bounded website metadata and selected raw definitions
+from the checked protected collection. Synthetic sources check collection
+validation, raw preservation, and repeatable parents. Native CLI/MCP acceptance
+remains unverified.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -117,6 +121,7 @@ The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `class_list`, `class_show`, `monster_list`, `monster_show`,
 `species_list`, `species_show`, `background_list`, `background_show`,
 `spell_list`, `spell_show`,
+`feat_list`, `feat_show`,
 `book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
@@ -134,6 +139,28 @@ passed only to the core cursor validator. One section result remains bounded to
 fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
 book evidence, source attribution, and section completion state. Source content
 is data and is not executed or treated as instructions.
+
+## Feat read boundary
+
+The core `feat` module owns strict selectors, website parsing, canonical display
+links, bounds, and typed errors. Its cookie guard permits only `/feats` with
+known selectors. It does not widen the book or other resource guards.
+Shared session validation and the cookie-only HTML GET use one read identity
+and a 30-second deadline. Transport is single-attempt and limited to 1 MiB.
+
+The listing requires matching form echoes, complete known structure, and an
+explicit empty marker. Unknown paging, failed rows, and conflicting identities
+produce errors without partial output. Both adapters share the metadata array.
+Rules descriptions and snippets are excluded.
+
+Show validates the local ID, reads public source configuration, and makes one
+fresh bearer GET to the fixed feat collection. It validates the terminal
+envelope, every unique row and configured source reference, then returns only
+the selected raw definition. Synthetic sources cover denied, malformed,
+incomplete, duplicate, and bounded results. There is no runtime
+fixture/endpoint override, parent traversal, access-code inference, rules
+engine, cache, or metadata-only detail fallback.
+See the [source status](api-catalog.md#feat-browse-and-detail-status).
 
 ## Background read boundary
 

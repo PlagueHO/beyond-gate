@@ -7,6 +7,16 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows feat metadata browsing through shared core reads, CLI
+  `feat list`, and MCP `feat_list`. Filters use observed website controls,
+  including one prerequisite subtype and repeated tag/source selectors.
+  Lists require matching form echoes and an explicit empty marker.
+  `feat show` and `feat_show` select one checked raw definition from the fresh
+  bearer collection, following the bounded Background pattern. The approved
+  structural pass returned 145 rows below 1 MiB. Synthetic tests preserve
+  unknown raw/source fields and repeatable parents without a rules engine.
+  Shared errors and 1,000-record, 1 MiB limits prevent partial output. Native
+  CLI/MCP acceptance remains unverified.
 - Bounded Windows spell browsing and selected HTML detail through shared core
   reads, CLI `spell list/show`, and MCP `spell_list`/`spell_show`.
   Lists use explicit website pages and repeated filters, including cantrips.

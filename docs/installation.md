@@ -281,7 +281,9 @@ Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
 `claude mcp list` in Claude Code. The server exposes thirteen resource read tools:
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
 `book_outline`, `book_read`, `class_list`, `class_show`, `monster_list`, and
-`monster_show`, `background_list`, and `background_show`.
+`monster_show`, `background_list`, `background_show`, `feat_list`, and `feat_show`.
+Feat list reads bounded website metadata. Feat show selects one checked raw
+definition from a fresh bounded protected collection.
 Background tools share website metadata filters and selected raw definitions.
 The observed live definition collection exceeds the unchanged 1 MiB transport
 cap, so show fails explicitly for it. Native background acceptance has not run.

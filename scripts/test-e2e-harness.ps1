@@ -43,6 +43,13 @@ Assert-Harness ($inventory.reads.Where({ $_.tool -eq 'book_list' })[0].requires_
 $spellShow = @($cases | Where-Object { $_.id -ceq 'contract.cli.spell.show.json' })
 Assert-Harness ($spellShow.Count -eq 1)
 Assert-Harness (($spellShow[0].data.arguments -join ' ') -ceq 'spell show 900001-invented-spell --unexpected')
+$featShow = @($cases | Where-Object { $_.id -ceq 'contract.cli.feat.show.json' })
+Assert-Harness ($featShow.Count -eq 1)
+Assert-Harness ($featShow[0].data.code -eq 2 -and $featShow[0].data.error -ceq 'unexpected')
+Assert-Harness (($featShow[0].data.arguments -join ' ') -ceq 'feat show 17 --unexpected')
+$featList = @($cases | Where-Object { $_.id -ceq 'contract.cli.feat.list.json' })
+Assert-Harness ($featList.Count -eq 1)
+Assert-Harness ($featList[0].data.code -eq 2 -and $featList[0].data.arguments -contains '--unexpected')
 foreach ($case in $cases.Where({ $_.id.StartsWith('contract.cli.book.list.') })) {
     Assert-Harness ($case.data.code -eq 2 -and $case.data.arguments -contains '--unexpected')
 }

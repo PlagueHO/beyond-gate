@@ -8,6 +8,7 @@ use beyond_gate_core::{
     book::BookError,
     character_campaign::CharacterCampaignError,
     class_catalog::ClassCatalogError,
+    feat::FeatError,
     http::{ErrorKind, HttpError},
     library::LibraryError,
     monster::MonsterError,
@@ -31,6 +32,7 @@ pub(crate) enum Failure {
     Species(SpeciesError),
     Spell(SpellError),
     Background(BackgroundError),
+    Feat(FeatError),
     Library(LibraryError),
     Book(BookError),
     Cursor(BookError),
@@ -53,6 +55,7 @@ impl Failure {
                 | Self::Species(SpeciesError::InvalidInput)
                 | Self::Spell(SpellError::InvalidInput)
                 | Self::Background(BackgroundError::InvalidInput)
+                | Self::Feat(FeatError::InvalidInput)
         ) {
             2
         } else {
@@ -89,6 +92,7 @@ impl fmt::Display for Failure {
             Self::Species(error) => write!(formatter, "{error}")?,
             Self::Spell(error) => write!(formatter, "{error}")?,
             Self::Background(error) => write!(formatter, "{error}")?,
+            Self::Feat(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
             Self::Mcp(error) => write!(formatter, "{error}")?,
@@ -142,6 +146,7 @@ impl Error for Failure {
             Self::Species(error) => Some(error),
             Self::Spell(error) => Some(error),
             Self::Background(error) => Some(error),
+            Self::Feat(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),
             Self::Mcp(error) => Some(error),
