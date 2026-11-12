@@ -28,6 +28,8 @@ pub enum Scenario {
     Empty,
     /// One explicit next-page link with retained filters.
     Next,
+    /// A next-page anchor lacks its required destination.
+    MissingNextHref,
     /// HTTP 403 with no content.
     Denied,
     /// HTTP 401, not an expiry claim.
@@ -190,7 +192,7 @@ pub(super) fn listing(query: &SpellQuery, scenario: Scenario) -> String {
     if !matches!(scenario, Scenario::Incomplete) {
         body.push_str("<div class='listing-footer'></div>");
     }
-    if matches!(scenario, Scenario::Next) || query.page > 1 {
+    if matches!(scenario, Scenario::Next | Scenario::MissingNextHref) || query.page > 1 {
         body.push_str(&format!(
             "<ul class='b-pagination-list'><li class='b-pagination-item active'>{}</li>",
             query.page
@@ -219,6 +221,9 @@ pub(super) fn listing(query: &SpellQuery, scenario: Scenario) -> String {
                 "<li><a rel='next' href='{}'>Next</a></li>",
                 target.as_str().replace('&', "&amp;")
             ));
+        }
+        if matches!(scenario, Scenario::MissingNextHref) {
+            body.push_str("<li><a rel='next'>Next</a></li>");
         }
         body.push_str("</ul>");
     }

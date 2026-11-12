@@ -45,6 +45,7 @@ fn session(name: &str) -> Session {
         let scenario = match name {
             "normal" => Scenario::Normal,
             "next" => Scenario::Next,
+            "missing-next-href" => Scenario::MissingNextHref,
             "empty" => Scenario::Empty,
             "denied" => Scenario::Denied,
             "rejected" => Scenario::Rejected,
@@ -2093,6 +2094,7 @@ fn spell_contracts() {
         ("expired", "list"),
         ("malformed", "list"),
         ("incomplete", "list"),
+        ("missing-next-href", "list"),
         ("duplicate", "list"),
         ("limit", "list"),
         ("oversized", "list"),
