@@ -2,7 +2,8 @@
 
 Last reviewed: 2026-11-11. Research issues: [#31][issue-31], [#32][issue-32],
 [#65](https://github.com/PlagueHO/beyond-gate/issues/65), and
-[#66](https://github.com/PlagueHO/beyond-gate/issues/66).
+[#66](https://github.com/PlagueHO/beyond-gate/issues/66) and
+[#69](https://github.com/PlagueHO/beyond-gate/issues/69).
 
 Use this shared index when planning or implementing another issue.
 It catalogs all calls identified in the [API survey](api-survey.md), including candidates
@@ -13,6 +14,56 @@ live reads remain unsupported. Species listing metadata comes from the public
 website page; selected detail uses a candidate route with live access and
 completeness still unverified. Native book adapter acceptance passed for one selected
 chapter; live continuation and sharing remain unchecked.
+
+## Spell read contract
+
+Issue [#69](https://github.com/PlagueHO/beyond-gate/issues/69) uses GET
+`https://www.dndbeyond.com/spells` and the selected canonical
+`/spells/{numeric-id}-{slug}` HTML route. Both use the same validated cookie
+identity in a new operation scope. The session exchange is the existing fixed
+authentication-service call. No bearer is sent to spell HTML routes.
+There is one resource request and at most one exchange, without redirects,
+retries, alternate routes, or automatic page/detail fan-out.
+
+List uses the [observed website controls](cli.md#spell-pages-and-selected-html),
+not character `classLevel`. The returned GET form, option membership, echoed
+selections, direct rows, footer, and explicit pagination must agree.
+Selection checks include implicit first-option defaults in single-select controls.
+Empty success requires `li.alert.no-results` inside
+`ul.listing.listing-rpgspell.rpgspell-listing`, with a footer and no paging.
+Nonempty rows are direct `div.info` children with `data-type=spells`,
+a canonical `data-slug`, and a matching `.spell-name a.link`.
+Every row is checked; one invalid or duplicate identity fails the whole page.
+List returns entries and explicit page/next-page metadata in website order.
+Complete means one requested filtered page, not every available spell.
+
+Show requires the selected ID/slug class, canonical URL, spell stat block,
+description, available-class marker, and source marker.
+Only `section.detail-content` is returned as serialized `raw_html`.
+Unknown selected fields survive. No JSON or JSON-LD contract was observed.
+This user-selected HTML scope replaces the unverified raw JSON candidate.
+Unexpected scripts, forms, or account/comment containers inside the subtree
+fail rather than being silently removed. HTML remains untrusted text.
+
+Limits are 100 raw listing rows, unchanged 1 MiB response bytes, 1 MiB compact
+result JSON, 30 seconds for the whole operation, 16 KiB query bytes,
+256-byte name and detail-key inputs, and bounded unique option arrays.
+HTTP 403 denies access; HTTP 401 rejects the session without proving expiry.
+HTTP 404 on show means missing. Unverified HTTP-200 access structures return no
+content. Metadata, source IDs, visible options, and monster access codes grant
+nothing. The book URL guard is unchanged.
+
+`RULE-06`, `RULE-07`, and `RULE-08` remain character-context candidates.
+First-party client construction uses `classId`, `classLevel`, and
+`spellListIds` for ordinary and always-known reads, and `classId`/`classLevel`
+for always-prepared reads. One always-known flow adds `backgroundId`.
+These routes do not establish complete standalone website coverage and are
+not fetched or merged by this implementation.
+
+Browser evidence is [recorded separately](api-survey.md#spell-browser-evidence).
+Native cookie compatibility, denied HTML, API responses, ownership, sharing,
+and unchecked filter combinations remain unverified. No native account test
+is part of implementation validation.
 
 ## How to use and maintain this catalog
 
@@ -549,7 +600,8 @@ checked filter submissions and server HTML, but not pagination.
 | PAGE-02 | `/backgrounds` | Public background filters; paging not observed |
 | PAGE-03 | `/species` | Public species listing; bounded HTML metadata; no server-side search or paging contract observed |
 | PAGE-04 | `/feats` | Public feat filters; paging not observed |
-| PAGE-05 | `/spells` | Public spell filters and `page` links |
+| PAGE-05 | `/spells` | Explicit cookie-only filtered pages; [spell contract](#spell-read-contract) |
+| PAGE-05-D | `/spells/{numeric-id}-{slug}` | Selected cookie-only HTML detail; no raw JSON route |
 | PAGE-06 | `/monsters` | Implemented filtered candidate pages and explicit next-page checks; browser HTML evidence does not establish native account acceptance |
 | PAGE-07 | `/magic-items` | Public item filters and `page` links |
 | PAGE-08 | `/equipment` | Public equipment filters and `page` links |

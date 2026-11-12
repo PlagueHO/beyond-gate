@@ -17,6 +17,62 @@ Use the [shared API call catalog](api-catalog.md) to find known calls by stable 
 This survey holds their detailed evidence, measurements, and failed checks.
 Keep both documents current so other issues can reuse findings without repeating probes.
 
+## Spell browser evidence
+
+The approved issue #69 browser phase is complete and closed.
+It used nine bounded page navigations/submissions and four public script
+reads, below the approved 16 MiB combined script cap.
+No explicit authenticated API request, native credential read, token exchange,
+native acceptance test, or account write ran.
+No denial or bot-protection stop occurred. No real snapshots or spell rules
+text were retained.
+
+The [standalone spell catalog][spells-page] submitted GET forms.
+Checks covered repeated `filter-class`, `filter-level`, and `filter-school`,
+including level 0 cantrips. A Cleric/cantrip result had nine rows and no paging.
+A two-class/two-level result had twenty rows and page links.
+The selected page-2 link preserved filters and selected page 2.
+A submitted name/school/component/concentration/ritual combination returned
+two rows. Concentration used `1`/`2`; ritual and components used `t`/`f`.
+The submitted form included `filter-partnered-content=f`.
+The form exposed other controls in the
+[shared filter table](cli.md#spell-pages-and-selected-html), but those
+combinations did not receive submission acceptance checks.
+
+A synthetic no-match search supplied `li.alert.no-results` inside
+`ul.listing.listing-rpgspell.rpgspell-listing`, with a footer and no paging.
+Nonempty rows were direct `div.info` children, not `li` children.
+Each had `data-type=spells`, a numeric-ID/slug `data-slug`, and a matching
+`.spell-name a.link`. The default page had twenty rows.
+Separate current, legacy, and partnered class IDs must not collapse by name.
+The school controls used IDs 3 through 10. Rows identified the school through
+an empty `.spell-school .school` element with a school-name CSS class.
+Page-2 controls included links to page 1 without a `page` query parameter.
+
+Two selected detail navigations supplied `.spell-details.<id-slug>-details`
+with `section.more-info` and `section.detail-content`.
+The selected content included `.ddb-statblock.ddb-statblock-spell`,
+`.more-info-content`, `.available-for`, and `.spell-source`.
+The checked current page had a canonical link matching its URL.
+Observed stat items were level, casting time, range/area, components, duration,
+school, attack/save, and damage/effect, each with a label and value.
+Neither page supplied application JSON or JSON-LD.
+The user selected complete numeric-ID/slug HTML detail rather than a guessed
+numeric-only or JSON route.
+
+The page's first-party `waterdeep` script and the public
+[character client][character-client] were inspected for request construction.
+Ordinary and always-known spell reads used `classId`, `classLevel`, and
+`spellListIds`. Always-prepared reads used `classId` and `classLevel`.
+One always-known flow added `backgroundId`. These character-context sources
+do not establish a complete standalone website catalog.
+No class/level scanning or catalog merge is implemented.
+
+This evidence establishes browser structure, not native HTTP compatibility.
+Native cookie behavior, denied HTML, authenticated API responses, ownership,
+sharing, and unchecked filter combinations remain unverified.
+See the [implemented contract](api-catalog.md#spell-read-contract).
+
 ## Scope and evidence
 
 The signed-in browser was used for safe request metadata and public client inspection.

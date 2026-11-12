@@ -7,6 +7,17 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows spell browsing and selected HTML detail through shared core
+  reads, CLI `spell list/show`, and MCP `spell_list`/`spell_show`.
+  Lists use explicit website pages and repeated filters, including cantrips.
+  Detail requires a complete numeric-ID/slug key and preserves unknown selected
+  fields in untrusted `raw_html`. No character-context API scans, invented JSON
+  route, ownership grant, automatic continuation, or content cache is added.
+  Typed errors reject denied, missing, malformed, incomplete, duplicate,
+  unsupported, and over-limit results without partial output.
+  Synthetic tests cover core policy and adapter parity. Browser structure was
+  checked separately; native cookie compatibility, denied HTML, ownership,
+  sharing, and unchecked filter combinations remain unverified.
 - Bounded Windows species and legacy-race metadata browsing and selected raw
   detail through shared core operations, CLI `species list/show`, and MCP
   `species_list`/`species_show`. List parses bounded identity and source

@@ -56,7 +56,7 @@ function Get-E2eCases {
     }
     foreach ($read in $Inventory.reads) {
         $arguments = @($read.path.Split(' '))
-        foreach ($key in @('id', 'book_id', 'section_id')) {
+        foreach ($key in @('id', 'slug', 'book_id', 'section_id')) {
             if ($read.arguments.ContainsKey($key)) { $arguments += $read.arguments[$key] }
         }
         $modes = if ($read.list) { @('table', 'json', 'tsv', 'table-no-headers', 'tsv-no-headers') } else { @('json') }

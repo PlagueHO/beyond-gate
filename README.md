@@ -34,6 +34,11 @@ Species lists parse bounded metadata from the fixed public website page.
 Selected detail uses a fresh candidate character-service collection and
 preserves the complete raw record. Synthetic process checks cover adapter
 parity. Live detail access and native compatibility remain unverified.
+Spell list/show and matching MCP tools use explicit standalone website pages
+and selected untrusted HTML detail. They do not scan character-context spell
+APIs or infer access from metadata. Browser structure checks are complete;
+native cookie compatibility, denied HTML, ownership, and sharing remain
+unverified. See the [spell contract](docs/cli.md#spell-pages-and-selected-html).
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.

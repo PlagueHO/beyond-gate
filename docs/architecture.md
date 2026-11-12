@@ -30,6 +30,8 @@ unchanged raw detail from a fresh candidate collection. They do not infer
 ownership; live detail access remains unverified.
 Two background tools provide website-filtered metadata and selected unchanged
 definitions from a fresh complete collection, subject to the existing 1 MiB cap.
+Two spell tools provide explicit website pages and selected untrusted HTML
+detail. They do not scan character-context spell APIs.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -60,6 +62,31 @@ Production session use is Windows-only; the shared policy has portable
 synthetic coverage. Linux implementation is tracked in
 [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 
+## Spell read boundary
+
+The core `spell` module owns selectors, canonical keys, HTML validation,
+cookie-only URL guards, response extraction, and typed errors.
+Both adapters call those same operations. A new read scope pins the protected
+cookie identity. Session validation and one HTML resource read share a
+30-second whole-operation deadline. A valid cached process-local session can
+avoid an exchange; at most two explicit HTTP requests are needed.
+Transport remains single-attempt, redirect-free, and bounded to 1 MiB.
+The book URL guard is not widened.
+
+List returns every checked row on one explicit website page in website order.
+The actual GET form, echoed filters, footer, identity agreement, and top/bottom
+paging controls must agree. Empty results require the observed marker.
+There is no next-page or detail fan-out.
+Show requires the complete numeric-ID/slug key and checks the selected
+canonical page again. Metadata never grants access.
+The selected `detail-content` subtree is serialized to `raw_html` without
+interpreting rules. Unknown selected elements survive. Surrounding page
+chrome is excluded; unexpected scripts, forms, and account/comment containers
+inside the selected content cause failure.
+HTML is untrusted text, not a trusted rendered page, log, or cache.
+Native access remains unverified. See the
+[source contract](api-catalog.md#spell-read-contract).
+
 ## Intended boundaries
 
 | Crate | Owns | Does not own |
@@ -89,6 +116,7 @@ stdout is reserved for MCP messages; server diagnostics use stderr.
 The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `campaign_show`, `class_list`, `class_show`, `monster_list`, `monster_show`,
 `species_list`, `species_show`, `background_list`, `background_show`,
+`spell_list`, `spell_show`,
 `book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and

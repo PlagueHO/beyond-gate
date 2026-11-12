@@ -12,6 +12,7 @@ use beyond_gate_core::{
     library::LibraryError,
     monster::MonsterError,
     species::SpeciesError,
+    spell::SpellError,
 };
 
 /// Retains shared operation errors without copying private response values.
@@ -28,6 +29,7 @@ pub(crate) enum Failure {
     Class(ClassCatalogError),
     Monster(MonsterError),
     Species(SpeciesError),
+    Spell(SpellError),
     Background(BackgroundError),
     Library(LibraryError),
     Book(BookError),
@@ -49,6 +51,7 @@ impl Failure {
                 | Self::Class(ClassCatalogError::InvalidInput)
                 | Self::Monster(MonsterError::InvalidInput)
                 | Self::Species(SpeciesError::InvalidInput)
+                | Self::Spell(SpellError::InvalidInput)
                 | Self::Background(BackgroundError::InvalidInput)
         ) {
             2
@@ -84,6 +87,7 @@ impl fmt::Display for Failure {
             Self::Class(error) => write!(formatter, "{error}")?,
             Self::Monster(error) => write!(formatter, "{error}")?,
             Self::Species(error) => write!(formatter, "{error}")?,
+            Self::Spell(error) => write!(formatter, "{error}")?,
             Self::Background(error) => write!(formatter, "{error}")?,
             Self::Library(error) => write!(formatter, "{error}")?,
             Self::Book(error) | Self::Cursor(error) => write!(formatter, "{error}")?,
@@ -136,6 +140,7 @@ impl Error for Failure {
             Self::Class(error) => Some(error),
             Self::Monster(error) => Some(error),
             Self::Species(error) => Some(error),
+            Self::Spell(error) => Some(error),
             Self::Background(error) => Some(error),
             Self::Library(error) => Some(error),
             Self::Book(error) | Self::Cursor(error) => Some(error),

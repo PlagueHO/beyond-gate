@@ -800,6 +800,50 @@ fn output_failures() {
     );
 }
 
+/// Checks actual core spell envelopes and selected HTML through the CLI process.
+fn spell_contracts() {
+    let value = read_json(&run(
+        "spell-next",
+        &[
+            "spell",
+            "list",
+            "--level",
+            "0",
+            "--class-id",
+            "17",
+            "-o",
+            "json",
+        ],
+    ));
+    assert_eq!(value["entries"][0]["id"], "900001");
+    assert_eq!(value["entries"][0]["level"], 0);
+    assert_eq!(value["pagination"], json!({"page":1,"next_page":2}));
+    let value = read_json(&run("spell-empty", &["spell", "list", "-o", "json"]));
+    assert_eq!(value["entries"], json!([]));
+    let value = read_json(&run(
+        "spell-normal",
+        &["spell", "show", "900001-invented-spell"],
+    ));
+    assert!(
+        value["raw_html"]
+            .as_str()
+            .expect("HTML")
+            .contains("Unknown invented element")
+    );
+    assert!(
+        !value["raw_html"]
+            .as_str()
+            .expect("HTML")
+            .contains("Outside")
+    );
+    failure(
+        run("spell-denied", &["spell", "list", "-o", "json"]),
+        1,
+        "access_denied",
+    );
+    failure(run("spell-normal", &["spell", "show", "17"]), 2, "slug");
+}
+
 /// Runs parent assertions or a child with the real command runner and synthetic reads.
 fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
@@ -814,6 +858,25 @@ fn main() {
             .into_owned();
         let cli_arguments = std::iter::once(std::ffi::OsString::from("beyond-gate"))
             .chain(arguments.into_iter().skip(3));
+        if let Some(name) = scenario.strip_prefix("spell-") {
+            use beyond_gate_core::spell::fixture::{self, Scenario};
+            let source = match name {
+                "next" => Scenario::Next,
+                "empty" => Scenario::Empty,
+                "denied" => Scenario::Denied,
+                "normal" => Scenario::Normal,
+                _ => panic!("unknown synthetic spell source"),
+            };
+            let session = fixture::session(source).expect("invented spell service");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
         std::process::exit(beyond_gate_cli::run(
             cli_arguments,
             &Fixtures { scenario },
@@ -823,6 +886,7 @@ fn main() {
     }
     list_contracts();
     species_contracts();
+    spell_contracts();
     section_contracts();
     output_failures();
 }
