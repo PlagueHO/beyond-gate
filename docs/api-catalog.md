@@ -29,6 +29,9 @@ List uses the [observed website controls](cli.md#spell-pages-and-selected-html),
 not character `classLevel`. The returned GET form, option membership, echoed
 selections, direct rows, footer, and explicit pagination must agree.
 Selection checks include implicit first-option defaults in single-select controls.
+Single-select controls cannot declare multiple selected values. Unexpected
+nonempty enabled hidden filters and next anchors without destinations fail
+the complete page rather than narrowing results or implying a terminal page.
 Empty success requires `li.alert.no-results` inside
 `ul.listing.listing-rpgspell.rpgspell-listing`, with a footer and no paging.
 Nonempty rows are direct `div.info` children with `data-type=spells`,

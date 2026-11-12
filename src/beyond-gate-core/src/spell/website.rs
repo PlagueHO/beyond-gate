@@ -65,13 +65,16 @@ fn filters_in(url: &reqwest::Url) -> BTreeMap<String, Vec<String>> {
     result
 }
 
-/// Includes the implicit enabled first option of a single-row, single-select control.
+/// Rejects conflicting single-select choices and includes an enabled implicit first option.
 fn selected_values(control: ElementRef<'_>) -> Result<Vec<String>, Failure> {
     let options = selector("option")?;
     let mut selected: Vec<_> = control
         .select(&options)
         .filter(|option| option.value().attr("selected").is_some())
         .collect();
+    if control.value().attr("multiple").is_none() && selected.len() > 1 {
+        return Err(Failure::InvalidResponse);
+    }
     if selected.is_empty()
         && control.value().attr("multiple").is_none()
         && matches!(control.value().attr("size"), None | Some("1"))
@@ -178,6 +181,13 @@ fn filters(document: &Html, query: &SpellQuery) -> Result<(), Failure> {
             node.value().attr("checked").is_some()
                 || (node.value().attr("type") == Some("text")
                     && node.value().attr("value").is_some_and(|s| !s.is_empty()))
+                || (node.value().name() == "input"
+                    && node
+                        .value()
+                        .attr("type")
+                        .is_some_and(|s| s.eq_ignore_ascii_case("hidden"))
+                    && node.value().attr("disabled").is_none()
+                    && node.value().attr("value").is_some_and(|s| !s.is_empty()))
         };
         if selected {
             return Err(Failure::IncompleteResult);
@@ -202,7 +212,7 @@ fn pagination(document: &Html, query: &SpellQuery, empty: bool) -> Result<Option
     let expected = query.website_url(WEBSITE)?;
     let groups = selector(".b-pagination-list")?;
     let active = selector(".b-pagination-item.active")?;
-    let links = selector("a[href]")?;
+    let links = selector("a[href], a[rel~='next']")?;
     let mut outcomes = Vec::new();
     for group in document.select(&groups) {
         if empty {

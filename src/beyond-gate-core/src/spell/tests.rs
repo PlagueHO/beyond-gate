@@ -158,6 +158,31 @@ async fn spell_terminal_and_empty_pages_require_the_observed_structure() {
     }
 }
 
+/// Rejects missing next-link targets, including whitespace-separated relation tokens.
+#[test]
+fn spell_pagination_requires_next_link_href() {
+    let query = SpellQuery::default();
+    let valid = fixture::listing(&query, Scenario::Next);
+    let mut next = query.clone();
+    next.page += 1;
+    let href = next
+        .website_url(WEBSITE)
+        .expect("synthetic next URL")
+        .as_str()
+        .replace('&', "&amp;");
+    for rel in ["next", "prev next", "next alternate"] {
+        let altered = valid.replace(
+            &format!("rel='next' href='{href}'"),
+            &format!("rel='{rel}'"),
+        );
+        assert_ne!(altered, valid, "fixture mutation must remove href");
+        assert!(matches!(
+            website::list(altered.as_bytes(), &query),
+            Err(SpellError::IncompleteResult)
+        ));
+    }
+}
+
 /// Rejects unrecognized options, conflicting echoed filters, and inconsistent paging.
 #[test]
 fn spell_filter_and_paging_checks_never_follow_links() {
@@ -214,6 +239,68 @@ fn spell_filter_checks_follow_single_select_defaults() {
         website::list(body.as_bytes(), &query),
         Err(SpellError::IncompleteResult)
     ));
+}
+
+/// Rejects conflicting single-select choices while preserving valid multiple selections.
+#[test]
+fn spell_filter_checks_reject_multiple_single_select_choices() {
+    let query = SpellQuery {
+        class_ids: vec![17, 18],
+        ..SpellQuery::default()
+    };
+    let valid = fixture::listing(&query, Scenario::Normal);
+    website::list(valid.as_bytes(), &query).expect("valid multiple selection");
+    for replacement in [
+        "<select name='filter-class'>",
+        "<select name='filter-class' size='2'>",
+    ] {
+        let body = valid.replace("<select name='filter-class' multiple>", replacement);
+        assert!(matches!(
+            website::list(body.as_bytes(), &query),
+            Err(SpellError::InvalidResponse)
+        ));
+    }
+
+    let query = SpellQuery::default();
+    let body = fixture::listing(&query, Scenario::Normal)
+        .replace("<option value='17' >", "<option value='17' selected>");
+    let body = body
+        .replace("<option value='18' >", "<option value='18' selected>")
+        .replace(
+            "<select name='filter-class' multiple>",
+            "<select name='filter-class'>",
+        );
+    assert!(matches!(
+        website::list(body.as_bytes(), &query),
+        Err(SpellError::InvalidResponse)
+    ));
+}
+
+/// Rejects unexpected submitted hidden filters, but permits empty or disabled inputs.
+#[test]
+fn spell_filter_checks_include_enabled_hidden_restrictions() {
+    let query = SpellQuery::default();
+    let valid = fixture::listing(&query, Scenario::Normal);
+    for control in [
+        "<input type='hidden' name='filter-level' value='9'>",
+        "<input type='hidden' name='filter-unknown' value='restricted'>",
+        "<input type='HIDDEN' name='filter-level' value='9'>",
+    ] {
+        let body = valid.replace("</form>", &format!("{control}</form>"));
+        assert!(matches!(
+            website::list(body.as_bytes(), &query),
+            Err(SpellError::IncompleteResult)
+        ));
+    }
+    for control in [
+        "<input type='hidden' name='filter-level' value=''>",
+        "<input type='hidden' name='filter-level'>",
+        "<input type='hidden' name='filter-level' value='9' disabled>",
+        "<input type='hidden' name='other-control' value='9'>",
+    ] {
+        let body = valid.replace("</form>", &format!("{control}</form>"));
+        website::list(body.as_bytes(), &query).expect("no submitted hidden restriction");
+    }
 }
 
 /// Preserves unknown selected elements while excluding surrounding account chrome.
