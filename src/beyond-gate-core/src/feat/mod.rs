@@ -42,7 +42,7 @@ pub enum FeatError {
     ConflictingIdentity,
     /// The selected ID is absent from the complete checked collection.
     MissingRecord,
-    /// The source operation, paging, or protected access contract is unverified.
+    /// The source indicates an unsupported challenge, paging, or access shape.
     UnsupportedOperation,
     /// The raw count or compact result exceeds local policy.
     LimitExceeded,

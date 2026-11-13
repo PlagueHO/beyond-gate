@@ -1,4 +1,4 @@
-//! Synthetic feat bounds, provisional selected definitions, and fail-closed production access.
+//! Synthetic feat bounds, selected definitions, and fail-closed collection validation.
 
 use super::{
     fixture::{self, Scenario},
@@ -289,6 +289,85 @@ fn page_structure_echoes_and_display_urls_fail_closed() {
     ] {
         assert!(source_url("17", link).is_err())
     }
+}
+
+/// Rejects extra selected options in both scalar and repeated requested controls.
+#[test]
+fn complete_filter_selections_must_match() {
+    let query = FeatQuery {
+        prerequisite_subtype_id: Some(7),
+        tag_ids: vec![7],
+        source_ids: vec![7],
+        source_category_ids: vec![7],
+        ..Default::default()
+    };
+    let url = query.website_url(WEBSITE).expect("URL");
+    let normal = fixture::website(
+        Scenario::Normal,
+        &format!("{}?{}", url.path(), url.query().expect("query")),
+    );
+    assert!(website::parse(normal.as_bytes(), &query).is_ok());
+    for (field, multiple) in [
+        ("filter-prereq-subtype", ""),
+        ("filter-tags", " multiple"),
+        ("filter-source", " multiple"),
+        ("filter-source-category", " multiple"),
+        ("filter-partnered-content", ""),
+    ] {
+        let control = format!("<select name=\"{field}\"{multiple}>");
+        let extra = normal.replace(
+            &control,
+            &format!("{control}<option value=\"8\" selected>Extra selection</option>"),
+        );
+        assert!(
+            website::parse(extra.as_bytes(), &query).is_err(),
+            "{field} accepted an extra selection"
+        );
+        let wrong_cardinality = normal.replace(
+            &control,
+            &format!(
+                "<select name=\"{field}\"{}>",
+                if multiple.is_empty() { " multiple" } else { "" }
+            ),
+        );
+        assert!(website::parse(wrong_cardinality.as_bytes(), &query).is_err());
+    }
+}
+
+/// Requires neutral omitted controls and checks implicit or explicit scalar defaults.
+#[test]
+fn omitted_filters_must_remain_neutral() {
+    let query = FeatQuery::default();
+    let normal = fixture::website(Scenario::Normal, "/feats?filter-partnered-content=f");
+    assert!(website::parse(normal.as_bytes(), &query).is_ok());
+    let explicit_default =
+        normal.replacen("<option value=\"\">", "<option value=\"\" selected>", 1);
+    assert!(website::parse(explicit_default.as_bytes(), &query).is_ok());
+    for (field, multiple) in [
+        ("filter-prereq-subtype", ""),
+        ("filter-tags", " multiple"),
+        ("filter-source", " multiple"),
+        ("filter-source-category", " multiple"),
+    ] {
+        let control = format!("<select name=\"{field}\"{multiple}>");
+        let filtered = normal.replace(
+            &control,
+            &format!("{control}<option value=\"7\" selected>Unexpected filter</option>"),
+        );
+        assert!(
+            website::parse(filtered.as_bytes(), &query).is_err(),
+            "{field} accepted an omitted selection"
+        );
+        let missing = normal.replace(&format!("name=\"{field}\""), "name=\"unknown\"");
+        assert!(website::parse(missing.as_bytes(), &query).is_err());
+    }
+    let nonneutral_default = normal.replacen("<option value=\"\">", "<option value=\"7\">", 1);
+    assert!(website::parse(nonneutral_default.as_bytes(), &query).is_err());
+    let filtered_name = normal.replace(
+        "name=\"filter-name\" value=\"\"",
+        "name=\"filter-name\" value=\"unexpected\"",
+    );
+    assert!(website::parse(filtered_name.as_bytes(), &query).is_err());
 }
 
 /// Enforces null rejection, scalar prerequisites, exact text bounds, and narrow cookie URLs.
