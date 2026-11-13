@@ -494,6 +494,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Package verification includes both equipment tools in the exact MCP inventory
+  and checks invalid equipment input before session or network access.
 - Class/subclass tables now check an 8 MiB presentation limit before allocating
   padded output. Exceeded limits fail explicitly with empty stdout instead of
   expanding bounded metadata into excessive padding. JSON and TSV remain complete.
