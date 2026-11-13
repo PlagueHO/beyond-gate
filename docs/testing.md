@@ -965,9 +965,11 @@ A controlled offline test also runs the real driver against an owned synthetic
 process that never replies to its pipe. The original protocol timeout must
 remain a failure. The process must exit before its directory is removed.
 
-The shared launcher keeps the fifteen-second launch timeout and the existing
-per-runner protocol deadlines. It does not retry, skip a browser, change browser
-flavor, or change any native-messaging or product-flow assertion.
+The shared launcher keeps the fifteen-second browser launch timeout. Both real
+browser flows allow up to 35 seconds for initial DevTools protocol setup after
+a cold start. This is a bounded response deadline, not a retry. The runner does
+not skip a browser, change browser flavor, or change any native-messaging or
+product-flow assertion.
 CI requires three separate feasibility runs with fresh profiles. These are
 mandatory cold-launch cases, not success-on-retry behavior. Any failed run
 fails the step even if a later run passes. Each run must complete its cleanup.

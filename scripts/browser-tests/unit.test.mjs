@@ -272,6 +272,13 @@ test("both browser runners retain launch isolation and their exact protocol dead
   }
 });
 
+test("both real-browser flows allow a bounded cold-start protocol deadline", async () => {
+  for (const file of ["run.mjs", "product-flow.mjs"]) {
+    const source = await readFile(new URL(file, import.meta.url), "utf8");
+    assert.match(source, /protocolTimeout:\s*35000/);
+  }
+});
+
 test("launch rejection retains safe cause and process evidence but never driver text", async () => {
   const cause = new Error(
     "Protocol error (Target.setDiscoverTargets): Target closed; " +

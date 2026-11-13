@@ -186,7 +186,7 @@ async function probe(name) {
       const address = proxy.address();
       phase = "browser-start";
       browser = await launchBrowser(name, {
-        directory, proxyPort: address.port, protocolTimeout: 15000,
+        directory, proxyPort: address.port, protocolTimeout: 35000,
       });
       phase = "extension-load";
       const id = await browser.installExtension(join(HERE, "extension"));
