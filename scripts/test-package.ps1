@@ -174,6 +174,8 @@ function Assert-PackagedProtocol {
     @{name = 'feat_show'; arguments = @{id = '17'; unexpected = $true}}
     @{name = 'spell_list'; arguments = @{unexpected = $true}}
     @{name = 'spell_show'; arguments = @{slug = '900001-invented-spell'; unexpected = $true}}
+    @{name = 'equipment_list'; arguments = @{unexpected = $true}}
+    @{name = 'equipment_show'; arguments = @{id = '7:17'; page = 1; unexpected = $true}}
     @{name = 'book_list'; arguments = @{unexpected = $true}}
     @{name = 'book_outline'; arguments = @{book_id = 'synthetic'; unexpected = $true}}
     @{name = 'book_read'; arguments = @{book_id = 'synthetic'; section_id = 'opening'; unexpected = $true}}
@@ -366,6 +368,8 @@ try {
     ,@('character', 'show', 'synthetic')
     ,@('campaign', 'list')
     ,@('campaign', 'show', 'synthetic')
+    ,@('equipment', 'list')
+    ,@('equipment', 'show', '7:17', '--page', '1')
   )) {
     $result = Invoke-PackagedProcess $cli (@($arguments) + '--unexpected')
     Assert-Package ($result.Code -eq 2 -and $result.Out -eq '' -and $result.Err.Contains("unexpected argument '--unexpected'")) "Read argument validation failed: $arguments"

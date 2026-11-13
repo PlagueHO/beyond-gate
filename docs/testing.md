@@ -20,6 +20,11 @@ does not change this suite's zero live-request budget.
 
 ## Equipment synthetic checks
 
+The package verifier includes `equipment_list` and `equipment_show` in its
+exact MCP inventory. It checks unknown-field rejection through the packaged
+server and CLI launcher. CLI equipment checks also reject unexpected arguments
+before session or network access.
+
 The [shared classifier](../src/beyond-gate-core/src/item_catalog.rs) tests the
 explicit boolean `magic` rule without network access or credentials.
 Synthetic cases cover overlapping gear, weapon, armor, and future categories,
