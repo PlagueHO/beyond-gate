@@ -89,6 +89,7 @@ separate bounded approval. Reuse unchanged evidence within its recorded scope.
 | [#9](https://github.com/PlagueHO/beyond-gate/issues/9) | Local MCP start and install | #7, #8 |
 | [#10](https://github.com/PlagueHO/beyond-gate/issues/10) | Native packages and first-run usability | #9 and its prerequisites |
 | [#65](https://github.com/PlagueHO/beyond-gate/issues/65) | Class/subclass metadata-only list/show; no raw definitions or rules text | #2, #30, #7, #8; browser evidence and synthetic adapter checks, not native acceptance |
+| [#70](https://github.com/PlagueHO/beyond-gate/issues/70) | Equipment metadata and page-scoped raw JSON detail; shared item classification; no global scan | #2, #30, #7, #8; browser paging evidence and synthetic adapter checks; native and owned/shared acceptance unverified |
 
 Authentication follow-up work remains open:
 

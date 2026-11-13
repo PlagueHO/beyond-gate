@@ -866,13 +866,13 @@ settings remain intact. Observe the actual client, not only its JSON file:
 | Claude Code | `claude mcp list` and its MCP tools view | Isolated user-level `.claude.json` |
 | Copilot CLI | `/mcp` dashboard | Isolated `COPILOT_HOME` `mcp-config.json` |
 
-Confirm all twenty tools: `auth_validate`, `character_list`, `character_show`,
+Confirm all 22 tools: `auth_validate`, `character_list`, `character_show`,
 `campaign_list`, `campaign_show`, `book_list`, `book_outline`, `book_read`,
 `class_list`, `class_show`, `monster_list`, `monster_show`, `background_list`,
 `background_show`, `species_list`, `species_show`, `spell_list`, `spell_show`,
-`feat_list`, and `feat_show`. Earlier retained
+`feat_list`, `feat_show`, `equipment_list`, and `equipment_show`. Earlier retained
 eight-tool evidence does not establish real-client acceptance for the later
-class, monster, background, species, spell, and feat tools.
+class, monster, background, species, spell, feat, and equipment tools.
 Discovery alone does not permit calling `auth_validate` or valid resource operations.
 If the client supports an exact tool call without a model request, check one
 unknown-field rejection only after verifying that the selected candidate rejects

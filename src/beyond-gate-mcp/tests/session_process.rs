@@ -40,6 +40,28 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    if let Some(name) = name.strip_prefix("equipment-") {
+        use beyond_gate_core::item_catalog::fixture::{self, Scenario};
+        let scenario = match name {
+            "normal" => Scenario::Normal,
+            "empty" => Scenario::Empty,
+            "magic-only" => Scenario::MagicOnly,
+            "denied" => Scenario::Denied,
+            "rejected" => Scenario::Rejected,
+            "expired" => Scenario::Expired,
+            "malformed" => Scenario::Malformed,
+            "ignored-page" => Scenario::IgnoredPage,
+            "incomplete" => Scenario::Incomplete,
+            "duplicate" => Scenario::Duplicate,
+            "invalid-source" => Scenario::InvalidSource,
+            "bad-magic" => Scenario::BadMagic,
+            "unsupported" => Scenario::Unsupported,
+            "oversized" => Scenario::Oversized,
+            "waiting" => Scenario::Waiting,
+            _ => panic!("unknown synthetic item scenario"),
+        };
+        return fixture::session(scenario).expect("invented item service");
+    }
     if let Some(name) = name.strip_prefix("feat-") {
         use beyond_gate_core::feat::fixture::{self, Scenario};
         let scenario = match name {
@@ -2021,6 +2043,172 @@ fn background_table_limit_contracts() {
     assert!(text.contains("\\\\t"));
 }
 
+/// Checks equipment CLI/MCP parity, strict page context, safe failures, and cancellation.
+fn equipment_contracts() {
+    for (scenario, command, tool, arguments) in [
+        (
+            "equipment-normal",
+            vec!["equipment", "list", "-o", "json"],
+            "equipment_list",
+            json!({}),
+        ),
+        (
+            "equipment-normal",
+            vec!["equipment", "list", "--page", "2", "-o", "json"],
+            "equipment_list",
+            json!({"page":2}),
+        ),
+        (
+            "equipment-normal",
+            vec!["equipment", "list", "--page", "3", "-o", "json"],
+            "equipment_list",
+            json!({"page":3}),
+        ),
+        (
+            "equipment-magic-only",
+            vec!["equipment", "list", "-o", "json"],
+            "equipment_list",
+            json!({}),
+        ),
+        (
+            "equipment-empty",
+            vec!["equipment", "list", "-o", "json"],
+            "equipment_list",
+            json!({}),
+        ),
+        (
+            "equipment-normal",
+            vec!["equipment", "show", "7:17", "--page", "1"],
+            "equipment_show",
+            json!({"id":"7:17","page":1}),
+        ),
+        (
+            "equipment-normal",
+            vec!["equipment", "show", "7:117", "--page", "2"],
+            "equipment_show",
+            json!({"id":"7:117","page":2}),
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&output.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], false, "{result}");
+        let value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
+                .expect("MCP JSON");
+        assert_eq!(value, cli_value);
+        if tool == "equipment_show" {
+            assert_eq!(value["raw"]["future"]["nested"], json!([true, null, 3]));
+            assert_eq!(value["sources"][0]["future"]["ref"], true);
+        }
+        let tools = messages.iter().find(|m| m["id"] == 2).expect("tools")["result"]["tools"]
+            .as_array()
+            .expect("tool array");
+        for name in ["equipment_list", "equipment_show"] {
+            let schema = &tools
+                .iter()
+                .find(|t| t["name"] == name)
+                .expect("equipment tool")["inputSchema"];
+            assert_eq!(schema["additionalProperties"], false);
+            assert_eq!(schema["properties"]["page"]["minimum"], 1);
+            assert_eq!(schema["properties"]["page"]["maximum"], 1_000_000);
+            if name == "equipment_show" {
+                assert!(
+                    schema["required"]
+                        .as_array()
+                        .expect("required")
+                        .contains(&json!("page"))
+                );
+                assert_eq!(
+                    schema["properties"]["id"]["pattern"],
+                    "^[1-9][0-9]{0,19}:[1-9][0-9]{0,19}$"
+                );
+            }
+        }
+    }
+    for (tool, args) in [
+        ("equipment_list", json!({"page":null})),
+        ("equipment_list", json!({"page":0})),
+        ("equipment_list", json!({"page":1_000_001})),
+        ("equipment_list", json!({"page_size":1})),
+        ("equipment_list", json!({"skip":0})),
+        ("equipment_show", json!({"id":"7:17"})),
+        ("equipment_show", json!({"id":"17","page":1})),
+        ("equipment_show", json!({"id":"7:017","page":1})),
+        (
+            "equipment_show",
+            json!({"id":"7:17","page":1,"access":true}),
+        ),
+    ] {
+        let (output, messages) = mcp_tool("absent", tool, args, false);
+        assert!(output.status.success());
+        let response = messages.iter().find(|m| m["id"] == 3).expect("response");
+        assert!(response.get("error").is_some() || response["result"]["isError"] == true);
+        assert!(!response.to_string().contains("session_absent"));
+    }
+    for (scenario, page, id, diagnostic) in [
+        ("equipment-denied", "1", "7:17", "access_denied"),
+        ("equipment-rejected", "1", "7:17", "session_rejected"),
+        ("equipment-expired", "1", "7:17", "session_expired"),
+        ("equipment-malformed", "1", "7:17", "invalid item response"),
+        ("equipment-ignored-page", "2", "7:17", "incomplete"),
+        ("equipment-incomplete", "1", "7:17", "incomplete"),
+        ("equipment-duplicate", "1", "7:17", "conflicting"),
+        (
+            "equipment-invalid-source",
+            "1",
+            "7:17",
+            "invalid item response",
+        ),
+        ("equipment-bad-magic", "1", "7:17", "invalid item response"),
+        ("equipment-unsupported", "1", "7:17", "unsupported"),
+        ("equipment-oversized", "1", "7:17", "BodyTooLarge"),
+        ("equipment-normal", "2", "7:17", "checked source page"),
+        ("equipment-normal", "1", "7:18", "not equipment"),
+    ] {
+        let output = cli(scenario, &["equipment", "show", id, "--page", page]);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let cli_error = String::from_utf8(output.stderr).expect("diagnostic");
+        assert!(cli_error.contains(diagnostic), "{cli_error}");
+        let (output, messages) = mcp_tool(
+            scenario,
+            "equipment_show",
+            json!({"id":id,"page":page.parse::<u32>().expect("page")}),
+            false,
+        );
+        assert!(output.status.success());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], true, "{result}");
+        let error = result["content"][0]["text"].as_str().expect("error");
+        assert!(error.contains(diagnostic), "{error}");
+        assert!(cli_error.contains(error));
+    }
+    for (tool, args) in [
+        ("equipment_list", json!({})),
+        ("equipment_show", json!({"id":"7:17","page":1})),
+    ] {
+        let (output, messages) = mcp_tool("equipment-waiting", tool, args, true);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(messages.iter().any(|m| m["id"] == 4));
+        assert!(
+            !messages
+                .iter()
+                .any(|m| m["id"] == 3 && m["result"]["isError"] == false)
+        );
+    }
+}
+
 /// Checks shared feat CLI/MCP data, strict schemas, safe errors, and cancellation.
 fn feat_contracts() {
     for (scenario, command, tool, arguments) in [
@@ -2426,6 +2614,7 @@ fn main() {
             background_table_limit_contracts();
             spell_contracts();
             feat_contracts();
+            equipment_contracts();
         }
     }
 }

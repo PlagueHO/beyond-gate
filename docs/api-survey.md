@@ -17,6 +17,136 @@ Use the [shared API call catalog](api-catalog.md) to find known calls by stable 
 This survey holds their detailed evidence, measurements, and failed checks.
 Keep both documents current so other issues can reuse findings without repeating probes.
 
+## Equipment and magic-item research
+
+Issue [#70](https://github.com/PlagueHO/beyond-gate/issues/70) requires raw JSON
+equipment detail and a shared source with magic-item issue
+[#71](https://github.com/PlagueHO/beyond-gate/issues/71).
+The initial approved built-in Browser research ran on 2026-11-14.
+The user performed login. No native credential access, live CLI/MCP test,
+account write, or bulk catalog traversal ran. No credentials, account snapshots,
+or proprietary rules text were retained.
+
+### Observed item collection
+
+The [public character client][character-client] explicitly selects
+`GET https://character-service.dndbeyond.com/character/v5.1/game-data/items`.
+It does not use the default `v5` version for items.
+Two browser-only exchanges at the existing fixed authentication service succeeded.
+Four bearer-only item reads returned HTTP 200:
+
+| Query | Rows | Pagination | Response bytes |
+|-------|-----:|------------|---------------:|
+| `sharingSetting=2` | 100 | `skip=0`, `take=100`, `total=2796` | 250,444 |
+| `sharingSetting=2&skip=0&take=1` | 100 | Same | 250,444 |
+| `sharingSetting=2&skip=1&take=1` | 100 | Same | 250,442 |
+| `sharingSetting=2&ids=<selected-id>` | 100 | Same | 250,444 |
+
+All three selector trials returned the same first-page identities.
+These queries do not establish working paging or selected-ID reads.
+The response has numeric `id`, true `success`, string `message`, array `data`,
+and a nonterminal pagination object. There was no envelope access map.
+Do not treat this partial response as a complete catalog, infer global absence
+from it, or describe local selection from it as a verified detail operation.
+
+Observed row fields include numeric `id`, `entityTypeId`, and `baseTypeId`,
+string `definitionKey`, boolean `magic`, string `name`, `filterType`, and
+array `sources`. Raw fields also include descriptions, item properties, costs,
+weights, equipment-specific fields, and flags. Unknown selected fields must
+survive any eventual raw JSON implementation.
+Source references contain numeric `sourceId` and `sourceType`, with nullable
+numeric `pageNumber`. The inspected page had 100 unique IDs and definition keys.
+Global uniqueness and website/API identity equivalence remain unverified.
+
+### Classification and access
+
+The inspected page had 21 records with boolean `magic=false` and 79 with
+boolean `magic=true`. Magical records occurred in Weapon and Armor categories,
+as well as Wondrous item. Category or rarity alone cannot establish the split.
+The first-party item helper reads `definition.magic`; derived character items
+can also become magical through infusion state.
+Use raw catalog classification, not character inventory state.
+Missing or malformed classification must not silently become equipment.
+These observations do not verify every equipment category or all catalog pages.
+
+The first-party item-loading path also filters definitions through homebrew
+preferences and `activeSourceLookup`. This client restriction is not a verified
+content-access contract. Configuration membership, source IDs, website links,
+`sharingSetting=2`, and the absence of an access map grant nothing.
+Owned/shared behavior and native adapter acceptance still need evidence.
+
+### Website candidates
+
+The [equipment page][equipment-page] exposed a GET form with `filter-search`,
+`filter-cost-min`, `filter-cost-max`, `filter-weight-min`, `filter-weight-max`,
+`filter-source-category`, and `filter-source`.
+The source controls are multi-selects.
+Its `ul.listing.listing-igear.igear-listing` contained 30 rows.
+`b-pagination` had an explicit next link selecting `page=2`.
+The credential-free `/js/waterdeep` read confirmed the cost and weight names.
+Filter effects, empty-result markers, and API identity mapping remain unchecked.
+
+One selected equipment detail exposed a small `details-container-content`
+subtree. This is HTML evidence only. The user selected raw JSON detail rather
+than the existing spell HTML approach. Do not substitute HTML or metadata-only
+detail to complete the equipment feature.
+
+### Verified paging consumer and page-scoped selection
+
+A later credential-free read of the same first-party character script found
+`getInventoryShoppe` calling `makeLoadAvailableItems` with query parameters
+`page` and `pageSize`. The initial values are page 0 and page size 1,000.
+The client uses `pagination.total` to determine further pages and combines them.
+This supplied Client evidence for different parameter names before live testing.
+Do not copy its full-catalog loop or cache.
+Do not infer that page size 1,000 fits Beyond Gate's unchanged limits.
+
+The user then approved six item GETs, one browser-only session exchange, and
+two public script/configuration reads. All six GETs used bearer only and
+omitted cookies. Public reads omitted credentials. All returned HTTP 200.
+
+| API page | Page size | Rows | Pagination | Response bytes |
+|---------:|----------:|-----:|------------|---------------:|
+| 0 | 1 | 1 | `skip=0`, `take=1`, `total=2796` | 1,331 |
+| 1 | 1 | 1 | `skip=1`, `take=1`, `total=2796` | 3,162 |
+| 0 | 100 | 100 | `skip=0`, `take=100`, `total=2796` | 250,442 |
+| 27 | 100 | 96 | `skip=2700`, `take=100`, `total=2796` | 245,943 |
+| 28 | 100 | 0 | `skip=2800`, `take=100`, `total=2796` | 125 |
+| 0, repeated | 1 | 1 | Same as first request | 1,331 |
+
+The first two requests returned different identities. The repeat matched
+the initial selected identity and full raw JSON. Every inspected
+`definitionKey` matched positive decimal `entityTypeId:id`. Complete keys
+were unique within inspected pages. Numeric IDs alone are not established
+as globally unique.
+
+The fresh public script was 5,800,062 bytes. Its active-source lookup came
+from sources filtered by character source-category preferences. Homebrew
+preference also affects client filtering. This is preference evidence, not
+an ownership or access-code mapping. Public configuration was 715,197 bytes
+with 270 sources. Every inspected item source ID existed in it.
+Configuration membership checks attribution, not content permission.
+
+The user approved explicit one-based source page plus full `definitionKey`
+for detail. The shared implementation requests exactly one zero-based API
+page with fixed `pageSize=100`. It validates all rows before filtering
+equipment or selecting raw detail. It reports absence only within that
+page. It never scans the catalog, fills filtered pages, substitutes HTML,
+or treats unverified access maps as monster access codes.
+Native compatibility and owned/shared behavior remain unverified.
+
+The approved scope used two of eight equipment/detail page operations, three
+of four public script/configuration reads, all four item API reads, and both
+permitted exchanges. DOM inspections made no extra explicit resource requests.
+The first item body had an 8 MiB streamed research ceiling; later trials had
+a 1 MiB ceiling. Research ceilings do not change production policy.
+Temporary probe state was removed.
+A new explicit approval is required for further account API reads or exchanges.
+The later six-GET scope is also exhausted. Temporary Browser probe state
+was removed. No native credential read, live CLI/MCP test, global traversal,
+or account write ran. Implementation and synthetic checks are documented
+in the [equipment contract](api-catalog.md#equipment-and-magic-item-contract-status).
+
 ## Spell browser evidence
 
 The approved issue #69 browser phase is complete and closed.

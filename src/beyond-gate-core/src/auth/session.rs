@@ -319,6 +319,9 @@ pub struct Session {
     /// Keeps only this owner's compiled synthetic feat service alive.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) feat_fixture: Option<Arc<crate::feat::fixture::Source>>,
+    /// Keeps only this owner's compiled synthetic item service alive.
+    #[cfg(any(test, feature = "session-fixture"))]
+    pub(crate) item_fixture: Option<Arc<crate::item_catalog::fixture::Source>>,
     /// Keeps only this owner's compiled synthetic species service alive.
     #[cfg(any(test, feature = "session-fixture"))]
     pub(crate) species_fixture: Option<Arc<crate::species::fixture::Source>>,
@@ -350,6 +353,8 @@ impl Default for Session {
             background_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             feat_fixture: None,
+            #[cfg(any(test, feature = "session-fixture"))]
+            item_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
             species_fixture: None,
             #[cfg(any(test, feature = "session-fixture"))]
@@ -396,6 +401,8 @@ impl Session {
             background_fixture: self.background_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             feat_fixture: self.feat_fixture.clone(),
+            #[cfg(any(test, feature = "session-fixture"))]
+            item_fixture: self.item_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]
             species_fixture: self.species_fixture.clone(),
             #[cfg(any(test, feature = "session-fixture"))]

@@ -1,9 +1,10 @@
 # D&D Beyond API call catalog
 
-Last reviewed: 2026-11-11. Research issues: [#31][issue-31], [#32][issue-32],
+Last reviewed: 2026-11-14. Research issues: [#31][issue-31], [#32][issue-32],
 [#65](https://github.com/PlagueHO/beyond-gate/issues/65), and
 [#66](https://github.com/PlagueHO/beyond-gate/issues/66) and
-[#69](https://github.com/PlagueHO/beyond-gate/issues/69).
+[#69](https://github.com/PlagueHO/beyond-gate/issues/69), and
+[#70](https://github.com/PlagueHO/beyond-gate/issues/70).
 
 Use this shared index when planning or implementing another issue.
 It catalogs all calls identified in the [API survey](api-survey.md), including candidates
@@ -14,6 +15,43 @@ live reads remain unsupported. Species listing metadata comes from the public
 website page; selected detail uses a candidate route with live access and
 completeness still unverified. Native book adapter acceptance passed for one selected
 chapter; live continuation and sharing remain unchecked.
+
+## Equipment and magic-item contract status
+
+`RULE-09` is the first-party `v5.1` item collection shared by equipment and
+magic-item candidates. The [approved browser research](api-survey.md#equipment-and-magic-item-research)
+verified `page` and `pageSize` against a mixed total of 2,796 records for one session.
+It observed boolean `magic` in every inspected row, with both mundane and
+magical records. Weapon and Armor categories are not sufficient classifiers.
+Unknown selected raw fields and source-reference extensions are preserved.
+
+The tested `skip`, `take`, and `ids` selectors returned the same first page.
+They are not verified paging or selected-record inputs.
+The first-party `getInventoryShoppe` consumer instead sends `page` and
+`pageSize` through `makeLoadAvailableItems`. Six separately approved item GETs
+verified distinct size-one pages, a 100-row first page, a 96-row terminal
+page, a beyond-terminal empty page, and one repeated raw identity.
+Do not implement the client's automatic full-catalog traversal or cache.
+
+The implemented core reads one fresh mixed page of 100 raw rows.
+CLI `equipment list/show` and MCP `equipment_list`/`equipment_show` use
+one-based page context. Lists return equipment metadata plus explicitly
+mixed-source counts. They never fill a page by fetching more pages.
+Show requires the full `definitionKey` and explicit source page. It validates
+all rows, then returns one unchanged equipment definition. Absence means
+absent from that checked page. A selected magic record gives a wrong-kind error.
+No global selected-ID route or global absence is claimed.
+
+Public source filtering was traced to character source-category and homebrew
+preferences, not a new ownership or access-code enum. Source metadata,
+website options, and `sharingSetting=2` are not grants.
+Unverified access maps fail as unsupported. Raw boolean `magic` alone
+determines equipment versus magic items; invalid classification fails the page.
+Bounds and errors match the [CLI contract](cli.md#equipment-source-pages-and-raw-detail).
+HTML fallback, full-catalog traversal, and content caching are excluded.
+Native CLI/MCP compatibility, account acceptance, and owned/shared behavior
+remain unverified. The latest research budget is exhausted; further live
+reads or credential access require separate approval.
 
 ## Spell read contract
 
@@ -192,7 +230,7 @@ These are not approved bulk-content extraction contracts.
 | RULE-06 | CHAR | `/game-data/spells` | Character-eligible spells; standalone coverage not proven |
 | RULE-07 | CHAR | `/game-data/always-known-spells` | Class spell support; class, level, and completeness |
 | RULE-08 | CHAR | `/game-data/always-prepared-spells` | Class spell support; class, level, and completeness |
-| RULE-09 | CHAR51 | `/game-data/items` | Equipment and magic items; explicit `v5.1`, not default `v5` |
+| RULE-09 | CHAR51 | `/game-data/items` | Shared mixed item pages; `v5.1`, `page`/`pageSize` browser-verified; page-scoped equipment detail; [status](#equipment-and-magic-item-contract-status) |
 | RULE-10 | CHAR | `/game-data/background-starting-equipment` | Background equipment; selection |
 | RULE-11 | CHAR | `/game-data/class-starting-equipment` | Class equipment; selection |
 | RULE-12 | CHAR | `/game-data/monsters` | Builder monster definitions; separate-service coverage not proven |

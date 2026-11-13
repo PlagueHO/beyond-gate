@@ -57,6 +57,8 @@ fn manual_inventory_matches_parser() {
         ("background show", "output", "formats"),
         ("feat list", "output", "formats"),
         ("feat show", "output", "formats"),
+        ("equipment list", "output", "formats"),
+        ("equipment show", "output", "formats"),
         ("spell list", "output", "formats"),
         ("spell show", "output", "formats"),
         ("book list", "output", "formats"),

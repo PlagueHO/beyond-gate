@@ -12,6 +12,7 @@ use beyond_gate_core::{
     character_campaign::{self, Campaign, Character},
     class_catalog::{self, ClassKind},
     feat::{self, FeatQuery},
+    item_catalog::{self, ItemQuery, ItemSelection},
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
     monster, species, spell,
 };
@@ -285,6 +286,56 @@ impl BeyondGateServer {
             biased;
             _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
             result = species::show(&self.session, &arguments.id) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Lists equipment metadata from one explicit mixed source page.
+    #[tool(
+        name = "equipment_list",
+        description = "Read equipment metadata from one mixed item source page. Optional one-based page defaults to 1; each source page contains at most 100 raw items. Returns entries and pagination with page, next_page, source_page_size, source_count, and source_total. Counts refer to all source items, not equipment alone. Empty equipment entries can have a next page. Classification uses explicit boolean magic=false after every raw identity, source reference, and page field is checked. No filling pages, ownership inference, automatic continuation, detail fan-out, or content cache. Requires the stored Windows session; native account compatibility remains unverified.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn equipment_list(
+        &self,
+        Parameters(arguments): Parameters<ItemQuery>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        arguments.validate().map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = item_catalog::list(&self.session,&arguments) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Selects one fresh raw definition by full identity and required source page.
+    #[tool(
+        name = "equipment_show",
+        description = "Select one equipment record by id containing the full positive decimal entityTypeId:id definitionKey from equipment_list and its required one-based page. Reads that one fresh mixed source page after public source configuration. Returns selected id, numeric source_id/entity_type_id, name, page, source_url, sources, and unchanged raw JSON with unknown fields. Missing means absent from this checked page, not global absence. A selected magic item is a wrong-kind error. All raw rows pass classification, identity, attribution, and pagination checks before selection. Metadata and source IDs are not access grants. No global scans, arbitrary URLs, automatic continuation, or HTML fallback. Requires the stored Windows session; native account compatibility remains unverified.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn equipment_show(
+        &self,
+        Parameters(arguments): Parameters<ItemSelection>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        arguments.validate().map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = item_catalog::show(&self.session,&arguments) => result.map_err(display_error)?,
         };
         json_text(value)
     }

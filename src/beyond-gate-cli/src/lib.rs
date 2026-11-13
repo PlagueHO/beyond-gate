@@ -29,6 +29,7 @@ use beyond_gate_core::{
     },
     class_catalog::{self, ClassCatalogError, ClassKind},
     feat::{self, FeatError, FeatQuery},
+    item_catalog::{self, ItemError, ItemQuery, ItemSelection},
     library::{self, LibraryError, LibrarySnapshot},
     monster::{self, MonsterError},
     species::{self, SpeciesError},
@@ -50,6 +51,32 @@ const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Reads one validated mixed source page through the shared equipment core.
+    ///
+    /// # Errors
+    ///
+    /// Preserves source, session, input, classification, and page failures.
+    fn list_equipment<'a>(
+        &self,
+        session: &'a Session,
+        query: &'a ItemQuery,
+    ) -> impl std::future::Future<Output = Result<Value, ItemError>> {
+        item_catalog::list(session, query)
+    }
+
+    /// Selects one raw equipment definition using explicit identity and page context.
+    ///
+    /// # Errors
+    ///
+    /// Preserves page-scoped absence, wrong kind, access, and source failures.
+    fn show_equipment<'a>(
+        &self,
+        session: &'a Session,
+        selection: &'a ItemSelection,
+    ) -> impl std::future::Future<Output = Result<Value, ItemError>> {
+        item_catalog::show(session, selection)
+    }
+
     /// Reads one explicit spell page through the shared core.
     ///
     /// # Errors
@@ -639,10 +666,84 @@ fn execute(
         "monster" => execute_monster(action, arguments, reads, session),
         "background" => execute_background(action, arguments, reads, session),
         "feat" => execute_feat(action, arguments, reads, session),
+        "equipment" => execute_equipment(action, arguments, reads, session),
         "character" => execute_character(action, arguments, reads, session),
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
+    }
+}
+
+/// Presents canonical equipment results without copying classification or request policy.
+fn execute_equipment(
+    action: &str,
+    arguments: &ArgMatches,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    let page = arguments
+        .get_one::<u32>("page")
+        .copied()
+        .ok_or(Failure::Usage("Select an item source page."))?;
+    let query = ItemQuery { page };
+    query.validate().map_err(Failure::Item)?;
+    let selected = if action == "show" {
+        let selected = ItemSelection {
+            id: selection(arguments, "id")?.to_owned(),
+            page,
+        };
+        selected.validate().map_err(Failure::Item)?;
+        Some(selected)
+    } else if action == "list" {
+        None
+    } else {
+        return Err(Failure::Usage("Select equipment list or show."));
+    };
+    let value = execute_session(async {
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => { signal.map_err(Failure::Signal)?; Err(Failure::Cancelled) }
+            result = async {
+                if let Some(selection) = &selected { reads.show_equipment(session, selection).await }
+                else { reads.list_equipment(session, &query).await }
+            } => result.map_err(Failure::Item),
+        }
+    })?;
+    if selected.is_some() {
+        render_record(
+            &options,
+            &["id", "name", "page", "source_url", "sources", "raw"],
+            value,
+        )
+    } else {
+        let mut rows = value["entries"]
+            .as_array()
+            .cloned()
+            .ok_or(Failure::Item(ItemError::InvalidResponse))?;
+        for row in &mut rows {
+            for field in ["page", "next_page", "source_count", "source_total"] {
+                row[field] = value["pagination"][field].clone();
+            }
+        }
+        output::list(
+            &options,
+            &[
+                "id",
+                "name",
+                "filter_type",
+                "cost",
+                "weight",
+                "sources",
+                "source_url",
+                "page",
+                "next_page",
+                "source_count",
+                "source_total",
+            ],
+            &rows,
+            Some(&value),
+        )
     }
 }
 

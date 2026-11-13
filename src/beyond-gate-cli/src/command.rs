@@ -51,6 +51,14 @@ pub fn command() -> Command {
                     .arg(Arg::new("slug").required(true).value_parser(ValueParser::new(valid_spell_slug)))),
         )
         .subcommand(
+            resource("equipment", "Read equipment from one explicit mixed item source page")
+                .subcommand(list_options(Command::new("list").about("Read one source page; no filling or automatic continuation"))
+                    .arg(item_page(false)))
+                .subcommand(show_options(Command::new("show").about("Select unchanged raw equipment by definitionKey and required source page"))
+                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_item_id)))
+                    .arg(item_page(true))),
+        )
+        .subcommand(
             resource("feat", "Browse bounded feat metadata and select checked definitions")
                 .subcommand(feat_list())
                 .subcommand(show_options(Command::new("show").about("Select one feat from the fresh checked collection"))
@@ -110,6 +118,29 @@ pub fn command() -> Command {
                 .about("Generate a shell completion script on stdout without account access")
                 .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
         )
+}
+
+/// Builds the shared bounded one-based page selector, required for detail.
+fn item_page(required: bool) -> Arg {
+    let arg = Arg::new("page")
+        .long("page")
+        .value_name("PAGE")
+        .value_parser(
+            value_parser!(u32).range(1..=i64::from(beyond_gate_core::item_catalog::MAX_PAGE)),
+        )
+        .help("One-based mixed source page of 100 raw items; not an equipment-only page");
+    if required {
+        arg.required(true)
+    } else {
+        arg.default_value("1")
+    }
+}
+
+/// Rejects incomplete or noncanonical composite item identities before session access.
+fn valid_item_id(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::item_catalog::validate_id(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "ID must be a canonical positive entityTypeId:id definitionKey")
 }
 
 /// Builds feat flags from the shared website controls without adding API filters.
