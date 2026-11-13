@@ -89,11 +89,11 @@ pub trait ReadOperations {
         feat::list(session, query)
     }
 
-    /// Checks selected feat detail without enabling unverified production access.
+    /// Delegates fresh checked collection selection to the shared feat reader.
     ///
     /// # Errors
     ///
-    /// Returns unsupported production detail or the shared synthetic source error.
+    /// Preserves missing, malformed, incomplete, access, and source failures.
     fn show_feat<'a>(
         &self,
         session: &'a Session,

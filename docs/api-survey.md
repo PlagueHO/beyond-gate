@@ -1914,8 +1914,9 @@ through its GET factory and character-service route builder. The available-feat
 wrapper reads the returned `data` and applies a local restricted-definition
 preference filter. This does not establish an ownership or content-access grant.
 No separate feat detail request or bounded selected-ID filter was established.
-The working protected candidate is
-`/character/v5/game-data/feats?sharingSetting=2`, not a verified live contract.
+The approved read below confirmed the response shape of
+`/character/v5/game-data/feats?sharingSetting=2` for one session. It does not
+establish broader account coverage or an ownership/access grant.
 
 Definition helpers read `id`, `entityTypeId`, `name`, `sources`, prerequisites,
 `isRepeatable`, and `repeatableParentId`. The character builder checks

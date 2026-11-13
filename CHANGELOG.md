@@ -10,7 +10,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Bounded Windows feat metadata browsing through shared core reads, CLI
   `feat list`, and MCP `feat_list`. Filters use observed website controls,
   including one prerequisite subtype and repeated tag/source selectors.
-  Lists require matching form echoes and an explicit empty marker.
+  Lists require exact form selections, neutral omitted controls, and an
+  explicit empty marker.
   `feat show` and `feat_show` select one checked raw definition from the fresh
   bearer collection, following the bounded Background pattern. The approved
   structural pass returned 145 rows below 1 MiB. Synthetic tests preserve

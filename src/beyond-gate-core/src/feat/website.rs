@@ -20,7 +20,48 @@ fn one<'a>(mut nodes: impl Iterator<Item = ElementRef<'a>>) -> Result<ElementRef
     Ok(node)
 }
 
-/// Checks requested values against the same GET form's options and echoed selectors.
+/// Reads complete selections, including a single select's implicit first option.
+fn selected_values(control: ElementRef<'_>, options: &Selector) -> Result<Vec<String>, Failure> {
+    let mut selected: Vec<_> = control
+        .select(options)
+        .filter(|option| option.value().attr("selected").is_some())
+        .collect();
+    if control.value().attr("multiple").is_none() {
+        if selected.len() > 1 {
+            return Err(Failure::InvalidResponse);
+        }
+        if selected.is_empty()
+            && matches!(control.value().attr("size"), None | Some("1"))
+            && let Some(first) = control.select(options).find(|option| {
+                option.value().attr("disabled").is_none()
+                    && !option
+                        .ancestors()
+                        .filter_map(ElementRef::wrap)
+                        .take_while(|node| node.value().name() != "select")
+                        .any(|node| {
+                            node.value().name() == "optgroup"
+                                && node.value().attr("disabled").is_some()
+                        })
+            })
+        {
+            selected.push(first);
+        }
+    }
+    let mut values = selected
+        .into_iter()
+        .map(|option| {
+            option
+                .value()
+                .attr("value")
+                .map(str::to_owned)
+                .ok_or(Failure::InvalidResponse)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    values.sort();
+    Ok(values)
+}
+
+/// Checks every known control against requested values or its neutral default.
 fn filters(document: &Html, query: &FeatQuery) -> Result<(), Failure> {
     let forms = selector("form")?;
     let form = one(document.select(&forms).filter(|f| {
@@ -38,31 +79,55 @@ fn filters(document: &Html, query: &FeatQuery) -> Result<(), Failure> {
     }
     let controls = selector("[name]")?;
     let options = selector("option")?;
-    for (key, value) in query.website_url(WEBSITE)?.query_pairs() {
+    let url = query.website_url(WEBSITE)?;
+    let pairs: Vec<_> = url.query_pairs().collect();
+    for key in [
+        "filter-name",
+        "filter-prereq-subtype",
+        "filter-tags",
+        "filter-source",
+        "filter-source-category",
+        "filter-partnered-content",
+    ] {
         let control = one(form
             .select(&controls)
-            .filter(|c| c.value().attr("name") == Some(key.as_ref())))?;
+            .filter(|c| c.value().attr("name") == Some(key)))?;
+        let mut requested: Vec<_> = pairs
+            .iter()
+            .filter(|(k, _)| k == key)
+            .map(|(_, value)| value.as_ref())
+            .collect();
         if key == "filter-name" {
             if control.value().name() != "input"
                 || control.value().attr("type") != Some("text")
-                || control.value().attr("value") != Some(value.as_ref())
+                || control.value().attr("value").unwrap_or("")
+                    != requested.first().copied().unwrap_or("")
             {
                 return Err(Failure::InvalidResponse);
             }
         } else {
-            if control.value().name() != "select" {
+            let multiple = matches!(
+                key,
+                "filter-tags" | "filter-source" | "filter-source-category"
+            );
+            if control.value().name() != "select"
+                || control.value().attr("multiple").is_some() != multiple
+            {
                 return Err(Failure::InvalidResponse);
             }
-            if !control
-                .select(&options)
-                .any(|o| o.value().attr("value") == Some(value.as_ref()))
-            {
-                return Err(Failure::InvalidInput);
+            for value in &requested {
+                if !control
+                    .select(&options)
+                    .any(|o| o.value().attr("value") == Some(*value))
+                {
+                    return Err(Failure::InvalidInput);
+                }
             }
-            if !control.select(&options).any(|o| {
-                o.value().attr("value") == Some(value.as_ref())
-                    && o.value().attr("selected").is_some()
-            }) {
+            if requested.is_empty() && !multiple {
+                requested.push("");
+            }
+            requested.sort();
+            if selected_values(control, &options)? != requested {
                 return Err(Failure::IncompleteResult);
             }
         }
