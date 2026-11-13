@@ -7,6 +7,18 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows equipment reads through shared core item operations, CLI
+  `equipment list/show`, and MCP `equipment_list`/`equipment_show`.
+  Each operation checks one fresh mixed `v5.1` item page of at most 100 rows.
+  Lists classify only explicit boolean `magic=false` and report mixed-source
+  counts with explicit continuation. Show requires the full `definitionKey`
+  and source page, preserves unknown raw/source fields, and reports absence
+  only within that checked page. No global scan, HTML fallback, access-code
+  inference, or automatic continuation is added. Browser research verified
+  `page`/`pageSize`, terminal pages, and repeated selected raw identity.
+  Synthetic core and adapter checks cover bounds, errors, and cancellation.
+  Native compatibility, account acceptance, and owned/shared behavior remain
+  unverified. Magic-item commands remain separate work.
 - Bounded Windows feat metadata browsing through shared core reads, CLI
   `feat list`, and MCP `feat_list`. Filters use observed website controls,
   including one prerequisite subtype and repeated tag/source selectors.

@@ -17,6 +17,8 @@
 //! complete authenticated collection. Oversized collections fail at the unchanged 1 MiB cap.
 //! Feat reads expose bounded website metadata. Protected detail is unsupported before
 //! credential access until its source contract is verified; selected raw data is synthetic-only.
+//! Equipment reads check one mixed item page, classify explicit raw flags, and preserve selected
+//! definitions with required composite identity and source-page context. Absence is never global.
 
 pub mod auth;
 pub mod background;
@@ -25,6 +27,7 @@ pub mod character_campaign;
 pub mod class_catalog;
 pub mod feat;
 pub mod http;
+pub mod item_catalog;
 pub mod library;
 pub mod monster;
 mod public_config;
@@ -43,4 +46,4 @@ pub mod spell;
 ///
 /// assert!(FOUNDATION_NOTICE.contains("bounded"));
 /// ```
-pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list discovers bounded Web-catalog metadata and evidence. Book outline/read and their MCP tools check fresh library evidence and canonical cookie pages, with explicit bounded continuation. Character and campaign reads use fixed, bounded operations through a protected Windows session; live source compatibility has not been validated. Windows class/subclass list and show return bounded catalog metadata only, not rules text or raw definitions; native compatibility has not been validated. Windows monster list/show return one explicit page or unchanged selected detail only for observed access code 1; code 4 is denied and unverified codes, including 2 and 3, are unsupported. Native monster acceptance has not been run. Windows background list/show return filtered metadata or one unchanged definition from a fresh complete collection without ownership claims. The observed background collection exceeds the unchanged 1 MiB cap and fails explicitly; native acceptance has not been run. Linux production login and session use remain deferred.";
+pub const FOUNDATION_NOTICE: &str = "Local auth status/logout, CLI completions, and local MCP serving are available. Human-controlled Windows browser login and protected saving are available after explicit extension setup. Windows auth validate and MCP auth_validate use shared bounded session validation and reuse. Windows book list discovers bounded Web-catalog metadata and evidence. Book outline/read and their MCP tools check fresh library evidence and canonical cookie pages, with explicit bounded continuation. Character and campaign reads use fixed, bounded operations through a protected Windows session; live source compatibility has not been validated. Windows class/subclass list and show return bounded catalog metadata only, not rules text or raw definitions; native compatibility has not been validated. Windows monster list/show return one explicit page or unchanged selected detail only for observed access code 1; code 4 is denied and unverified codes, including 2 and 3, are unsupported. Native monster acceptance has not been run. Windows background list/show return filtered metadata or one unchanged definition from a fresh complete collection without ownership claims. The observed background collection exceeds the unchanged 1 MiB cap and fails explicitly; native acceptance has not been run. Windows equipment list/show read one mixed item page and require full definition identity plus explicit page for raw detail. No global scan or HTML fallback is added; native equipment compatibility remains unverified. Linux production login and session use remain deferred.";

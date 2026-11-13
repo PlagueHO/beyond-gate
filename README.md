@@ -45,6 +45,13 @@ collection. The approved live structural check returned 145 rows below the
 unchanged 1 MiB cap. The code does not infer ownership or sharing. Native
 CLI/MCP acceptance remains unverified.
 See the [feat contract](docs/cli.md#feat-metadata-and-detail-status).
+Equipment list/show and matching MCP tools check one fresh mixed item page.
+Lists return non-magical metadata with mixed-source pagination. Detail requires
+the full `definitionKey` and explicit source page, then preserves one raw JSON
+record. No global lookup, HTML fallback, or automatic continuation is added.
+Browser paging and repeated raw identity were checked. Native compatibility
+and owned/shared acceptance remain unverified.
+See the [equipment contract](docs/cli.md#equipment-source-pages-and-raw-detail).
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
@@ -205,7 +212,7 @@ It does not copy that project's ROM operations or HTTP MCP transport.
 The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
 `campaign list/show`, `class list/show`, `subclass list/show`, `monster list/show`,
-`feat list/show`,
+`feat list/show`, `equipment list/show`,
 `background list/show`, and
 `book list/outline/read`.
 

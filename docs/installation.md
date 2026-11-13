@@ -278,10 +278,14 @@ VS Code uses Copilot Global settings. VS Code and Copilot CLI share
 No entry contains a secret, remote URL, Python command, or Node.js command.
 
 Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
-`claude mcp list` in Claude Code. The server exposes thirteen resource read tools:
+`claude mcp list` in Claude Code. The server exposes these resource read tools:
 `character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
 `book_outline`, `book_read`, `class_list`, `class_show`, `monster_list`, and
-`monster_show`, `background_list`, `background_show`, `feat_list`, and `feat_show`.
+`monster_show`, `background_list`, `background_show`, `feat_list`, `feat_show`,
+`species_list`, `species_show`, `spell_list`, `spell_show`,
+`equipment_list`, and `equipment_show`.
+Equipment tools read one mixed source page. Detail requires a full definition
+key and explicit page. See the [equipment contract](cli.md#equipment-source-pages-and-raw-detail).
 Feat list reads bounded website metadata. Feat show selects one checked raw
 definition from a fresh bounded protected collection.
 Background tools share website metadata filters and selected raw definitions.

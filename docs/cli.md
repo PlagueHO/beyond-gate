@@ -44,7 +44,7 @@ The generated `help` command also supports nested paths, such as
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
 `character`, `campaign`, `class`, `subclass`, `species`, `spell`, `monster`,
-`background`, `feat`, `book`, or `mcp`.
+`background`, `feat`, `equipment`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -72,6 +72,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
 | [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
 | [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows; bounded protected collection |
+| [`equipment list/show`](#equipment-source-pages-and-raw-detail) | Read equipment from one mixed source page | Windows; explicit page and full definition key |
 | [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows; browser structure checked; native acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
@@ -79,6 +80,71 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`mcp start`](#mcp-start) | Start the sibling stdio server | Implemented |
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
+
+## Equipment source pages and raw detail
+
+```text
+beyond-gate equipment list [--page <PAGE>] [--output <FORMAT>] [--no-headers]
+beyond-gate equipment show <id> --page <PAGE> [--output <FORMAT>] [--no-headers]
+```
+
+List defaults to page 1 and table output. Show requires a page and defaults
+to JSON. Use `--output json` to retain pagination even when no equipment rows
+exist. Table and TSV output add page/count fields to each returned row;
+an empty table has no rows in which to show continuation. `--format` and
+`-o` are aliases for `--output`. JSON rejects `--no-headers`.
+
+Pages are one-based integers from 1 through 1,000,000. Each operation reads
+fresh public configuration and exactly one bearer-only item page, with at
+most one session exchange. The fixed API query is
+`sharingSetting=2&page=<PAGE-1>&pageSize=100`. No cookies go to the item
+service. No extra page is fetched to fill equipment results.
+Website filters, `skip`, `take`, `page_size`, and global search are not inputs.
+
+Only raw boolean `magic=false` counts as equipment. `magic=true` counts as a
+magic item, even in Weapon or Armor categories. Rarity and derived character
+inventory flags do not change classification. Every row must pass identity,
+classification, metadata, and configured-source checks before output.
+One invalid unselected row fails the whole page.
+
+| List field | Meaning |
+|------------|---------|
+| `entries` | Equipment metadata from this mixed page, in source order |
+| `entries[].id` | Full `entityTypeId:id` definition key |
+| `entries[].source_id`, `entity_type_id` | Raw item ID and entity type, not book source IDs |
+| `entries[].name`, `filter_type`, `cost`, `weight` | Source metadata; cost can be null |
+| `entries[].sources` | Unchanged attribution references, including extensions |
+| `source_url`, `entries[].source_url` | Fixed item API URL with the checked page |
+| `pagination.page`, `next_page` | Checked page and explicit next page, or null |
+| `pagination.source_page_size` | Fixed mixed-source page size of 100 |
+| `pagination.source_count`, `source_total` | Raw mixed-page count and mixed-catalog total, not equipment totals |
+
+A magic-only page can have empty `entries` and a non-null `next_page`.
+A terminal or beyond-terminal empty page requires consistent numeric
+pagination. The CLI never follows continuation automatically.
+
+Show copies the full `id` from list and requires that list's page. Both key
+components must be canonical positive decimal `u64` values. Bare numeric IDs,
+leading zeroes, URLs, and padded keys fail before session access.
+Show validates the entire fresh page before selecting one record. It returns
+`id`, `source_id`, `entity_type_id`, `name`, `page`, `source_url`, `sources`,
+and unchanged `raw` JSON. Unknown nested fields survive. No rules engine
+interprets the record.
+
+Missing-record errors mean absent from the checked page, not absent globally.
+A selected magic record gives a wrong-kind error. Denied, rejected, expired,
+malformed, inconsistent, duplicate, unsupported, and over-limit responses
+give no partial output. Unverified access maps are unsupported, not interpreted
+with monster access codes. Attribution and metadata are not access grants.
+
+Limits are 100 raw rows, 1,000 references per row, 1 MiB per HTTP body and
+compact result, and a 60-second operation deadline. Padded table output has
+an 8 MiB limit. No retry, arbitrary URL, global lookup, HTML fallback, cache,
+or account write is added.
+Browser research verified paging and one repeat raw identity. Native CLI/MCP
+compatibility, account acceptance, and real owned/shared behavior remain
+unverified. See the [source evidence](api-survey.md#equipment-and-magic-item-research)
+and [matching MCP tools](mcp.md#equipment_list-and-equipment_show).
 
 ## Feat metadata and detail status
 

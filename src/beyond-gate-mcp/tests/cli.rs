@@ -182,6 +182,8 @@ fn stdio_protocol_handles_discovery_and_strict_input() {
             "character_show",
             "class_list",
             "class_show",
+            "equipment_list",
+            "equipment_show",
             "feat_list",
             "feat_show",
             "monster_list",

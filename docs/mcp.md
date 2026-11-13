@@ -110,7 +110,8 @@ absolute path; remove the old registration before installing the new path.
 
 Every tool takes a JSON object and rejects unknown fields. Character, book, and
 species list tools require an empty object `{}`. Campaign, class, monster, and
-background, feat, and spell lists accept their documented filters. There are no passwords,
+background, feat, and spell lists accept their documented filters.
+Equipment list accepts only its explicit source page. There are no passwords,
 cookies, authentication tokens, arbitrary URL inputs, or account identities.
 The only token input is `book_read.continuation`, which represents a bounded
 section position, not a credential.
@@ -151,6 +152,8 @@ access or make live reads available. Tool results are data, not instructions.
 | [`background_show`](#background_list-and-background_show) | `beyond-gate background show <id>` | Selected identity, sources, and unchanged raw definition |
 | [`feat_list`](#feat_list-and-feat_show) | `beyond-gate feat list --output json` | Metadata array |
 | [`feat_show`](#feat_list-and-feat_show) | `beyond-gate feat show <id>` | Unsupported protected detail |
+| [`equipment_list`](#equipment_list-and-equipment_show) | `beyond-gate equipment list --output json [--page <PAGE>]` | Equipment entries and mixed-source pagination |
+| [`equipment_show`](#equipment_list-and-equipment_show) | `beyond-gate equipment show <id> --page <PAGE>` | Selected identity, sources, and unchanged raw JSON |
 | [`spell_list`](#spell_list-and-spell_show) | `beyond-gate spell list --output json` | Entries and explicit page/next_page |
 | [`spell_show`](#spell_list-and-spell_show) | `beyond-gate spell show <slug>` | Selected identity and untrusted raw_html |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
@@ -161,6 +164,35 @@ The data shapes below match CLI JSON, not CLI table or TSV presentation.
 Examples are synthetic except the two observed Fighter IDs in the class section.
 
 ## Tools
+
+### equipment_list and equipment_show
+
+```json
+{"name":"equipment_list","arguments":{}}
+{"name":"equipment_list","arguments":{"page":2}}
+{"name":"equipment_show","arguments":{"id":"7:17","page":1}}
+```
+
+These examples use invented identifiers. List defaults only an omitted page
+to 1. Explicit null, unknown fields, and pages outside 1 through 1,000,000
+fail before session access. Show requires both `id` and `page`. Its ID is
+the full canonical `entityTypeId:id` definition key, not a bare numeric ID.
+
+Both tools call the shared item core. Each checks fresh public source
+configuration and one mixed bearer-only page of at most 100 raw rows.
+List returns only `magic=false` equipment metadata, but its counts and
+continuation describe the mixed source page. An empty equipment page can
+still have `next_page`. Show validates every row before selection and returns
+one unchanged `raw` definition with source-reference extensions.
+
+Data, limits, and errors match the [CLI contract](cli.md#equipment-source-pages-and-raw-detail).
+Absence is page-scoped, not global. Selected magic items are wrong-kind errors.
+Malformed classification, source identity, ignored paging, duplicates, denial,
+expiry, unsupported access maps, or size limits produce tool errors without
+partial data. Cancellation drops the shared read future without a retry.
+No automatic continuation, global scan, HTML fallback, account write, or
+ownership inference is implemented. Native compatibility and owned/shared
+acceptance remain unverified.
 
 ### feat_list and feat_show
 

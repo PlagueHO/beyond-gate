@@ -18,6 +18,44 @@ The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
 this blocked-first stage. It does not authorize live tests. A supplied cookie
 does not change this suite's zero live-request budget.
 
+## Equipment synthetic checks
+
+The [shared classifier](../src/beyond-gate-core/src/item_catalog.rs) tests the
+explicit boolean `magic` rule without network access or credentials.
+Synthetic cases cover overlapping gear, weapon, armor, and future categories,
+rarity and derived inventory flags, and absent or malformed classification.
+Missing values never default to equipment.
+The runnable example uses invented JSON definitions.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked item_catalog
+```
+
+The [item read tests](../src/beyond-gate-core/src/item_catalog/read_tests.rs)
+use owned loopback pages and the real shared HTTP/session path. They check
+one-based paging, terminal and beyond-terminal pages, empty and magic-only
+pages, mixed counts, composite identity collisions, unchanged raw fields,
+bad unselected rows, ignored selectors, source references, size/row limits,
+denied and expired sessions, timeouts, and cancellation. Public requests forbid both
+cookie and bearer headers. Item requests require bearer and forbid cookies.
+The safe route log checks exactly one configuration GET and one item GET.
+
+The [CLI process tests](../src/beyond-gate-cli/tests/adapter_process.rs) and
+[MCP process tests](../src/beyond-gate-mcp/tests/session_process.rs) run the
+real adapters against these compiled fixtures. They compare JSON and error
+semantics, require show page context, reject invalid input before credentials,
+check safe TSV output, and check cancellation without a successful response.
+There is no fixture selector in product invocations.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test cli --test inventory --test adapter_process --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test cli --test session_process --locked
+```
+
+These offline tests do not prove native account compatibility or real
+owned/shared access. Browser evidence is [separate](api-survey.md#equipment-and-magic-item-research).
+See the [source contract](api-catalog.md#equipment-and-magic-item-contract-status).
+
 ## Feat synthetic checks
 
 The [feat core tests](../src/beyond-gate-core/src/feat/tests.rs) use invented

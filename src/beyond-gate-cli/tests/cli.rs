@@ -379,6 +379,40 @@ fn background_help_completions_and_invalid_usage() {
     }
 }
 
+/// Checks equipment's explicit source context, completions, and pre-session rejection.
+#[test]
+fn equipment_help_completions_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["equipment", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("source page"));
+    }
+    for args in [
+        vec!["equipment"],
+        vec!["equipment", "show", "7:17"],
+        vec!["equipment", "show", "17", "--page", "1"],
+        vec!["equipment", "show", "7:017", "--page", "1"],
+        vec!["equipment", "show", "7:17", "--page", "0"],
+        vec!["equipment", "list", "--page", "1000001"],
+        vec!["equipment", "list", "--name", "invented"],
+        vec!["equipment", "list", "--skip", "0"],
+        vec!["equipment", "list", "--take", "1"],
+        vec!["equipment", "list", "--page-size", "1"],
+        vec!["equipment", "list", "-o", "json", "--no-headers"],
+    ] {
+        let output = run(&args);
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("equipment"));
+    }
+}
+
 /// Checks feat help, completions, and invalid inputs before protected session access.
 #[test]
 fn feat_help_completions_and_invalid_usage() {

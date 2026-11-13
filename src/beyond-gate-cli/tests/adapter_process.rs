@@ -879,6 +879,64 @@ fn feat_contracts() {
     failure(run("feat-normal", &["feat", "show", "999"]), 1, "not found");
 }
 
+/// Checks equipment pages, raw preservation, TSV safety, and page-scoped failures.
+fn equipment_contracts() {
+    let value = read_json(&run(
+        "equipment-normal",
+        &["equipment", "list", "-o", "json"],
+    ));
+    assert_eq!(value["entries"].as_array().expect("entries").len(), 50);
+    assert_eq!(value["pagination"]["source_count"], 100);
+    assert_eq!(value["pagination"]["next_page"], 2);
+    let selected = read_json(&run(
+        "equipment-normal",
+        &["equipment", "show", "7:17", "--page", "1"],
+    ));
+    assert_eq!(selected["raw"]["future"]["nested"], json!([true, null, 3]));
+    assert_eq!(selected["sources"][0]["future"]["ref"], true);
+    let empty = read_json(&run(
+        "equipment-normal",
+        &["equipment", "list", "--page", "3", "-o", "json"],
+    ));
+    assert_eq!(empty["entries"], json!([]));
+    assert_eq!(empty["pagination"]["next_page"], Value::Null);
+    let magic = read_json(&run(
+        "equipment-magic-only",
+        &["equipment", "list", "-o", "json"],
+    ));
+    assert_eq!(magic["entries"], json!([]));
+    assert_eq!(magic["pagination"]["next_page"], 2);
+    let output = run(
+        "equipment-normal",
+        &["equipment", "show", "7:17", "--page", "1", "-o", "tsv"],
+    );
+    assert!(output.status.success());
+    let text = String::from_utf8(output.stdout).expect("TSV");
+    assert_eq!(text.lines().count(), 2);
+    assert!(!text.contains('\u{1b}'));
+    failure(
+        run("equipment-denied", &["equipment", "list", "-o", "json"]),
+        1,
+        "access_denied",
+    );
+    failure(
+        run(
+            "equipment-normal",
+            &["equipment", "show", "7:17", "--page", "2"],
+        ),
+        1,
+        "checked source page",
+    );
+    failure(
+        run(
+            "equipment-normal",
+            &["equipment", "show", "7:18", "--page", "1"],
+        ),
+        1,
+        "not equipment",
+    );
+}
+
 /// Runs parent assertions or a child with the real command runner and synthetic reads.
 fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
@@ -893,6 +951,24 @@ fn main() {
             .into_owned();
         let cli_arguments = std::iter::once(std::ffi::OsString::from("beyond-gate"))
             .chain(arguments.into_iter().skip(3));
+        if let Some(name) = scenario.strip_prefix("equipment-") {
+            use beyond_gate_core::item_catalog::fixture::{self, Scenario};
+            let source = match name {
+                "normal" => Scenario::Normal,
+                "magic-only" => Scenario::MagicOnly,
+                "denied" => Scenario::Denied,
+                _ => panic!("unknown synthetic equipment source"),
+            };
+            let session = fixture::session(source).expect("invented item service");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
         if let Some(name) = scenario.strip_prefix("feat-") {
             use beyond_gate_core::feat::fixture::{self, Scenario};
             let source = match name {
@@ -941,6 +1017,7 @@ fn main() {
     species_contracts();
     spell_contracts();
     feat_contracts();
+    equipment_contracts();
     section_contracts();
     output_failures();
 }

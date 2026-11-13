@@ -37,6 +37,14 @@ Code 4 is denied; unverified numeric codes, including 2 and 3, are unsupported.
 One failed row fails the page. Browser probes checked selected routes; native
 cookie compatibility, account acceptance, larger batches, and owned/shared behavior
 remain unverified.
+Equipment list/show uses one fresh mixed `v5.1` item page of at most 100 rows.
+Adapter pages are one-based; API `page` is zero-based with fixed `pageSize=100`.
+Only explicit raw boolean `magic=false` counts as equipment.
+Detail requires full `definitionKey` and explicit source page. Absence is
+page-scoped, not global. All rows validate before selection; raw/source extensions
+survive. No global scan, HTML fallback, access-code inference, or automatic
+continuation is implemented. Browser paging and repeat raw identity were checked.
+Native compatibility and real owned/shared behavior remain unverified.
 Shared environment authentication, hidden CLI input, explicit protected save,
 and Linux production session/read support are tracked in #52. These paths are
 planned, not implemented. Browser assistance is optional for terminal-only use.

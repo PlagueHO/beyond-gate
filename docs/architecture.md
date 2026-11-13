@@ -36,6 +36,10 @@ Two feat tools provide bounded website metadata and selected raw definitions
 from the checked protected collection. Synthetic sources check collection
 validation, raw preservation, and repeatable parents. Native CLI/MCP acceptance
 remains unverified.
+Two equipment tools share the core mixed item page reader and explicit boolean
+classification. Detail requires full definition identity plus source-page
+context. No global scan or HTML fallback is added; native acceptance remains
+unverified.
 The core now also exports a Windows-only
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
@@ -122,6 +126,7 @@ The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `species_list`, `species_show`, `background_list`, `background_show`,
 `spell_list`, `spell_show`,
 `feat_list`, `feat_show`,
+`equipment_list`, `equipment_show`,
 `book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
@@ -139,6 +144,30 @@ passed only to the core cursor validator. One section result remains bounded to
 fields match the CLI JSON contracts and preserve unknown character/campaign JSON,
 book evidence, source attribution, and section completion state. Source content
 is data and is not executed or treated as instructions.
+
+## Equipment read boundary
+
+The core `item_catalog` module owns one identity-bound mixed item page,
+strict classification, composite identity, attribution checks, and typed
+errors. CLI and MCP delegate to it. The raw boolean `magic` selects equipment
+or magic-item kind; category, rarity, and character infusion state do not.
+Magic-item adapter work remains separate.
+
+Each operation creates a session read scope, fetches public configuration
+without credentials, and makes one bearer-only GET to the fixed
+`character/v5.1/game-data/items` route. One-based adapter pages map to
+zero-based API `page`, with fixed `pageSize=100`. The core validates exact
+`skip`, `take`, `total`, expected row count, and every raw row before output.
+It never fills filtered pages or follows continuation.
+
+List returns equipment metadata and mixed-source pagination. Show requires
+the full `definitionKey` and explicit source page, then returns one unchanged
+raw definition with source extensions. Absence is page-scoped, not global.
+An invalid unselected row fails the page. Unknown access maps are unsupported;
+configuration membership establishes attribution, not permission.
+Bounds and compatibility limits are in the [CLI contract](cli.md#equipment-source-pages-and-raw-detail).
+The book URL guard is unchanged. No HTML route, global traversal, cache,
+arbitrary URL, account write, or new runtime is introduced.
 
 ## Feat read boundary
 
