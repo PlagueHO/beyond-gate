@@ -163,7 +163,9 @@ pub trait ReadOperations {
     fn list_species(
         &self,
         session: &Session,
-    ) -> impl std::future::Future<Output = Result<Value, SpeciesError>>;
+    ) -> impl std::future::Future<Output = Result<Value, SpeciesError>> {
+        species::list(session)
+    }
     /// Shows one selected species with unchanged raw source fields.
     ///
     /// # Errors
@@ -173,7 +175,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
-    ) -> impl std::future::Future<Output = Result<Value, SpeciesError>>;
+    ) -> impl std::future::Future<Output = Result<Value, SpeciesError>> {
+        species::show(session, id)
+    }
     /// Reads background metadata with the shared verified website filters.
     ///
     /// # Errors
@@ -183,7 +187,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         query: &BackgroundQuery,
-    ) -> impl std::future::Future<Output = Result<Value, BackgroundError>>;
+    ) -> impl std::future::Future<Output = Result<Value, BackgroundError>> {
+        background::list(session, query)
+    }
     /// Selects one unchanged background from a fresh complete source collection.
     ///
     /// # Errors
@@ -193,7 +199,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
-    ) -> impl std::future::Future<Output = Result<Value, BackgroundError>>;
+    ) -> impl std::future::Future<Output = Result<Value, BackgroundError>> {
+        background::show(session, id)
+    }
     /// Reads one explicit monster page with shared access and continuation semantics.
     ///
     /// # Errors
@@ -203,7 +211,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         query: &monster::MonsterQuery,
-    ) -> impl std::future::Future<Output = Result<Value, MonsterError>>;
+    ) -> impl std::future::Future<Output = Result<Value, MonsterError>> {
+        monster::list(session, query)
+    }
     /// Reads one selected raw monster after a fresh source grant.
     ///
     /// # Errors
@@ -213,7 +223,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
-    ) -> impl std::future::Future<Output = Result<Value, MonsterError>>;
+    ) -> impl std::future::Future<Output = Result<Value, MonsterError>> {
+        monster::show(session, id)
+    }
     /// Lists metadata only, preserving the shared catalog failures.
     ///
     /// # Errors
@@ -225,7 +237,9 @@ pub trait ReadOperations {
         kind: ClassKind,
         name: Option<&str>,
         class_id: Option<&str>,
-    ) -> impl std::future::Future<Output = Result<Value, ClassCatalogError>>;
+    ) -> impl std::future::Future<Output = Result<Value, ClassCatalogError>> {
+        class_catalog::list(session, kind, name, class_id)
+    }
     /// Shows one metadata projection, never a raw definition.
     ///
     /// # Errors
@@ -237,7 +251,9 @@ pub trait ReadOperations {
         kind: ClassKind,
         id: &str,
         class_id: Option<&str>,
-    ) -> impl std::future::Future<Output = Result<Value, ClassCatalogError>>;
+    ) -> impl std::future::Future<Output = Result<Value, ClassCatalogError>> {
+        class_catalog::show(session, kind, id, class_id)
+    }
     /// Lists characters, or returns the typed shared failure.
     ///
     /// # Errors
@@ -246,7 +262,9 @@ pub trait ReadOperations {
     fn list_characters(
         &self,
         session: &Session,
-    ) -> impl std::future::Future<Output = Result<CharacterSnapshot, CharacterCampaignError>>;
+    ) -> impl std::future::Future<Output = Result<CharacterSnapshot, CharacterCampaignError>> {
+        character_campaign::list_characters(session)
+    }
     /// Reads one explicitly selected character without interpreting its rules.
     ///
     /// # Errors
@@ -256,7 +274,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
-    ) -> impl std::future::Future<Output = Result<Character, CharacterCampaignError>>;
+    ) -> impl std::future::Future<Output = Result<Character, CharacterCampaignError>> {
+        character_campaign::get_character(session, id)
+    }
     /// Lists campaigns while preserving their supplied character associations.
     ///
     /// # Errors
@@ -266,7 +286,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         active_only: bool,
-    ) -> impl std::future::Future<Output = Result<CampaignSnapshot, CharacterCampaignError>>;
+    ) -> impl std::future::Future<Output = Result<CampaignSnapshot, CharacterCampaignError>> {
+        character_campaign::list_campaigns(session, active_only)
+    }
     /// Reads one explicitly selected campaign.
     ///
     /// # Errors
@@ -276,7 +298,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
-    ) -> impl std::future::Future<Output = Result<Campaign, CharacterCampaignError>>;
+    ) -> impl std::future::Future<Output = Result<Campaign, CharacterCampaignError>> {
+        character_campaign::get_campaign(session, id)
+    }
     /// Lists library metadata without granting later book access.
     ///
     /// # Errors
@@ -285,7 +309,9 @@ pub trait ReadOperations {
     fn discover_library(
         &self,
         session: &Session,
-    ) -> impl std::future::Future<Output = Result<LibrarySnapshot, LibraryError>>;
+    ) -> impl std::future::Future<Output = Result<LibrarySnapshot, LibraryError>> {
+        library::discover_library(session)
+    }
     /// Reads navigation for one book after its source checks current access.
     ///
     /// # Errors
@@ -295,7 +321,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
-    ) -> impl std::future::Future<Output = Result<BookOutline, BookError>>;
+    ) -> impl std::future::Future<Output = Result<BookOutline, BookError>> {
+        book::get_book_outline(session, id)
+    }
     /// Reads one bounded chunk after a fresh access check, never auto-continuing.
     ///
     /// # Errors
@@ -305,7 +333,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         request: SectionRequest<'_>,
-    ) -> impl std::future::Future<Output = Result<SectionChunk, BookError>>;
+    ) -> impl std::future::Future<Output = Result<SectionChunk, BookError>> {
+        book::read_book_section(session, request)
+    }
 }
 
 /// Starts the MCP server or registers it with one supported local client.
@@ -358,121 +388,7 @@ fn execute_mcp(
 /// Delegates resource operations to the core's explicit live-read boundary.
 pub struct LiveReads;
 
-impl ReadOperations for LiveReads {
-    /// Delegates bounded website parsing and metadata projection to the core.
-    async fn list_species(&self, session: &Session) -> Result<Value, SpeciesError> {
-        species::list(session).await
-    }
-
-    /// Delegates selected-record validation and raw preservation to the core.
-    async fn show_species(&self, session: &Session, id: &str) -> Result<Value, SpeciesError> {
-        species::show(session, id).await
-    }
-
-    /// Delegates website filtering and metadata validation to the core.
-    async fn list_backgrounds(
-        &self,
-        session: &Session,
-        query: &BackgroundQuery,
-    ) -> Result<Value, BackgroundError> {
-        background::list(session, query).await
-    }
-    /// Delegates fresh checked collection selection to the core.
-    async fn show_background(&self, session: &Session, id: &str) -> Result<Value, BackgroundError> {
-        background::show(session, id).await
-    }
-    /// Delegates one page without following its numeric continuation.
-    async fn list_monsters(
-        &self,
-        session: &Session,
-        query: &monster::MonsterQuery,
-    ) -> Result<Value, MonsterError> {
-        monster::list(session, query).await
-    }
-
-    /// Preserves the selected detail and typed access failure from the core.
-    async fn show_monster(&self, session: &Session, id: &str) -> Result<Value, MonsterError> {
-        monster::show(session, id).await
-    }
-    /// Delegates complete metadata discovery and filtering to the core.
-    async fn list_classes(
-        &self,
-        session: &Session,
-        kind: ClassKind,
-        name: Option<&str>,
-        class_id: Option<&str>,
-    ) -> Result<Value, ClassCatalogError> {
-        class_catalog::list(session, kind, name, class_id).await
-    }
-
-    /// Delegates metadata selection and parent ambiguity checks to the core.
-    async fn show_class(
-        &self,
-        session: &Session,
-        kind: ClassKind,
-        id: &str,
-        class_id: Option<&str>,
-    ) -> Result<Value, ClassCatalogError> {
-        class_catalog::show(session, kind, id, class_id).await
-    }
-    /// Preserves the core character-discovery result and failure classification.
-    async fn list_characters(
-        &self,
-        session: &Session,
-    ) -> Result<CharacterSnapshot, CharacterCampaignError> {
-        character_campaign::list_characters(session).await
-    }
-
-    /// Passes only the explicitly selected identifier to the core.
-    async fn get_character(
-        &self,
-        session: &Session,
-        id: &str,
-    ) -> Result<Character, CharacterCampaignError> {
-        character_campaign::get_character(session, id).await
-    }
-
-    /// Preserves the core campaign-discovery result and failure classification.
-    async fn list_campaigns(
-        &self,
-        session: &Session,
-        active_only: bool,
-    ) -> Result<CampaignSnapshot, CharacterCampaignError> {
-        character_campaign::list_campaigns(session, active_only).await
-    }
-
-    /// Passes only the selected campaign identifier to the core.
-    async fn get_campaign(
-        &self,
-        session: &Session,
-        id: &str,
-    ) -> Result<Campaign, CharacterCampaignError> {
-        character_campaign::get_campaign(session, id).await
-    }
-
-    /// Uses the library boundary without inventing account data or access.
-    async fn discover_library(&self, session: &Session) -> Result<LibrarySnapshot, LibraryError> {
-        library::discover_library(session).await
-    }
-
-    /// Uses the core outline entry point without granting synthetic access.
-    async fn get_book_outline(
-        &self,
-        session: &Session,
-        id: &str,
-    ) -> Result<BookOutline, BookError> {
-        book::get_book_outline(session, id).await
-    }
-
-    /// Preserves the explicit selection and any untrusted continuation claim.
-    async fn read_book_section(
-        &self,
-        session: &Session,
-        request: SectionRequest<'_>,
-    ) -> Result<SectionChunk, BookError> {
-        book::read_book_section(session, request).await
-    }
-}
+impl ReadOperations for LiveReads {}
 
 /// Enumerates only the supported local auth operations.
 #[derive(Clone, Copy)]
@@ -621,6 +537,39 @@ fn execute_session<T>(
     result
 }
 
+/// Constructs and runs a read inside the runtime with typed failures and Ctrl+C priority.
+fn execute_read<T, E, F>(
+    operation: impl FnOnce() -> F,
+    failure: fn(E) -> Failure,
+) -> Result<T, Failure>
+where
+    F: std::future::Future<Output = Result<T, E>>,
+{
+    execute_session(async {
+        let operation = operation();
+        cancel_on_signal(
+            async { operation.await.map_err(failure) },
+            tokio::signal::ctrl_c(),
+        )
+        .await
+    })
+}
+
+/// Cancels before polling a ready read; an injected signal supports offline checks.
+async fn cancel_on_signal<T>(
+    operation: impl std::future::Future<Output = Result<T, Failure>>,
+    signal: impl std::future::Future<Output = io::Result<()>>,
+) -> Result<T, Failure> {
+    tokio::select! {
+        biased;
+        signal = signal => {
+            signal.map_err(Failure::Signal)?;
+            Err(Failure::Cancelled)
+        }
+        result = operation => result,
+    }
+}
+
 /// Dispatches the validated command before any presentation is written.
 fn execute(
     matches: &ArgMatches,
@@ -629,16 +578,7 @@ fn execute(
 ) -> Result<Vec<u8>, Failure> {
     if let Some(action) = auth_action(matches) {
         if matches!(action, AuthAction::Validate) {
-            let result = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = session.validate() => result.map_err(Failure::Session),
-                }
-            })?;
+            let result = execute_read(|| session.validate(), Failure::Session)?;
             let mut bytes = serde_json::to_vec(&result).map_err(Failure::Json)?;
             bytes.push(b'\n');
             return Ok(bytes);
@@ -733,24 +673,21 @@ fn execute_item(
     } else {
         return Err(Failure::Usage("Select item list or show."));
     };
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal = tokio::signal::ctrl_c() => { signal.map_err(Failure::Signal)?; Err(Failure::Cancelled) }
-            result = async {
-                if let Some(selection) = &selected {
-                    match kind {
-                        ItemKind::Equipment => reads.show_equipment(session, selection).await,
-                        ItemKind::MagicItem => reads.show_magic_item(session, selection).await,
-                    }
-                } else if let Some(query) = &magic_query {
-                    reads.list_magic_items(session, query).await
-                } else {
-                    reads.list_equipment(session, &query).await
+    let value = execute_read(
+        || async {
+            if let Some(selection) = &selected {
+                match kind {
+                    ItemKind::Equipment => reads.show_equipment(session, selection).await,
+                    ItemKind::MagicItem => reads.show_magic_item(session, selection).await,
                 }
-            } => result.map_err(Failure::Item),
-        }
-    })?;
+            } else if let Some(query) = &magic_query {
+                reads.list_magic_items(session, query).await
+            } else {
+                reads.list_equipment(session, &query).await
+            }
+        },
+        Failure::Item,
+    )?;
     if selected.is_some() {
         render_record(
             &options,
@@ -758,15 +695,6 @@ fn execute_item(
             value,
         )
     } else {
-        let mut rows = value["entries"]
-            .as_array()
-            .cloned()
-            .ok_or(Failure::Item(ItemError::InvalidResponse))?;
-        for row in &mut rows {
-            for field in ["page", "next_page", "source_count", "source_total"] {
-                row[field] = value["pagination"][field].clone();
-            }
-        }
         let mut columns = vec![
             "id",
             "name",
@@ -783,28 +711,87 @@ fn execute_item(
         if kind == ItemKind::MagicItem {
             columns.extend(["rarity", "tags", "can_attune"]);
         }
-        output::list(&options, &columns, &rows, Some(&value))
+        output::paginated_list(
+            &options,
+            &columns,
+            &value,
+            &["page", "next_page", "source_count", "source_total"],
+            Failure::Item(ItemError::InvalidResponse),
+        )
     }
 }
 
 /// Assembles the shared local query from clap values, like other resource queries.
 fn magic_item_query(arguments: &ArgMatches, page: u32) -> Result<MagicItemQuery, Failure> {
-    let mut fields = serde_json::Map::new();
+    let mut fields =
+        query_values::<String>(arguments, [("name", "name"), ("attunement", "attunement")]);
     fields.insert("page".to_owned(), json!(page));
-    for field in ["name", "attunement"] {
-        if let Some(value) = arguments.get_one::<String>(field) {
-            fields.insert(field.to_owned(), json!(value));
-        }
-    }
-    for (field, flag) in item_catalog::query::LABEL_FILTERS {
-        if let Some(values) = arguments.get_many::<String>(flag) {
-            fields.insert(field.to_owned(), json!(values.cloned().collect::<Vec<_>>()));
-        }
-    }
+    fields.extend(repeated_query_values::<String>(
+        arguments,
+        item_catalog::query::LABEL_FILTERS.iter().copied(),
+    ));
     let query: MagicItemQuery = serde_json::from_value(json!(fields))
         .map_err(|_| Failure::Item(ItemError::InvalidMagicInput))?;
     query.validate().map_err(Failure::Item)?;
     Ok(query)
+}
+
+/// Copies present scalar clap values to the named core query fields.
+fn query_values<'a, T>(
+    arguments: &ArgMatches,
+    mappings: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> serde_json::Map<String, Value>
+where
+    T: Clone + Send + Sync + 'static,
+    Value: From<T>,
+{
+    mappings
+        .into_iter()
+        .filter_map(|(field, flag)| {
+            arguments
+                .get_one::<T>(flag)
+                .cloned()
+                .map(|value| (field.to_owned(), Value::from(value)))
+        })
+        .collect()
+}
+
+/// Keeps repeated filter order and leaves validation and limits to the core.
+fn repeated_query_values<'a, T>(
+    arguments: &ArgMatches,
+    mappings: impl IntoIterator<Item = (&'a str, &'a str)>,
+) -> serde_json::Map<String, Value>
+where
+    T: Clone + Send + Sync + 'static,
+    Value: From<T>,
+{
+    mappings
+        .into_iter()
+        .filter_map(|(field, flag)| {
+            arguments.get_many::<T>(flag).map(|values| {
+                (
+                    field.to_owned(),
+                    Value::Array(values.cloned().map(Value::from).collect()),
+                )
+            })
+        })
+        .collect()
+}
+
+/// Assembles the shared website name, partnered-content, and repeated-ID filters.
+fn website_query_fields(
+    arguments: &ArgMatches,
+    id_filters: &[(&str, &str, &str)],
+) -> serde_json::Map<String, Value> {
+    let mut fields = query_values::<String>(
+        arguments,
+        [("name", "name"), ("partnered_content", "partnered-content")],
+    );
+    fields.extend(repeated_query_values::<u32>(
+        arguments,
+        id_filters.iter().map(|(field, flag, _)| (*field, *flag)),
+    ));
+    fields
 }
 
 /// Presents spell metadata and untrusted detail without copying access policy.
@@ -824,37 +811,30 @@ fn execute_spell(
     if let Some(slug) = slug {
         spell::validate_slug(slug).map_err(Failure::Spell)?;
     } else if action == "list" {
-        let mut fields = serde_json::Map::new();
+        let mut fields = website_query_fields(arguments, &spell::query::ID_FILTERS);
         fields.insert("page".to_owned(), json!(arguments.get_one::<u32>("page")));
-        for (field, flag) in [("name", "name"), ("partnered_content", "partnered-content")] {
-            if let Some(value) = arguments.get_one::<String>(flag) {
-                fields.insert(field.to_owned(), json!(value));
-            }
-        }
-        for (field, flag, _) in spell::query::ID_FILTERS {
-            if let Some(ids) = arguments.get_many::<u32>(flag) {
-                fields.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
-            }
-        }
-        for (field, flag, _) in spell::query::BOOL_FILTERS {
-            if let Some(value) = arguments.get_one::<bool>(flag) {
-                fields.insert(field.to_owned(), json!(value));
-            }
-        }
+        fields.extend(query_values::<bool>(
+            arguments,
+            spell::query::BOOL_FILTERS
+                .iter()
+                .map(|(field, flag, _)| (*field, *flag)),
+        ));
         query = serde_json::from_value(fields.into())
             .map_err(|_| Failure::Usage("Invalid spell filters."))?;
         query.validate().map_err(Failure::Spell)?;
     } else {
         return Err(Failure::Usage("Select spell list or show."));
     }
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal = tokio::signal::ctrl_c() => { signal.map_err(Failure::Signal)?; Err(Failure::Cancelled) }
-            result = async { if let Some(slug) = slug { reads.show_spell(session,slug).await }
-                else { reads.list_spells(session,&query).await } } => result.map_err(Failure::Spell),
-        }
-    })?;
+    let value = execute_read(
+        || async {
+            if let Some(slug) = slug {
+                reads.show_spell(session, slug).await
+            } else {
+                reads.list_spells(session, &query).await
+            }
+        },
+        Failure::Spell,
+    )?;
     if slug.is_some() {
         render_record(
             &options,
@@ -862,15 +842,7 @@ fn execute_spell(
             value,
         )
     } else {
-        let mut rows = value["entries"]
-            .as_array()
-            .cloned()
-            .ok_or(Failure::Spell(SpellError::InvalidResponse))?;
-        for row in &mut rows {
-            row["page"] = value["pagination"]["page"].clone();
-            row["next_page"] = value["pagination"]["next_page"].clone();
-        }
-        output::list(
+        output::paginated_list(
             &options,
             &[
                 "id",
@@ -882,8 +854,9 @@ fn execute_spell(
                 "page",
                 "next_page",
             ],
-            &rows,
-            Some(&value),
+            &value,
+            &["page", "next_page"],
+            Failure::Spell(SpellError::InvalidResponse),
         )
     }
 }
@@ -904,22 +877,16 @@ fn execute_species(
     } else if action != "list" {
         return Err(Failure::Usage("Select species list or show."));
     }
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal = tokio::signal::ctrl_c() => {
-                signal.map_err(Failure::Signal)?;
-                Err(Failure::Cancelled)
+    let value = execute_read(
+        || async {
+            if let Some(id) = id {
+                reads.show_species(session, id).await
+            } else {
+                reads.list_species(session).await
             }
-            result = async {
-                if let Some(id) = id {
-                    reads.show_species(session, id).await
-                } else {
-                    reads.list_species(session).await
-                }
-            } => result.map_err(Failure::Species),
-        }
-    })?;
+        },
+        Failure::Species,
+    )?;
     if id.is_some() {
         let fields = [
             "id",
@@ -954,19 +921,9 @@ fn execute_feat(
         None
     };
     let query = if action == "list" {
-        let mut value = serde_json::Map::new();
-        for (field, flag) in [("name", "name"), ("partnered_content", "partnered-content")] {
-            if let Some(text) = arguments.get_one::<String>(flag) {
-                value.insert(field.to_owned(), json!(text));
-            }
-        }
+        let mut value = website_query_fields(arguments, &feat::query::ID_FILTERS);
         if let Some(id) = arguments.get_one::<u32>("prerequisite-subtype-id") {
             value.insert("prerequisite_subtype_id".to_owned(), json!(id));
-        }
-        for (field, flag, _) in feat::query::ID_FILTERS {
-            if let Some(ids) = arguments.get_many::<u32>(flag) {
-                value.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
-            }
         }
         serde_json::from_value::<FeatQuery>(Value::Object(value))
             .map_err(|_| Failure::Usage("Invalid feat filters."))?
@@ -977,19 +934,16 @@ fn execute_feat(
         return Err(Failure::Usage("Select feat list or show."));
     };
     query.validate().map_err(Failure::Feat)?;
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal = tokio::signal::ctrl_c() => {
-                signal.map_err(Failure::Signal)?;
-                Err(Failure::Cancelled)
+    let value = execute_read(
+        || async {
+            if let Some(id) = id {
+                reads.show_feat(session, id).await
+            } else {
+                reads.list_feats(session, &query).await
             }
-            result = async {
-                if let Some(id) = id { reads.show_feat(session, id).await }
-                else { reads.list_feats(session, &query).await }
-            } => result.map_err(Failure::Feat),
-        }
-    })?;
+        },
+        Failure::Feat,
+    )?;
     if id.is_some() {
         render_record(
             &options,
@@ -1031,17 +985,7 @@ fn execute_background(
         None
     };
     let query = if action == "list" {
-        let mut value = serde_json::Map::new();
-        for (field, flag) in [("name", "name"), ("partnered_content", "partnered-content")] {
-            if let Some(text) = arguments.get_one::<String>(flag) {
-                value.insert(field.to_owned(), json!(text));
-            }
-        }
-        for (field, flag, _) in background::query::ID_FILTERS {
-            if let Some(ids) = arguments.get_many::<u32>(flag) {
-                value.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
-            }
-        }
+        let value = website_query_fields(arguments, &background::query::ID_FILTERS);
         serde_json::from_value::<BackgroundQuery>(Value::Object(value))
             .map_err(|_| Failure::Usage("Invalid background filters."))?
     } else if let Some(id) = id {
@@ -1051,13 +995,16 @@ fn execute_background(
         return Err(Failure::Usage("Select background list or show."));
     };
     query.validate().map_err(Failure::Background)?;
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal=tokio::signal::ctrl_c()=>{signal.map_err(Failure::Signal)?;Err(Failure::Cancelled)}
-            result=async {if let Some(id)=id {reads.show_background(session,id).await} else {reads.list_backgrounds(session,&query).await}}=>result.map_err(Failure::Background),
-        }
-    })?;
+    let value = execute_read(
+        || async {
+            if let Some(id) = id {
+                reads.show_background(session, id).await
+            } else {
+                reads.list_backgrounds(session, &query).await
+            }
+        },
+        Failure::Background,
+    )?;
     if id.is_some() {
         render_record(
             &options,
@@ -1096,22 +1043,16 @@ fn execute_monster(
     } else {
         return Err(Failure::Usage("Select monster list or show."));
     };
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal = tokio::signal::ctrl_c() => {
-                signal.map_err(Failure::Signal)?;
-                Err(Failure::Cancelled)
+    let value = execute_read(
+        || async {
+            if let Some(id) = id {
+                reads.show_monster(session, id).await
+            } else {
+                reads.list_monsters(session, &query).await
             }
-            result = async {
-                if let Some(id) = id {
-                    reads.show_monster(session, id).await
-                } else {
-                    reads.list_monsters(session, &query).await
-                }
-            } => result.map_err(Failure::Monster),
-        }
-    })?;
+        },
+        Failure::Monster,
+    )?;
     if id.is_some() {
         return render_record(
             &options,
@@ -1119,16 +1060,7 @@ fn execute_monster(
             value,
         );
     }
-    let entries = value["entries"]
-        .as_array()
-        .ok_or(Failure::Monster(MonsterError::InvalidResponse))?;
-    let mut rows = entries.clone();
-    for row in &mut rows {
-        for field in ["page", "next_page"] {
-            row[field] = value["pagination"][field].clone();
-        }
-    }
-    output::list(
+    output::paginated_list(
         &options,
         &[
             "id",
@@ -1138,41 +1070,31 @@ fn execute_monster(
             "page",
             "next_page",
         ],
-        &rows,
-        Some(&value),
+        &value,
+        &["page", "next_page"],
+        Failure::Monster(MonsterError::InvalidResponse),
     )
 }
 
 /// Converts parsed flags to the same strict query model used by MCP.
 fn monster_query(arguments: &ArgMatches) -> Result<monster::MonsterQuery, Failure> {
     use monster::query::{BOOL_FILTERS, ID_FILTERS, NUMBER_FILTERS};
-    let mut value = serde_json::Map::new();
+    let mut value = website_query_fields(arguments, &ID_FILTERS);
     value.insert("page".to_owned(), json!(arguments.get_one::<u32>("page")));
-    for (field, flag) in [
-        ("name", "name"),
-        ("cr_min", "cr-min"),
-        ("cr_max", "cr-max"),
-        ("partnered_content", "partnered-content"),
-    ] {
-        if let Some(text) = arguments.get_one::<String>(flag) {
-            value.insert(field.to_owned(), json!(text));
-        }
-    }
-    for (field, flag, _) in ID_FILTERS {
-        if let Some(ids) = arguments.get_many::<u32>(flag) {
-            value.insert(field.to_owned(), json!(ids.copied().collect::<Vec<_>>()));
-        }
-    }
-    for (field, flag, _) in NUMBER_FILTERS {
-        if let Some(number) = arguments.get_one::<u32>(flag) {
-            value.insert(field.to_owned(), json!(number));
-        }
-    }
-    for (field, flag, _) in BOOL_FILTERS {
-        if let Some(boolean) = arguments.get_one::<bool>(flag) {
-            value.insert(field.to_owned(), json!(boolean));
-        }
-    }
+    value.extend(query_values::<String>(
+        arguments,
+        [("cr_min", "cr-min"), ("cr_max", "cr-max")],
+    ));
+    value.extend(query_values::<u32>(
+        arguments,
+        NUMBER_FILTERS
+            .iter()
+            .map(|(field, flag, _)| (*field, *flag)),
+    ));
+    value.extend(query_values::<bool>(
+        arguments,
+        BOOL_FILTERS.iter().map(|(field, flag, _)| (*field, *flag)),
+    ));
     let query: monster::MonsterQuery = serde_json::from_value(Value::Object(value))
         .map_err(|_| Failure::Usage("Invalid monster filters."))?;
     query
@@ -1205,22 +1127,16 @@ fn execute_class(
         _ => return Err(Failure::Usage("Select class/subclass list or show.")),
     };
     class_catalog::validate_input(kind, name, class_id, id).map_err(Failure::Class)?;
-    let value = execute_session(async {
-        tokio::select! {
-            biased;
-            signal = tokio::signal::ctrl_c() => {
-                signal.map_err(Failure::Signal)?;
-                Err(Failure::Cancelled)
+    let value = execute_read(
+        || async {
+            if let Some(id) = id {
+                reads.show_class(session, kind, id, class_id).await
+            } else {
+                reads.list_classes(session, kind, name, class_id).await
             }
-            result = async {
-                if let Some(id) = id {
-                    reads.show_class(session, kind, id, class_id).await
-                } else {
-                    reads.list_classes(session, kind, name, class_id).await
-                }
-            } => result.map_err(Failure::Class),
-        }
-    })?;
+        },
+        Failure::Class,
+    )?;
     if id.is_some() {
         render_record(&options, &fields, value)
     } else {
@@ -1241,36 +1157,18 @@ fn execute_character(
     match action {
         "list" => {
             let options = ListOptions::parse(arguments)?;
-            let snapshot = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.list_characters(session) => result.map_err(Failure::Character),
-                }
-            })?;
+            let snapshot = execute_read(|| reads.list_characters(session), Failure::Character)?;
             let rows: Vec<_> = snapshot
                 .characters()
                 .iter()
                 .map(output::character)
                 .collect();
-            render_list(&options, &["id", "name", "source_url"], rows)
+            output::list(&options, &["id", "name", "source_url"], &rows, None)
         }
         "show" => {
             let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "id")?;
-            let value = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.get_character(session, id) => result.map_err(Failure::Character),
-                }
-            })?;
+            let value = execute_read(|| reads.get_character(session, id), Failure::Character)?;
             let row = output::character(&value);
             render_record(&options, &["id", "name", "source_url", "raw"], row)
         }
@@ -1289,36 +1187,22 @@ fn execute_campaign(
         "list" => {
             let options = ListOptions::parse(arguments)?;
             let active_only = arguments.get_flag("active-only");
-            let snapshot = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.list_campaigns(session, active_only) => result.map_err(Failure::Character),
-                }
-            })?;
+            let snapshot = execute_read(
+                || reads.list_campaigns(session, active_only),
+                Failure::Character,
+            )?;
             let rows: Vec<_> = snapshot.campaigns().iter().map(output::campaign).collect();
-            render_list(
+            output::list(
                 &options,
                 &["id", "name", "source_url", "character_ids"],
-                rows,
+                &rows,
+                None,
             )
         }
         "show" => {
             let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "id")?;
-            let value = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.get_campaign(session, id) => result.map_err(Failure::Character),
-                }
-            })?;
+            let value = execute_read(|| reads.get_campaign(session, id), Failure::Character)?;
             let row = output::campaign(&value);
             render_record(
                 &options,
@@ -1340,32 +1224,19 @@ fn execute_book(
     match action {
         "list" => {
             let options = ListOptions::parse(arguments)?;
-            let snapshot = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.discover_library(session) => result.map_err(Failure::Library),
-                }
-            })?;
+            let snapshot = execute_read(|| reads.discover_library(session), Failure::Library)?;
             let rows: Vec<_> = snapshot.books().iter().map(output::book).collect();
-            render_list(&options, &["id", "title", "access", "source_url"], rows)
+            output::list(
+                &options,
+                &["id", "title", "access", "source_url"],
+                &rows,
+                None,
+            )
         }
         "outline" => {
             let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "book-id")?;
-            let value = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.get_book_outline(session, id) => result.map_err(Failure::Book),
-                }
-            })?;
+            let value = execute_read(|| reads.get_book_outline(session, id), Failure::Book)?;
             let json = output::outline(&value);
             let rows = json["entries"]
                 .as_array()
@@ -1388,16 +1259,7 @@ fn execute_book(
                 section_id: selection(arguments, "section-id")?,
                 continuation: cursor.as_ref(),
             };
-            let value = execute_session(async {
-                tokio::select! {
-                    biased;
-                    signal = tokio::signal::ctrl_c() => {
-                        signal.map_err(Failure::Signal)?;
-                        Err(Failure::Cancelled)
-                    }
-                    result = reads.read_book_section(session, request) => result.map_err(Failure::Book),
-                }
-            })?;
+            let value = execute_read(|| reads.read_book_section(session, request), Failure::Book)?;
             output::json_bytes(&output::section(&value)?)
         }
         _ => Err(Failure::Usage("Select a supported book operation.")),
@@ -1410,15 +1272,6 @@ fn selection<'a>(matches: &'a ArgMatches, name: &str) -> Result<&'a str, Failure
         .get_one::<String>(name)
         .map(String::as_str)
         .ok_or(Failure::Usage("A resource identifier is required."))
-}
-
-/// Presents a list without losing additional structured JSON-only fields.
-fn render_list(
-    options: &ListOptions,
-    fields: &[&str],
-    rows: Vec<Value>,
-) -> Result<Vec<u8>, Failure> {
-    output::list(options, fields, &rows, None)
 }
 
 /// Presents one complete record in JSON or one lossless table/TSV row.

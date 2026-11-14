@@ -517,33 +517,30 @@ fn valid_identifier(value: &str) -> Result<String, &'static str> {
 
 /// Adds output controls with the established table default for lists.
 fn list_options(command: Command) -> Command {
-    output_options(command, "table").arg(
-        Arg::new("no-headers")
-            .long("no-headers")
-            .action(ArgAction::SetTrue)
-            .help("Omit table/TSV headers; invalid with JSON"),
-    )
+    output_options(command, "table")
 }
 
 /// Adds output controls with a JSON default for one selected record.
 fn show_options(command: Command) -> Command {
-    output_options(command, "json").arg(
-        Arg::new("no-headers")
-            .long("no-headers")
-            .action(ArgAction::SetTrue)
-            .help("Omit table/TSV headers; invalid with JSON"),
-    )
+    output_options(command, "json")
 }
 
-/// Defines one output selector shared by its modern name and compatibility alias.
+/// Defines the shared output selector, compatibility alias, and header control.
 fn output_options(command: Command, default: &'static str) -> Command {
-    command.arg(
-        Arg::new("output")
-            .short('o')
-            .long("output")
-            .visible_alias("format")
-            .default_value(default)
-            .value_parser(["table", "json", "tsv"])
-            .help("Output format; JSON preserves structured fields"),
-    )
+    command
+        .arg(
+            Arg::new("output")
+                .short('o')
+                .long("output")
+                .visible_alias("format")
+                .default_value(default)
+                .value_parser(["table", "json", "tsv"])
+                .help("Output format; JSON preserves structured fields"),
+        )
+        .arg(
+            Arg::new("no-headers")
+                .long("no-headers")
+                .action(ArgAction::SetTrue)
+                .help("Omit table/TSV headers; invalid with JSON"),
+        )
 }
