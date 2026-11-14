@@ -126,6 +126,18 @@ Native spell acceptance, denied HTML, ownership/sharing behavior, and unchecked
 filter combinations remain unverified. No live acceptance is authorized by
 these offline checks.
 
+## HTTP timeout and retry checks
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib --locked --jobs 1 http::tests
+```
+
+These tests use synthetic loopback responses. The timeout-retry check waits for
+the first wire request, then advances the Tokio clock by the production attempt
+limit. It resumes real time before retry I/O so scheduler delays do not cause
+extra timeouts. Recovery still requires exactly two requests and the second
+response's value. Production time limits and retry counts remain unchanged.
+
 ## Results and coverage
 
 For archive-based checks and separate approval gates, use the
