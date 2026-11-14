@@ -89,61 +89,6 @@ impl ReadOperations for Fixtures {
         }))
     }
 
-    /// Uses the shared background listing with the supplied synthetic owner.
-    async fn list_backgrounds(
-        &self,
-        session: &Session,
-        query: &beyond_gate_core::background::BackgroundQuery,
-    ) -> Result<Value, beyond_gate_core::background::BackgroundError> {
-        beyond_gate_core::background::list(session, query).await
-    }
-    /// Uses shared background selection without a product fixture switch.
-    async fn show_background(
-        &self,
-        session: &Session,
-        id: &str,
-    ) -> Result<Value, beyond_gate_core::background::BackgroundError> {
-        beyond_gate_core::background::show(session, id).await
-    }
-    /// Uses the shared monster page operation without a product fixture selector.
-    async fn list_monsters(
-        &self,
-        session: &Session,
-        query: &beyond_gate_core::monster::MonsterQuery,
-    ) -> Result<Value, beyond_gate_core::monster::MonsterError> {
-        beyond_gate_core::monster::list(session, query).await
-    }
-
-    /// Uses shared selected detail, including its access gate.
-    async fn show_monster(
-        &self,
-        session: &Session,
-        id: &str,
-    ) -> Result<Value, beyond_gate_core::monster::MonsterError> {
-        beyond_gate_core::monster::show(session, id).await
-    }
-    /// Uses the shared metadata operation with the explicitly supplied fixture owner.
-    async fn list_classes(
-        &self,
-        session: &Session,
-        kind: beyond_gate_core::class_catalog::ClassKind,
-        name: Option<&str>,
-        class_id: Option<&str>,
-    ) -> Result<Value, beyond_gate_core::class_catalog::ClassCatalogError> {
-        beyond_gate_core::class_catalog::list(session, kind, name, class_id).await
-    }
-
-    /// Uses shared metadata selection without creating a success-shaped fixture fallback.
-    async fn show_class(
-        &self,
-        session: &Session,
-        kind: beyond_gate_core::class_catalog::ClassKind,
-        id: &str,
-        class_id: Option<&str>,
-    ) -> Result<Value, beyond_gate_core::class_catalog::ClassCatalogError> {
-        beyond_gate_core::class_catalog::show(session, kind, id, class_id).await
-    }
-
     /// Builds validated characters with optional metadata and unknown JSON fields.
     async fn list_characters(
         &self,
@@ -879,6 +824,63 @@ fn feat_contracts() {
     failure(run("feat-normal", &["feat", "show", "999"]), 1, "not found");
 }
 
+/// Keeps pagination in JSON envelopes and copies its selected fields to TSV rows.
+fn paginated_list_contracts() {
+    for (scenario, resource, empty_scenario) in [
+        ("monster-normal", "monster", "monster-empty"),
+        ("spell-next", "spell", "spell-empty"),
+        ("equipment-normal", "equipment", "equipment-magic-only"),
+        ("equipment-normal", "magic-item", "equipment-normal"),
+    ] {
+        let json = read_json(&run(scenario, &[resource, "list", "-o", "json"]));
+        let output = run(scenario, &[resource, "list", "-o", "tsv"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8(output.stdout).expect("TSV");
+        let mut lines = text.lines();
+        let header = lines.next().expect("headers");
+        let columns: Vec<_> = header.split('\t').collect();
+        let rows: Vec<_> = lines.collect();
+        assert_eq!(
+            rows.len(),
+            json["entries"].as_array().expect("entries").len()
+        );
+        let pagination_fields: &[&str] = if matches!(resource, "equipment" | "magic-item") {
+            &["page", "next_page", "source_count", "source_total"]
+        } else {
+            &["page", "next_page"]
+        };
+        for field in pagination_fields {
+            let index = columns
+                .iter()
+                .position(|column| column == field)
+                .expect("pagination column");
+            let value = &json["pagination"][*field];
+            let expected = if value.is_null() {
+                String::new()
+            } else {
+                value.to_string()
+            };
+            for row in &rows {
+                assert_eq!(row.split('\t').nth(index).expect("page field"), expected);
+            }
+        }
+        let mut arguments = vec![resource, "list", "-o", "tsv"];
+        if resource == "magic-item" {
+            arguments.extend(["--type", "missing"]);
+        }
+        let output = run(empty_scenario, &arguments);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert_eq!(output.stdout, format!("{header}\n").as_bytes());
+        arguments.push("--no-headers");
+        let output = run(empty_scenario, &arguments);
+        assert!(output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(output.stderr.is_empty());
+    }
+}
+
 /// Checks equipment pages, raw preservation, TSV safety, and page-scoped failures.
 fn equipment_contracts() {
     let value = read_json(&run(
@@ -1011,6 +1013,23 @@ fn main() {
             .into_owned();
         let cli_arguments = std::iter::once(std::ffi::OsString::from("beyond-gate"))
             .chain(arguments.into_iter().skip(3));
+        if let Some(name) = scenario.strip_prefix("monster-") {
+            use beyond_gate_core::monster::fixture::{self, Scenario};
+            let source = match name {
+                "normal" => Scenario::Normal,
+                "empty" => Scenario::Empty,
+                _ => panic!("unknown synthetic monster source"),
+            };
+            let session = fixture::session(source).expect("invented monster service");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
         if let Some(name) = scenario.strip_prefix("equipment-") {
             use beyond_gate_core::item_catalog::fixture::{self, Scenario};
             let source = match name {
@@ -1079,6 +1098,7 @@ fn main() {
     feat_contracts();
     equipment_contracts();
     magic_item_contracts();
+    paginated_list_contracts();
     section_contracts();
     output_failures();
 }

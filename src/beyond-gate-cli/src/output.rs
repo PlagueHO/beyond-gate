@@ -207,6 +207,26 @@ pub(crate) fn list(
     Ok(result.into_bytes())
 }
 
+/// Adds selected page fields to table/TSV rows without changing the JSON envelope.
+pub(crate) fn paginated_list(
+    options: &ListOptions,
+    fields: &[&str],
+    value: &Value,
+    pagination_fields: &[&str],
+    invalid_response: Failure,
+) -> Result<Vec<u8>, Failure> {
+    let mut rows = value["entries"]
+        .as_array()
+        .cloned()
+        .ok_or(invalid_response)?;
+    for row in &mut rows {
+        for field in pagination_fields {
+            row[*field] = value["pagination"][*field].clone();
+        }
+    }
+    list(options, fields, &rows, Some(value))
+}
+
 /// Counts escaped UTF-8 bytes, character-based padding, separators, and newlines.
 ///
 /// Cells include headers when selected. The last column has no padding.
@@ -247,6 +267,23 @@ fn escape_cell(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Returns the caller's typed malformed-page error even when JSON is selected.
+    #[test]
+    fn paginated_json_rejects_invalid_entries() {
+        let error = paginated_list(
+            &options("json", true, 0),
+            &["id", "page"],
+            &json!({"entries": null, "pagination": {"page": 1}}),
+            &["page"],
+            Failure::Item(beyond_gate_core::item_catalog::ItemError::InvalidResponse),
+        )
+        .expect_err("invalid entries");
+        assert!(matches!(
+            error,
+            Failure::Item(beyond_gate_core::item_catalog::ItemError::InvalidResponse)
+        ));
+    }
 
     /// Selects one format with a testable table-only byte boundary.
     fn options(format: &str, headers: bool, limit: usize) -> ListOptions {

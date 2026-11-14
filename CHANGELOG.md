@@ -435,6 +435,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Shared CLI read cancellation, filter assembly, pagination formatting, and
+  output options. Live reads use shared operation defaults. Commands,
+  help, completions, output, and exit codes remain unchanged.
 - Backlog and authentication guidance now prioritize Windows/Linux CLI and MCP
   terminal use. #52 owns planned process-only `CobaltSession` environment input,
   hidden CLI input, explicit protected save, and Linux session/read support.
