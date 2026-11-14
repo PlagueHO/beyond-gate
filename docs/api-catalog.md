@@ -34,12 +34,12 @@ page, a beyond-terminal empty page, and one repeated raw identity.
 Do not implement the client's automatic full-catalog traversal or cache.
 
 The implemented core reads one fresh mixed page of 100 raw rows.
-CLI `equipment list/show` and MCP `equipment_list`/`equipment_show` use
-one-based page context. Lists return equipment metadata plus explicitly
+CLI `equipment list/show` and `magic-item list/show`, and their MCP tools, use
+one-based page context. Lists return the selected kind's metadata plus explicitly
 mixed-source counts. They never fill a page by fetching more pages.
 Show requires the full `definitionKey` and explicit source page. It validates
-all rows, then returns one unchanged equipment definition. Absence means
-absent from that checked page. A selected magic record gives a wrong-kind error.
+all rows, then returns one unchanged definition of the selected kind. Absence means
+absent from that checked page. Selecting the other kind gives a wrong-kind error.
 No global selected-ID route or global absence is claimed.
 
 Public source filtering was traced to character source-category and homebrew
@@ -47,6 +47,13 @@ preferences, not a new ownership or access-code enum. Source metadata,
 website options, and `sharingSetting=2` are not grants.
 Unverified access maps fail as unsupported. Raw boolean `magic` alone
 determines equipment versus magic items; invalid classification fails the page.
+Magic lists support local name, type, rarity, tag, and attunement selectors,
+using raw labels rather than website IDs. They validate magic filter metadata,
+preserve source order, and do not change mixed counts or continuation.
+The [later magic research](api-survey.md#magic-item-local-filter-research)
+confirmed distinct pages and repeated raw magic identity. It reviewed all
+17 website filter controls but did not verify server-side item API filters.
+See the [local filter contract](cli.md#magic-item-local-filters-and-raw-detail).
 Bounds and errors match the [CLI contract](cli.md#equipment-source-pages-and-raw-detail).
 HTML fallback, full-catalog traversal, and content caching are excluded.
 Native CLI/MCP compatibility, account acceptance, and owned/shared behavior

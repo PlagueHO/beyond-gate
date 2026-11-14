@@ -36,7 +36,7 @@ Two feat tools provide bounded website metadata and selected raw definitions
 from the checked protected collection. Synthetic sources check collection
 validation, raw preservation, and repeatable parents. Native CLI/MCP acceptance
 remains unverified.
-Two equipment tools share the core mixed item page reader and explicit boolean
+Equipment and magic-item tools share the core mixed item page reader and explicit boolean
 classification. Detail requires full definition identity plus source-page
 context. No global scan or HTML fallback is added; native acceptance remains
 unverified.
@@ -127,6 +127,7 @@ The adapter exposes `character_list`, `character_show`, `campaign_list`,
 `spell_list`, `spell_show`,
 `feat_list`, `feat_show`,
 `equipment_list`, `equipment_show`,
+`magic_item_list`, `magic_item_show`,
 `book_list`, `book_outline`, and
 `book_read`. It calls the same
 core live-read functions as the CLI. Windows book reads check fresh metadata and
@@ -151,7 +152,10 @@ The core `item_catalog` module owns one identity-bound mixed item page,
 strict classification, composite identity, attribution checks, and typed
 errors. CLI and MCP delegate to it. The raw boolean `magic` selects equipment
 or magic-item kind; category, rarity, and character infusion state do not.
-Magic-item adapter work remains separate.
+Magic list filters use bounded raw labels and apply locally within one page.
+The query follows other resource patterns: strict serde input, shared
+validation before session access, bounded repeated values, and JSON schemas.
+CLI and MCP do not duplicate matching logic.
 
 Each operation creates a session read scope, fetches public configuration
 without credentials, and makes one bearer-only GET to the fixed
@@ -160,7 +164,7 @@ zero-based API `page`, with fixed `pageSize=100`. The core validates exact
 `skip`, `take`, `total`, expected row count, and every raw row before output.
 It never fills filtered pages or follows continuation.
 
-List returns equipment metadata and mixed-source pagination. Show requires
+List returns the selected kind's metadata and mixed-source pagination. Show requires
 the full `definitionKey` and explicit source page, then returns one unchanged
 raw definition with source extensions. Absence is page-scoped, not global.
 An invalid unselected row fails the page. Unknown access maps are unsupported;
@@ -168,6 +172,10 @@ configuration membership establishes attribution, not permission.
 Bounds and compatibility limits are in the [CLI contract](cli.md#equipment-source-pages-and-raw-detail).
 The book URL guard is unchanged. No HTML route, global traversal, cache,
 arbitrary URL, account write, or new runtime is introduced.
+Magic list entries also expose rarity, tags, and raw attunement metadata.
+These fields validate before local filtering. Type, rarity, and tag labels use
+case-insensitive exact matching; name uses a literal substring. A local
+non-match can have continuation. Equipment fields and behavior are unchanged.
 
 ## Feat read boundary
 

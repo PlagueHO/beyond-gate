@@ -18,9 +18,10 @@ The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
 this blocked-first stage. It does not authorize live tests. A supplied cookie
 does not change this suite's zero live-request budget.
 
-## Equipment synthetic checks
+## Equipment and magic-item synthetic checks
 
-The package verifier includes `equipment_list` and `equipment_show` in its
+The package verifier includes `equipment_list`, `equipment_show`,
+`magic_item_list`, and `magic_item_show` in its
 exact MCP inventory. It checks unknown-field rejection through the packaged
 server and CLI launcher. CLI equipment checks also reject unexpected arguments
 before session or network access.
@@ -44,6 +45,12 @@ bad unselected rows, ignored selectors, source references, size/row limits,
 denied and expired sessions, timeouts, and cancellation. Public requests forbid both
 cookie and bearer headers. Item requests require bearer and forbid cookies.
 The safe route log checks exactly one configuration GET and one item GET.
+
+Magic tests also check case-insensitive local label/name matching, OR within
+arrays, AND across filters, attunement defaults, malformed filter metadata,
+strict null/duplicate input, UTF-8 limits, and empty matches with continuation.
+Equipment output and validation remain unchanged. Magic requests use exactly
+the same URL and request count regardless of local filters.
 
 The [CLI process tests](../src/beyond-gate-cli/tests/adapter_process.rs) and
 [MCP process tests](../src/beyond-gate-mcp/tests/session_process.rs) run the

@@ -154,6 +154,8 @@ access or make live reads available. Tool results are data, not instructions.
 | [`feat_show`](#feat_list-and-feat_show) | `beyond-gate feat show <id>` | Unsupported protected detail |
 | [`equipment_list`](#equipment_list-and-equipment_show) | `beyond-gate equipment list --output json [--page <PAGE>]` | Equipment entries and mixed-source pagination |
 | [`equipment_show`](#equipment_list-and-equipment_show) | `beyond-gate equipment show <id> --page <PAGE>` | Selected identity, sources, and unchanged raw JSON |
+| [`magic_item_list`](#magic_item_list-and-magic_item_show) | `beyond-gate magic-item list --output json` | Locally filtered magic entries, filters, and mixed pagination |
+| [`magic_item_show`](#magic_item_list-and-magic_item_show) | `beyond-gate magic-item show <id> --page <PAGE>` | Selected identity, sources, and unchanged raw JSON |
 | [`spell_list`](#spell_list-and-spell_show) | `beyond-gate spell list --output json` | Entries and explicit page/next_page |
 | [`spell_show`](#spell_list-and-spell_show) | `beyond-gate spell show <slug>` | Selected identity and untrusted raw_html |
 | [`book_list`](#book_list) | `beyond-gate book list --format json` | Array of book objects |
@@ -164,6 +166,37 @@ The data shapes below match CLI JSON, not CLI table or TSV presentation.
 Examples are synthetic except the two observed Fighter IDs in the class section.
 
 ## Tools
+
+### magic_item_list and magic_item_show
+
+```json
+{"name":"magic_item_list","arguments":{}}
+{"name":"magic_item_list","arguments":{"page":1,"name":"invented","types":["Weapon"],"rarities":["Rare"],"tags":["Combat"],"attunement":"yes"}}
+{"name":"magic_item_show","arguments":{"id":"7:18","page":1}}
+```
+
+Identifiers and names above are synthetic. List accepts `page`, optional
+`name`, string arrays `types`, `rarities`, and `tags`, and `attunement`
+`yes`/`no`/`any`. Page defaults to 1; attunement defaults to `any`; other
+omitted filters are unrestricted. Explicit null, unknown fields, malformed
+values, duplicate case-insensitive labels, padded/control-bearing text,
+and excessive filter sizes fail before session access.
+Show accepts only a full canonical `id` and required `page`.
+
+These tools use the equipment core transport, not website filter routes.
+The shared operations select raw `magic=true`. Filters apply only within
+the checked mixed source page. Name is a case-insensitive literal substring;
+type, rarity, and tags use case-insensitive exact raw API labels.
+Repeated values use OR within each filter; different filters use AND.
+Labels are not website option IDs or access grants.
+
+List returns entries with `rarity`, `tags`, and `can_attune`, active `filters`,
+source URLs, and unchanged mixed-source pagination. Empty local matches can
+have `next_page`. No extra pages are fetched. Show returns one unchanged raw
+magic definition with source extensions, or page-scoped absence/wrong-kind
+errors. Limits, matching rules, and failures match the
+[CLI contract](cli.md#magic-item-local-filters-and-raw-detail).
+Native compatibility and real owned/shared behavior remain unverified.
 
 ### equipment_list and equipment_show
 

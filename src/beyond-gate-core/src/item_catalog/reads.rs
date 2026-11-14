@@ -1,6 +1,6 @@
-//! One identity-bound item page, checked before equipment classification or selection.
+//! One identity-bound item page, checked before local filtering or selection.
 
-use super::{ItemKind, classify};
+use super::{ItemKind, MagicItemQuery, classify};
 use crate::{
     auth::session::{Session, SessionError},
     http::{HttpClient, HttpError},
@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::{collections::HashSet, error::Error, fmt, time::Duration};
 
-/// Fixed raw mixed-source page size; filtered equipment pages can be smaller.
+/// Fixed raw mixed-source page size; either filtered item view can be smaller.
 pub const PAGE_SIZE: usize = 100;
 /// Maximum explicit one-based page accepted before credential access.
 pub const MAX_PAGE: u32 = 1_000_000;
@@ -24,7 +24,7 @@ const WEBSITE: &str = "https://www.dndbeyond.com";
 /// Fixed item service origin, never selected by a record or caller URL.
 const SERVICE: &str = "https://character-service.dndbeyond.com";
 
-/// Requests one mixed item source page, not a filled equipment-only page.
+/// Requests one mixed source page without filling a filtered item view.
 #[derive(Deserialize, Serialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
 pub struct ItemQuery {
@@ -88,10 +88,12 @@ impl ItemSelection {
     }
 }
 
-/// Typed, redacted failures shared by equipment adapters.
+/// Typed, redacted failures shared by equipment and magic-item adapters.
 pub enum ItemError {
     /// The source-page selector or composite identity is invalid.
     InvalidInput,
+    /// A magic-item source selector or local filter is invalid.
+    InvalidMagicInput,
     /// A required envelope, identity, classification, or source field is invalid.
     InvalidResponse,
     /// Returned paging or row count disagrees with the requested source page.
@@ -102,6 +104,8 @@ pub enum ItemError {
     MissingRecord,
     /// The selected raw definition is a magic item rather than equipment.
     WrongKind,
+    /// The selected raw definition is equipment rather than a magic item.
+    WrongMagicKind,
     /// An unverified access or envelope contract requires separate research.
     UnsupportedOperation,
     /// A raw page, references, page selector, or compact result exceeds policy.
@@ -119,11 +123,13 @@ impl fmt::Display for ItemError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidInput => f.write_str("invalid equipment input"),
+            Self::InvalidMagicInput => f.write_str("invalid magic-item input"),
             Self::InvalidResponse => f.write_str("invalid item response"),
             Self::IncompleteResult => f.write_str("item source page is incomplete or inconsistent"),
             Self::ConflictingIdentity => f.write_str("conflicting item definition identities"),
             Self::MissingRecord => f.write_str("item record not found in the checked source page"),
             Self::WrongKind => f.write_str("selected item is not equipment"),
+            Self::WrongMagicKind => f.write_str("selected item is not a magic item"),
             Self::UnsupportedOperation => {
                 f.write_str("item access or source contract is unsupported")
             }
@@ -186,7 +192,7 @@ pub fn validate_id(id: &str) -> Result<(), ItemError> {
 /// A page containing only magic items can legitimately have empty equipment entries.
 pub async fn list(session: &Session, query: &ItemQuery) -> Result<Value, ItemError> {
     query.validate()?;
-    read(session, query, None).await
+    read(session, query, None, ItemKind::Equipment, None).await
 }
 
 /// Returns one unchanged equipment definition from its required fresh source page.
@@ -203,6 +209,52 @@ pub async fn show(session: &Session, selection: &ItemSelection) -> Result<Value,
             page: selection.page,
         },
         Some(&selection.id),
+        ItemKind::Equipment,
+        None,
+    )
+    .await
+}
+
+/// Lists locally filtered magic metadata from one fresh mixed source page.
+///
+/// # Errors
+///
+/// Rejects invalid filters and any invalid source row without partial results.
+pub async fn list_magic_items(
+    session: &Session,
+    query: &MagicItemQuery,
+) -> Result<Value, ItemError> {
+    query.validate()?;
+    read(
+        session,
+        &ItemQuery { page: query.page },
+        None,
+        ItemKind::MagicItem,
+        Some(query),
+    )
+    .await
+}
+
+/// Returns one unchanged magic definition from its required fresh source page.
+///
+/// # Errors
+///
+/// Preserves typed source failures, page-scoped absence, and wrong-kind errors.
+pub async fn show_magic_item(
+    session: &Session,
+    selection: &ItemSelection,
+) -> Result<Value, ItemError> {
+    selection
+        .validate()
+        .map_err(|_| ItemError::InvalidMagicInput)?;
+    read(
+        session,
+        &ItemQuery {
+            page: selection.page,
+        },
+        Some(&selection.id),
+        ItemKind::MagicItem,
+        None,
     )
     .await
 }
@@ -212,6 +264,8 @@ async fn read(
     session: &Session,
     query: &ItemQuery,
     selected: Option<&str>,
+    kind: ItemKind,
+    filters: Option<&MagicItemQuery>,
 ) -> Result<Value, ItemError> {
     session.supported().map_err(ItemError::SessionRead)?;
     let session = session.read_scope();
@@ -232,7 +286,9 @@ async fn read(
             .get_json(&client, &source_url(&origin, query.page))
             .await
             .map_err(ItemError::SessionRead)?;
-        finish(assemble(body, query, selected, &sources)?)
+        finish(assemble_kind(
+            body, query, selected, &sources, kind, filters,
+        )?)
     })
     .await
     .map_err(|_| ItemError::TimedOut)?
@@ -260,11 +316,24 @@ fn source_url(origin: &str, page: u32) -> String {
 }
 
 /// Checks a page's exact envelope and all raw rows before producing any result.
+#[cfg(test)]
 pub(super) fn assemble(
     value: Value,
     query: &ItemQuery,
     selected: Option<&str>,
     sources: &HashSet<u64>,
+) -> Result<Value, ItemError> {
+    assemble_kind(value, query, selected, sources, ItemKind::Equipment, None)
+}
+
+/// Checks the same whole mixed page for either view before local selection.
+fn assemble_kind(
+    value: Value,
+    query: &ItemQuery,
+    selected: Option<&str>,
+    sources: &HashSet<u64>,
+    requested_kind: ItemKind,
+    filters: Option<&MagicItemQuery>,
 ) -> Result<Value, ItemError> {
     query.validate()?;
     let envelope = value.as_object().ok_or(ItemError::InvalidResponse)?;
@@ -331,19 +400,33 @@ pub(super) fn assemble(
         if selected == Some(key) {
             match_record = Some((row, kind));
         }
-        if kind == ItemKind::Equipment && selected.is_none() {
-            entries.push(json!({
+        if kind == requested_kind && selected.is_none() {
+            if let Some(filters) = filters
+                && !filters.matches(row)?
+            {
+                continue;
+            }
+            let mut entry = json!({
                 "id": key, "source_id": row["id"], "entity_type_id": row["entityTypeId"],
                 "name": row["name"], "filter_type": row["filterType"],
                 "cost": row["cost"], "weight": row["weight"], "sources": row["sources"],
                 "source_url": url
-            }));
+            });
+            if requested_kind == ItemKind::MagicItem {
+                entry["rarity"] = row["rarity"].clone();
+                entry["tags"] = row["tags"].clone();
+                entry["can_attune"] = row["canAttune"].clone();
+            }
+            entries.push(entry);
         }
     }
     if selected.is_some() {
         let (row, kind) = match_record.ok_or(ItemError::MissingRecord)?;
-        if kind != ItemKind::Equipment {
-            return Err(ItemError::WrongKind);
+        if kind != requested_kind {
+            return Err(match requested_kind {
+                ItemKind::Equipment => ItemError::WrongKind,
+                ItemKind::MagicItem => ItemError::WrongMagicKind,
+            });
         }
         return Ok(json!({
             "id": row["definitionKey"], "source_id": row["id"],
@@ -351,11 +434,15 @@ pub(super) fn assemble(
             "page": query.page, "source_url": url, "sources": row["sources"], "raw": row
         }));
     }
-    Ok(json!({
+    let mut result = json!({
         "entries": entries, "source_url": url,
         "pagination": {"page":query.page, "next_page":next,
             "source_page_size":PAGE_SIZE, "source_count":rows.len(), "source_total":total}
-    }))
+    });
+    if let Some(filters) = filters {
+        result["filters"] = filters.filters();
+    }
+    Ok(result)
 }
 
 /// Validates source identity and metadata without treating attribution as permission.

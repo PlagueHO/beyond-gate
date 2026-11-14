@@ -40,6 +40,12 @@ remain unverified.
 Equipment list/show uses one fresh mixed `v5.1` item page of at most 100 rows.
 Adapter pages are one-based; API `page` is zero-based with fixed `pageSize=100`.
 Only explicit raw boolean `magic=false` counts as equipment.
+Magic-item list/show shares this reader and selects only raw `magic=true`.
+Local name/type/rarity/tag/attunement filters apply within one source page.
+They use raw labels, not website option IDs, and preserve mixed counts.
+One malformed magic filter field fails the list, even on an unmatched row.
+Equipment metadata requirements remain unchanged. No API filter contract
+or native owned/shared acceptance is claimed.
 Detail requires full `definitionKey` and explicit source page. Absence is
 page-scoped, not global. All rows validate before selection; raw/source extensions
 survive. No global scan, HTML fallback, access-code inference, or automatic

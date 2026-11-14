@@ -44,7 +44,7 @@ The generated `help` command also supports nested paths, such as
 No command, a resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
 `character`, `campaign`, `class`, `subclass`, `species`, `spell`, `monster`,
-`background`, `feat`, `equipment`, `book`, or `mcp`.
+`background`, `feat`, `equipment`, `magic-item`, `book`, or `mcp`.
 
 In the syntax below, angle brackets mark required values. Square brackets mark
 optional values. Replace placeholders before use; do not type the brackets.
@@ -73,6 +73,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
 | [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows; bounded protected collection |
 | [`equipment list/show`](#equipment-source-pages-and-raw-detail) | Read equipment from one mixed source page | Windows; explicit page and full definition key |
+| [`magic-item list/show`](#magic-item-local-filters-and-raw-detail) | Filter magic metadata locally and select unchanged raw detail | Windows; explicit source page and full definition key |
 | [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows; browser structure checked; native acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
@@ -145,6 +146,62 @@ Browser research verified paging and one repeat raw identity. Native CLI/MCP
 compatibility, account acceptance, and real owned/shared behavior remain
 unverified. See the [source evidence](api-survey.md#equipment-and-magic-item-research)
 and [matching MCP tools](mcp.md#equipment_list-and-equipment_show).
+
+## Magic-item local filters and raw detail
+
+```text
+beyond-gate magic-item list [--page <PAGE>] [--name <NAME>]
+  [--type <LABEL>]... [--rarity <LABEL>]... [--tag <LABEL>]...
+  [--attunement <yes|no|any>] [--output <FORMAT>] [--no-headers]
+beyond-gate magic-item show <id> --page <PAGE>
+  [--output <FORMAT>] [--no-headers]
+```
+
+These commands use the [same item source contract](#equipment-source-pages-and-raw-detail)
+as equipment. Each call reads fresh configuration and exactly one mixed page.
+Only raw boolean `magic=true` counts as a magic item. Equipment behavior and
+request limits remain unchanged. List defaults to page 1 and table output;
+show defaults to JSON. Output aliases and header rules match equipment.
+
+List filters run locally after source validation. They do not become API
+parameters or fetch more pages. `--name`/`-n` is a case-insensitive literal
+substring. Repeated `--type`, `--rarity`, and `--tag` use case-insensitive exact
+raw labels, not numeric website option IDs. Type uses `filterType`, rarity
+uses `rarity`, and tags use `tags`. Values within one repeated filter match
+any value. All different filters must match. `--attunement yes/no/any` selects
+raw `canAttune`; it defaults to `any`.
+
+Each supplied text value permits at most 256 UTF-8 bytes, without padding or
+control characters. Each repeated filter permits at most 50 distinct labels.
+Case-insensitive duplicates fail before session access. A valid unmatched
+label returns empty entries from this page, not global absence.
+
+Magic entries have the equipment list fields plus `rarity`, `tags`, and
+`can_attune`. Top-level `filters` reports name, types, rarities, tags, and
+attunement. Every raw row passes the common checks. Every magic row's rarity,
+tags, and attunement metadata must be valid before local filtering.
+One malformed unselected row fails the page; there is no partial output.
+
+Pagination counts describe the raw mixed page and catalog, not filtered magic
+results. Empty matches can have a non-null `next_page`. Use JSON to retain
+filters and continuation on an empty page. Table and TSV use per-row paging
+fields, so an empty table cannot display continuation.
+
+Show requires the full list identity and source page. List filters are not
+show inputs. It returns the same selected-record fields and unchanged `raw`
+JSON as equipment, including unknown fields and source extensions.
+Selecting equipment gives a wrong-kind error. Missing means absent from the
+fresh checked page, not absent globally. Denial, expiry, malformed metadata,
+unsupported access maps, inconsistent pages, duplicates, and limits fail
+without content. Source metadata does not grant access.
+
+Browser checks confirmed distinct item pages and one repeated magic raw
+identity. They also reviewed all website filter controls. This does not
+verify server-side API filters, native account compatibility, or real
+owned/shared behavior. No website fallback, rules engine, account write,
+cache, or automatic continuation is added.
+See the [research notes](api-survey.md#magic-item-local-filter-research)
+and [MCP tools](mcp.md#magic_item_list-and-magic_item_show).
 
 ## Feat metadata and detail status
 

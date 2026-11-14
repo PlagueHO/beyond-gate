@@ -413,6 +413,52 @@ fn equipment_help_completions_and_invalid_usage() {
     }
 }
 
+/// Checks magic-item help, completions, and strict local selectors before session access.
+#[test]
+fn magic_item_help_completions_and_invalid_usage() {
+    for action in ["list", "show"] {
+        let output = run(&["magic-item", action, "--help"]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(String::from_utf8_lossy(&output.stdout).contains("source page"));
+    }
+    for args in [
+        vec!["magic-item"],
+        vec!["magic-item", "show", "7:18"],
+        vec!["magic-item", "show", "18", "--page", "1"],
+        vec!["magic-item", "show", "7:018", "--page", "1"],
+        vec!["magic-item", "list", "--page", "0"],
+        vec!["magic-item", "list", "--name", ""],
+        vec!["magic-item", "list", "--tag", " padded"],
+        vec!["magic-item", "list", "--type", "Weapon", "--type", "weapon"],
+        vec!["magic-item", "list", "--attunement", "true"],
+        vec!["magic-item", "list", "--source-id", "7"],
+        vec!["magic-item", "list", "-o", "json", "--no-headers"],
+        vec![
+            "magic-item",
+            "show",
+            "7:18",
+            "--page",
+            "1",
+            "--tag",
+            "Utility",
+        ],
+    ] {
+        let output = run(&args);
+        assert_eq!(output.status.code(), Some(2), "{args:?}");
+        assert!(output.stdout.is_empty());
+        assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        for expected in ["magic-item", "attunement", "rarity", "tag"] {
+            assert!(text.contains(expected), "{shell}: {expected}");
+        }
+    }
+}
+
 /// Checks feat help, completions, and invalid inputs before protected session access.
 #[test]
 fn feat_help_completions_and_invalid_usage() {
