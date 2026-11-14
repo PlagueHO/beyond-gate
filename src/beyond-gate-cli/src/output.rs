@@ -268,21 +268,30 @@ fn escape_cell(value: &str) -> String {
 mod tests {
     use super::*;
 
-    /// Returns the caller's typed malformed-page error even when JSON is selected.
+    /// Returns the caller's typed malformed-page error for every list format and entry shape.
     #[test]
-    fn paginated_json_rejects_invalid_entries() {
-        let error = paginated_list(
-            &options("json", true, 0),
-            &["id", "page"],
-            &json!({"entries": null, "pagination": {"page": 1}}),
-            &["page"],
-            Failure::Item(beyond_gate_core::item_catalog::ItemError::InvalidResponse),
-        )
-        .expect_err("invalid entries");
-        assert!(matches!(
-            error,
-            Failure::Item(beyond_gate_core::item_catalog::ItemError::InvalidResponse)
-        ));
+    fn paginated_lists_reject_malformed_entries_in_every_format() {
+        let invalid_responses = [
+            json!({"pagination": {"page": 1}}),
+            json!({"entries": null, "pagination": {"page": 1}}),
+            json!({"entries": {"id": 1}, "pagination": {"page": 1}}),
+        ];
+        for format in ["json", "table", "tsv"] {
+            for value in &invalid_responses {
+                let error = paginated_list(
+                    &options(format, true, 0),
+                    &["id", "page"],
+                    value,
+                    &["page"],
+                    Failure::Item(beyond_gate_core::item_catalog::ItemError::InvalidResponse),
+                )
+                .expect_err("invalid entries");
+                assert!(matches!(
+                    error,
+                    Failure::Item(beyond_gate_core::item_catalog::ItemError::InvalidResponse)
+                ));
+            }
+        }
     }
 
     /// Selects one format with a testable table-only byte boundary.
