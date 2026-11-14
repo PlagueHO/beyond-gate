@@ -66,6 +66,11 @@ struct Mock {
 impl Mock {
     /// Binds a loopback server and repeats the last reply after the given sequence.
     async fn start(replies: Vec<Reply>) -> Self {
+        Self::start_with_timeout(replies, Duration::from_secs(5)).await
+    }
+
+    /// Keeps deliberate long stalls bounded without expiring before the client timeout.
+    async fn start_with_timeout(replies: Vec<Reply>, handler_timeout: Duration) -> Self {
         assert!(!replies.is_empty());
         let listener = TcpListener::bind("127.0.0.1:0")
             .await
@@ -85,7 +90,7 @@ impl Mock {
                         let observations = recorded.clone();
                         workers.spawn(async move {
                             let result = timeout(
-                                Duration::from_secs(5),
+                                handler_timeout,
                                 respond(stream, reply, observations),
                             ).await.expect("mock handler deadline");
                             if let Err(error) = result {
@@ -965,20 +970,28 @@ async fn repeated_retry_after_cannot_shorten_the_server_wait() {
     assert_eq!(mock.count(), 1);
 }
 
-/// Confirms a transient attempt timeout can recover within the total budget.
+/// Forces one timeout after the first wire request, then retries with real-time I/O.
 #[tokio::test]
 async fn attempt_timeout_can_retry_a_safe_read() {
     let mut stalled = Reply::new(200, br#"{"value":1}"#);
-    stalled.header_delay = Duration::from_millis(150);
-    let mock = Mock::start(vec![stalled, Reply::new(200, br#"{"value":2}"#)]).await;
-    let client = mock.client(RequestPolicy {
-        attempt: Duration::from_millis(50),
-        ..policy()
-    });
-    let item: Item = client
-        .get_json(&mock.origin, None)
-        .await
-        .expect("recovered");
+    stalled.header_delay = Duration::from_secs(20);
+    let mock = Mock::start_with_timeout(
+        vec![stalled, Reply::new(200, br#"{"value":2}"#)],
+        Duration::from_secs(30),
+    )
+    .await;
+    let client = mock.client(policy());
+    let mut read = Box::pin(client.get_json::<Item>(&mock.origin, None));
+    tokio::select! {
+        result = &mut read => panic!("read completed before the controlled timeout: {result:?}"),
+        () = mock.wait_for(1) => {}
+    }
+    assert_eq!(mock.count(), 1);
+    tokio::time::pause();
+    tokio::time::advance(client.policy.attempt).await;
+    // Retry sockets need real time so idle I/O cannot auto-advance the paused clock.
+    tokio::time::resume();
+    let item = read.await.expect("recovered");
     assert_eq!(item.value, 2);
     assert_eq!(mock.count(), 2);
 }

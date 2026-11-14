@@ -18,9 +18,10 @@ The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
 this blocked-first stage. It does not authorize live tests. A supplied cookie
 does not change this suite's zero live-request budget.
 
-## Equipment synthetic checks
+## Equipment and magic-item synthetic checks
 
-The package verifier includes `equipment_list` and `equipment_show` in its
+The package verifier includes `equipment_list`, `equipment_show`,
+`magic_item_list`, and `magic_item_show` in its
 exact MCP inventory. It checks unknown-field rejection through the packaged
 server and CLI launcher. CLI equipment checks also reject unexpected arguments
 before session or network access.
@@ -44,6 +45,12 @@ bad unselected rows, ignored selectors, source references, size/row limits,
 denied and expired sessions, timeouts, and cancellation. Public requests forbid both
 cookie and bearer headers. Item requests require bearer and forbid cookies.
 The safe route log checks exactly one configuration GET and one item GET.
+
+Magic tests also check case-insensitive local label/name matching, OR within
+arrays, AND across filters, attunement defaults, malformed filter metadata,
+strict null/duplicate input, UTF-8 limits, and empty matches with continuation.
+Equipment output and validation remain unchanged. Magic requests use exactly
+the same URL and request count regardless of local filters.
 
 The [CLI process tests](../src/beyond-gate-cli/tests/adapter_process.rs) and
 [MCP process tests](../src/beyond-gate-mcp/tests/session_process.rs) run the
@@ -118,6 +125,18 @@ Browser evidence is [separate](api-survey.md#spell-browser-evidence).
 Native spell acceptance, denied HTML, ownership/sharing behavior, and unchecked
 filter combinations remain unverified. No live acceptance is authorized by
 these offline checks.
+
+## HTTP timeout and retry checks
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib --locked --jobs 1 http::tests
+```
+
+These tests use synthetic loopback responses. The timeout-retry check waits for
+the first wire request, then advances the Tokio clock by the production attempt
+limit. It resumes real time before retry I/O so scheduler delays do not cause
+extra timeouts. Recovery still requires exactly two requests and the second
+response's value. Production time limits and retry counts remain unchanged.
 
 ## Results and coverage
 

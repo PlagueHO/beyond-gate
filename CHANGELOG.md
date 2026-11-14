@@ -7,6 +7,16 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Bounded Windows magic-item reads through the shared equipment item reader,
+  CLI `magic-item list/show`, and MCP `magic_item_list`/`magic_item_show`.
+  Lists select raw `magic=true` and apply local name, type, rarity, tag, and
+  attunement filters within one explicit source page. Counts remain mixed;
+  empty matches can have continuation. Detail preserves unchanged raw JSON
+  by full definition key and required page. Synthetic tests cover adapter
+  parity, strict filters, errors, bounds, and cancellation. Browser research
+  checked distinct pages and repeated magic detail, and reviewed all website
+  filter controls. Server-side API filters, native compatibility, and real
+  owned/shared behavior remain unverified.
 - Bounded Windows equipment reads through shared core item operations, CLI
   `equipment list/show`, and MCP `equipment_list`/`equipment_show`.
   Each operation checks one fresh mixed `v5.1` item page of at most 100 rows.
@@ -18,7 +28,7 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `page`/`pageSize`, terminal pages, and repeated selected raw identity.
   Synthetic core and adapter checks cover bounds, errors, and cancellation.
   Native compatibility, account acceptance, and owned/shared behavior remain
-  unverified. Magic-item commands remain separate work.
+  unverified.
 - Bounded Windows feat metadata browsing through shared core reads, CLI
   `feat list`, and MCP `feat_list`. Filters use observed website controls,
   including one prerequisite subtype and repeated tag/source selectors.

@@ -59,6 +59,13 @@ pub fn command() -> Command {
                     .arg(item_page(true))),
         )
         .subcommand(
+            resource("magic-item", "Read magic items with local filters on one mixed source page")
+                .subcommand(magic_item_list())
+                .subcommand(show_options(Command::new("show").about("Select unchanged raw magic-item JSON by definitionKey and required source page"))
+                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_item_id)))
+                    .arg(item_page(true))),
+        )
+        .subcommand(
             resource("feat", "Browse bounded feat metadata and select checked definitions")
                 .subcommand(feat_list())
                 .subcommand(show_options(Command::new("show").about("Select one feat from the fresh checked collection"))
@@ -128,11 +135,51 @@ fn item_page(required: bool) -> Arg {
         .value_parser(
             value_parser!(u32).range(1..=i64::from(beyond_gate_core::item_catalog::MAX_PAGE)),
         )
-        .help("One-based mixed source page of 100 raw items; not an equipment-only page");
+        .help("One-based mixed source page of 100 raw items; no filling filtered results");
     if required {
         arg.required(true)
     } else {
         arg.default_value("1")
+    }
+}
+
+/// Builds bounded local filters using the same repeated-argument pattern as other resources.
+fn magic_item_list() -> Command {
+    let mut command = list_options(Command::new("list").about(
+        "Filter magic items within one source page; no global search or automatic continuation",
+    ))
+    .arg(item_page(false))
+    .arg(
+        Arg::new("name")
+            .long("name")
+            .short('n')
+            .value_name("NAME")
+            .value_parser(ValueParser::new(valid_item_filter))
+            .help(
+                "Case-insensitive literal name substring within this page; at most 256 UTF-8 bytes",
+            ),
+    )
+    .arg(
+        Arg::new("attunement")
+            .long("attunement")
+            .default_value("any")
+            .value_parser(["yes", "no", "any"])
+            .help("Raw canAttune selector; defaults to any"),
+    );
+    for (_, flag) in beyond_gate_core::item_catalog::query::LABEL_FILTERS {
+        command = command.arg(Arg::new(flag).long(flag).value_name("LABEL")
+            .value_parser(ValueParser::new(valid_item_filter)).action(ArgAction::Append)
+            .help("Case-insensitive exact raw API label; repeat up to 50 distinct values; not a website option ID"));
+    }
+    command
+}
+
+/// Rejects invalid local text before protected storage or network access.
+fn valid_item_filter(value: &str) -> Result<String, &'static str> {
+    if beyond_gate_core::item_catalog::query::valid_filter_text(value) {
+        Ok(value.to_owned())
+    } else {
+        Err("Use nonempty unpadded text without controls, at most 256 UTF-8 bytes")
     }
 }
 

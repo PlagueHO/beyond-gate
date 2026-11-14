@@ -937,6 +937,66 @@ fn equipment_contracts() {
     );
 }
 
+/// Checks local magic filters, raw output, escaping, and page-scoped failures.
+fn magic_item_contracts() {
+    let value = read_json(&run(
+        "equipment-normal",
+        &[
+            "magic-item",
+            "list",
+            "-o",
+            "json",
+            "--name",
+            "vEnTeD",
+            "--type",
+            "other GEAR",
+            "--rarity",
+            "rArE",
+            "--tag",
+            "UTILITY",
+            "--attunement",
+            "yes",
+        ],
+    ));
+    assert_eq!(value["entries"].as_array().expect("entries").len(), 17);
+    assert_eq!(value["entries"][0]["id"], "7:18");
+    assert_eq!(value["filters"]["attunement"], "yes");
+    assert_eq!(value["pagination"]["source_count"], 100);
+    let empty = read_json(&run(
+        "equipment-normal",
+        &["magic-item", "list", "-o", "json", "--type", "missing"],
+    ));
+    assert_eq!(empty["entries"], json!([]));
+    assert_eq!(empty["pagination"]["next_page"], 2);
+    let detail = read_json(&run(
+        "equipment-normal",
+        &["magic-item", "show", "7:18", "--page", "1"],
+    ));
+    assert_eq!(detail["raw"]["magic"], true);
+    assert_eq!(detail["raw"]["future"]["nested"], json!([true, null, 3]));
+    for action in [
+        vec!["magic-item", "list", "-o", "tsv"],
+        vec!["magic-item", "show", "7:18", "--page", "1", "-o", "tsv"],
+    ] {
+        let output = run("equipment-normal", &action);
+        assert!(output.status.success());
+        assert!(!String::from_utf8_lossy(&output.stdout).contains('\u{1b}'));
+    }
+    failure(
+        run(
+            "equipment-normal",
+            &["magic-item", "show", "7:17", "--page", "1"],
+        ),
+        1,
+        "not a magic item",
+    );
+    failure(
+        run("equipment-denied", &["magic-item", "list", "-o", "json"]),
+        1,
+        "access_denied",
+    );
+}
+
 /// Runs parent assertions or a child with the real command runner and synthetic reads.
 fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
@@ -1018,6 +1078,7 @@ fn main() {
     spell_contracts();
     feat_contracts();
     equipment_contracts();
+    magic_item_contracts();
     section_contracts();
     output_failures();
 }

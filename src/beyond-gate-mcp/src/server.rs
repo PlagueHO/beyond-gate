@@ -12,7 +12,7 @@ use beyond_gate_core::{
     character_campaign::{self, Campaign, Character},
     class_catalog::{self, ClassKind},
     feat::{self, FeatQuery},
-    item_catalog::{self, ItemQuery, ItemSelection},
+    item_catalog::{self, ItemQuery, ItemSelection, MagicItemQuery},
     library::{self, AccessEvidence, AccessState, Book, BookAccess},
     monster, species, spell,
 };
@@ -286,6 +286,55 @@ impl BeyondGateServer {
             biased;
             _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
             result = species::show(&self.session, &arguments.id) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Lists locally filtered magic metadata from one fresh mixed source page.
+    #[tool(
+        name = "magic_item_list",
+        description = "Read magic=true metadata from one mixed item page. Optional one-based page defaults to 1. Local name substring and exact types, rarities, and tags use case-insensitive raw API labels, not website option IDs. Arrays allow 50 distinct labels of at most 256 UTF-8 bytes; name has the same byte limit. Values within each array match any; all different filters must match. Attunement yes/no/any selects raw canAttune and defaults to any. All raw rows validate before output; malformed magic filter metadata fails the page. Returns entries including rarity, tags, can_attune, active filters, source_url, and mixed pagination. Each page has at most 100 raw items; source_count/source_total and next_page describe the mixed source, not matches. Empty filtered entries can have a next page. No global search, page filling, automatic continuation, ownership inference, or cache. Requires the stored Windows session; native account compatibility remains unverified.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn magic_item_list(
+        &self,
+        Parameters(arguments): Parameters<MagicItemQuery>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        arguments.validate().map_err(display_error)?;
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = item_catalog::list_magic_items(&self.session, &arguments) => result.map_err(display_error)?,
+        };
+        json_text(value)
+    }
+
+    /// Selects one unchanged magic definition after checking its entire fresh source page.
+    #[tool(
+        name = "magic_item_show",
+        description = "Select one magic=true definition by full canonical positive decimal entityTypeId:id definitionKey and required one-based source page. Reads fresh public configuration and exactly one mixed item page. Returns id, source_id, entity_type_id, name, page, source_url, sources, and unchanged raw JSON with unknown fields. Missing means absent from this checked page, not globally absent. Selecting equipment is a wrong-kind error. All raw identities, classification, metadata, source references, and pagination validate before selection. Prior list filters are not show inputs or access grants. No global scans, website fallback, arbitrary URLs, automatic continuation, or ownership inference. Limits match equipment show. Requires the stored Windows session; native account compatibility remains unverified.",
+        annotations(
+            read_only_hint = true,
+            destructive_hint = false,
+            idempotent_hint = true,
+            open_world_hint = true
+        )
+    )]
+    async fn magic_item_show(
+        &self,
+        Parameters(arguments): Parameters<ItemSelection>,
+        context: RequestContext<RoleServer>,
+    ) -> Result<String, String> {
+        let value = tokio::select! {
+            biased;
+            _ = context.ct.cancelled() => return Err("cancelled".to_owned()),
+            result = item_catalog::show_magic_item(&self.session, &arguments) => result.map_err(display_error)?,
         };
         json_text(value)
     }

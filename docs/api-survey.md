@@ -27,6 +27,94 @@ The user performed login. No native credential access, live CLI/MCP test,
 account write, or bulk catalog traversal ran. No credentials, account snapshots,
 or proprietary rules text were retained.
 
+### Magic-item local filter research
+
+The user separately approved browser-only research for
+[#71](https://github.com/PlagueHO/beyond-gate/issues/71) on 2026-11-14.
+The user performed login. The scope allowed 8 magic-item page loads or GET
+attempts, 4 public script/configuration reads, 6 item GETs, and 1 exchange.
+One public read was separately approved on `media.dndbeyond.com`.
+No native credential access, account write, or bulk scan ran.
+
+Three bearer-only GETs used the fixed `v5.1` item route with
+`sharingSetting=2&page=<PAGE>&pageSize=100`. Cookies were omitted.
+
+| API page | Status | Rows | Magic true/false | Bytes |
+|---------:|-------:|-----:|------------------|------:|
+| 0 | 200 | 100 | 79/21 | 250,444 |
+| 1 | 200 | 100 | 100/0 | 195,112 |
+| 0, repeated | 200 | 100 | Selected magic raw JSON matched | 250,444 |
+
+Pagination was `skip=0` or `100`, `take=100`, `total=2796`.
+Page 1 had distinct identities. All 200 inspected rows had boolean `magic`
+and canonical `entityTypeId:id` keys. Magic categories included Weapon,
+Armor, and Wondrous item. Both pages matched existing metadata requirements.
+Source references matched the 270-source public configuration, which returned
+715,197 bytes. Attribution is not an access grant. No envelope access map
+was observed; owned/shared behavior remains unverified.
+
+Observed raw filter fields were string `name`, `filterType`, and `rarity`,
+string-array `tags`, and boolean `canAttune`. The first page had 55 magic
+records with `canAttune=true`. Unknown fields remain raw data, not a rules
+engine input.
+
+The credential-free public character script returned 5,800,062 bytes.
+It sends `page`/`pageSize` and filters inventory locally by names, types,
+rarities, tags, magic state, and source preferences. No server-side API
+filter contract was verified. Its full-catalog loop/cache is not adopted.
+The credential-free website `waterdeep` script returned 134,636 bytes and
+confirmed website magic-bonus controls. Public script reads had an 8 MiB
+research ceiling; item and configuration reads had a 1 MiB ceiling.
+These ceilings do not raise production limits.
+
+The website GET form exposed all 17 controls below. All select options were
+checked for counts, duplicate values, and empty labels. Website option IDs
+are not established item API filters.
+
+| Website field | Observed control |
+|---------------|------------------|
+| `filter-type` | All Items plus 9 types |
+| `filter-search` | Literal text |
+| `filter-rarity` | 8 multi-select options |
+| `filter-requires-attunement` | Blank, `t`, `f` |
+| `filter-tags` | 77 multi-select options |
+| `filter-magic-bonus` | Checkboxes 1, 2, 3 |
+| `filter-effect-type` | Blank plus 39 types |
+| `filter-effect-subtype` | Blank initially; dependent behavior unverified |
+| `filter-weapon-subtypes` | 230 multi-select options |
+| `filter-armor-subtypes` | 31 multi-select options |
+| `filter-conditions` | 15 multi-select options |
+| `filter-attached-spells` | 1,711 multi-select options |
+| `filter-has-charges` | Blank, `t`, `f` |
+| `filter-source-category` | 33 multi-select options |
+| `filter-source` | 186 multi-select options |
+| `filter-partnered-content` | Blank, `t`, `f` |
+
+Direct website navigation verified Weapon plus bonus 1 and Rare plus required
+attunement. Each returned 20 rows with filter-preserving next links. All rows
+in the attunement check showed Required. An invented unmatched search returned
+`li.alert.no-results` inside `ul.listing.listing-rpgmagic-item`, without paging.
+All Items remained selected with Weapon. Partnered-content `f` was selected
+without that URL parameter. These defaults require separate handling before
+any website-filter adapter. Other filter effects, combinations, and dependent
+options remain unchecked.
+
+A batch of four website GET attempts timed out during browser evaluation.
+Their statuses and results were not recovered. They do not establish filter
+behavior. The direct navigation checks above are separate evidence.
+
+The user selected local name, type, rarity, tag, and attunement filters for
+one source page. Matching is case-insensitive, with a literal name substring,
+exact labels, OR within repeated values, and AND across filters.
+Attunement defaults to any. See the
+[implemented contract](cli.md#magic-item-local-filters-and-raw-detail).
+Native CLI/MCP and real owned/shared acceptance remain unverified.
+
+Research used all 8 website operations, 3 public reads, 3 item GETs, and
+1 exchange. Temporary probe state, bearer, scripts, and raw pages were
+removed from browser memory. No account snapshot or proprietary text was
+retained in the repository. New live tests need separate approval.
+
 ### Observed item collection
 
 The [public character client][character-client] explicitly selects

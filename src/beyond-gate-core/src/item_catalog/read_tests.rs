@@ -1,6 +1,9 @@
 //! Offline item page, classification, selection, bound, and request-contract checks.
 
-use super::{ItemError, ItemQuery, ItemSelection, MAX_PAGE, list, show, validate_id};
+use super::{
+    Attunement, ItemError, ItemQuery, ItemSelection, MAX_PAGE, MagicItemQuery, list,
+    list_magic_items, show, show_magic_item, validate_id,
+};
 use super::{
     fixture::{self, Scenario},
     reads::{assemble, finish},
@@ -82,6 +85,232 @@ async fn source_paging_is_explicit_and_counts_remain_mixed() {
     assert_eq!(result["pagination"]["source_count"], 100);
 }
 
+/// Filters one page locally without changing raw counts, order, or request construction.
+#[tokio::test]
+async fn magic_filters_match_labels_and_preserve_mixed_page_contract() {
+    let session = fixture::session(Scenario::Normal).expect("source");
+    let query = MagicItemQuery {
+        name: Some("vEnTeD".to_owned()),
+        types: vec!["missing".to_owned(), "other GEAR".to_owned()],
+        rarities: vec!["rArE".to_owned()],
+        tags: vec!["missing".to_owned(), "UTILITY".to_owned()],
+        attunement: Attunement::Yes,
+        ..Default::default()
+    };
+    let result = list_magic_items(&session, &query)
+        .await
+        .expect("filtered page");
+    let entries = result["entries"].as_array().expect("entries");
+    assert_eq!(entries.len(), 17);
+    assert_eq!(entries[0]["id"], "7:18");
+    assert_eq!(entries[1]["id"], "7:24");
+    assert_eq!(entries[0]["can_attune"], true);
+    assert_eq!(entries[0]["rarity"], "Rare");
+    assert_eq!(entries[0]["tags"], json!(["Utility", "Combat"]));
+    assert_eq!(result["pagination"]["source_count"], 100);
+    assert_eq!(result["pagination"]["source_total"], 102);
+    assert_eq!(result["pagination"]["next_page"], 2);
+    assert_eq!(result["filters"]["name"], "vEnTeD");
+    assert_eq!(
+        fixture::routes(&session),
+        vec![
+            "/api/config/json",
+            "/character/v5.1/game-data/items?sharingSetting=2&page=0&pageSize=100"
+        ]
+    );
+    let no = MagicItemQuery {
+        attunement: Attunement::No,
+        ..Default::default()
+    };
+    let result = list_magic_items(&session, &no)
+        .await
+        .expect("no attunement");
+    assert_eq!(result["entries"].as_array().expect("entries").len(), 33);
+    let any = list_magic_items(&session, &Default::default())
+        .await
+        .expect("any attunement");
+    assert_eq!(any["entries"].as_array().expect("entries").len(), 50);
+}
+
+/// Keeps empty matches and all-magic pages page-scoped, without automatic continuation.
+#[tokio::test]
+async fn magic_pages_and_unmatched_filters_do_not_claim_global_absence() {
+    for (scenario, page, count, next) in [
+        (Scenario::MagicOnly, 1, 100, json!(2)),
+        (Scenario::EquipmentOnly, 1, 0, json!(2)),
+        (Scenario::Normal, 2, 1, Value::Null),
+        (Scenario::Normal, 3, 0, Value::Null),
+        (Scenario::Empty, 1, 0, Value::Null),
+    ] {
+        let session = fixture::session(scenario).expect("source");
+        let result = list_magic_items(
+            &session,
+            &MagicItemQuery {
+                page,
+                ..Default::default()
+            },
+        )
+        .await
+        .expect("checked page");
+        assert_eq!(result["entries"].as_array().expect("entries").len(), count);
+        assert_eq!(result["pagination"]["next_page"], next);
+        assert_eq!(fixture::routes(&session).len(), 2);
+    }
+    let session = fixture::session(Scenario::Normal).expect("source");
+    for query in [
+        MagicItemQuery {
+            name: Some("absent".to_owned()),
+            ..Default::default()
+        },
+        MagicItemQuery {
+            types: vec!["absent".to_owned()],
+            ..Default::default()
+        },
+        MagicItemQuery {
+            rarities: vec!["absent".to_owned()],
+            ..Default::default()
+        },
+        MagicItemQuery {
+            tags: vec!["absent".to_owned()],
+            ..Default::default()
+        },
+        MagicItemQuery {
+            rarities: vec!["Rare".to_owned()],
+            attunement: Attunement::No,
+            ..Default::default()
+        },
+    ] {
+        let result = list_magic_items(&session, &query)
+            .await
+            .expect("valid no match");
+        assert_eq!(result["entries"], json!([]));
+        assert_eq!(result["pagination"]["next_page"], 2);
+        assert_eq!(result["pagination"]["source_count"], 100);
+    }
+}
+
+/// Rejects malformed and excessive local filters before any session can be read.
+#[tokio::test]
+async fn magic_filter_input_is_strict_and_bounded() {
+    for value in [
+        json!({"name":null}),
+        json!({"types":null}),
+        json!({"rarities":[1]}),
+        json!({"tags":"Utility"}),
+        json!({"attunement":null}),
+        json!({"attunement":true}),
+        json!({"page":null}),
+        json!({"filter-search":"name"}),
+        json!({"source_ids":[7]}),
+    ] {
+        assert!(serde_json::from_value::<MagicItemQuery>(value).is_err());
+    }
+    for value in [
+        json!({"page":0}),
+        json!({"page":MAX_PAGE+1}),
+        json!({"name":""}),
+        json!({"name":" padded"}),
+        json!({"name":"tab\tname"}),
+        json!({"name":"é".repeat(129)}),
+        json!({"types":["Weapon","weapon"]}),
+        json!({"rarities":[""]}),
+        json!({"tags":[" trailing "]}),
+        json!({"types":(0..51).map(|n|format!("Type{n}")).collect::<Vec<_>>()}),
+    ] {
+        let query: MagicItemQuery = serde_json::from_value(value).expect("typed input");
+        assert!(matches!(
+            list_magic_items(&Default::default(), &query).await,
+            Err(ItemError::InvalidMagicInput)
+        ));
+    }
+    let default: MagicItemQuery = serde_json::from_value(json!({})).expect("defaults");
+    assert_eq!(default.page, MagicItemQuery::default().page);
+    assert_eq!(default.page, 1);
+    let boundary: MagicItemQuery = serde_json::from_value(json!({
+        "name":"é".repeat(128),"tags":(0..50).map(|n|format!("Tag{n}")).collect::<Vec<_>>()
+    }))
+    .expect("boundary");
+    assert!(boundary.validate().is_ok());
+}
+
+/// Preserves selected magic raw JSON and diagnoses equipment and page-scoped absence.
+#[tokio::test]
+async fn magic_detail_is_fresh_and_preserves_raw_identity() {
+    let session = fixture::session(Scenario::Normal).expect("source");
+    let selection = ItemSelection {
+        id: "7:18".to_owned(),
+        page: 1,
+    };
+    let result = show_magic_item(&session, &selection)
+        .await
+        .expect("magic detail");
+    assert_eq!(result["raw"], fixture::record(18, true, 7));
+    assert_eq!(result["sources"], result["raw"]["sources"]);
+    assert_eq!(fixture::routes(&session).len(), 2);
+    assert!(matches!(
+        show_magic_item(
+            &session,
+            &ItemSelection {
+                id: "7:17".to_owned(),
+                page: 1
+            }
+        )
+        .await,
+        Err(ItemError::WrongMagicKind)
+    ));
+    assert!(matches!(
+        show_magic_item(
+            &session,
+            &ItemSelection {
+                id: "7:18".to_owned(),
+                page: 2
+            }
+        )
+        .await,
+        Err(ItemError::MissingRecord)
+    ));
+    assert!(matches!(
+        show_magic_item(
+            &Default::default(),
+            &ItemSelection {
+                id: "18".to_owned(),
+                page: 1
+            }
+        )
+        .await,
+        Err(ItemError::InvalidMagicInput)
+    ));
+}
+
+/// Validates unselected magic metadata even when filters would remove every row.
+#[tokio::test]
+async fn malformed_magic_filter_metadata_is_not_silently_filtered() {
+    let session = fixture::session(Scenario::BadFilterMetadata).expect("source");
+    let query = MagicItemQuery {
+        name: Some("absent".to_owned()),
+        ..Default::default()
+    };
+    assert!(matches!(
+        list_magic_items(&session, &query).await,
+        Err(ItemError::InvalidResponse)
+    ));
+    assert!(list(&session, &Default::default()).await.is_ok());
+    for (field, value) in [
+        ("rarity", Value::Null),
+        ("rarity", json!(" padded")),
+        ("canAttune", json!("true")),
+        ("tags", json!([null])),
+        ("tags", json!("Utility")),
+    ] {
+        let mut row = fixture::record(18, true, 7);
+        row[field] = value;
+        assert!(
+            matches!(query.matches(&row), Err(ItemError::InvalidResponse)),
+            "{field}"
+        );
+    }
+}
+
 /// Returns only a freshly selected raw record and preserves its unknown fields.
 #[tokio::test]
 async fn selection_is_page_scoped_and_raw_fields_survive() {
@@ -142,6 +371,22 @@ async fn one_bad_row_or_ignored_selector_fails_the_whole_page() {
         let session = fixture::session(scenario).expect("source");
         assert!(list(&session, &ItemQuery::default()).await.is_err());
         assert!(
+            list_magic_items(&session, &MagicItemQuery::default())
+                .await
+                .is_err()
+        );
+        assert!(
+            show_magic_item(
+                &session,
+                &ItemSelection {
+                    id: "7:18".to_owned(),
+                    page: 1
+                }
+            )
+            .await
+            .is_err()
+        );
+        assert!(
             show(
                 &session,
                 &ItemSelection {
@@ -173,6 +418,10 @@ async fn source_and_session_failures_remain_explicit() {
         let error = list(&session, &ItemQuery::default())
             .await
             .expect_err("failure");
+        assert!(error.to_string().contains(message), "{error}");
+        let error = list_magic_items(&session, &Default::default())
+            .await
+            .expect_err("magic failure");
         assert!(error.to_string().contains(message), "{error}");
     }
 }

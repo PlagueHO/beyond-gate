@@ -46,6 +46,8 @@ fn session(name: &str) -> Session {
             "normal" => Scenario::Normal,
             "empty" => Scenario::Empty,
             "magic-only" => Scenario::MagicOnly,
+            "equipment-only" => Scenario::EquipmentOnly,
+            "bad-filter" => Scenario::BadFilterMetadata,
             "denied" => Scenario::Denied,
             "rejected" => Scenario::Rejected,
             "expired" => Scenario::Expired,
@@ -2209,6 +2211,208 @@ fn equipment_contracts() {
     }
 }
 
+/// Checks local magic filter parity, strict schemas, safe source failures, and cancellation.
+fn magic_item_contracts() {
+    for (scenario, command, tool, arguments) in [
+        (
+            "equipment-normal",
+            vec!["magic-item", "list", "-o", "json"],
+            "magic_item_list",
+            json!({}),
+        ),
+        (
+            "equipment-normal",
+            vec![
+                "magic-item",
+                "list",
+                "-o",
+                "json",
+                "--name",
+                "vEnTeD",
+                "--type",
+                "missing",
+                "--type",
+                "other GEAR",
+                "--rarity",
+                "rArE",
+                "--tag",
+                "UTILITY",
+                "--attunement",
+                "yes",
+            ],
+            "magic_item_list",
+            json!({"name":"vEnTeD","types":["missing","other GEAR"],"rarities":["rArE"],
+                "tags":["UTILITY"],"attunement":"yes"}),
+        ),
+        (
+            "equipment-normal",
+            vec!["magic-item", "list", "-o", "json", "--tag", "absent"],
+            "magic_item_list",
+            json!({"tags":["absent"]}),
+        ),
+        (
+            "equipment-normal",
+            vec!["magic-item", "list", "--page", "2", "-o", "json"],
+            "magic_item_list",
+            json!({"page":2}),
+        ),
+        (
+            "equipment-normal",
+            vec!["magic-item", "list", "--page", "3", "-o", "json"],
+            "magic_item_list",
+            json!({"page":3}),
+        ),
+        (
+            "equipment-magic-only",
+            vec!["magic-item", "list", "-o", "json"],
+            "magic_item_list",
+            json!({}),
+        ),
+        (
+            "equipment-equipment-only",
+            vec!["magic-item", "list", "-o", "json"],
+            "magic_item_list",
+            json!({}),
+        ),
+        (
+            "equipment-normal",
+            vec!["magic-item", "show", "7:18", "--page", "1"],
+            "magic_item_show",
+            json!({"id":"7:18","page":1}),
+        ),
+    ] {
+        let output = cli(scenario, &command);
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let cli_value: Value = serde_json::from_slice(&output.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(scenario, tool, arguments, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], false, "{result}");
+        let value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
+                .expect("MCP JSON");
+        assert_eq!(value, cli_value);
+        let tools = messages.iter().find(|m| m["id"] == 2).expect("tools")["result"]["tools"]
+            .as_array()
+            .expect("tools array");
+        for name in ["magic_item_list", "magic_item_show"] {
+            let tool = tools
+                .iter()
+                .find(|t| t["name"] == name)
+                .expect("magic tool");
+            assert_eq!(tool["annotations"]["readOnlyHint"], true);
+            assert_eq!(tool["annotations"]["destructiveHint"], false);
+            let schema = &tool["inputSchema"];
+            assert_eq!(schema["additionalProperties"], false);
+            assert_eq!(schema["properties"]["page"]["minimum"], 1);
+            assert_eq!(schema["properties"]["page"]["maximum"], 1_000_000);
+            if name == "magic_item_list" {
+                for field in ["types", "rarities", "tags"] {
+                    assert_eq!(schema["properties"][field]["maxItems"], 50);
+                    assert_eq!(schema["properties"][field]["uniqueItems"], true);
+                }
+            } else {
+                assert!(
+                    schema["required"]
+                        .as_array()
+                        .expect("required")
+                        .contains(&json!("page"))
+                );
+            }
+        }
+    }
+    for (tool, args) in [
+        ("magic_item_list", json!({"name":null})),
+        ("magic_item_list", json!({"types":null})),
+        ("magic_item_list", json!({"tags":[1]})),
+        ("magic_item_list", json!({"rarities":["Rare","rare"]})),
+        ("magic_item_list", json!({"attunement":true})),
+        ("magic_item_list", json!({"name":" padded"})),
+        ("magic_item_list", json!({"page":0})),
+        ("magic_item_list", json!({"unknown":1})),
+        ("magic_item_show", json!({"id":"7:18"})),
+        ("magic_item_show", json!({"id":"18","page":1})),
+        (
+            "magic_item_show",
+            json!({"id":"7:18","page":1,"tags":["Utility"]}),
+        ),
+    ] {
+        let (output, messages) = mcp_tool("absent", tool, args, false);
+        assert!(output.status.success());
+        let response = messages.iter().find(|m| m["id"] == 3).expect("response");
+        assert!(response.get("error").is_some() || response["result"]["isError"] == true);
+        assert!(!response.to_string().contains("session_absent"));
+    }
+    for (scenario, page, id, diagnostic) in [
+        ("equipment-denied", "1", "7:18", "access_denied"),
+        ("equipment-rejected", "1", "7:18", "session_rejected"),
+        ("equipment-expired", "1", "7:18", "session_expired"),
+        ("equipment-malformed", "1", "7:18", "invalid item response"),
+        ("equipment-ignored-page", "2", "7:18", "incomplete"),
+        ("equipment-incomplete", "1", "7:18", "incomplete"),
+        ("equipment-duplicate", "1", "7:18", "conflicting"),
+        (
+            "equipment-invalid-source",
+            "1",
+            "7:18",
+            "invalid item response",
+        ),
+        ("equipment-bad-magic", "1", "7:18", "invalid item response"),
+        ("equipment-unsupported", "1", "7:18", "unsupported"),
+        ("equipment-oversized", "1", "7:18", "BodyTooLarge"),
+        ("equipment-normal", "2", "7:18", "checked source page"),
+        ("equipment-normal", "1", "7:17", "not a magic item"),
+    ] {
+        let output = cli(scenario, &["magic-item", "show", id, "--page", page]);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let cli_error = String::from_utf8(output.stderr).expect("CLI error");
+        let (output, messages) = mcp_tool(
+            scenario,
+            "magic_item_show",
+            json!({"id":id,"page":page.parse::<u32>().expect("page")}),
+            false,
+        );
+        assert!(output.status.success());
+        let result = &messages.iter().find(|m| m["id"] == 3).expect("response")["result"];
+        assert_eq!(result["isError"], true);
+        let error = result["content"][0]["text"].as_str().expect("error");
+        assert!(error.contains(diagnostic), "{error}");
+        assert!(cli_error.contains(error));
+    }
+    let (output, messages) = mcp_tool(
+        "equipment-bad-filter",
+        "magic_item_list",
+        json!({"name":"absent"}),
+        false,
+    );
+    assert!(output.status.success());
+    assert_eq!(
+        messages.iter().find(|m| m["id"] == 3).expect("response")["result"]["isError"],
+        true
+    );
+    for (tool, args) in [
+        ("magic_item_list", json!({})),
+        ("magic_item_show", json!({"id":"7:18","page":1})),
+    ] {
+        let (output, messages) = mcp_tool("equipment-waiting", tool, args, true);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert!(messages.iter().any(|m| m["id"] == 4));
+        assert!(
+            !messages
+                .iter()
+                .any(|m| m["id"] == 3 && m["result"]["isError"] == false)
+        );
+    }
+}
+
 /// Checks shared feat CLI/MCP data, strict schemas, safe errors, and cancellation.
 fn feat_contracts() {
     for (scenario, command, tool, arguments) in [
@@ -2615,6 +2819,7 @@ fn main() {
             spell_contracts();
             feat_contracts();
             equipment_contracts();
+            magic_item_contracts();
         }
     }
 }

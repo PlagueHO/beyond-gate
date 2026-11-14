@@ -1,16 +1,19 @@
 //! Shared classification of raw equipment and magic-item definitions.
 //!
 //! Classification is not identity validation or content-access evidence.
-//! Equipment reads validate one fresh explicit mixed source page without scans.
+//! Both views validate one fresh explicit mixed source page without scans.
 
 #[cfg(any(test, feature = "session-fixture"))]
 pub mod fixture;
+pub mod query;
 #[cfg(test)]
 mod read_tests;
 mod reads;
 
+pub use query::{Attunement, MagicItemQuery};
 pub use reads::{
-    ItemError, ItemQuery, ItemSelection, MAX_PAGE, PAGE_SIZE, list, show, validate_id,
+    ItemError, ItemQuery, ItemSelection, MAX_PAGE, PAGE_SIZE, list, list_magic_items, show,
+    show_magic_item, validate_id,
 };
 
 use serde_json::Value;

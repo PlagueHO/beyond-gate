@@ -25,6 +25,10 @@ pub enum Scenario {
     Empty,
     /// A nonempty page consisting only of magic items.
     MagicOnly,
+    /// A complete page consisting only of equipment.
+    EquipmentOnly,
+    /// A magic row lacks required local-filter metadata.
+    BadFilterMetadata,
     /// The service denies the protected request with HTTP 403.
     Denied,
     /// The service rejects the protected request with HTTP 401.
@@ -82,6 +86,8 @@ pub(super) fn record(id: u64, magic: bool, entity: u64) -> Value {
         "name":"Invented Item", "magic":magic, "isHomebrew":false,
         "filterType":match entity {8=>"Weapon",9=>"Armor",_=>"Other Gear"},
         "cost":if magic {None} else {Some(2)}, "weight":1,
+        "rarity":if id.is_multiple_of(3) {"Rare"} else {"Common"},
+        "canAttune":id.is_multiple_of(3), "tags":["Utility","Combat"],
         "sources":[{"sourceId":7,"sourceType":1,"pageNumber":null,"future":{"ref":true}}],
         "description":"Invented item text.", "future":{"nested":[true,null,3]},
         "terminal_controls":"tab\tline\n\u{1b}[31m"
@@ -144,7 +150,8 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
             };
             record(
                 17 + index,
-                matches!(scenario, Scenario::MagicOnly) || index % 2 == 1,
+                !matches!(scenario, Scenario::EquipmentOnly)
+                    && (matches!(scenario, Scenario::MagicOnly) || index % 2 == 1),
                 entity,
             )
         })
@@ -156,6 +163,7 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         Scenario::Duplicate if rows.len() > 1 => rows[1] = rows[0].clone(),
         Scenario::InvalidSource if rows.len() > 1 => rows[1]["sources"][0]["sourceId"] = json!(999),
         Scenario::BadMagic if rows.len() > 1 => rows[1]["magic"] = Value::Null,
+        Scenario::BadFilterMetadata if rows.len() > 1 => rows[1]["tags"] = json!([null]),
         _ => {}
     }
     let mut value = envelope(rows, page, total);

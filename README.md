@@ -52,6 +52,13 @@ record. No global lookup, HTML fallback, or automatic continuation is added.
 Browser paging and repeated raw identity were checked. Native compatibility
 and owned/shared acceptance remain unverified.
 See the [equipment contract](docs/cli.md#equipment-source-pages-and-raw-detail).
+Magic-item list/show use the same source reader and select raw `magic=true`.
+Name, type, rarity, tag, and attunement filters apply only within the selected
+source page. They do not request global search or fill filtered pages.
+Show preserves raw JSON by full definition key and required page.
+See the [magic-item contract](docs/cli.md#magic-item-local-filters-and-raw-detail).
+Browser checks confirmed distinct pages and repeated magic raw identity;
+native compatibility and owned/shared acceptance remain unverified.
 Linux production login and session use
 are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 No account credentials or live D&D Beyond access are needed to build or test.
@@ -212,7 +219,7 @@ It does not copy that project's ROM operations or HTTP MCP transport.
 The [CLI command reference](docs/cli.md) covers every command, option, output
 field, format, and error. The resource actions are `character list/show`,
 `campaign list/show`, `class list/show`, `subclass list/show`, `monster list/show`,
-`feat list/show`, `equipment list/show`,
+`feat list/show`, `equipment list/show`, `magic-item list/show`,
 `background list/show`, and
 `book list/outline/read`.
 

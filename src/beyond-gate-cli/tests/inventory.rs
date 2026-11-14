@@ -59,6 +59,8 @@ fn manual_inventory_matches_parser() {
         ("feat show", "output", "formats"),
         ("equipment list", "output", "formats"),
         ("equipment show", "output", "formats"),
+        ("magic-item list", "output", "formats"),
+        ("magic-item show", "output", "formats"),
         ("spell list", "output", "formats"),
         ("spell show", "output", "formats"),
         ("book list", "output", "formats"),

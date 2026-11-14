@@ -59,6 +59,7 @@ impl Failure {
                 | Self::Background(BackgroundError::InvalidInput)
                 | Self::Feat(FeatError::InvalidInput)
                 | Self::Item(ItemError::InvalidInput)
+                | Self::Item(ItemError::InvalidMagicInput)
         ) {
             2
         } else {

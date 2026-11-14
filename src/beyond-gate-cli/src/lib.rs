@@ -29,7 +29,7 @@ use beyond_gate_core::{
     },
     class_catalog::{self, ClassCatalogError, ClassKind},
     feat::{self, FeatError, FeatQuery},
-    item_catalog::{self, ItemError, ItemQuery, ItemSelection},
+    item_catalog::{self, ItemError, ItemKind, ItemQuery, ItemSelection, MagicItemQuery},
     library::{self, LibraryError, LibrarySnapshot},
     monster::{self, MonsterError},
     species::{self, SpeciesError},
@@ -51,6 +51,32 @@ const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Reads one mixed page with bounded local magic-item filters.
+    ///
+    /// # Errors
+    ///
+    /// Preserves typed filter, page, source, session, and response failures.
+    fn list_magic_items<'a>(
+        &self,
+        session: &'a Session,
+        query: &'a MagicItemQuery,
+    ) -> impl std::future::Future<Output = Result<Value, ItemError>> {
+        item_catalog::list_magic_items(session, query)
+    }
+
+    /// Selects one fresh raw magic definition using the required source page.
+    ///
+    /// # Errors
+    ///
+    /// Preserves page-scoped absence, wrong kind, and typed source failures.
+    fn show_magic_item<'a>(
+        &self,
+        session: &'a Session,
+        selection: &'a ItemSelection,
+    ) -> impl std::future::Future<Output = Result<Value, ItemError>> {
+        item_catalog::show_magic_item(session, selection)
+    }
+
     /// Reads one validated mixed source page through the shared equipment core.
     ///
     /// # Errors
@@ -666,7 +692,8 @@ fn execute(
         "monster" => execute_monster(action, arguments, reads, session),
         "background" => execute_background(action, arguments, reads, session),
         "feat" => execute_feat(action, arguments, reads, session),
-        "equipment" => execute_equipment(action, arguments, reads, session),
+        "equipment" => execute_item(action, arguments, reads, session, ItemKind::Equipment),
+        "magic-item" => execute_item(action, arguments, reads, session, ItemKind::MagicItem),
         "character" => execute_character(action, arguments, reads, session),
         "campaign" => execute_campaign(action, arguments, reads, session),
         "book" => execute_book(action, arguments, reads, session),
@@ -674,12 +701,13 @@ fn execute(
     }
 }
 
-/// Presents canonical equipment results without copying classification or request policy.
-fn execute_equipment(
+/// Presents either item view without copying classification, filtering, or request policy.
+fn execute_item(
     action: &str,
     arguments: &ArgMatches,
     reads: &impl ReadOperations,
     session: &Session,
+    kind: ItemKind,
 ) -> Result<Vec<u8>, Failure> {
     let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
     let page = arguments
@@ -688,6 +716,11 @@ fn execute_equipment(
         .ok_or(Failure::Usage("Select an item source page."))?;
     let query = ItemQuery { page };
     query.validate().map_err(Failure::Item)?;
+    let magic_query = if kind == ItemKind::MagicItem && action == "list" {
+        Some(magic_item_query(arguments, page)?)
+    } else {
+        None
+    };
     let selected = if action == "show" {
         let selected = ItemSelection {
             id: selection(arguments, "id")?.to_owned(),
@@ -698,15 +731,23 @@ fn execute_equipment(
     } else if action == "list" {
         None
     } else {
-        return Err(Failure::Usage("Select equipment list or show."));
+        return Err(Failure::Usage("Select item list or show."));
     };
     let value = execute_session(async {
         tokio::select! {
             biased;
             signal = tokio::signal::ctrl_c() => { signal.map_err(Failure::Signal)?; Err(Failure::Cancelled) }
             result = async {
-                if let Some(selection) = &selected { reads.show_equipment(session, selection).await }
-                else { reads.list_equipment(session, &query).await }
+                if let Some(selection) = &selected {
+                    match kind {
+                        ItemKind::Equipment => reads.show_equipment(session, selection).await,
+                        ItemKind::MagicItem => reads.show_magic_item(session, selection).await,
+                    }
+                } else if let Some(query) = &magic_query {
+                    reads.list_magic_items(session, query).await
+                } else {
+                    reads.list_equipment(session, &query).await
+                }
             } => result.map_err(Failure::Item),
         }
     })?;
@@ -726,25 +767,44 @@ fn execute_equipment(
                 row[field] = value["pagination"][field].clone();
             }
         }
-        output::list(
-            &options,
-            &[
-                "id",
-                "name",
-                "filter_type",
-                "cost",
-                "weight",
-                "sources",
-                "source_url",
-                "page",
-                "next_page",
-                "source_count",
-                "source_total",
-            ],
-            &rows,
-            Some(&value),
-        )
+        let mut columns = vec![
+            "id",
+            "name",
+            "filter_type",
+            "cost",
+            "weight",
+            "sources",
+            "source_url",
+            "page",
+            "next_page",
+            "source_count",
+            "source_total",
+        ];
+        if kind == ItemKind::MagicItem {
+            columns.extend(["rarity", "tags", "can_attune"]);
+        }
+        output::list(&options, &columns, &rows, Some(&value))
     }
+}
+
+/// Assembles the shared local query from clap values, like other resource queries.
+fn magic_item_query(arguments: &ArgMatches, page: u32) -> Result<MagicItemQuery, Failure> {
+    let mut fields = serde_json::Map::new();
+    fields.insert("page".to_owned(), json!(page));
+    for field in ["name", "attunement"] {
+        if let Some(value) = arguments.get_one::<String>(field) {
+            fields.insert(field.to_owned(), json!(value));
+        }
+    }
+    for (field, flag) in item_catalog::query::LABEL_FILTERS {
+        if let Some(values) = arguments.get_many::<String>(flag) {
+            fields.insert(field.to_owned(), json!(values.cloned().collect::<Vec<_>>()));
+        }
+    }
+    let query: MagicItemQuery = serde_json::from_value(json!(fields))
+        .map_err(|_| Failure::Item(ItemError::InvalidMagicInput))?;
+    query.validate().map_err(Failure::Item)?;
+    Ok(query)
 }
 
 /// Presents spell metadata and untrusted detail without copying access policy.
