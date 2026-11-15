@@ -132,6 +132,7 @@ fn help_reports_basic_authentication_usage() {
     assert!(!stdout.contains("Local-first access to authorized D&D Beyond data"));
     assert!(stdout.contains("To read D&D Beyond data"));
     assert!(stdout.contains("does not unlock"));
+    assert!(stdout.contains("Character and campaign reads use fixed bounded sources"));
     assert!(stdout.contains("beyond-gate auth install edge"));
     assert!(stdout.contains("beyond-gate auth login"));
     assert!(stdout.contains("beyond-gate auth validate"));

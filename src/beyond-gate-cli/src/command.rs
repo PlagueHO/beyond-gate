@@ -20,6 +20,7 @@ pub fn command() -> Command {
 To read D&D Beyond data, first sign in and save your sign-in on this device.
 Beyond Gate calls this saved sign-in a session. It lets the CLI use your
 existing account access; it does not unlock content that your account cannot open.
+Character and campaign reads use fixed bounded sources.
 
 First-time setup on Windows:
   1. Install the CLI, browser extension (add-on), and browser helper.
