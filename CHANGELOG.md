@@ -7,6 +7,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Beyond Gate icon assets in `assets/icons`, with transparent, black, and white
+  backgrounds. Each set includes a 1024-pixel source and PNG exports at 16, 24,
+  32, 48, 64, and 128 pixels. The extension manifest and CLI logo are unchanged.
 - CLI show output in labelled text by default, with Markdown as an explicit
   format. Existing JSON, table, TSV, and output aliases remain selectable.
   Text and Markdown preserve nested records with bounded output and escaped
