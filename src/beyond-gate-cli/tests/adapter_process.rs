@@ -56,6 +56,42 @@ impl Fixtures {
 }
 
 impl ReadOperations for Fixtures {
+    /// Keeps invented character, campaign, and species reads out of native storage.
+    async fn show_html(
+        &self,
+        session: &Session,
+        request: &beyond_gate_core::record_html::Request,
+    ) -> Result<beyond_gate_core::record_html::ReadResult, beyond_gate_core::record_html::HtmlError>
+    {
+        use beyond_gate_core::record_html::{self, HtmlError, ReadResult, Resource};
+        let record = match request.resource {
+            Resource::Character => {
+                let value = self
+                    .get_character(session, &request.id)
+                    .await
+                    .map_err(HtmlError::Character)?;
+                json!({"id":value.id(),"name":value.name(),"source_url":value.source_url().map(|url| url.as_str()),"raw":value.raw()})
+            }
+            Resource::Campaign => {
+                let value = self
+                    .get_campaign(session, &request.id)
+                    .await
+                    .map_err(HtmlError::Character)?;
+                json!({"id":value.id(),"name":value.name(),"source_url":value.source_url().map(|url| url.as_str()),"character_ids":value.character_ids(),"raw":value.raw()})
+            }
+            Resource::Species => self
+                .show_species(session, &request.id)
+                .await
+                .map_err(HtmlError::Species)?,
+            _ => return record_html::read(session, request).await,
+        };
+        if request.markdown && request.field.is_none() {
+            Ok(ReadResult::metadata(record))
+        } else {
+            Err(HtmlError::MissingSource)
+        }
+    }
+
     /// Supplies synthetic website metadata for two species.
     async fn list_species(
         &self,
@@ -362,14 +398,17 @@ fn list_contracts() {
     );
     assert!(characters[1]["name"].is_null());
     assert!(characters[1]["source_url"].is_null());
-    let shown = read_json(&run("normal", &["character", "show", "hero"]));
+    let shown = read_json(&run("normal", &["character", "show", "hero", "-o", "json"]));
     assert_eq!(shown, characters[0]);
     let tsv = run("normal", &["character", "list", "--format", "tsv"]);
     assert!(String::from_utf8_lossy(&tsv.stdout).ends_with("unnamed\t\t\n"));
     let campaigns = read_json(&run("normal", &["campaign", "list", "--format", "json"]));
     assert_eq!(campaigns[0]["character_ids"], json!(["hero", "hero\\two"]));
     assert_eq!(
-        read_json(&run("normal", &["campaign", "show", "campaign"])),
+        read_json(&run(
+            "normal",
+            &["campaign", "show", "campaign", "-o", "json"]
+        )),
         campaigns[0]
     );
     for (resource, expected) in [("character", &characters), ("campaign", &campaigns)] {
@@ -434,7 +473,7 @@ fn species_contracts() {
     assert_eq!(rows.as_array().expect("species rows").len(), 2);
     assert_eq!(rows[1]["is_legacy"], true);
     assert_eq!(rows[1]["source"], "Invented Source");
-    let shown = read_json(&run("normal", &["species", "show", "18"]));
+    let shown = read_json(&run("normal", &["species", "show", "18", "-o", "json"]));
     assert_eq!(shown["id"], "18");
     assert_eq!(
         shown["raw"]["future_definition"]["nested"],
@@ -767,7 +806,7 @@ fn spell_contracts() {
     assert_eq!(value["entries"], json!([]));
     let value = read_json(&run(
         "spell-normal",
-        &["spell", "show", "900001-invented-spell"],
+        &["spell", "show", "900001-invented-spell", "-o", "json"],
     ));
     assert!(
         value["raw_html"]
@@ -794,7 +833,7 @@ fn feat_contracts() {
     let rows = read_json(&run("feat-normal", &["feat", "list", "-o", "json"]));
     assert_eq!(rows.as_array().expect("rows").len(), 2);
     assert!(rows[0].get("raw").is_none());
-    let value = read_json(&run("feat-normal", &["feat", "show", "18"]));
+    let value = read_json(&run("feat-normal", &["feat", "show", "18", "-o", "json"]));
     assert_eq!(value["is_repeatable"], true);
     assert_eq!(value["repeatable_parent_id"], "17");
     assert_eq!(value["raw"]["future"]["nested"], json!([true, null, 3]));
@@ -892,7 +931,7 @@ fn equipment_contracts() {
     assert_eq!(value["pagination"]["next_page"], 2);
     let selected = read_json(&run(
         "equipment-normal",
-        &["equipment", "show", "7:17", "--page", "1"],
+        &["equipment", "show", "7:17", "--page", "1", "-o", "json"],
     ));
     assert_eq!(selected["raw"]["future"]["nested"], json!([true, null, 3]));
     assert_eq!(selected["sources"][0]["future"]["ref"], true);
@@ -972,7 +1011,7 @@ fn magic_item_contracts() {
     assert_eq!(empty["pagination"]["next_page"], 2);
     let detail = read_json(&run(
         "equipment-normal",
-        &["magic-item", "show", "7:18", "--page", "1"],
+        &["magic-item", "show", "7:18", "--page", "1", "-o", "json"],
     ));
     assert_eq!(detail["raw"]["magic"], true);
     assert_eq!(detail["raw"]["future"]["nested"], json!([true, null, 3]));
@@ -999,6 +1038,338 @@ fn magic_item_contracts() {
     );
 }
 
+/// Exercises every list and show with the shipped parser, including the new defaults.
+fn readable_output_contracts() {
+    let resources: &[(&str, &str, &str, &[&str])] = &[
+        ("normal", "character", "hero", &[]),
+        ("normal", "campaign", "campaign", &[]),
+        ("class-normal", "class", "10", &[]),
+        (
+            "class-normal",
+            "subclass",
+            "7001",
+            &["--class-id", "2190879"],
+        ),
+        ("normal", "species", "18", &[]),
+        ("monster-normal", "monster", "17", &[]),
+        ("background-normal", "background", "17", &[]),
+        ("feat-normal", "feat", "18", &[]),
+        ("equipment-normal", "equipment", "7:17", &["--page", "1"]),
+        ("equipment-normal", "magic-item", "7:18", &["--page", "1"]),
+        ("spell-normal", "spell", "900001-invented-spell", &[]),
+    ];
+    for (scenario, resource, id, extra) in resources {
+        let mut list = vec![*resource, "list"];
+        list.extend_from_slice(extra);
+        let output = run(scenario, &list);
+        assert!(
+            output.status.success(),
+            "{resource}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8_lossy(&output.stdout);
+        let mut lines = text.lines();
+        let header = lines.next().expect("headers");
+        let underlines = lines.next().expect("underlines");
+        assert_eq!(
+            header.split_whitespace().count(),
+            underlines.split_whitespace().count()
+        );
+        assert!(underlines.chars().all(|value| matches!(value, '-' | ' ')));
+
+        let mut show = vec![*resource, "show", *id];
+        show.extend_from_slice(extra);
+        let record_id = if *resource == "spell" {
+            id.split_once('-').expect("spell key").0
+        } else {
+            id
+        };
+        let output = run(scenario, &show);
+        assert!(
+            output.status.success(),
+            "{resource}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(
+            text.contains(&format!("ID: {record_id}")),
+            "{resource}: {text}"
+        );
+        assert!(text.contains("Name:"), "{resource}: {text}");
+        assert!(!text.contains('\u{1b}'));
+        for alias in ["--output", "--format", "-o"] {
+            let mut markdown = show.clone();
+            markdown.extend([alias, "markdown"]);
+            let output = run(scenario, &markdown);
+            assert!(
+                output.status.success(),
+                "{resource}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(output.stderr.is_empty());
+            assert!(
+                String::from_utf8_lossy(&output.stdout).contains(&format!("**ID:** {record_id}"))
+            );
+        }
+    }
+    let json = read_json(&run(
+        "spell-normal",
+        &["spell", "show", "900001-invented-spell", "-o", "json"],
+    ));
+    let output = run(
+        "spell-normal",
+        &[
+            "spell",
+            "show",
+            "900001-invented-spell",
+            "-o",
+            "html",
+            "--html-field",
+            "source_url",
+        ],
+    );
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stdout),
+        format!("{}\n", json["raw_html"].as_str().expect("HTML"))
+    );
+    for format in ["text", "markdown"] {
+        let output = run(
+            "spell-normal",
+            &["spell", "show", "900001-invented-spell", "-o", format],
+        );
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "{text}");
+        assert!(text.contains("Unknown invented element"));
+        assert!(!text.contains("<section"));
+        assert!(!text.contains("Outside"));
+    }
+    for format in ["text", "markdown", "html"] {
+        failure(
+            run(
+                "spell-denied",
+                &["spell", "show", "900001-invented-spell", "-o", format],
+            ),
+            1,
+            "access_denied",
+        );
+    }
+    for alias in ["--output", "--format", "-o"] {
+        let output = run(
+            "background-normal",
+            &[
+                "background",
+                "show",
+                "17",
+                alias,
+                "html",
+                "--html-field",
+                "source_url",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let html = String::from_utf8_lossy(&output.stdout);
+        assert!(html.starts_with("<div class=\"details-container-content\">"));
+        assert!(html.contains("Synthetic selected content."));
+        assert!(!html.contains("Outside"));
+        let output = run(
+            "background-normal",
+            &["background", "show", "17", alias, "markdown"],
+        );
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("Synthetic selected content"));
+        assert!(text.contains("## Invented feature"));
+        assert!(!text.contains("<div"));
+    }
+    for format in ["html", "markdown"] {
+        failure(
+            run(
+                "background-html-denied",
+                &["background", "show", "17", "-o", format],
+            ),
+            1,
+            "access_denied",
+        );
+    }
+}
+
+/// Checks linked-page selection and inline conversion through the shipped command runner.
+fn linked_html_contracts() {
+    for (scenario, resource, id, extra, required, excluded) in [
+        (
+            "class-html",
+            "class",
+            "10",
+            vec![],
+            "Synthetic primary class introduction.",
+            "subclass",
+        ),
+        (
+            "class-html",
+            "subclass",
+            "7002",
+            vec!["--class-id", "10"],
+            "Synthetic subclass introduction.",
+            "primary class",
+        ),
+        (
+            "feat-normal",
+            "feat",
+            "18",
+            vec![],
+            "Synthetic feat paragraph.",
+            "Unrelated",
+        ),
+        (
+            "equipment-html",
+            "equipment",
+            "7:17",
+            vec!["--page", "1"],
+            "Synthetic",
+            "Unrelated",
+        ),
+        (
+            "equipment-html",
+            "magic-item",
+            "7:18",
+            vec!["--page", "1"],
+            "Synthetic",
+            "Unrelated",
+        ),
+    ] {
+        for format in ["html", "markdown"] {
+            let mut arguments = vec![resource, "show", id, "-o", format];
+            arguments.extend(extra.iter().copied());
+            let output = run(scenario, &arguments);
+            assert!(
+                output.status.success(),
+                "{resource}: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+            assert!(output.stderr.is_empty());
+            let content = String::from_utf8_lossy(&output.stdout);
+            assert!(
+                content.contains(required.trim_end_matches('.')),
+                "{resource}: {content}"
+            );
+            assert!(!content.contains(excluded), "{resource}: {content}");
+        }
+    }
+    for resource in ["equipment", "magic-item"] {
+        let id = if resource == "equipment" {
+            "7:17"
+        } else {
+            "7:18"
+        };
+        let output = run("equipment-html", &[resource, "show", id, "--page", "1"]);
+        assert!(output.status.success());
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("Invented item feature"));
+        assert!(!text.contains("<strong"));
+        let json = read_json(&run(
+            "equipment-html",
+            &[resource, "show", id, "--page", "1", "-o", "json"],
+        ));
+        assert!(
+            json["raw"]["description"]
+                .as_str()
+                .expect("raw description")
+                .contains("<strong>")
+        );
+    }
+    for format in ["html", "markdown"] {
+        failure(
+            run("character-html", &["character", "show", "42", "-o", format]),
+            1,
+            "multiple HTML sources",
+        );
+        let output = run(
+            "character-html",
+            &[
+                "character",
+                "show",
+                "42",
+                "-o",
+                format,
+                "--html-field",
+                "raw.classes[0].definition.class_features[0].more_details_url",
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let content = String::from_utf8_lossy(&output.stdout);
+        assert!(content.contains("Synthetic primary feature paragraph"));
+        assert!(!content.contains("Other primary"));
+        failure(
+            run(
+                "class-missing-fragment",
+                &["subclass", "show", "7002", "--class-id", "10", "-o", format],
+            ),
+            1,
+            "missing_fragment",
+        );
+        failure(
+            run("class-html-denied", &["class", "show", "10", "-o", format]),
+            1,
+            "access_denied",
+        );
+    }
+    failure(
+        run(
+            "character-html",
+            &[
+                "character",
+                "show",
+                "42",
+                "-o",
+                "html",
+                "--html-field",
+                "raw.readonly_url",
+            ],
+        ),
+        1,
+        "unsupported",
+    );
+    failure(
+        run("normal", &["campaign", "show", "campaign", "-o", "html"]),
+        1,
+        "no supported HTML source",
+    );
+    failure(
+        run("normal", &["species", "show", "18", "-o", "html"]),
+        1,
+        "no supported HTML source",
+    );
+    failure(
+        run(
+            "class-html",
+            &[
+                "class",
+                "show",
+                "10",
+                "-o",
+                "html",
+                "--html-field",
+                "raw.description",
+            ],
+        ),
+        2,
+        "invalid HTML source",
+    );
+}
+
 /// Runs parent assertions or a child with the real command runner and synthetic reads.
 fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
@@ -1013,6 +1384,55 @@ fn main() {
             .into_owned();
         let cli_arguments = std::iter::once(std::ffi::OsString::from("beyond-gate"))
             .chain(arguments.into_iter().skip(3));
+        if scenario == "character-html" {
+            use beyond_gate_core::character_campaign::fixture::{self, Scenario};
+            let session =
+                fixture::session(Scenario::HtmlLinks).expect("invented character services");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
+        if let Some(name) = scenario.strip_prefix("class-") {
+            use beyond_gate_core::class_catalog::fixture::{self, Scenario};
+            let source = match name {
+                "normal" => Scenario::Normal,
+                "html" => Scenario::Html,
+                "html-denied" => Scenario::HtmlDenied,
+                "missing-fragment" => Scenario::HtmlMissingFragment,
+                _ => panic!("unknown synthetic class source"),
+            };
+            let session = fixture::session(source).expect("invented class service");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
+        if let Some(name) = scenario.strip_prefix("background-") {
+            use beyond_gate_core::background::fixture::{self, Scenario};
+            let source = match name {
+                "normal" => Scenario::Normal,
+                "html-denied" => Scenario::HtmlDenied,
+                _ => panic!("unknown synthetic background source"),
+            };
+            let session = fixture::session(source).expect("invented background service");
+            std::process::exit(beyond_gate_cli::run_with_session_input(
+                cli_arguments,
+                &beyond_gate_cli::LiveReads,
+                &session,
+                &mut io::empty(),
+                &mut io::stdout().lock(),
+                &mut io::stderr().lock(),
+            ));
+        }
         if let Some(name) = scenario.strip_prefix("monster-") {
             use beyond_gate_core::monster::fixture::{self, Scenario};
             let source = match name {
@@ -1034,6 +1454,7 @@ fn main() {
             use beyond_gate_core::item_catalog::fixture::{self, Scenario};
             let source = match name {
                 "normal" => Scenario::Normal,
+                "html" => Scenario::HtmlInline,
                 "magic-only" => Scenario::MagicOnly,
                 "denied" => Scenario::Denied,
                 _ => panic!("unknown synthetic equipment source"),
@@ -1099,6 +1520,8 @@ fn main() {
     equipment_contracts();
     magic_item_contracts();
     paginated_list_contracts();
+    readable_output_contracts();
+    linked_html_contracts();
     section_contracts();
     output_failures();
 }

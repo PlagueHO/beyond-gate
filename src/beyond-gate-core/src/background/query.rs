@@ -165,3 +165,22 @@ pub(crate) fn allowed_list_url(url: &reqwest::Url) -> bool {
     }
     partnered && query.validate().is_ok()
 }
+
+/// Allows only a canonical numeric background detail path without extra controls.
+pub(crate) fn allowed_detail_url(url: &reqwest::Url) -> bool {
+    let Some((id, slug)) = url
+        .path()
+        .strip_prefix("/backgrounds/")
+        .and_then(|path| path.split_once('-'))
+    else {
+        return false;
+    };
+    url.query().is_none()
+        && url.fragment().is_none()
+        && !url.as_str().contains(['%', '\\'])
+        && super::validate_id(id).is_ok()
+        && !slug.is_empty()
+        && slug
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+}

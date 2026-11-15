@@ -928,7 +928,8 @@ They add native Rust dependencies, not an external runtime.
   `campaign`, and `book` commands exist but live reads fail explicitly. `mcp`
   remains proposed.
 - List operations and outlines support table, JSON, and TSV in the offline-tested
-  adapter. Show and section-read results use JSON.
+  adapter. Shows default to labelled text and accept Markdown, JSON, table, or
+  TSV. Section-read results use JSON.
 - Keep structured values and typed failures in the core. Format at the adapter edge.
 - Preserve unknown upstream character fields without interpreting game rules.
 - Keep current character, campaign, library, and book operations explicitly
@@ -952,15 +953,42 @@ Auth uses its existing protected-store operations and is not part of
 the read trait.
 
 The command patterns are `character list/show`, `campaign list/show`, and
-`book list/outline/read`. Lists and outlines default to table; show commands
-default to JSON. Character/campaign show commands also accept table or TSV.
+`book list/outline/read`. Lists and outlines default to tables with headers and
+underlines; show commands default to labelled text with indented nested fields.
+Shows also accept Markdown, JSON, table, and TSV.
 Resource outputs accept `--output` / `-o`, with `--format` as an alias.
-`--no-headers` applies to table and TSV. JSON rejects header suppression.
+`--no-headers` applies to table and TSV, including table underlines.
+Other formats reject header suppression.
 Identifiers remain opaque meaningful text.
 The [CLI output contract](cli.md#output-contracts) defines
 exact columns, JSON fields, evidence labels, escaping, and empty-result shapes.
 Unknown character fields stay structured under `raw`; no rules are computed.
 Output is deterministic and not silently truncated.
+
+Text and Markdown preserve the complete selected structured record and use
+readable labels without changing existing JSON or raw upstream keys.
+They are bounded to 8 MiB and 128 nested data levels. HTML conversion is local,
+bounded to 1 MiB input, 256 DOM levels, and 100,000 nodes, and does not fetch
+linked resources or execute source markup.
+Explicit HTML and HTML-backed Markdown use the shared `record_html` operation.
+It resolves the original record and at most one supported cookie-only page
+within one session identity and deadline. Fixed snake_case selectors map to
+known source keys without changing JSON or scanning arbitrary fields.
+Several supported links require explicit selection before the page request.
+Aliases do not duplicate candidates; failed pages never trigger fallback.
+Background/feat numeric detail pages require exact canonical and container
+identity. Primary class content excludes subclasses; subclass and feature
+fragments use exact targets and bounded section boundaries. Missing subclass
+fragments fail rather than selecting similar or adjacent headings.
+Equipment/magic-item descriptions and existing spell HTML are inline sources;
+API attribution is never substituted for an HTML page. Known nested description
+HTML also converts locally for readable text without an additional read.
+Species, monster, and readonly page layouts remain unsupported. Explicit HTML
+without a supported source fails; ordinary Markdown retains record metadata.
+Source counts, names, HTML bytes, DOM nodes, and depth are bounded.
+See the [source matrix](cli.md#output-formats) and
+[selected-record evidence](api-survey.md#selected-record-html-research).
+MCP records and protocol output are unchanged.
 
 Section reads return one JSON chunk with attribution, explicit completion,
 an optional encoded continuation, and the 4,096-byte text limit.

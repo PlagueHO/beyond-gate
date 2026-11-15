@@ -13,6 +13,7 @@ use beyond_gate_core::{
     item_catalog::ItemError,
     library::LibraryError,
     monster::MonsterError,
+    record_html::HtmlError,
     species::SpeciesError,
     spell::SpellError,
 };
@@ -42,6 +43,9 @@ pub(crate) enum Failure {
     Json(serde_json::Error),
     Output(io::Error),
     PresentationLimit(usize),
+    RecordPresentationLimit,
+    InvalidHtml,
+    Html(HtmlError),
     Usage(&'static str),
 }
 
@@ -60,6 +64,14 @@ impl Failure {
                 | Self::Feat(FeatError::InvalidInput)
                 | Self::Item(ItemError::InvalidInput)
                 | Self::Item(ItemError::InvalidMagicInput)
+                | Self::Html(HtmlError::InvalidInput)
+                | Self::Html(HtmlError::Class(ClassCatalogError::InvalidInput))
+                | Self::Html(HtmlError::Background(BackgroundError::InvalidInput))
+                | Self::Html(HtmlError::Feat(FeatError::InvalidInput))
+                | Self::Html(HtmlError::Species(SpeciesError::InvalidInput))
+                | Self::Html(HtmlError::Monster(MonsterError::InvalidInput))
+                | Self::Html(HtmlError::Spell(SpellError::InvalidInput))
+                | Self::Html(HtmlError::Item(ItemError::InvalidInput))
         ) {
             2
         } else {
@@ -107,6 +119,13 @@ impl fmt::Display for Failure {
                 formatter,
                 "Table presentation exceeds the {bytes}-byte limit; use --output json or --output tsv."
             )?,
+            Self::RecordPresentationLimit => formatter.write_str(
+                "Record presentation exceeds its byte or depth limit; use --output json.",
+            )?,
+            Self::InvalidHtml => {
+                formatter.write_str("Selected HTML cannot be converted safely.")?
+            }
+            Self::Html(error) => write!(formatter, "{error}")?,
             Self::Usage(message) => formatter.write_str(message)?,
         }
         if let Some(http) = self.http() {
@@ -159,6 +178,8 @@ impl Error for Failure {
             Self::Json(error) => Some(error),
             Self::Output(error) => Some(error),
             Self::PresentationLimit(_) => None,
+            Self::RecordPresentationLimit | Self::InvalidHtml => None,
+            Self::Html(error) => Some(error),
             Self::Usage(_) => None,
         }
     }

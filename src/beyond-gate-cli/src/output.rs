@@ -10,7 +10,12 @@ use serde_json::{Value, json};
 
 use crate::error::Failure;
 
-/// Selects list presentation only after clap has validated the format name.
+mod html;
+
+/// Maximum bytes in a complete text or Markdown record, including framing.
+const MAX_RECORD_BYTES: usize = 8 * 1024 * 1024;
+
+/// Selects presentation only after clap has validated the format name.
 pub(crate) struct ListOptions {
     format: String,
     headers: bool,
@@ -18,15 +23,28 @@ pub(crate) struct ListOptions {
 }
 
 impl ListOptions {
-    /// Rejects header control for JSON before the selected operation can run.
+    /// Rejects incompatible header and HTML controls before source operations.
     pub(crate) fn parse(matches: &ArgMatches) -> Result<Self, Failure> {
         let format = matches
             .get_one::<String>("output")
             .ok_or(Failure::Usage("A list format is required."))?;
         let headers = !matches.get_flag("no-headers");
-        if format == "json" && !headers {
+        if !matches!(format.as_str(), "table" | "tsv") && !headers {
+            if format == "json" {
+                return Err(Failure::Usage(
+                    "--no-headers cannot be used with --output json",
+                ));
+            }
             return Err(Failure::Usage(
-                "--no-headers cannot be used with --output json",
+                "--no-headers can only be used with --output table or --output tsv",
+            ));
+        }
+        if matches.ids().any(|id| id == "html-field")
+            && matches.get_one::<String>("html-field").is_some()
+            && !matches!(format.as_str(), "html" | "markdown")
+        {
+            return Err(Failure::Usage(
+                "--html-field can only be used with --output html or --output markdown",
             ));
         }
         Ok(Self {
@@ -40,6 +58,11 @@ impl ListOptions {
     pub(crate) fn with_table_byte_limit(mut self, bytes: usize) -> Self {
         self.table_byte_limit = Some(bytes);
         self
+    }
+
+    /// Selects a supported additional page only for explicit HTML or Markdown.
+    pub(crate) fn uses_html_source(&self) -> bool {
+        matches!(self.format.as_str(), "html" | "markdown")
     }
 }
 
@@ -178,6 +201,10 @@ pub(crate) fn list(
             widths[index] = widths[index].max(cell.chars().count());
         }
     }
+    if options.format == "table" && options.headers {
+        let underlines = widths.iter().map(|width| "-".repeat(*width)).collect();
+        cells.insert(1, underlines);
+    }
     let capacity = if options.format == "table"
         && let Some(limit) = options.table_byte_limit
     {
@@ -205,6 +232,223 @@ pub(crate) fn list(
         result.push('\n');
     }
     Ok(result.into_bytes())
+}
+
+/// Presents one complete record without changing JSON or existing table/TSV projections.
+pub(crate) fn record(
+    options: &ListOptions,
+    fields: &[&str],
+    value: &Value,
+) -> Result<Vec<u8>, Failure> {
+    if options.format == "html" {
+        let content = value["raw_html"].as_str().ok_or(Failure::InvalidHtml)?;
+        let mut bytes = content.as_bytes().to_vec();
+        if !bytes.ends_with(b"\n") {
+            bytes.push(b'\n');
+        }
+        return Ok(bytes);
+    }
+    if matches!(options.format.as_str(), "text" | "markdown") {
+        let markdown = options.format == "markdown";
+        let mut result = String::new();
+        render_value(value, 0, markdown, &mut result)?;
+        return Ok(result.into_bytes());
+    }
+    list(options, fields, std::slice::from_ref(value), Some(value))
+}
+
+/// Presents one selected subtree separately without changing the original record.
+pub(crate) fn selected_html(
+    options: &ListOptions,
+    value: &beyond_gate_core::record_html::ReadResult,
+) -> Result<Vec<u8>, Failure> {
+    let Some(selected) = &value.selected else {
+        return record(options, &[], &value.record);
+    };
+    if options.format == "html" {
+        let mut bytes = selected.raw_html.as_bytes().to_vec();
+        if !bytes.ends_with(b"\n") {
+            bytes.push(b'\n');
+        }
+        return Ok(bytes);
+    }
+    let mut result = String::new();
+    render_value(&value.record, 0, true, &mut result)?;
+    render_field(
+        "HTML source field",
+        &json!(selected.field),
+        0,
+        true,
+        &mut result,
+    )?;
+    if let Some(url) = &selected.source_url {
+        render_field("HTML source URL", &json!(url), 0, true, &mut result)?;
+    }
+    append(&mut result, "\n## Selected content\n\n")?;
+    append(&mut result, &html::convert(&selected.raw_html, true)?)?;
+    Ok(result.into_bytes())
+}
+
+/// Walks all structured fields with bounded indentation and explicit empty values.
+fn render_value(
+    value: &Value,
+    depth: usize,
+    markdown: bool,
+    result: &mut String,
+) -> Result<(), Failure> {
+    if depth > 128 {
+        return Err(Failure::RecordPresentationLimit);
+    }
+    match value {
+        Value::Object(fields) if !fields.is_empty() => {
+            for (key, value) in fields {
+                render_field(&label(key), value, depth, markdown, result)?;
+            }
+        }
+        Value::Array(values) if !values.is_empty() => {
+            for (index, value) in values.iter().enumerate() {
+                render_field(
+                    &format!("Item {}", index + 1),
+                    value,
+                    depth,
+                    markdown,
+                    result,
+                )?;
+            }
+        }
+        _ => {
+            append(result, &"  ".repeat(depth))?;
+            append(result, &scalar(value, markdown)?)?;
+            append(result, "\n")?;
+        }
+    }
+    Ok(())
+}
+
+/// Writes a readable label and retains every nested field rather than a summary.
+fn render_field(
+    name: &str,
+    value: &Value,
+    depth: usize,
+    markdown: bool,
+    result: &mut String,
+) -> Result<(), Failure> {
+    append(result, &"  ".repeat(depth))?;
+    if markdown {
+        append(result, "- **")?;
+        append(result, &markdown_text(name))?;
+        append(result, ":**")?;
+    } else {
+        append(result, name)?;
+        append(result, ":")?;
+    }
+    let nested = value.as_object().is_some_and(|fields| !fields.is_empty())
+        || value.as_array().is_some_and(|values| !values.is_empty());
+    if nested {
+        append(result, "\n")?;
+        render_value(value, depth + 1, markdown, result)
+    } else if (name == "Raw HTML" && depth == 0)
+        || (name == "Description"
+            && depth > 0
+            && value.as_str().is_some_and(|content| content.contains('<')))
+    {
+        let content = value.as_str().ok_or(Failure::InvalidHtml)?;
+        let converted = html::convert(content, markdown)?;
+        append(result, "\n\n")?;
+        for line in converted.lines() {
+            if !line.is_empty() {
+                append(result, &"  ".repeat(depth + 1))?;
+                append(result, line)?;
+            }
+            append(result, "\n")?;
+        }
+        append(result, "\n")
+    } else {
+        append(result, " ")?;
+        append(result, &scalar(value, markdown)?)?;
+        append(result, "\n")
+    }
+}
+
+/// Keeps null and empty values explicit while making strings safe for their output format.
+fn scalar(value: &Value, markdown: bool) -> Result<String, Failure> {
+    let text = match value {
+        Value::String(value) => {
+            if value.is_empty() {
+                return Ok("\"\"".to_owned());
+            }
+            escape_cell(value)
+        }
+        value => serde_json::to_string(value).map_err(Failure::Json)?,
+    };
+    Ok(if markdown { markdown_text(&text) } else { text })
+}
+
+/// Uses readable labels without renaming or changing structured output keys.
+fn label(key: &str) -> String {
+    let mut result = String::new();
+    let mut prior_lower = false;
+    for character in key.chars() {
+        if character == '_' {
+            result.push(' ');
+        } else {
+            if character.is_uppercase() && prior_lower {
+                result.push(' ');
+            }
+            result.extend(character.to_lowercase());
+        }
+        prior_lower = character.is_lowercase() || character.is_ascii_digit();
+    }
+    let mut words: Vec<_> = result.split_whitespace().map(str::to_owned).collect();
+    for word in &mut words {
+        if matches!(word.as_str(), "id" | "ids" | "url" | "urls" | "html") {
+            *word = match word.as_str() {
+                "ids" => "IDs".into(),
+                "urls" => "URLs".into(),
+                word => word.to_ascii_uppercase(),
+            };
+        }
+    }
+    let result = words.join(" ");
+    let mut characters = result.chars();
+    match characters.next() {
+        Some(first) => {
+            escape_cell(&(first.to_uppercase().collect::<String>() + characters.as_str()))
+        }
+        None => "\"\"".into(),
+    }
+}
+
+/// Escapes Markdown syntax and HTML delimiters so source strings cannot inject markup.
+fn markdown_text(value: &str) -> String {
+    let mut result = String::new();
+    for character in value.chars() {
+        match character {
+            '<' => result.push_str("&lt;"),
+            '>' => result.push_str("&gt;"),
+            '&' => result.push_str("&amp;"),
+            '\\' | '`' | '*' | '_' | '{' | '}' | '[' | ']' | '(' | ')' | '#' | '+' | '-' | '.'
+            | '!' | '|' => {
+                result.push('\\');
+                result.push(character);
+            }
+            value => result.push(value),
+        }
+    }
+    result
+}
+
+/// Rejects an over-limit append before expanding the presentation buffer.
+fn append(result: &mut String, text: &str) -> Result<(), Failure> {
+    if result
+        .len()
+        .checked_add(text.len())
+        .is_none_or(|bytes| bytes > MAX_RECORD_BYTES)
+    {
+        return Err(Failure::RecordPresentationLimit);
+    }
+    result.push_str(text);
+    Ok(())
 }
 
 /// Adds selected page fields to table/TSV rows without changing the JSON envelope.
@@ -356,7 +600,7 @@ mod tests {
         let body = "\u{754c}\\t  a\\n\\u{1b}\\\\  [7,8]\na    \u{1f3ee}            []\n";
         for headers in [false, true] {
             let expected = if headers {
-                format!("id   name         source_ids\n{body}")
+                format!("id   name         source_ids\n---  -----------  ----------\n{body}")
             } else {
                 body.into()
             };
@@ -395,13 +639,13 @@ mod tests {
                 .is_empty()
         );
         assert_eq!(
-            list(&options("table", true, 9), &["id", "name"], &[], None)
+            list(&options("table", true, 18), &["id", "name"], &[], None)
                 .expect("exact header bytes"),
-            b"id  name\n"
+            b"id  name\n--  ----\n"
         );
         assert!(matches!(
-            list(&options("table", true, 8), &["id", "name"], &[], None),
-            Err(Failure::PresentationLimit(8))
+            list(&options("table", true, 17), &["id", "name"], &[], None),
+            Err(Failure::PresentationLimit(17))
         ));
     }
 
@@ -428,5 +672,57 @@ mod tests {
             "a\\\\b\\tc\\nd\\r\\u{1b}[m"
         );
         assert_eq!(escape_cell("lantern \u{1f3ee}"), "lantern \u{1f3ee}");
+    }
+
+    /// Keeps nested and empty values while neutralizing terminal and Markdown injection.
+    #[test]
+    fn readable_records_preserve_nested_values_and_escape_markup() {
+        let value = json!({
+            "id": "17", "source_url": "https://example.com/test",
+            "raw": {"moreDetailsUrl": "/test", "empty": {}, "items": [null, [], "<script>\u{1b}[m"],
+                "bad\u{1b}[31m": "key"}
+        });
+        let text =
+            String::from_utf8(record(&options("text", true, 0), &["id"], &value).expect("text"))
+                .expect("UTF-8");
+        assert!(text.contains("ID: 17\n"));
+        assert!(text.contains("Source URL: https://example.com/test\n"));
+        assert!(text.contains("  More details URL: /test\n"));
+        assert!(text.contains("  Empty: {}\n"));
+        assert!(text.contains("    Item 1: null\n"));
+        assert!(text.contains("    Item 2: []\n"));
+        assert!(text.contains("\\u{1b}"));
+        assert!(!text.contains('\u{1b}'));
+        let markdown = String::from_utf8(
+            record(&options("markdown", true, 0), &["id"], &value).expect("Markdown"),
+        )
+        .expect("UTF-8");
+        assert!(markdown.contains("- **ID:** 17\n"));
+        assert!(markdown.contains("&lt;script&gt;"));
+        assert!(!markdown.contains("<script>"));
+        let json = record(&options("json", true, 0), &["id"], &value).expect("JSON");
+        assert_eq!(
+            serde_json::from_slice::<Value>(&json).expect("original record"),
+            value
+        );
+    }
+
+    /// Checks exact byte limits and nested depth without permitting partial output.
+    #[test]
+    fn readable_record_limits_fail_explicitly() {
+        let mut text = String::new();
+        append(&mut text, &"x".repeat(MAX_RECORD_BYTES)).expect("exact limit");
+        assert!(matches!(
+            append(&mut text, "x"),
+            Err(Failure::RecordPresentationLimit)
+        ));
+        let mut nested = json!(0);
+        for _ in 0..130 {
+            nested = json!({"nested": nested});
+        }
+        assert!(matches!(
+            record(&options("markdown", true, 0), &[], &nested),
+            Err(Failure::RecordPresentationLimit)
+        ));
     }
 }

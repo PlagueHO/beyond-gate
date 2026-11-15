@@ -13,8 +13,9 @@ and initial chunks. Live continuation and sharing remain unchecked.
 Character and campaign reads use fixed, bounded operations through the stored
 Windows session. Synthetic process checks cover successful reads and matching
 CLI/MCP data. No live character or campaign acceptance has been run.
-Class and subclass commands return metadata only through bounded Windows
-catalog reads. Browser metadata contracts were inspected under separate
+Default and JSON class/subclass output contains metadata only through bounded
+Windows catalog reads. Explicit HTML and Markdown can read one checked selected
+page. Browser metadata contracts were inspected under separate
 approvals. Native class/subclass acceptance has not been run.
 Monster commands return one explicit page or unchanged selected detail, only
 for observed access code 1. Code 4 is denied; unverified codes, including 2 and
@@ -102,6 +103,100 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`mcp install`](#mcp-install) | Register the server with a local client | Implemented; confirms before writing |
 | [`completions`](#completions) | Generate a shell completion script | Implemented |
 
+## Output formats
+
+Every list command and `book outline` defaults to a text table with column
+headers and an underline row. Every show command defaults to `--output text`:
+labelled fields with indented objects and numbered array entries.
+The complete selected record is shown, including unknown nested data.
+Null, empty strings, empty arrays, and empty objects remain explicit.
+
+Use `--output markdown` for a show record formatted for agents or documents.
+Fields use readable labels and Markdown lists. Known nested description HTML
+converts locally for text output without an additional request. Explicit
+Markdown converts one supported selected HTML source into headings, paragraphs,
+lists, tables, code, and links. If no supported HTML source exists, Markdown
+formats the original record. An explicit unavailable source still fails.
+Conversion does not execute HTML or fetch linked resources. Unsupported
+conversion structures fail explicitly rather than returning partial content.
+Text and Markdown records permit at most 8 MiB of output and 128 nested data
+levels. Selected HTML conversion permits 1 MiB input, 256 DOM levels, and
+100,000 nodes. Controls and untrusted Markdown/HTML syntax are escaped.
+
+Existing JSON fields and keys inside `raw` remain unchanged. D&D Beyond supplies
+keys such as `moreDetailsUrl` and `url`. Beyond Gate uses snake_case fields such
+as `source_url` and `more_details_url` for its projections. Readable labels,
+such as "Source URL", do not rename the JSON data. CLI options use kebab-case.
+
+All shows retain `--output json`, `--output table`, and `--output tsv`.
+Lists retain table, JSON, and TSV. `-o` and `--format` are aliases for
+`--output`. Scripts that previously used the show default must now request
+`--output json`. JSON output keeps the full original structured result.
+`--no-headers` applies only to table and TSV. It hides table underlines too.
+
+Every show accepts `--output html`, but succeeds only with a supported source.
+It returns one checked subtree or existing inline description, never a whole
+website document. Missing or unsupported sources fail with no result on stdout.
+HTML remains untrusted data; the CLI does not render it or load linked assets.
+
+`--html-field <FIELD_PATH>` selects one documented snake_case source for HTML
+or Markdown. It is not an arbitrary JSON pointer, upstream key, URL, or CSS
+selector. Resource-specific validation runs before session access.
+
+| Resource | Supported source fields | Selected content |
+|----------|-------------------------|------------------|
+| Spell | `source_url` | Existing checked `raw_html`; no second page read |
+| Background and feat | `source_url`, alias `raw.more_details_url`, `raw.description` | Checked numeric detail page, or explicit inline description |
+| Class and subclass | `more_details_url` | Primary class content without subclasses; exact subclass fragment with matching parent and heading |
+| Character | Fixed nested definition fields below | One checked background, feat, class, subclass, or feature fragment |
+| Equipment and magic-item | `raw.description` | Existing inline description from the required source page; no website fetch |
+| Species and monster | `raw.description`, when present | Inline content after the existing checked detail read; linked page layouts remain unsupported |
+| Campaign | None established | Ordinary record Markdown; explicit HTML fails |
+
+Character selectors map to the existing upstream camelCase keys:
+
+```text
+raw.background.definition.more_details_url
+raw.classes[0].definition.more_details_url
+raw.classes[0].definition.class_features[0].more_details_url
+raw.classes[0].subclass_definition.more_details_url
+raw.classes[0].subclass_definition.class_features[0].more_details_url
+raw.feats[0].definition.more_details_url
+```
+
+Indices are zero-based canonical decimals from 0 through 999, without padding.
+Only these fixed paths are evaluated; unknown raw fields remain unchanged.
+Character `source_url`, `raw.race.more_details_url`, and `raw.readonly_url`,
+campaign `source_url`, species `raw.more_details_url`, and monster `source_url`
+or alias `raw.url` have no supported selected-page contract.
+
+With one supported page link, selection is automatic. Several supported page
+links require `--html-field`; the error lists their safe field names and stops
+before the page request. Aliases do not count twice. Inline descriptions are
+eligible when no supported page is selected, or through explicit selection.
+There is no fallback after an attempted page fails.
+
+Record resolution and the optional cookie-only page share one session identity
+and deadline. URL origin, selected ID, canonical URL, content boundary, and exact
+fragment are checked. Redirects, denied access, challenge pages, active content,
+missing fragments, and unrelated account/comment UI fail. No arbitrary URL,
+additional page, or linked asset is fetched. Candidate count is capped at 1,000;
+selected definition names are capped at 1,024 UTF-8 bytes.
+
+`book read`, auth, completions, and MCP output are unchanged.
+Result data stays on stdout. Diagnostics stay on stderr.
+
+```text
+beyond-gate character show hero
+beyond-gate character show hero --output markdown
+beyond-gate character show hero --output json
+beyond-gate spell show 900001-invented-spell --output html --html-field source_url
+beyond-gate character show hero --output markdown --html-field raw.classes[0].definition.more_details_url
+beyond-gate equipment show 7:17 --page 1 --output html --html-field raw.description
+```
+
+The identifiers above are synthetic, not live account data.
+
 ## Equipment source pages and raw detail
 
 ```text
@@ -110,7 +205,7 @@ beyond-gate equipment show <id> --page <PAGE> [--output <FORMAT>] [--no-headers]
 ```
 
 List defaults to page 1 and table output. Show requires a page and defaults
-to JSON. Use `--output json` to retain pagination even when no equipment rows
+to labelled text. Use `--output json` to retain pagination even when no equipment rows
 exist. Table and TSV output add page/count fields to each returned row;
 an empty table has no rows in which to show continuation. `--format` and
 `-o` are aliases for `--output`. JSON rejects `--no-headers`.
@@ -181,7 +276,7 @@ These commands use the [same item source contract](#equipment-source-pages-and-r
 as equipment. Each call reads fresh configuration and exactly one mixed page.
 Only raw boolean `magic=true` counts as a magic item. Equipment behavior and
 request limits remain unchanged. List defaults to page 1 and table output;
-show defaults to JSON. Output aliases and header rules match equipment.
+show defaults to labelled text. Output aliases and header rules match equipment.
 
 List filters run locally after source validation. They do not become API
 parameters or fetch more pages. `--name`/`-n` is a case-insensitive literal
@@ -317,7 +412,8 @@ complete checked collection. Website and API coverage are not assumed equal.
 No full website page or source-book text coverage is claimed.
 
 Both actions support `--output` / `-o` with `json`, `table`, or `tsv` and
-`--format` as an alias. List defaults to table; show defaults to JSON.
+`--format` as an alias. List defaults to table; show defaults to labelled text
+and also supports Markdown.
 `--no-headers` works only with table/TSV. Columns use the JSON field order
 above; structured show cells use compact JSON with the shared escaping rules.
 Padded tables are preflighted against 8 MiB before output.
@@ -397,7 +493,8 @@ fields. It does not substitute list metadata for detail. Raw fields are data,
 not instructions. Missing fields are not invented. No rules year, ownership
 label, complete stat-block coverage, or complete source-book text is inferred.
 
-List defaults to table; show defaults to JSON. Both support `--output` / `-o`
+List defaults to table; show defaults to labelled text and supports Markdown.
+Both support `--output` / `-o`
 and its `--format` alias, with table, JSON, or TSV. `--no-headers` works only
 with table and TSV. Padded tables are capped at 8 MiB; use JSON or TSV if a
 table exceeds that bound. Compact core JSON and each source body are capped
@@ -444,7 +541,8 @@ fuzzy search, remote name filter, or implicit current/legacy preference.
 Filters must be nonempty, unpadded, control-free, and within 256 UTF-8 bytes.
 Class IDs must be positive canonical decimal integers that fit `u64`.
 
-Lists default to table. Show defaults to JSON. Both support `--output` / `-o`,
+Lists default to table. Show defaults to labelled text and supports Markdown.
+Both support `--output` / `-o`,
 the `--format` alias, and `table`, `json`, or `tsv`. `--no-headers` is invalid
 with JSON. Table/TSV uses identity, name, parent, and source-ID columns.
 JSON lists contain `kind`, `id`, `name`, `parent_class_id`, and `source_ids`.
@@ -499,11 +597,11 @@ beyond-gate species show 17
 
 List returns an array with `id`, `name`, `source`, `source_url`, and
 `is_legacy`. It parses the fixed public page. The site search is client-side,
-so no search filter or paging input is inferred. Show defaults to JSON and
+so no search filter or paging input is inferred. Show defaults to labelled text and
 adds `raw`, which preserves the selected source record and unknown fields.
 IDs are positive canonical decimal integers that fit `u64`. List defaults to
 a table. Both commands support `--output` / `-o`, the `--format` alias, and
-`table`, `json`, or `tsv`.
+`table`, `json`, or `tsv`. Show also supports text and Markdown.
 
 Show reads the fixed `/character/v5/game-data/races` collection once and
 selects an ID from that fresh response. It does not request the displayed
@@ -680,18 +778,18 @@ Book outline/read also repeat fresh library and page-level access checks.
 Character and campaign success outputs are offline-tested. No live character
 or campaign acceptance has been run.
 
-### List options
+### List and show options
 
 `character list`, `character show`, `campaign list`, `campaign show`,
 `book list`, and `book outline` share these options:
 
 | Option | Values | Default | Effect |
 |--------|--------|---------|--------|
-| `-o, --output <FORMAT>` | `table`, `json`, `tsv` | `table` for lists; `json` for shows | Select result presentation |
-| `--format <FORMAT>` | `table`, `json`, `tsv` | Same as `--output` | Alias for `--output` |
-| `--no-headers` | Flag; no value | Headers included | Omit table or TSV column names |
+| `-o, --output <FORMAT>` | `table`, `json`, `tsv`; shows also accept `text`, `markdown` | `table` for lists; `text` for shows | Select result presentation |
+| `--format <FORMAT>` | Same as `--output` | Same as `--output` | Alias for `--output` |
+| `--no-headers` | Flag; no value | Headers included | Omit table headers and underlines or TSV column names |
 
-`--no-headers` with JSON is invalid usage, with exit code 2.
+`--no-headers` outside table or TSV is invalid usage, with exit code 2.
 There are no account, URL, or fixture options.
 
 ### character list
@@ -717,8 +815,8 @@ and limit failures use code 1 with empty stdout.
 beyond-gate character show <id> [-o, --output <FORMAT>]
 ```
 
-Requires one character identifier and accepts `table`, `json`, or `tsv` output.
-The default is JSON. The success contract is one
+Requires one character identifier and accepts text, Markdown, table, JSON, or TSV.
+The default is labelled text. The JSON success contract is one
 [character object](#character-and-campaign-objects), not an array.
 It preserves the supplied data without interpreting game rules. A missing
 source record returns an explicit error.
@@ -750,8 +848,8 @@ partial successful list.
 beyond-gate campaign show <id> [-o, --output <FORMAT>]
 ```
 
-Requires one campaign identifier and accepts `table`, `json`, or `tsv` output.
-The default is JSON. The operation reads the default user-campaign collection,
+Requires one campaign identifier and accepts text, Markdown, table, JSON, or TSV.
+The default is labelled text. The operation reads the default user-campaign collection,
 then requests only the selected campaign's active roster. The success contract
 is one
 [campaign object](#character-and-campaign-objects), not an array.
@@ -931,7 +1029,8 @@ A section result has these fields:
 
 ### Table and TSV rules
 
-Table output aligns columns with spaces. TSV separates cells with tabs and uses
+Table output aligns columns with spaces and adds an underline below each column
+header. TSV separates cells with tabs and uses
 one physical line per row. Both include headers unless `--no-headers` is set.
 Both escape cell contents:
 
@@ -950,7 +1049,8 @@ There is no automatic color or terminal-dependent format change.
 No rows or fields are silently truncated.
 
 Empty JSON lists are `[]`. Empty outlines retain `book_id`, `source_url`, and
-`"entries": []`. Empty table or TSV results contain only headers, or no bytes when
+`"entries": []`. Empty tables contain headers and underlines. Empty TSV results
+contain only headers. Both emit no bytes when
 `--no-headers` is set. Operation failures are not empty successful results.
 
 ### Book bounds and continuation
@@ -1129,6 +1229,8 @@ never supply a password, cookie, or token as a workaround.
 beyond-gate spell list --output json
 beyond-gate spell list --class-id 17 --class-id 18 --level 0 --level 9 --page 2 -o json
 beyond-gate spell show 900001-invented-spell
+beyond-gate spell show 900001-invented-spell --output markdown
+beyond-gate spell show 900001-invented-spell --output html --html-field source_url
 ```
 
 These IDs and names are synthetic. Show requires the complete numeric-ID/slug
@@ -1176,7 +1278,10 @@ The explicit empty marker returns no entries, not an error. Missing or
 conflicting rows and paging fail the whole page. There is no automatic
 continuation, selected-detail fan-out, or class/level API scan.
 
-Show returns `id`, `slug`, `name`, `source_url`, and `raw_html`.
+Show defaults to labelled text, with the selected HTML converted to readable text.
+Explicit JSON returns `id`, `slug`, `name`, `source_url`, and `raw_html`.
+Explicit Markdown converts that same selected subtree locally. Explicit HTML
+returns only that subtree with a final newline. No additional page read is added.
 Only the checked `detail-content` subtree is serialized. Unknown elements and
 stat fields survive. Serialization can normalize HTML.
 Treat `raw_html` as untrusted text. Do not execute it, render it as trusted HTML,

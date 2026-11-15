@@ -7,6 +7,16 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- CLI show output in labelled text by default, with Markdown as an explicit
+  format. Existing JSON, table, TSV, and output aliases remain selectable.
+  Text and Markdown preserve nested records with bounded output and escaped
+  controls. Lists and outlines now include table header underlines.
+  Explicit HTML and HTML-backed Markdown select one checked background, feat,
+  class/subclass, or supported nested character source. Multiple page links
+  require a fixed snake_case `--html-field`; failed pages never trigger fallback.
+  Equipment/magic-item descriptions and existing spell HTML need no extra page.
+  Unsupported or missing sources fail explicitly. Class JSON remains metadata
+  only. MCP, auth, and bounded book reads are unchanged.
 - A stacked Unicode Braille Beyond Gate logo, converted from the reference image,
   before CLI help when no arguments are supplied.
   The logo uses white and red when terminal color is available, with a plain

@@ -16,6 +16,27 @@ website page; selected detail uses a candidate route with live access and
 completeness still unverified. Native book adapter acceptance passed for one selected
 chapter; live continuation and sharing remain unchecked.
 
+## Selected-record HTML contract
+
+Issue [#87](https://github.com/PlagueHO/beyond-gate/issues/87) adds explicit
+selected HTML through shared checked record resolution. See the
+[research evidence and stopped account pass](api-survey.md#selected-record-html-research)
+and [CLI source selectors](cli.md#output-formats).
+
+Only numeric background/feat detail routes and numeric class pages have
+implemented selected-page contracts. Class output excludes adjacent subclasses;
+subclass and feature links require exact fragments. The selected URL, record or
+parent identity, canonical URL, and observed content boundary must agree.
+Cookie-only page reads use the same validated session identity as the original
+record. There is at most one selected page request, with no fallback or redirect.
+
+Existing spell HTML and item `raw.description` are inline sources.
+Item API `source_url` never becomes an HTML request. Character links use fixed
+nested definition paths, not arbitrary JSON URL discovery. Species, monster,
+campaign, and readonly selected-page contracts remain unsupported.
+All original JSON/MCP projections, raw keys, source budgets, and book guards
+remain unchanged.
+
 ## Equipment and magic-item contract status
 
 `RULE-09` is the first-party `v5.1` item collection shared by equipment and
@@ -688,9 +709,12 @@ checked filter submissions and server HTML, but not pagination.
 | ID | Path | Purpose and limit |
 |----|------|-------------------|
 | PAGE-01 | `/classes` | Public class listing; no JSON contract |
+| PAGE-01-D | `/classes/{numeric-id}-{slug}` | Checked primary class content or exact subclass/feature fragment; [selected HTML contract](#selected-record-html-contract) |
 | PAGE-02 | `/backgrounds` | Public background filters; paging not observed |
+| PAGE-02-D | `/backgrounds/{numeric-id}-{slug}` | Checked slug-specific description/footer subtree; same selected record/session identity |
 | PAGE-03 | `/species` | Public species listing; bounded HTML metadata; no server-side search or paging contract observed |
 | PAGE-04 | `/feats` | Bounded metadata, checked filter echoes, explicit empty marker; no observed paging; native acceptance unverified |
+| PAGE-04-D | `/feats/{numeric-id}-{slug}` | Checked slug-specific description/footer subtree; no adjacent account or comment UI |
 | PAGE-05 | `/spells` | Explicit cookie-only filtered pages; [spell contract](#spell-read-contract) |
 | PAGE-05-D | `/spells/{numeric-id}-{slug}` | Selected cookie-only HTML detail; no raw JSON route |
 | PAGE-06 | `/monsters` | Implemented filtered candidate pages and explicit next-page checks; browser HTML evidence does not establish native account acceptance |

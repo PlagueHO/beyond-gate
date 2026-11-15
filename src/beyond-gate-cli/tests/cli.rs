@@ -755,6 +755,76 @@ fn json_no_headers_error_uses_output_option_name() {
     );
 }
 
+/// Explains readable defaults and rejects unsupported formats before source access.
+#[test]
+fn readable_formats_and_html_selection_are_explicit() {
+    for resource in [
+        "character",
+        "campaign",
+        "class",
+        "subclass",
+        "monster",
+        "species",
+        "background",
+        "feat",
+        "equipment",
+        "magic-item",
+        "spell",
+    ] {
+        let output = run(&[resource, "show", "--help"]);
+        assert!(output.status.success());
+        let help = String::from_utf8_lossy(&output.stdout);
+        assert!(help.contains("default: text"), "{resource}: {help}");
+        assert!(help.contains("markdown"), "{resource}: {help}");
+    }
+    for arguments in [
+        vec![
+            "character",
+            "show",
+            "hero",
+            "--output",
+            "markdown",
+            "--no-headers",
+        ],
+        vec![
+            "character",
+            "show",
+            "hero",
+            "--output",
+            "html",
+            "--html-field",
+            "raw.any_url",
+        ],
+        vec!["character", "list", "--output", "text"],
+        vec!["spell", "list", "--output", "html"],
+        vec![
+            "spell",
+            "show",
+            "17-invented",
+            "--html-field",
+            "raw.url",
+            "-o",
+            "html",
+        ],
+        vec![
+            "spell",
+            "show",
+            "17-invented",
+            "--html-field",
+            "source_url",
+            "-o",
+            "json",
+        ],
+        vec!["spell", "show", "17-invented", "-o", "html", "--no-headers"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(!diagnostic.contains("session_absent"), "{diagnostic}");
+    }
+}
+
 /// Setup refuses a development directory before any product registry write.
 #[test]
 fn browser_setup_refuses_the_source_tree() {

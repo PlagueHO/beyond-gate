@@ -53,6 +53,8 @@ pub enum Scenario {
     Oversized,
     /// Holds the protected resource read until its owner is dropped.
     Waiting,
+    /// Supplies bounded inline HTML while leaving API attribution unchanged.
+    HtmlInline,
 }
 
 /// Keeps this fixture's server and safe route log alive.
@@ -167,6 +169,13 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         _ => {}
     }
     let mut value = envelope(rows, page, total);
+    if matches!(scenario, Scenario::HtmlInline) {
+        for row in value["data"].as_array_mut().expect("synthetic rows") {
+            row["description"] = json!(
+                "<h2>Invented item feature</h2><p>Synthetic <strong>item</strong> paragraph.</p>"
+            );
+        }
+    }
     if matches!(scenario, Scenario::Malformed) {
         value["data"] = json!({});
     }

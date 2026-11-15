@@ -34,6 +34,8 @@ pub enum Scenario {
     ChangedCharacter,
     /// Returns not found for the selected character route.
     MissingCharacter,
+    /// Preserves observed nested link shapes with invented selected page services.
+    HtmlLinks,
 }
 
 /// Owns one loopback source and the shared bounded HTTP client.
@@ -164,6 +166,18 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         );
     }
     if route == "/character/v5/character/42?includecustomitems=true" {
+        if matches!(scenario, Scenario::HtmlLinks) {
+            return (200, serde_json::json!({"success":true,"pagination":null,"data":{
+                "id":42,"name":"Invented Hero","userId":42,
+                "background":{"definition":{"id":17,"name":"Invented Origin","moreDetailsUrl":"/backgrounds/17-invented"}},
+                "classes":[{"definition":{"id":10,"name":"Invented Fighter","moreDetailsUrl":"/classes/10-invented",
+                    "classFeatures":[{"moreDetailsUrl":"/classes/10-invented#PrimaryFeature"}]},
+                    "subclassDefinition":{"id":7002,"name":"Invented Champion","moreDetailsUrl":"/classes/10-invented#InventedChampion",
+                        "classFeatures":[{"moreDetailsUrl":"/classes/10-invented#SubclassFeature"}]}}],
+                "feats":[{"definition":{"id":18,"name":"Invented Feat","moreDetailsUrl":"/feats/18-invented"}}],
+                "readonlyUrl":"https://example.com/hero","future":{"preserved":true}
+            }}).to_string());
+        }
         if matches!(scenario, Scenario::MissingCharacter) {
             return (404, "{}".to_owned());
         }
@@ -244,5 +258,21 @@ pub fn requested_routes(session: &Session) -> Vec<String> {
 pub fn session(scenario: Scenario) -> std::io::Result<Session> {
     let mut session = auth::session(auth::Scenario::Valid).map_err(std::io::Error::other)?;
     session.character_campaign_fixture = Some(Arc::new(Source::start(scenario)?));
+    if matches!(scenario, Scenario::HtmlLinks) {
+        session.background_fixture =
+            crate::background::fixture::session(crate::background::fixture::Scenario::Normal)
+                .map_err(|error| std::io::Error::other(error.to_string()))?
+                .background_fixture
+                .clone();
+        session.class_catalog_fixture =
+            crate::class_catalog::fixture::session(crate::class_catalog::fixture::Scenario::Html)?
+                .class_catalog_fixture
+                .clone();
+        session.feat_fixture =
+            crate::feat::fixture::session(crate::feat::fixture::Scenario::Normal)
+                .map_err(|error| std::io::Error::other(error.to_string()))?
+                .feat_fixture
+                .clone();
+    }
     Ok(session)
 }

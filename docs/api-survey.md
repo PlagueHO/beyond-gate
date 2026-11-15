@@ -17,6 +17,42 @@ Use the [shared API call catalog](api-catalog.md) to find known calls by stable 
 This survey holds their detailed evidence, measurements, and failed checks.
 Keep both documents current so other issues can reuse findings without repeating probes.
 
+## Selected-record HTML research
+
+For [#87](https://github.com/PlagueHO/beyond-gate/issues/87), the user separately
+approved account reads. The pass had a limit of 40 HTTP requests across the
+existing website, authentication, character, API, and monster origins.
+It used the protected Windows session and retained no credentials, account
+snapshots, page bodies, or rules text. Only field shapes, URLs, canonical
+identity, containers, headings, and anchor metadata were inspected.
+
+The pass used 31 requests and stopped immediately when the selected monster
+read returned access code 4. This was an access denial, not HTTP 403.
+No alternative monster route or account was tried. Two later independent
+unauthenticated species requests also returned HTTP 303; redirects were not
+followed. No further account reads ran.
+
+| Source | Observed contract and limit |
+|--------|-----------------------------|
+| Background `/backgrounds/7-acolyte` | HTTP 200 with exact canonical URL and slug-specific `details-container-background`; description and source footer are separate from aside/comments |
+| Feat `/feats/10-grappler` | Source-supplied legacy link returned HTTP 200 with exact canonical URL and the corresponding `details-container-feat` layout; a modern public candidate returned 303 |
+| Class `/classes/2190875-barbarian` | HTTP 200 with exact canonical URL, `static-container-details`, direct `content-container`, primary class features, and a separate `subitems-list-details` area |
+| Subclass fragment | A source-supplied fragment was absent from both IDs and named anchors; a different visible heading was not a substitute and did not establish access |
+| Equipment/magic-item page | All 100 raw rows had string `description`; none had `moreDetailsUrl`, `url`, or `sourceUrl`. API attribution is not a detail-page link |
+| Character raw definitions | Background, class, class-feature, subclass, subclass-feature, and feat definitions supplied `moreDetailsUrl`; readonly URL had an unsupported origin |
+| Campaign | No supported semantic page link was established; participant character routes were not fetched |
+| Species | The selected collection failed; the query with common sharing context exceeded the unchanged 1 MiB cap. Modern and legacy public selected pages returned 303 |
+| Monster | Selected public pages returned 303; the checked raw detail read denied access with code 4. No positive selected HTML layout was established |
+
+The implementation uses only the established background, feat, and class layouts
+and existing inline description/spell sources. Exact subclass/feature fragments
+must exist within the correct selected boundary. Missing fragments, redirects,
+denial, malformed identity, active content, and limits fail without another
+candidate attempt. Neither metadata nor a source URL is an access grant.
+Offline fixtures test selected boundaries and request counts. This evidence does
+not establish general native CLI/MCP account acceptance, sharing, or global
+resource coverage. See the [HTML source matrix](cli.md#output-formats).
+
 ## Equipment and magic-item research
 
 Issue [#70](https://github.com/PlagueHO/beyond-gate/issues/70) requires raw JSON
