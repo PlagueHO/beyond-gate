@@ -560,6 +560,31 @@ impl Session {
         self.get_cookie_html(client, url).await
     }
 
+    /// Reads one canonical background detail after checked collection selection.
+    pub(crate) async fn get_background_detail_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        if !website
+            || !target.username().is_empty()
+            || target.password().is_some()
+            || !crate::background::query::allowed_detail_url(&target)
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        self.get_cookie_html(client, url).await
+    }
+
     /// Reads only the fixed feat listing with validated website selectors.
     pub(crate) async fn get_feat_html(
         &self,
@@ -578,6 +603,72 @@ impl Session {
             || !target.username().is_empty()
             || target.password().is_some()
             || !crate::feat::query::allowed_list_url(&target)
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        self.get_cookie_html(client, url).await
+    }
+
+    /// Reads one canonical feat page after checked definition selection.
+    pub(crate) async fn get_feat_detail_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        if !website
+            || !target.username().is_empty()
+            || target.password().is_some()
+            || !crate::feat::query::allowed_detail_url(&target)
+            || self.binding.is_none()
+        {
+            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
+        }
+        self.get_cookie_html(client, url).await
+    }
+
+    /// Reads only canonical numeric class pages after checked source selection.
+    pub(crate) async fn get_class_detail_html(
+        &self,
+        client: &HttpClient,
+        url: &str,
+    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
+        self.supported()?;
+        let target = client.check_url(url).map_err(SessionError::read)?;
+        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
+        #[cfg(any(test, feature = "session-fixture"))]
+        let website = website
+            || (matches!(&self.backend, Backend::Synthetic(_))
+                && target.scheme() == "http"
+                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
+        let path = target
+            .path()
+            .strip_prefix("/classes/")
+            .and_then(|path| path.split_once('-'));
+        let allowed = path.is_some_and(|(id, slug)| {
+            id.parse::<u64>()
+                .ok()
+                .is_some_and(|number| number > 0 && number.to_string() == id)
+                && !slug.is_empty()
+                && slug
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        });
+        if !website
+            || !target.username().is_empty()
+            || target.password().is_some()
+            || target.query().is_some()
+            || target.fragment().is_some()
+            || target.as_str().contains(['%', '\\'])
+            || !allowed
             || self.binding.is_none()
         {
             return Err(SessionError::new(SessionErrorKind::UnsupportedContract));

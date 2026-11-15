@@ -238,8 +238,16 @@ fn session(name: &str) -> Session {
     }
 }
 
-/// Runs an actual CLI parser/runner in a separate process using the invented core owner.
+/// Runs source parity with explicit JSON for shows unless another format is selected.
 fn cli(name: &str, arguments: &[&str]) -> Output {
+    let mut arguments = arguments.to_vec();
+    if arguments.get(1) == Some(&"show")
+        && !arguments
+            .iter()
+            .any(|value| matches!(*value, "-o" | "--output" | "--format"))
+    {
+        arguments.extend(["--output", "json"]);
+    }
     Command::new(std::env::current_exe().expect("test executable"))
         .args(["--cli-child", name])
         .args(arguments)
@@ -1686,7 +1694,14 @@ fn monster_contracts() {
         assert!(output.stderr.is_empty());
         let text = String::from_utf8(output.stdout).expect("table/TSV");
         assert!(text.contains("Invented Beast"));
-        assert_eq!(text.lines().count(), if headers { 3 } else { 2 });
+        assert_eq!(
+            text.lines().count(),
+            if headers {
+                3 + usize::from(format == "table")
+            } else {
+                2
+            }
+        );
         if headers {
             assert!(text.contains("next_page"));
         }

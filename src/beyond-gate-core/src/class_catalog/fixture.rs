@@ -59,6 +59,12 @@ pub enum Scenario {
     AggregateBytes,
     /// Leaves the first protected resource waiting until the owner stops it.
     Waiting,
+    /// Selected class and subclass links use the observed bounded page layout.
+    Html,
+    /// Only the selected page denies access.
+    HtmlDenied,
+    /// The subclass link names a fragment that is absent from the selected page.
+    HtmlMissingFragment,
 }
 
 /// Owns only this loopback service and its single-attempt transport.
@@ -144,9 +150,16 @@ impl Source {
                     .push(route.to_owned());
                 let public = route == "/api/config/json";
                 let authorized = request.contains("\r\nauthorization:");
-                let valid_headers = !request.contains("\r\ncookie:")
-                    && request.starts_with("get ")
-                    && (public != authorized);
+                let html = route.starts_with("/classes/");
+                let cookie = request.contains("\r\ncookie:");
+                let valid_headers = request.starts_with("get ")
+                    && if public {
+                        !cookie && !authorized
+                    } else if html {
+                        cookie && !authorized
+                    } else {
+                        !cookie && authorized
+                    };
                 if matches!(scenario, Scenario::Waiting) && !public {
                     while !worker_stop.load(Ordering::SeqCst) {
                         thread::sleep(Duration::from_millis(2));
@@ -158,8 +171,13 @@ impl Source {
                 } else {
                     (401, "{}".to_owned())
                 };
+                let media = if html {
+                    "text/html"
+                } else {
+                    "application/json"
+                };
                 let response = format!(
-                    "HTTP/1.1 {status} Synthetic\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    "HTTP/1.1 {status} Synthetic\r\nContent-Type: {media}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
                     body.len()
                 );
                 let _ = stream.write_all(response.as_bytes());
@@ -202,6 +220,18 @@ pub(super) fn envelope(records: Vec<Value>) -> Value {
 
 /// Chooses a fixed invented response for a known catalog/configuration path.
 fn reply(scenario: Scenario, route: &str) -> (u16, String) {
+    if let Some(id) = route
+        .strip_prefix("/classes/")
+        .and_then(|slug| slug.strip_suffix("-invented"))
+        .and_then(|id| id.parse::<u64>().ok())
+        .filter(|id| matches!(id, 10 | 2_190_879))
+    {
+        return if matches!(scenario, Scenario::HtmlDenied) {
+            (403, "{}".to_owned())
+        } else {
+            (200, html_page(id))
+        };
+    }
     if route == "/api/config/json" {
         let category = if matches!(scenario, Scenario::InvalidConfiguration) {
             99
@@ -266,6 +296,7 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
             ],
         };
         let mut response = envelope(records);
+        html_links(scenario, &mut response);
         if matches!(scenario, Scenario::Incomplete) {
             response["pagination"] = json!({"next":1});
         }
@@ -296,13 +327,59 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         } else {
             vec![record(id, Some(actual_parent), "Invented Champion")]
         };
-        let mut body = envelope(entries).to_string();
+        let mut response = envelope(entries);
+        html_links(scenario, &mut response);
+        let mut body = response.to_string();
         if matches!(scenario, Scenario::AggregateBytes) {
             body.push_str(&" ".repeat(1024 * 1024 - 1024 - body.len()));
         }
         return (200, body);
     }
     (404, "{}".to_owned())
+}
+
+/// Changes source links only for the explicit synthetic HTML scenarios.
+fn html_links(scenario: Scenario, response: &mut Value) {
+    if !matches!(
+        scenario,
+        Scenario::Html | Scenario::HtmlDenied | Scenario::HtmlMissingFragment
+    ) {
+        return;
+    }
+    for record in response["data"].as_array_mut().expect("synthetic records") {
+        let parent = record["parentClassId"].as_u64();
+        let id = parent.unwrap_or_else(|| record["id"].as_u64().expect("synthetic ID"));
+        let fragment = if parent.is_some() {
+            if matches!(scenario, Scenario::HtmlMissingFragment) {
+                "#MissingFragment"
+            } else {
+                "#InventedChampion"
+            }
+        } else {
+            ""
+        };
+        record["moreDetailsUrl"] = json!(format!("/classes/{id}-invented{fragment}"));
+    }
+}
+
+/// Models observed class/subclass boundaries using invented names and text only.
+pub(crate) fn html_page(id: u64) -> String {
+    format!(
+        r#"<html><head><link rel="canonical" href="https://www.dndbeyond.com/classes/{id}-invented"></head><body>
+<h1 class="page-title">Invented Fighter</h1>
+<div class="static-container static-container-details"><div class="content-container">
+<button>Unrelated create-character control</button><h1>Invented Fighter</h1>
+<p style="text-align: center">Synthetic primary class introduction.</p>
+<h2>Class Features</h2><h4 id="PrimaryFeature">Invented primary feature</h4><p>Synthetic primary feature paragraph.</p>
+<h4>Next feature</h4><p>Other primary feature paragraph.</p>
+<h2>Subclasses</h2><div class="subitems-list-details">
+<div class="subitems-list-details-item"><hgroup class="subitems-list-details-header"><h2 id="InventedChampion">Invented Champion</h2></hgroup>
+<div><p>Synthetic subclass introduction.</p><h4 id="SubclassFeature">Invented subclass feature</h4><p>Synthetic subclass feature paragraph.</p>
+<a name="NamedFeature"></a><h4>Invented named feature</h4><p>Synthetic named feature paragraph.</p>
+<h4>Next subclass feature</h4><p>Other subclass feature paragraph.</p></div></div>
+<div class="subitems-list-details-item"><hgroup class="subitems-list-details-header"><h2 id="OtherSubclass">Other subclass</h2></hgroup>
+<p>Unrelated subclass paragraph.</p></div></div></div></div><div class="comments">Unrelated comments</div></body></html>"#
+    )
 }
 
 /// Builds isolated invented storage, exchange, and source services.

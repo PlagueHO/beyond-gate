@@ -45,6 +45,12 @@ pub enum Scenario {
     WideTable,
     /// Leaves the owned resource waiting until cancellation.
     Waiting,
+    /// Rejects only the selected HTML page after successful record selection.
+    HtmlDenied,
+    /// Supplies a wrong canonical identity only in the selected HTML page.
+    HtmlMismatch,
+    /// Supplies unsupported active content only in the selected subtree.
+    HtmlUnsafe,
 }
 
 /// Owns the fixture worker, safe path log, and compiled-only transport.
@@ -145,6 +151,25 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
     if route.starts_with("/backgrounds?") {
         return (200, website(scenario, route));
     }
+    if route == "/backgrounds/17-invented" {
+        if matches!(scenario, Scenario::HtmlDenied) {
+            return (403, "{}".to_owned());
+        }
+        let mut html = selected_page();
+        if matches!(scenario, Scenario::HtmlMismatch) {
+            html = html.replace(
+                "https://www.dndbeyond.com/backgrounds/17-invented",
+                "https://www.dndbeyond.com/backgrounds/18-invented",
+            );
+        }
+        if matches!(scenario, Scenario::HtmlUnsafe) {
+            html = html.replace(
+                "<p>Synthetic selected content.</p>",
+                "<script>synthetic()</script>",
+            );
+        }
+        return (200, html);
+    }
     if route != "/character/v5/game-data/backgrounds?sharingSetting=2" {
         return (404, "{}".to_owned());
     }
@@ -223,7 +248,7 @@ fn source(scenario: Scenario) -> std::io::Result<Source> {
                 break;
             }
             let headers = request.to_ascii_lowercase();
-            let html = route.starts_with("/backgrounds?");
+            let html = route.starts_with("/backgrounds?") || route == "/backgrounds/17-invented";
             let public = route == "/api/config/json";
             let cookie = headers.contains("\r\ncookie:");
             let bearer = headers.contains("\r\nauthorization:");
@@ -259,6 +284,20 @@ fn source(scenario: Scenario) -> std::io::Result<Source> {
         worker: Some(worker),
         routes,
     })
+}
+
+/// Contains only invented text within the observed public background structure.
+pub(super) fn selected_page() -> String {
+    "<html><head><link rel=\"canonical\" href=\"https://www.dndbeyond.com/backgrounds/17-invented\"></head>\
+     <body><h1 class=\"page-title\">Invented Origin</h1>\
+     <div class=\"details-container details-container-background details-container-background-17-invented\">\
+     <div class=\"details-container-content\"><div class=\"details-container-content-description\">\
+     <div class=\"details-container-content-description-text\"><h2>Invented feature</h2>\
+     <p>Synthetic selected content.</p></div></div>\
+     <div class=\"details-container-content-footer\"><div class=\"source-description\">Invented Source</div></div>\
+     </div><aside class=\"details-container-aside\">Outside account content</aside></div>\
+     <form id=\"login\">Outside login</form><div class=\"comments\">Outside comments</div>\
+     </body></html>".to_owned()
 }
 
 /// Supplies a synthetic authenticated owner without native credential access.

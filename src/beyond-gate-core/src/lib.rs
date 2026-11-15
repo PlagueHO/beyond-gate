@@ -32,6 +32,7 @@ pub mod item_catalog;
 pub mod library;
 pub mod monster;
 mod public_config;
+pub mod record_html;
 pub mod species;
 pub mod spell;
 

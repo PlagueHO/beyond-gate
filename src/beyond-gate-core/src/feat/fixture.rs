@@ -43,6 +43,8 @@ pub enum Scenario {
     Oversized,
     /// Leaves resource reads waiting until the owner is dropped.
     Waiting,
+    /// Record resolution succeeds but the selected HTML page denies access.
+    HtmlDenied,
 }
 
 /// Owns only this fixture's worker, transport, and safe route log.
@@ -176,6 +178,28 @@ fn reply(scenario: Scenario, route: &str) -> (u16, String) {
         Scenario::Oversized => return (200, " ".repeat(1024 * 1024 + 1)),
         _ => {}
     }
+    if let Some(id) = route
+        .strip_prefix("/feats/")
+        .and_then(|slug| slug.strip_suffix("-invented"))
+        .and_then(|id| id.parse::<u64>().ok())
+        .filter(|id| matches!(id, 17 | 18))
+    {
+        if matches!(scenario, Scenario::HtmlDenied) {
+            return (403, "{}".to_owned());
+        }
+        return (
+            200,
+            format!(
+                "<html><head><link rel=\"canonical\" href=\"https://www.dndbeyond.com/feats/{id}-invented\"></head><body>\
+             <h1 class=\"page-title\">Invented Feat</h1><aside>Unrelated account controls</aside>\
+             <div class=\"details-container details-container-feat details-container-feat-{id}-invented\">\
+             <div class=\"details-container-content\"><div class=\"details-container-content-description\">\
+             <div class=\"details-container-content-description-text\"><h2>Invented feature</h2><p>Synthetic feat paragraph.</p></div></div>\
+             <div class=\"details-container-content-footer\"><p class=\"source-description\">Invented Source</p></div></div></div>\
+             <div class=\"comments\">Unrelated comments</div></body></html>"
+            ),
+        );
+    }
     if route.starts_with("/feats?") {
         return (200, website(scenario, route));
     }
@@ -257,7 +281,7 @@ fn source(scenario: Scenario) -> std::io::Result<Source> {
                 break;
             }
             let headers = request.to_ascii_lowercase();
-            let html = route.starts_with("/feats?");
+            let html = route.starts_with("/feats?") || route.starts_with("/feats/");
             let public = route == "/api/config/json";
             let cookie = headers.contains("\r\ncookie:");
             let bearer = headers.contains("\r\nauthorization:");

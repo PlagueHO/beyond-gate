@@ -275,6 +275,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "crossterm",
+ "scraper",
  "serde_json",
  "tokio",
  "winreg",

@@ -4,6 +4,139 @@ use super::{
     fixture::{self, Scenario},
     *,
 };
+use crate::record_html::{
+    self, HtmlError, Request, Resource,
+    page::{self, PageKind},
+};
+
+/// Selects the background through the shared checked HTML operation.
+fn html_request(id: &str) -> Request {
+    Request {
+        resource: Resource::Background,
+        id: id.to_owned(),
+        page: None,
+        class_id: None,
+        field: None,
+        markdown: false,
+    }
+}
+
+/// Reads exactly one selected cookie page after the existing checked collection.
+#[tokio::test]
+async fn selected_html_preserves_raw_and_excludes_unrelated_content() {
+    let session = fixture::session(Scenario::Normal).expect("fixture");
+    let value = record_html::read(&session, &html_request("17"))
+        .await
+        .expect("selected HTML");
+    assert_eq!(value.record["raw"], fixture::record(17));
+    let html = &value.selected.expect("HTML").raw_html;
+    assert!(html.contains("Synthetic selected content."));
+    assert!(html.contains("Invented Source"));
+    assert!(!html.contains("Outside"));
+    assert_eq!(
+        fixture::routes(&session),
+        [
+            "/api/config/json",
+            "/character/v5/game-data/backgrounds?sharingSetting=2",
+            "/backgrounds/17-invented",
+        ]
+    );
+}
+
+/// Keeps malformed, denied, and unsafe selected pages out of successful output.
+#[tokio::test]
+async fn selected_html_failures_and_preflight() {
+    for (scenario, category) in [
+        (Scenario::HtmlDenied, "access_denied"),
+        (Scenario::HtmlMismatch, "invalid selected HTML response"),
+        (Scenario::HtmlUnsafe, "unsupported"),
+    ] {
+        let session = fixture::session(scenario).expect("fixture");
+        let error = record_html::read(&session, &html_request("17"))
+            .await
+            .err()
+            .expect("HTML failure");
+        assert!(error.to_string().contains(category), "{error}");
+        assert_eq!(fixture::routes(&session).len(), 3);
+    }
+    let session = fixture::session(Scenario::Normal).expect("fixture");
+    assert!(
+        record_html::read(&session, &html_request("01"))
+            .await
+            .is_err()
+    );
+    assert!(fixture::routes(&session).is_empty());
+    assert!(
+        record_html::read(&session, &html_request("999"))
+            .await
+            .is_err()
+    );
+    assert_eq!(fixture::routes(&session).len(), 2);
+}
+
+/// Checks selected identity, active attributes, missing content, and DOM limits.
+#[test]
+fn selected_html_structure_and_bounds() {
+    let url = reqwest::Url::parse("https://www.dndbeyond.com/backgrounds/17-invented")
+        .expect("synthetic URL");
+    let html = fixture::selected_page();
+    for malformed in [
+        html.replace(
+            "details-container-background-17-invented",
+            "details-container-background-18-invented",
+        ),
+        html.replace("Invented Origin", "Other Name"),
+        html.replace("details-container-content-description-text", "unverified"),
+        html.replace(
+            "<p>Synthetic selected content.</p>",
+            "<p onclick=\"synthetic()\">Unsafe</p>",
+        ),
+        html.replace(
+            "<p>Synthetic selected content.</p>",
+            "<a href=\"javascript:synthetic()\">Unsafe</a>",
+        ),
+        html.replace(
+            "<p>Synthetic selected content.</p>",
+            "<div class=\"unlock-content\">Denied</div>",
+        ),
+        html.replace(
+            "<p>Synthetic selected content.</p>",
+            "<iframe src=\"/account\"></iframe>",
+        ),
+    ] {
+        assert!(
+            page::selected(
+                malformed.as_bytes(),
+                PageKind::Background,
+                &url,
+                "Invented Origin"
+            )
+            .is_err()
+        );
+    }
+    assert!(matches!(
+        page::selected(
+            &vec![b' '; MAX_RESULT_BYTES + 1],
+            PageKind::Background,
+            &url,
+            "Invented Origin"
+        ),
+        Err(HtmlError::LimitExceeded)
+    ));
+    let deep = html.replace(
+        "<p>Synthetic selected content.</p>",
+        &format!("{}Synthetic{}", "<div>".repeat(260), "</div>".repeat(260)),
+    );
+    assert!(matches!(
+        page::selected(
+            deep.as_bytes(),
+            PageKind::Background,
+            &url,
+            "Invented Origin"
+        ),
+        Err(HtmlError::LimitExceeded)
+    ));
+}
 
 /// Preserves metadata duplicates, raw extensions, attribution, and bounded request paths.
 #[tokio::test]

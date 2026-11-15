@@ -85,6 +85,11 @@ fn manual_inventory_matches_parser() {
             .map(|value| value.get_name().to_owned())
             .collect();
         values.sort();
+        let key = if path.ends_with(" show") {
+            "html_show_formats"
+        } else {
+            key
+        };
         assert_eq!(
             serde_json::to_value(values).expect("values"),
             inventory[key]

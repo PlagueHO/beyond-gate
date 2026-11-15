@@ -130,11 +130,10 @@ cookies, or tokens in a command."#,
                     ),
                 )
                 .subcommand(protected_action_with_details(
-                    output_options(
+                    show_options(
                         Command::new("show")
                             .about("Show one campaign and its active characters")
                             .arg(identifier("id")),
-                        "json",
                     ),
                     "Copy the campaign ID from `campaign list`. The character list is the active list returned for that campaign; it may not include every campaign member.",
                 )),
@@ -684,7 +683,7 @@ fn class_resource(name: &'static str, subclass: bool) -> Command {
             "List subclass names and IDs",
             "Show one subclass using its ID",
             "Use `--name` to match part of a subclass name. The search ignores letter case.",
-            "Copy the subclass ID from `subclass list`. This shows names and source details, not game rules or full subclass text.",
+            "Copy the subclass ID from `subclass list`.\nDefault and JSON output show names and source details only (metadata).\nExplicit html or markdown reads one checked subclass fragment; missing fragments fail.",
         )
     } else {
         (
@@ -692,7 +691,7 @@ fn class_resource(name: &'static str, subclass: bool) -> Command {
             "List class names and IDs",
             "Show one class using its ID",
             "Use `--name` to match part of a class name. The search ignores letter case.",
-            "Copy the class ID from `class list`. This shows names and source details, not game rules or full class text.",
+            "Copy the class ID from `class list`.\nDefault and JSON output show names and source details only (metadata).\nExplicit html or markdown reads checked primary class content and excludes subclasses.",
         )
     };
     let list = protected_action_with_details(
@@ -939,9 +938,27 @@ fn list_options(command: Command) -> Command {
     protected_action(output_options(command, "table"))
 }
 
-/// Adds output controls with a JSON default for one selected record.
+/// Adds output controls with labelled text for one selected record.
 fn show_options(command: Command) -> Command {
-    protected_action(output_options(command, "json"))
+    protected_action(output_options(command, "text"))
+        .mut_arg("output", |arg| {
+            arg.value_parser(["text", "markdown", "html", "table", "json", "tsv"])
+                .help("Choose text, markdown, html, table, json, or tsv (default: text); html returns checked selected content")
+        })
+        .arg(
+            Arg::new("html-field")
+                .long("html-field")
+                .value_name("FIELD_PATH")
+                .value_parser(ValueParser::new(valid_html_field))
+                .help("Select a fixed snake_case HTML source field for html or markdown; required when supported links are ambiguous"),
+        )
+}
+
+/// Rejects arbitrary URLs, upstream casing, and noncanonical array positions.
+fn valid_html_field(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::record_html::validate_field(value)
+        .map(|()| value.to_owned())
+        .map_err(|_| "select a documented snake_case HTML source field")
 }
 
 /// Adds the saved-session requirement to every protected read action.
@@ -956,6 +973,11 @@ fn protected_action_with_details(command: Command, details: &'static str) -> Com
 
 /// Defines the shared output selector, compatibility alias, and header control.
 fn output_options(command: Command, default: &'static str) -> Command {
+    let formats = if default == "text" {
+        vec!["text", "markdown", "table", "json", "tsv"]
+    } else {
+        vec!["table", "json", "tsv"]
+    };
     command
         .arg(
             Arg::new("output")
@@ -964,15 +986,16 @@ fn output_options(command: Command, default: &'static str) -> Command {
                 .visible_alias("format")
                 .value_name("FORMAT")
                 .default_value(default)
-                .value_parser(["table", "json", "tsv"])
+                .value_parser(formats.clone())
                 .help(format!(
-                    "Choose table, json, or tsv output (default: {default}); json keeps all fields"
+                    "Choose {} output (default: {default}); json keeps all fields",
+                    formats.join(", ")
                 )),
         )
         .arg(
             Arg::new("no-headers")
                 .long("no-headers")
                 .action(ArgAction::SetTrue)
-                .help("Hide column names in table or tsv output; cannot be used with json"),
+                .help("Hide column names and table underlines; only valid with table or tsv"),
         )
 }

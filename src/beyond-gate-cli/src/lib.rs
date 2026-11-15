@@ -203,6 +203,23 @@ pub trait ReadOperations {
     ) -> impl std::future::Future<Output = Result<Value, BackgroundError>> {
         background::show(session, id)
     }
+    /// Resolves one checked record and at most one supported HTML page.
+    ///
+    /// # Errors
+    ///
+    /// Preserves source selection, access, session, identity, and limit failures.
+    fn show_html<'a>(
+        &self,
+        session: &'a Session,
+        request: &'a beyond_gate_core::record_html::Request,
+    ) -> impl std::future::Future<
+        Output = Result<
+            beyond_gate_core::record_html::ReadResult,
+            beyond_gate_core::record_html::HtmlError,
+        >,
+    > {
+        beyond_gate_core::record_html::read(session, request)
+    }
     /// Reads one explicit monster page with shared access and continuation semantics.
     ///
     /// # Errors
@@ -633,6 +650,12 @@ fn execute(
     let (action, arguments) = arguments
         .subcommand()
         .ok_or(Failure::Usage("Select a resource operation."))?;
+    if action == "show" {
+        let options = ListOptions::parse(arguments)?;
+        if options.uses_html_source() {
+            return execute_html(resource, arguments, &options, reads, session);
+        }
+    }
     match resource {
         "species" => execute_species(action, arguments, reads, session),
         "spell" => execute_spell(action, arguments, reads, session),
@@ -648,6 +671,60 @@ fn execute(
         "book" => execute_book(action, arguments, reads, session),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
     }
+}
+
+/// Routes only explicit HTML or Markdown through the shared checked source operation.
+fn execute_html(
+    resource: &str,
+    arguments: &ArgMatches,
+    options: &ListOptions,
+    reads: &impl ReadOperations,
+    session: &Session,
+) -> Result<Vec<u8>, Failure> {
+    use beyond_gate_core::record_html::{Request, Resource};
+    let resource = match resource {
+        "character" => Resource::Character,
+        "campaign" => Resource::Campaign,
+        "class" => Resource::Class,
+        "subclass" => Resource::Subclass,
+        "background" => Resource::Background,
+        "feat" => Resource::Feat,
+        "species" => Resource::Species,
+        "monster" => Resource::Monster,
+        "equipment" => Resource::Equipment,
+        "magic-item" => Resource::MagicItem,
+        "spell" => Resource::Spell,
+        _ => return Err(Failure::Usage("Select a supported show operation.")),
+    };
+    let request = Request {
+        resource,
+        id: selection(
+            arguments,
+            if resource == Resource::Spell {
+                "slug"
+            } else {
+                "id"
+            },
+        )?
+        .to_owned(),
+        page: if matches!(resource, Resource::Equipment | Resource::MagicItem) {
+            arguments.get_one::<u32>("page").copied()
+        } else {
+            None
+        },
+        class_id: if resource == Resource::Subclass {
+            arguments.get_one::<String>("class-id").cloned()
+        } else {
+            None
+        },
+        field: arguments.get_one::<String>("html-field").cloned(),
+        markdown: arguments
+            .get_one::<String>("output")
+            .is_some_and(|value| value == "markdown"),
+    };
+    request.validate().map_err(Failure::Html)?;
+    let result = execute_read(|| reads.show_html(session, &request), Failure::Html)?;
+    output::selected_html(options, &result)
 }
 
 /// Presents either item view without copying classification, filtering, or request policy.
@@ -1283,9 +1360,9 @@ fn selection<'a>(matches: &'a ArgMatches, name: &str) -> Result<&'a str, Failure
         .ok_or(Failure::Usage("A resource identifier is required."))
 }
 
-/// Presents one complete record in JSON or one lossless table/TSV row.
+/// Presents one selected record in readable text, Markdown, or an explicit script format.
 fn render_record(options: &ListOptions, fields: &[&str], value: Value) -> Result<Vec<u8>, Failure> {
-    output::list(options, fields, std::slice::from_ref(&value), Some(&value))
+    output::record(options, fields, &value)
 }
 
 #[cfg(test)]

@@ -127,6 +127,25 @@ impl FeatQuery {
     }
 }
 
+/// Restricts selected feat HTML to a canonical numeric ID and one checked slug.
+pub(crate) fn allowed_detail_url(url: &reqwest::Url) -> bool {
+    let Some((id, slug)) = url
+        .path()
+        .strip_prefix("/feats/")
+        .and_then(|path| path.split_once('-'))
+    else {
+        return false;
+    };
+    super::validate_id(id).is_ok()
+        && !slug.is_empty()
+        && slug
+            .bytes()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-')
+        && url.query().is_none()
+        && url.fragment().is_none()
+        && !url.as_str().contains(['%', '\\'])
+}
+
 /// Restricts cookie reads to the fixed listing and checked selector shapes.
 pub(crate) fn allowed_list_url(url: &reqwest::Url) -> bool {
     if url.path() != "/feats"
@@ -135,6 +154,7 @@ pub(crate) fn allowed_list_url(url: &reqwest::Url) -> bool {
     {
         return false;
     }
+
     let mut query = FeatQuery::default();
     let mut partnered = false;
     for (key, value) in url.query_pairs() {
