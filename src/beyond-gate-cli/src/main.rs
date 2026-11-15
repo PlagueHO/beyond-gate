@@ -15,10 +15,21 @@ fn main() {
         }
         return;
     }
-    std::process::exit(beyond_gate_cli::run(
-        std::env::args_os(),
-        &beyond_gate_cli::LiveReads,
-        &mut io::stdout().lock(),
-        &mut io::stderr().lock(),
-    ))
+    let arguments: Vec<_> = std::env::args_os().collect();
+    let code = if arguments.len() == 1 {
+        beyond_gate_cli::run(
+            arguments,
+            &beyond_gate_cli::LiveReads,
+            &mut io::stdout().lock(),
+            &mut anstream::AutoStream::auto(io::stderr().lock()),
+        )
+    } else {
+        beyond_gate_cli::run(
+            arguments,
+            &beyond_gate_cli::LiveReads,
+            &mut io::stdout().lock(),
+            &mut io::stderr().lock(),
+        )
+    };
+    std::process::exit(code)
 }

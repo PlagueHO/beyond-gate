@@ -4,6 +4,50 @@ use beyond_gate_core::auth::SessionStatus;
 
 use super::*;
 
+/// Returns an output failure instead of usage status when startup cannot be written or flushed.
+#[test]
+fn startup_output_failure_returns_one() {
+    struct FailedOutput {
+        fail_write: bool,
+        bytes: Vec<u8>,
+    }
+
+    impl Write for FailedOutput {
+        /// Either rejects the logo write or records bytes for the flush failure case.
+        fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+            if self.fail_write {
+                Err(io::ErrorKind::BrokenPipe.into())
+            } else {
+                self.bytes.write(bytes)
+            }
+        }
+
+        /// Simulates failure to deliver buffered startup output.
+        fn flush(&mut self) -> io::Result<()> {
+            Err(io::ErrorKind::BrokenPipe.into())
+        }
+    }
+
+    for fail_write in [true, false] {
+        let mut stdout = Vec::new();
+        let mut stderr = FailedOutput {
+            fail_write,
+            bytes: Vec::new(),
+        };
+        assert_eq!(
+            run(["beyond-gate"], &LiveReads, &mut stdout, &mut stderr),
+            1
+        );
+        assert!(stdout.is_empty());
+        if !fail_write {
+            assert!(
+                String::from_utf8_lossy(&stderr.bytes)
+                    .contains("error: Result output could not be written.")
+            );
+        }
+    }
+}
+
 /// Keeps CLI shutdown bounded when a cancelled operation leaves a native worker running.
 #[test]
 fn session_shutdown_does_not_wait_for_blocking_storage() {

@@ -40,8 +40,28 @@ Version is a root option, not an option on every subcommand. Help and version
 requests write to stdout and exit with code 0. No credentials or network are used.
 The generated `help` command also supports nested paths, such as
 `beyond-gate help book read`.
+Root help explains what Beyond Gate does, how to sign in on Windows, and how to
+try a first read. Every protected resource and read action explains that it needs
+a saved sign-in. Each help page starts with a plain-language summary, then shows
+its usage, arguments, and options before detailed notes. Use `--help` on a resource
+or action for its inputs and output. Root help does not append
+release-status notes from the architecture and support documentation. Help wraps
+to the terminal width and uses a maximum width of 100 columns.
 
-No command, a resource without its action, an unknown option, or invalid arguments
+With no arguments, the CLI shows a stacked Unicode Braille logo before the existing help
+on stderr and exits with code 2. BEYOND is white and GATE is red when stderr's
+terminal supports color. Redirected output, `NO_COLOR`, `CLICOLOR=0`, and
+terminals without color use the same uncolored artwork. `CLICOLOR_FORCE=1`
+forces color, including in redirected output, unless `NO_COLOR` is set.
+Explicit help and version requests do not show the logo.
+
+The terminal font must support Unicode Braille characters. The artwork is embedded
+in the executable. It was generated locally from `assets/beyond-gate-logo.png`
+with [ascii-image-converter 1.13.1](https://github.com/TheZoraiz/ascii-image-converter/releases/tag/v1.13.1),
+using `--braille --dimensions 80,18 --threshold 50`. The converter is an authoring
+tool, not a build or runtime dependency.
+
+A resource without its action, an unknown option, or invalid arguments
 produce usage information on stderr and exit with code 2. A resource is `auth`,
 `character`, `campaign`, `class`, `subclass`, `species`, `spell`, `monster`,
 `background`, `feat`, `equipment`, `magic-item`, `book`, or `mcp`.

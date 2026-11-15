@@ -7,6 +7,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A stacked Unicode Braille Beyond Gate logo, converted from the reference image,
+  before CLI help when no arguments are supplied.
+  The logo uses white and red when terminal color is available, with a plain
+  uncolored fallback for redirected output or disabled color. Existing help, stderr
+  output, and exit code 2 are unchanged. Offline process tests cover color
+  controls and commands that must not show the logo.
 - Bounded Windows magic-item reads through the shared equipment item reader,
   CLI `magic-item list/show`, and MCP `magic_item_list`/`magic_item_show`.
   Lists select raw `magic=true` and apply local name, type, rarity, tag, and

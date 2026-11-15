@@ -1,36 +1,143 @@
 //! One resource-first clap definition for parsing, help, and completions.
 
-use beyond_gate_core::FOUNDATION_NOTICE;
 use clap::{Arg, ArgAction, Command, builder::ValueParser, value_parser};
 use clap_complete::Shell;
+
+const PROTECTED_READ_HELP: &str = "Requires a saved Beyond Gate sign-in.\n\
+     On Windows, run `beyond-gate auth login` to create one.\n\
+     Your D&D Beyond account must be able to open the requested content.";
 
 /// Builds help and parsing without accessing credentials, sources, or storage.
 pub fn command() -> Command {
     Command::new("beyond-gate")
         .bin_name("beyond-gate")
         .version(env!("CARGO_PKG_VERSION"))
-        .about("Local-first access to authorized D&D Beyond data")
-        .after_help(FOUNDATION_NOTICE)
+        .about("Read your D&D Beyond characters, campaigns, books, and game content")
+        .max_term_width(100)
+        .after_help(
+            r#"Authentication and getting started
+
+To read D&D Beyond data, first sign in and save your sign-in on this device.
+Beyond Gate calls this saved sign-in a session. It lets the CLI use your
+existing account access; it does not unlock content that your account cannot open.
+Character and campaign reads use fixed bounded sources.
+
+First-time setup on Windows:
+  1. Install the CLI, browser extension (add-on), and browser helper.
+     Follow the installation guide.
+  2. Preview browser setup for Chrome or Edge. Replace <INSTALL_DIR> with the
+     folder that contains both Beyond Gate programs:
+       beyond-gate auth install edge --directory <INSTALL_DIR> --dry-run
+     Use `chrome` instead of `edge` for Chrome.
+  3. Review the preview. Repeat the command without `--dry-run` to apply it.
+  4. Run `beyond-gate auth login`. Follow the steps in the terminal and browser.
+  5. Run `beyond-gate auth validate`, then try:
+       beyond-gate character list
+
+Beyond Gate stores the sign-in in your operating system's protected storage.
+`auth status` checks whether a session is stored; it does not check whether it
+still works. `auth validate` sends one new request to D&D Beyond.
+`auth logout` deletes the saved session from this device. It does not sign your
+browser out of D&D Beyond.
+
+Login and data reads currently work on Windows. Do not enter your password,
+cookies, or tokens in a command."#,
+        )
         .arg_required_else_help(true)
         .subcommand(
-            resource("auth", "Manage the protected local session")
-                .subcommand(Command::new("login").about("Complete human-controlled Windows browser login after explicit extension setup"))
-                .subcommand(browser_setup("install", "Preview and register the Windows browser native host"))
-                .subcommand(browser_setup("uninstall", "Preview and remove matching Windows browser native-host setup"))
-                .subcommand(Command::new("status").about("Report local presence only, without checking upstream usability"))
-                .subcommand(Command::new("validate").about("Check the stored Windows session with one fresh service exchange; never accepts credentials"))
-                .subcommand(Command::new("logout").about("Remove the local credential without upstream revocation")),
+            resource(
+                "auth",
+                "Sign in through your browser and manage the saved sign-in",
+            )
+                .after_help(
+                    "Sign-in works on Windows. First install the browser extension and register the local browser helper with `auth install`.\n\
+                     Use a normal terminal; do not pipe or redirect its input or output.\n\
+                     The saved sign-in is kept in your operating system's protected storage.\n\n\
+                     These commands never ask you to enter your password, cookies, or tokens.",
+                )
+                .subcommand(
+                    Command::new("login")
+                        .about("Sign in through your browser and save a Beyond Gate session")
+                        .after_help(
+                            "Sign-in works on Windows. Install the browser extension and register the local browser helper first.\n\
+                             Run this command in a normal terminal, then follow the steps in the terminal and browser.\n\
+                             Beyond Gate saves the sign-in in your operating system's protected storage.\n\n\
+                             This command does not ask for your password, cookies, or tokens.",
+                        ),
+                )
+                .subcommand(browser_setup("install", "Set up the browser connection for Chrome or Edge"))
+                .subcommand(browser_setup("uninstall", "Remove this browser's Beyond Gate connection"))
+                .subcommand(
+                    Command::new("status")
+                        .about("Check whether a Beyond Gate sign-in is stored on this device")
+                        .after_help(
+                            "Checks only whether Beyond Gate saved a sign-in on this device.\n\n\
+                             It does not contact D&D Beyond, check whether the sign-in still works, \
+                             or check access to specific content.",
+                        ),
+                )
+                .subcommand(
+                    Command::new("validate")
+                        .about("Check whether your saved sign-in still works with one D&D Beyond request")
+                        .after_help(
+                            "Uses the saved sign-in to send one request to D&D Beyond. Prints \
+                             one JSON result.\n\n\
+                             This checks the sign-in only; it does not test access to every character \
+                             or book. Use `auth status` to check whether a sign-in is stored without \
+                             contacting D&D Beyond.",
+                        ),
+                )
+                .subcommand(
+                    Command::new("logout")
+                        .about("Delete the saved Beyond Gate sign-in from this device")
+                        .after_help(
+                            "Deletes only the sign-in stored by Beyond Gate on this device.\n\n\
+                             This does not sign your browser out of D&D Beyond or end that browser session.",
+                        ),
+                ),
         )
         .subcommand(
-            resource("character", "Read authorized character data")
-                .subcommand(list_options(Command::new("list").about("List complete character summaries")))
-                .subcommand(show_options(Command::new("show").about("Show one character and its unchanged raw JSON").arg(identifier("id")))),
+            protected_resource("character", "List your characters or show one character's details")
+                .subcommand(protected_action_with_details(
+                    list_options(Command::new("list").about("List your character names and IDs")),
+                    "This is a short list, not complete character records. Copy an ID and use `character show` to see one full record.",
+                ))
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show the full record for one character ID")
+                            .arg(identifier("id")),
+                    ),
+                    "Copy the character ID from `character list`. This returns one character record without calculating game rules.",
+                )),
         )
         .subcommand(
-            resource("campaign", "Read authorized campaign data")
-                .subcommand(list_options(Command::new("list").about("List campaign summaries without loading rosters"))
-                    .arg(Arg::new("active-only").long("active-only").action(ArgAction::SetTrue).help("List only campaigns from the active-campaign source")))
-                .subcommand(show_options(Command::new("show").about("Show one campaign summary and its active roster").arg(identifier("id")))),
+            protected_resource("campaign", "List your campaigns or show one campaign and its characters")
+                .subcommand(
+                    protected_action_with_details(
+                        output_options(
+                            Command::new("list").about("List your campaigns"),
+                            "table",
+                        ),
+                        "By default, this uses your standard campaign list. Add `--active-only` to use the active campaign list instead.\n\
+                         This command does not load campaign characters. Use `campaign show` to see the active character list for one campaign.",
+                    )
+                    .arg(
+                        Arg::new("active-only")
+                            .long("active-only")
+                            .action(ArgAction::SetTrue)
+                            .help("Use the active campaign list instead of the standard list"),
+                    ),
+                )
+                .subcommand(protected_action_with_details(
+                    output_options(
+                        Command::new("show")
+                            .about("Show one campaign and its active characters")
+                            .arg(identifier("id")),
+                        "json",
+                    ),
+                    "Copy the campaign ID from `campaign list`. The character list is the active list returned for that campaign; it may not include every campaign member.",
+                )),
         )
         .subcommand(
             class_resource("class", false),
@@ -39,91 +146,213 @@ pub fn command() -> Command {
             class_resource("subclass", true),
         )
         .subcommand(
-            resource("monster", "Read bounded monster pages and selected detail; only verified access code 1")
+            protected_resource("monster", "Search monsters or show one monster from the results")
                 .subcommand(monster_list())
-                .subcommand(show_options(Command::new("show").about("Read one selected monster with unchanged raw detail"))
-                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_monster_id)))),
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one monster using its ID from `monster list`")
+                            .arg(
+                                Arg::new("id")
+                                    .required(true)
+                                    .value_name("ID")
+                                    .value_parser(ValueParser::new(valid_monster_id))
+                                    .help("ID shown by `monster list`"),
+                            ),
+                    ),
+                    "Copy an ID from `monster list`. The command checks again that your account can open the selected monster before showing it.",
+                )),
         )
         .subcommand(
-            resource("spell", "Browse explicit website spell pages and selected HTML detail")
+            protected_resource("spell", "Search spells or show one spell from the results")
                 .subcommand(spell_list())
-                .subcommand(show_options(Command::new("show").about("Read selected untrusted HTML; never render or execute raw_html"))
-                    .arg(Arg::new("slug").required(true).value_parser(ValueParser::new(valid_spell_slug)))),
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one spell using its key from `spell list`")
+                            .arg(
+                                Arg::new("slug")
+                                    .required(true)
+                                    .value_name("SPELL_KEY")
+                                    .value_parser(ValueParser::new(valid_spell_slug))
+                                    .help("Spell key shown by `spell list`; copy it exactly"),
+                            ),
+                    ),
+                    "Copy the complete spell key from `spell list`. You do not need to enter a web address.",
+                )),
         )
         .subcommand(
-            resource("equipment", "Read equipment from one explicit mixed item source page")
-                .subcommand(list_options(Command::new("list").about("Read one source page; no filling or automatic continuation"))
-                    .arg(item_page(false)))
-                .subcommand(show_options(Command::new("show").about("Select unchanged raw equipment by definitionKey and required source page"))
-                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_item_id)))
-                    .arg(item_page(true))),
+            protected_resource("equipment", "List equipment or show an item from a chosen D&D Beyond page")
+                .subcommand(protected_action_with_details(
+                    list_options(Command::new("list").about("List equipment on one D&D Beyond page"))
+                        .arg(item_page(false)),
+                    "Each page contains up to 100 items. Choose another page with `--page`; this command does not search other pages.",
+                ))
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one item using its ID and page from a list result")
+                            .arg(item_identifier())
+                            .arg(item_page(true)),
+                    ),
+                    "Copy the full item ID and page number from `equipment list`. This command checks only that page; it does not search other pages.",
+                )),
         )
         .subcommand(
-            resource("magic-item", "Read magic items with local filters on one mixed source page")
+            protected_resource("magic-item", "Filter magic items on one page or show one listed item")
                 .subcommand(magic_item_list())
-                .subcommand(show_options(Command::new("show").about("Select unchanged raw magic-item JSON by definitionKey and required source page"))
-                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_item_id)))
-                    .arg(item_page(true))),
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one magic item using its ID and page from a list result")
+                            .arg(item_identifier())
+                            .arg(item_page(true)),
+                    ),
+                    "Copy the full item ID and page number from `magic-item list`. This command checks only that page; it does not search other pages.",
+                )),
         )
         .subcommand(
-            resource("feat", "Browse bounded feat metadata and select checked definitions")
+            protected_resource("feat", "List feats or show one feat's full record")
                 .subcommand(feat_list())
-                .subcommand(show_options(Command::new("show").about("Select one feat from the fresh checked collection"))
-                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_feat_id)))),
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one feat using its ID from `feat list`")
+                            .arg(
+                                Arg::new("id")
+                                    .required(true)
+                                    .value_name("ID")
+                                    .value_parser(ValueParser::new(valid_feat_id))
+                                    .help("ID shown by `feat list`"),
+                            ),
+                    ),
+                    "Copy the feat ID from `feat list`. This returns the full record for that ID, not a list of matching feats.",
+                )),
         )
         .subcommand(
-            resource("background", "Browse website-filtered background metadata and selected source definitions")
+            protected_resource("background", "List backgrounds or show one background's details")
                 .subcommand(background_list())
-                .subcommand(show_options(Command::new("show").about("Select a raw background from a fresh complete collection; fails above 1 MiB"))
-                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_background_id)))),
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one background using its ID from `background list`")
+                            .arg(
+                                Arg::new("id")
+                                    .required(true)
+                                    .value_name("ID")
+                                    .value_parser(ValueParser::new(valid_background_id))
+                                    .help("ID shown by `background list`"),
+                            ),
+                    ),
+                    "Copy the background ID from `background list`. This returns the selected background record.",
+                )),
         )
         .subcommand(
-            resource("species", "Browse bounded species and legacy-race metadata")
-                .subcommand(list_options(Command::new("list").about("List species metadata from the fixed public website page")))
-                .subcommand(show_options(Command::new("show").about("Show one selected species with unchanged raw data"))
-                    .arg(Arg::new("id").required(true).value_parser(ValueParser::new(valid_species_id)))),
+            protected_resource("species", "List species or show one species' details")
+                .subcommand(protected_action_with_details(
+                    list_options(Command::new("list").about("List species from D&D Beyond")),
+                    "This shows the species returned by D&D Beyond. It does not search or load additional pages.",
+                ))
+                .subcommand(protected_action_with_details(
+                    show_options(
+                        Command::new("show")
+                            .about("Show one species using its ID from `species list`")
+                            .arg(
+                                Arg::new("id")
+                                    .required(true)
+                                    .value_name("ID")
+                                    .value_parser(ValueParser::new(valid_species_id))
+                                    .help("ID shown by `species list`"),
+                            ),
+                    ),
+                    "Copy the species ID from `species list`. This returns the selected species record.",
+                )),
         )
         .subcommand(
-            resource("book", "Bounded Windows library, outline, and selected-section reads")
-                .subcommand(list_options(Command::new("list").about("Discover bounded Web-catalog metadata through public classification and the stored Windows session")))
-                .subcommand(list_options(Command::new("outline").about("List at most 1,000 entries after fresh library and canonical source-page checks").arg(identifier("book-id"))))
+            protected_resource("book", "Find books, browse their sections, and read selected text")
+                .subcommand(protected_action_with_details(
+                    list_options(
+                        Command::new("list").about("List D&D Beyond books and show what is known about access"),
+                    ),
+                    "Check the `access` field to see what Beyond Gate knows about each book. `unknown` means access was not confirmed; it does not mean access was denied.",
+                ))
+                .subcommand(protected_action_with_details(
+                    list_options(
+                        Command::new("outline")
+                            .about("List the chapter and section titles in one book")
+                            .arg(identifier("book-id")),
+                    ),
+                    "Copy the book ID from `book list`. Use the section IDs from this output with `book read`.",
+                ))
                 .subcommand(
                     Command::new("read")
-                        .about("Read one selected JSON chunk, at most 4,096 UTF-8 text bytes, after fresh access checks")
+                        .about("Read one section of a book, one text part at a time")
+                        .after_help(format!(
+                             "First use `book list` to find a book, then `book outline` to find a section.\n\
+                             The result is JSON and contains up to 4,096 bytes of text.\n\
+                             If the result includes `next_cursor`, copy its value to `--continuation` with the same book and section IDs to get the next part.\n\
+                             The CLI never gets the next part automatically.\n\n\
+                             {PROTECTED_READ_HELP}"
+                        ))
                         .arg(identifier("book-id"))
                         .arg(identifier("section-id"))
                         .arg(Arg::new("continuation").long("continuation").value_name("TOKEN")
-                            .help("Explicitly continue this section; token limit: 16 KiB; never follows automatically")
+                            .help("Copy `next_cursor` from an earlier result to get the next text part")
                             .hide_possible_values(true)),
                 ),
         )
         .subcommand(
-            resource("mcp", "Start or register the local MCP server")
+            resource("mcp", "Connect an MCP-compatible app to Beyond Gate")
+                .after_help(
+                    "MCP (Model Context Protocol) lets compatible apps use Beyond Gate tools.\n\
+                     `mcp start` runs the local server. `mcp install` adds it to a supported app's settings.\n\n\
+                     These commands do not require a saved sign-in. Data reads still use the same saved sign-in as the CLI.",
+                )
                 .subcommand(
                     Command::new("start")
-                        .about("Start the sibling beyond-gate-mcp stdio server"),
+                        .about("Run the local server used by supported apps")
+                        .after_help(
+                            "Starts the `beyond-gate-mcp` program installed beside this CLI.\n\
+                             This server uses Model Context Protocol (MCP) to connect supported apps to Beyond Gate.\n\
+                             Keep it running while your app uses Beyond Gate. Stop it when you are done.",
+                        ),
                 )
                 .subcommand(
                     Command::new("install")
-                        .about("Preview and register the local server with an MCP client")
+                        .about("Add Beyond Gate to VS Code, Claude Code, or Copilot CLI")
+                        .after_help(
+                            "Adds a local Model Context Protocol (MCP) server entry to settings for the selected app. It does not sign you in; use `auth login` separately before reading account data.\n\
+                             The command shows the proposed change and asks before saving it. Use `--dry-run` to preview without changing settings.",
+                        )
                         .arg(
                             Arg::new("client")
                                 .required(true)
+                                .value_name("CLIENT")
                                 .value_parser(["vscode", "claude-code", "copilot-cli"])
-                                .help("User-level client configuration to update"),
+                                .help("Choose an app: vscode (VS Code), claude-code (Claude Code), or copilot-cli (Copilot CLI)"),
                         )
                         .arg(
                             Arg::new("dry-run")
                                 .long("dry-run")
                                 .action(ArgAction::SetTrue)
-                                .help("Show the proposed entry without prompting or writing"),
+                                .help("Show the proposed change without saving it"),
                         ),
                 ),
         )
         .subcommand(
             Command::new("completions")
-                .about("Generate a shell completion script on stdout without account access")
-                .arg(Arg::new("shell").required(true).value_parser(value_parser!(Shell))),
+                .about("Add Beyond Gate command suggestions to your shell")
+                .after_help(
+                    "Prints a script that lets your shell suggest commands and options as you type.\n\
+                     Save or load the script using your shell's usual completion setup. This does not sign in or contact D&D Beyond.",
+                )
+                .arg(
+                    Arg::new("shell")
+                        .required(true)
+                        .value_name("SHELL")
+                        .value_parser(value_parser!(Shell))
+                        .help("Choose your shell: bash, elvish, fish, powershell, or zsh"),
+                ),
         )
 }
 
@@ -135,7 +364,9 @@ fn item_page(required: bool) -> Arg {
         .value_parser(
             value_parser!(u32).range(1..=i64::from(beyond_gate_core::item_catalog::MAX_PAGE)),
         )
-        .help("One-based mixed source page of 100 raw items; no filling filtered results");
+        .help(
+            "Page number from 1 to 1,000,000; list defaults to 1; each page holds up to 100 items",
+        );
     if required {
         arg.required(true)
     } else {
@@ -145,9 +376,12 @@ fn item_page(required: bool) -> Arg {
 
 /// Builds bounded local filters using the same repeated-argument pattern as other resources.
 fn magic_item_list() -> Command {
-    let mut command = list_options(Command::new("list").about(
-        "Filter magic items within one source page; no global search or automatic continuation",
-    ))
+    let mut command = protected_action_with_details(
+        list_options(Command::new("list").about("Filter magic items on one D&D Beyond page")),
+        "Filters only check the page selected by `--page`; they do not search other pages.\n\
+         Name matching ignores letter case and can match part of a name. Type, rarity, and tag must match complete labels from the results.\n\
+         Each text value can contain up to 256 bytes. Repeat each type, rarity, or tag filter up to 50 times.",
+    )
     .arg(item_page(false))
     .arg(
         Arg::new("name")
@@ -155,21 +389,26 @@ fn magic_item_list() -> Command {
             .short('n')
             .value_name("NAME")
             .value_parser(ValueParser::new(valid_item_filter))
-            .help(
-                "Case-insensitive literal name substring within this page; at most 256 UTF-8 bytes",
-            ),
+            .help("Match part of an item name on this page; letter case does not matter; max 256 bytes"),
     )
     .arg(
         Arg::new("attunement")
             .long("attunement")
+            .value_name("VALUE")
             .default_value("any")
             .value_parser(["yes", "no", "any"])
-            .help("Raw canAttune selector; defaults to any"),
+            .help("Choose items that require attunement: yes, no, or any (default)"),
     );
-    for (_, flag) in beyond_gate_core::item_catalog::query::LABEL_FILTERS {
+    for (field, flag) in beyond_gate_core::item_catalog::query::LABEL_FILTERS {
+        let label = match field {
+            "types" => "item type",
+            "rarities" => "rarity",
+            "tags" => "tag",
+            _ => "label",
+        };
         command = command.arg(Arg::new(flag).long(flag).value_name("LABEL")
             .value_parser(ValueParser::new(valid_item_filter)).action(ArgAction::Append)
-            .help("Case-insensitive exact raw API label; repeat up to 50 distinct values; not a website option ID"));
+            .help(format!("Match an exact {label} label; letter case does not matter. Repeat to choose more than one.")));
     }
     command
 }
@@ -192,35 +431,46 @@ fn valid_item_id(value: &str) -> Result<String, &'static str> {
 
 /// Builds feat flags from the shared website controls without adding API filters.
 fn feat_list() -> Command {
-    let mut command = list_options(
-        Command::new("list")
-            .about("Read complete bounded feat metadata with website filters; no automatic paging"),
+    let mut command = protected_action_with_details(
+        list_options(Command::new("list").about("List feats using D&D Beyond's filters")),
+        "The list shows feat names and source details, not descriptions or game rules.\n\
+         ID filters use numbers assigned to choices in D&D Beyond's filter menus. They are not feat IDs and do not unlock content.\n\
+         Tag, source, and source-category filters accept up to 50 values each. The prerequisite filter accepts one.",
     )
     .arg(
         Arg::new("name")
             .long("name")
             .short('n')
+            .value_name("NAME")
             .value_parser(ValueParser::new(valid_feat_name))
-            .help("Literal website name filter; at most 256 UTF-8 bytes"),
+            .help("Filter by name text; at most 256 bytes"),
     )
     .arg(
         Arg::new("prerequisite-subtype-id")
             .long("prerequisite-subtype-id")
             .value_name("ID")
             .value_parser(value_parser!(u32).range(1..))
-            .help("One public prerequisite option ID; not a feat identity or access grant"),
+            .help("Choose a prerequisite option from D&D Beyond; this is not the feat's ID"),
     )
     .arg(
         Arg::new("partnered-content")
             .long("partnered-content")
+            .value_name("VALUE")
             .default_value("no")
             .value_parser(["yes", "no", "any"])
-            .help("Website partnered-content choice; defaults to no"),
+            .help("Use yes to include partner content, no to exclude it (default), or any"),
     );
     for (_, flag, _) in beyond_gate_core::feat::query::ID_FILTERS {
-        command = command.arg(Arg::new(flag).long(flag).value_name("ID")
-            .value_parser(value_parser!(u32).range(1..)).action(ArgAction::Append)
-            .help("Public website option ID; repeat up to 50 distinct values; not an access grant"));
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_name("ID")
+                .value_parser(value_parser!(u32).range(1..))
+                .action(ArgAction::Append)
+                .help(
+                    "Number assigned to a D&D Beyond filter choice; repeat to choose more than one",
+                ),
+        );
     }
     command
 }
@@ -247,25 +497,38 @@ fn valid_feat_name(value: &str) -> Result<String, &'static str> {
 
 /// Builds background flags from the shared observed website control mapping.
 fn background_list() -> Command {
-    let mut command = list_options(Command::new("list").about(
-        "Read complete bounded background metadata with website filters; no automatic paging",
-    ))
+    let mut command = protected_action_with_details(
+        list_options(Command::new("list").about("List backgrounds using D&D Beyond's filters")),
+        "ID filters use numbers assigned to choices in D&D Beyond's filter menus. They are not background IDs and do not unlock content.\n\
+         Each ID filter accepts up to 50 values.",
+    )
     .arg(
         Arg::new("name")
             .long("name")
             .short('n')
+            .value_name("NAME")
             .value_parser(ValueParser::new(valid_background_name))
-            .help("Literal website name filter; at most 256 UTF-8 bytes"),
+            .help("Filter by name text; at most 256 bytes"),
     )
     .arg(
         Arg::new("partnered-content")
             .long("partnered-content")
+            .value_name("VALUE")
             .default_value("no")
             .value_parser(["yes", "no", "any"])
-            .help("Website partnered-content choice; defaults to no"),
+            .help("Use yes to include partner content, no to exclude it (default), or any"),
     );
     for (_, flag, _) in beyond_gate_core::background::query::ID_FILTERS {
-        command = command.arg(Arg::new(flag).long(flag).value_name("ID").value_parser(value_parser!(u32).range(1..)).action(ArgAction::Append).help("Public website option ID; repeat up to 50 distinct values; not an access grant"));
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_name("ID")
+                .value_parser(value_parser!(u32).range(1..))
+                .action(ArgAction::Append)
+                .help(
+                    "Number assigned to a D&D Beyond filter choice; repeat to choose more than one",
+                ),
+        );
     }
     command
 }
@@ -311,42 +574,96 @@ fn monster_list() -> Command {
     use beyond_gate_core::monster::query::{
         BOOL_FILTERS, CHALLENGE_RATINGS, ID_FILTERS, NUMBER_FILTERS,
     };
-    let mut command = list_options(Command::new("list").about("Read one website-filtered monster page with fresh access checks; never follows continuation"))
-        .arg(Arg::new("name").long("name").short('n').value_name("NAME")
-            .value_parser(ValueParser::new(valid_monster_name)).help("Literal name search; at most 256 UTF-8 bytes"))
-        .arg(Arg::new("page").long("page").default_value("1").value_parser(value_parser!(u32).range(1..))
-            .help("Explicit website page; use pagination.next_page to continue"))
-        .arg(Arg::new("partnered-content").long("partnered-content").default_value("no")
-            .value_parser(["yes", "no", "any"]).help("Website partnered-content choice; no matches the site default"));
-    for flag in ["cr-min", "cr-max"] {
+    let mut command = protected_action_with_details(
+        list_options(Command::new("list").about("Search one page of monsters")),
+        "Use the `next_page` value in the output with `--page` to get another page. The CLI does not get more pages automatically.\n\
+         A filter option ID is the number D&D Beyond assigns to a choice in its filter menu. These numbers are not monster IDs and do not unlock content. Each filter accepts up to 50 values; the combined limit is 256.\n\
+         If you set both challenge-rating bounds, the minimum must not exceed the maximum.",
+    )
+    .arg(
+        Arg::new("name")
+            .long("name")
+            .short('n')
+            .value_name("NAME")
+            .value_parser(ValueParser::new(valid_monster_name))
+            .help("Search by monster name; at most 256 bytes"),
+    )
+    .arg(
+        Arg::new("page")
+            .long("page")
+            .default_value("1")
+            .value_parser(value_parser!(u32).range(1..))
+            .value_name("PAGE")
+            .help("Page number, starting at 1. Use `next_page` from the output to continue"),
+    )
+    .arg(
+        Arg::new("partnered-content")
+            .long("partnered-content")
+            .default_value("no")
+            .value_name("VALUE")
+            .value_parser(["yes", "no", "any"])
+            .help("Use yes to include partner content, no to exclude it (default), or any"),
+    );
+    for (flag, help) in [
+        ("cr-min", "Lowest challenge rating to include"),
+        ("cr-max", "Highest challenge rating to include"),
+    ] {
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
+                .value_name("RATING")
                 .value_parser(clap::builder::PossibleValuesParser::new(
                     CHALLENGE_RATINGS.iter().map(|(label, _)| *label),
                 ))
-                .help("Literal challenge rating, not a website option ID"),
+                .help(help),
         );
     }
     for (_, flag, _) in ID_FILTERS {
-        command = command.arg(Arg::new(flag).long(flag).value_name("ID")
-            .value_parser(value_parser!(u32).range(1..)).action(ArgAction::Append)
-            .help("Public website option ID; repeat for multiple values (maximum 50); not an access grant"));
-    }
-    for (_, flag, _) in NUMBER_FILTERS {
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
+                .value_name("ID")
+                .value_parser(value_parser!(u32).range(1..))
+                .action(ArgAction::Append)
+                .help(
+                    "Number assigned to a D&D Beyond filter choice; repeat to choose more than one",
+                ),
+        );
+    }
+    for (_, flag, _) in NUMBER_FILTERS {
+        let label = match flag {
+            "armor-class-min" | "armor-class-max" => "armor class",
+            "average-hp-min" | "average-hp-max" => "average hit points",
+            _ => "value",
+        };
+        let bound = if flag.ends_with("-min") {
+            "Lowest"
+        } else {
+            "Highest"
+        };
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_name("NUMBER")
                 .value_parser(value_parser!(u32))
-                .help("Nonnegative bound; minimum must not exceed maximum"),
+                .help(format!("{bound} {label} to include; enter a whole number")),
         );
     }
     for (_, flag, _) in BOOL_FILTERS {
+        let label = match flag {
+            "legendary" => "whether the monster is legendary",
+            "mythic" => "whether the monster is mythic",
+            "has-lair" => "whether the monster has a lair",
+            _ => "this filter",
+        };
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
+                .value_name("true|false")
                 .value_parser(value_parser!(bool))
-                .help("Website true/false filter; omission leaves it unrestricted"),
+                .help(format!(
+                    "Set {label} to true or false; omit to include either"
+                )),
         );
     }
     command
@@ -359,21 +676,59 @@ fn valid_monster_id(value: &str) -> Result<String, &'static str> {
         .map_err(|_| "ID must be a canonical positive decimal integer that fits u64")
 }
 
-/// Builds metadata-only class/subclass commands from the same completion definition.
+/// Builds class and subclass commands from the same completion definition.
 fn class_resource(name: &'static str, subclass: bool) -> Command {
-    let list = list_options(Command::new("list").about("List complete bounded metadata; never rules text"))
-        .arg(Arg::new("name").long("name").short('n').value_name("NAME")
+    let (resource_about, list_about, show_about, list_details, show_details) = if subclass {
+        (
+            "List subclasses for one class or for all classes",
+            "List subclass names and IDs",
+            "Show one subclass using its ID",
+            "Use `--name` to match part of a subclass name. The search ignores letter case.",
+            "Copy the subclass ID from `subclass list`. This shows names and source details, not game rules or full subclass text.",
+        )
+    } else {
+        (
+            "List classes or show one class's details",
+            "List class names and IDs",
+            "Show one class using its ID",
+            "Use `--name` to match part of a class name. The search ignores letter case.",
+            "Copy the class ID from `class list`. This shows names and source details, not game rules or full class text.",
+        )
+    };
+    let list = protected_action_with_details(
+        list_options(Command::new("list").about(list_about)),
+        list_details,
+    )
+    .arg(
+        Arg::new("name")
+            .long("name")
+            .short('n')
+            .value_name("NAME")
             .value_parser(ValueParser::new(valid_class_name))
-            .help("Local case-insensitive substring filter; keeps duplicate names; at most 256 UTF-8 bytes"));
-    let show = show_options(
-        Command::new("show").about("Show selected metadata, not raw definitions or rules text"),
+            .help("Match part of a name; letter case does not matter"),
+    );
+    let show = protected_action_with_details(
+        show_options(Command::new("show").about(show_about)),
+        show_details,
     )
     .arg(
         Arg::new("id")
             .required(true)
-            .value_parser(ValueParser::new(valid_class_identifier)),
+            .value_name("ID")
+            .value_parser(ValueParser::new(valid_class_identifier))
+            .help(if subclass {
+                "ID shown by `subclass list`"
+            } else {
+                "ID shown by `class list`"
+            }),
     );
-    resource(name, "Browse bounded Windows class catalog metadata")
+    let resource_details = if subclass {
+        "These commands show names and source details only. They do not show game rules or full subclass text."
+    } else {
+        "These commands show names and source details only. They do not show game rules or full class text."
+    };
+    protected_resource(name, resource_about)
+        .after_help(format!("{resource_details}\n\n{PROTECTED_READ_HELP}"))
         .subcommand(if subclass { parent_option(list) } else { list })
         .subcommand(if subclass { parent_option(show) } else { show })
 }
@@ -385,7 +740,7 @@ fn parent_option(command: Command) -> Command {
             .long("class-id")
             .value_name("ID")
             .value_parser(ValueParser::new(valid_class_identifier))
-            .help("Scope to one parent; omitted means bounded global discovery"),
+            .help("Show subclasses for this class ID; omit to search all classes"),
     )
 }
 
@@ -417,45 +772,68 @@ fn valid_class_name(value: &str) -> Result<String, &'static str> {
 fn browser_setup(name: &'static str, about: &'static str) -> Command {
     Command::new(name)
         .about(about)
-        .arg(Arg::new("browser").required(true).value_parser(["chrome", "edge"]))
+        .after_help(if name == "install" {
+            "Connects the browser extension to a small local helper program. The folder must contain `beyond-gate.exe` and `beyond-gate-native-host.exe`.\n\
+             Choose a stable folder outside the source and build folders. Install the browser extension separately.\n\
+             Use `--dry-run` to preview without changing browser settings."
+        } else {
+            "Removes the Beyond Gate connection for the selected browser. It does not remove the extension or either program.\n\
+             Use `--dry-run` to preview without changing browser settings."
+        })
+        .arg(
+            Arg::new("browser")
+                .required(true)
+                .value_name("BROWSER")
+                .value_parser(["chrome", "edge"])
+                .help("Choose your browser: chrome or edge"),
+        )
         .arg(
             Arg::new("directory")
                 .long("directory")
                 .required(true)
                 .value_name("PATH")
                 .value_parser(value_parser!(std::path::PathBuf))
-                .help("Existing stable installation directory; source and build directories are refused"),
+                .help("Folder containing `beyond-gate.exe` and `beyond-gate-native-host.exe`"),
         )
         .arg(
             Arg::new("dry-run")
                 .long("dry-run")
                 .action(ArgAction::SetTrue)
-                .help("Check conflicts and show setup without prompting or writing"),
+                .help("Show what would change without asking or saving"),
         )
 }
 
 /// Builds the shared spell filter surface without character-context API selectors.
 fn spell_list() -> Command {
-    let mut command = list_options(
-        Command::new("list").about("Read one complete website page; never follows next_page"),
+    let mut command = protected_action_with_details(
+        list_options(Command::new("list").about("Search one page of spells")),
+        "Use the `next_page` value in the output with `--page` to get another page. The CLI does not get more pages automatically.\n\
+         Filter option IDs are numbers assigned to choices in D&D Beyond's filter menus; they are not spell IDs. Most accept up to 50 values; the combined limit is 256. Level is 0 through 9 and school is 3 through 10.\n\
+         Level 0 means a cantrip.",
     )
     .arg(
         Arg::new("name")
             .long("name")
             .short('n')
-            .value_parser(ValueParser::new(valid_monster_name)),
+            .value_name("NAME")
+            .value_parser(ValueParser::new(valid_spell_name))
+            .help("Search by spell name; at most 256 bytes"),
     )
     .arg(
         Arg::new("page")
             .long("page")
+            .value_name("PAGE")
             .default_value("1")
-            .value_parser(value_parser!(u32).range(1..)),
+            .value_parser(value_parser!(u32).range(1..))
+            .help("Page number, starting at 1. Use `next_page` from the output to continue"),
     )
     .arg(
         Arg::new("partnered-content")
             .long("partnered-content")
+            .value_name("VALUE")
             .default_value("no")
-            .value_parser(["no", "any", "yes"]),
+            .value_parser(["no", "any", "yes"])
+            .help("Use yes to include partner content, no to exclude it (default), or any"),
     );
     for (field, flag, _) in beyond_gate_core::spell::query::ID_FILTERS {
         let parser = if field == "levels" {
@@ -468,17 +846,23 @@ fn spell_list() -> Command {
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
+                .value_name(if field == "levels" { "LEVEL" } else { "ID" })
                 .value_parser(parser)
                 .action(ArgAction::Append)
-                .help("Website option ID; repeat for distinct values; level 0 means cantrips"),
+                .help(match field {
+                    "levels" => "Spell level; 0 means a cantrip. Repeat to choose more than one.",
+                    "school_ids" => "School option number from 3 to 10",
+                    _ => "Number assigned to a D&D Beyond filter choice; repeat to choose more than one",
+                }),
         );
     }
     for (_, flag, _) in beyond_gate_core::spell::query::BOOL_FILTERS {
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
+                .value_name("BOOL")
                 .value_parser(value_parser!(bool))
-                .help("Optional true/false website restriction"),
+                .help("Set to true or false; omit to include either"),
         );
     }
     command
@@ -491,6 +875,17 @@ fn valid_spell_slug(value: &str) -> Result<String, &'static str> {
         .map_err(|_| "slug must be a complete canonical numeric-ID/slug key within 256 ASCII bytes")
 }
 
+/// Checks literal spell searches before protected storage or network access.
+fn valid_spell_name(value: &str) -> Result<String, &'static str> {
+    beyond_gate_core::spell::SpellQuery {
+        name: Some(value.to_owned()),
+        ..Default::default()
+    }
+    .validate()
+    .map(|()| value.to_owned())
+    .map_err(|_| "Spell name must be valid text within 256 UTF-8 bytes without padding or control characters")
+}
+
 /// Requires an explicit action and makes nested help deterministic.
 fn resource(name: &'static str, about: &'static str) -> Command {
     Command::new(name)
@@ -499,11 +894,35 @@ fn resource(name: &'static str, about: &'static str) -> Command {
         .subcommand_required(true)
 }
 
+/// Adds the shared saved-session requirement to a data resource's long help.
+fn protected_resource(name: &'static str, about: &'static str) -> Command {
+    resource(name, about).after_help(PROTECTED_READ_HELP)
+}
+
 /// Validates opaque selections without inventing upstream identifier rules.
 fn identifier(name: &'static str) -> Arg {
     Arg::new(name)
         .required(true)
+        .value_name(match name {
+            "book-id" => "BOOK_ID",
+            "section-id" => "SECTION_ID",
+            _ => "ID",
+        })
+        .help(match name {
+            "book-id" => "Book ID shown by `book list`",
+            "section-id" => "Section ID shown by `book outline`",
+            _ => "ID shown by the matching list command",
+        })
         .value_parser(ValueParser::new(valid_identifier))
+}
+
+/// Builds the full item identity required with an explicit mixed source page.
+fn item_identifier() -> Arg {
+    Arg::new("id")
+        .required(true)
+        .value_name("ITEM_ID")
+        .value_parser(ValueParser::new(valid_item_id))
+        .help("Full item ID shown by the matching list; keep both parts separated by a colon")
 }
 
 /// Rejects empty, padded, or control-bearing identifiers before any operation.
@@ -517,12 +936,22 @@ fn valid_identifier(value: &str) -> Result<String, &'static str> {
 
 /// Adds output controls with the established table default for lists.
 fn list_options(command: Command) -> Command {
-    output_options(command, "table")
+    protected_action(output_options(command, "table"))
 }
 
 /// Adds output controls with a JSON default for one selected record.
 fn show_options(command: Command) -> Command {
-    output_options(command, "json")
+    protected_action(output_options(command, "json"))
+}
+
+/// Adds the saved-session requirement to every protected read action.
+fn protected_action(command: Command) -> Command {
+    command.after_help(PROTECTED_READ_HELP)
+}
+
+/// Adds command details before the shared saved-session note.
+fn protected_action_with_details(command: Command, details: &'static str) -> Command {
+    command.after_help(format!("{details}\n\n{PROTECTED_READ_HELP}"))
 }
 
 /// Defines the shared output selector, compatibility alias, and header control.
@@ -533,14 +962,17 @@ fn output_options(command: Command, default: &'static str) -> Command {
                 .short('o')
                 .long("output")
                 .visible_alias("format")
+                .value_name("FORMAT")
                 .default_value(default)
                 .value_parser(["table", "json", "tsv"])
-                .help("Output format; JSON preserves structured fields"),
+                .help(format!(
+                    "Choose table, json, or tsv output (default: {default}); json keeps all fields"
+                )),
         )
         .arg(
             Arg::new("no-headers")
                 .long("no-headers")
                 .action(ArgAction::SetTrue)
-                .help("Omit table/TSV headers; invalid with JSON"),
+                .help("Hide column names in table or tsv output; cannot be used with json"),
         )
 }

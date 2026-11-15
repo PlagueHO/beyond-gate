@@ -6,6 +6,7 @@
 mod browser_setup;
 mod command;
 mod error;
+mod logo;
 mod mcp;
 mod output;
 
@@ -427,6 +428,8 @@ fn status_message(status: SessionStatus) -> &'static str {
 /// Help, version, completions, and resource parsing never open native storage.
 /// Explicit authentication commands and book list can access protected credentials.
 /// Output failures return 1, including when stderr itself cannot be written.
+/// The no-argument logo includes ANSI styles; the native entry point adapts stderr
+/// to terminal capabilities. Custom callers can use anstream to strip those styles.
 pub fn run<I, T>(
     arguments: I,
     reads: &impl ReadOperations,
@@ -475,13 +478,19 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
+    let arguments: Vec<OsString> = arguments.into_iter().map(Into::into).collect();
+    let no_arguments = arguments.len() <= 1;
     let matches = match command().try_get_matches_from(arguments) {
         Ok(matches) => matches,
         Err(error) => {
             let code = if error.exit_code() == 0 { 0 } else { 2 };
             let bytes = error.to_string();
             let result = if error.use_stderr() {
-                write_output(stderr, bytes.as_bytes())
+                if no_arguments {
+                    logo::write(stderr).and_then(|()| write_output(stderr, bytes.as_bytes()))
+                } else {
+                    write_output(stderr, bytes.as_bytes())
+                }
             } else {
                 write_output(stdout, bytes.as_bytes())
             };
