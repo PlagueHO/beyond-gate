@@ -1,6 +1,9 @@
 //! Process-level checks for the public CLI contract.
 
-use std::process::{Command, Output};
+use std::{
+    io::Write,
+    process::{Command, Output},
+};
 
 /// Runs the compiled binary without a shell.
 ///
@@ -11,37 +14,146 @@ use std::process::{Command, Output};
 ///
 /// Panics if the operating system cannot start or wait for the test binary.
 fn run(arguments: &[&str]) -> Output {
+    run_with_environment(arguments, &[])
+}
+
+/// Sets color controls only in the child, independent of the test runner's terminal.
+///
+/// # Panics
+///
+/// Panics if the operating system cannot start or wait for the test binary.
+fn run_with_environment(arguments: &[&str], environment: &[(&str, &str)]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_beyond-gate"))
         .args(arguments)
+        .env_remove("NO_COLOR")
+        .env_remove("CLICOLOR")
+        .env_remove("CLICOLOR_FORCE")
+        .env_remove("TERM")
+        .env_remove("COLORTERM")
+        .env_remove("CI")
+        .envs(environment.iter().copied())
         .output()
         .expect("the CLI test binary must run")
 }
 
-/// Checks that help is successful and states the foundation limit.
+/// Checks that the startup artwork precedes unchanged help without changing usage status.
 #[test]
-fn help_reports_foundation_scope() {
+fn no_command_shows_plain_logo_before_help() {
+    let output = run(&[]);
+    let help = run(&["--help"]);
+
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.starts_with("⠙⢿⣿⣿⣿"));
+    assert!(stderr.contains("⣻⣿⣿⣿⣿⣿⣿⡇"));
+    assert!(!stderr.contains('\x1b'));
+    assert!(output.stderr.ends_with(&help.stdout));
+    let logo_length = output.stderr.len() - help.stdout.len();
+    assert!(
+        stderr[..logo_length]
+            .lines()
+            .all(|line| line.chars().count() <= 80)
+    );
+}
+
+/// Keeps the plain artwork and help identical when color is disabled or unsupported.
+#[test]
+fn no_command_color_disabled_preserves_plain_output() {
+    let plain = run(&[]);
+    for environment in [
+        vec![("NO_COLOR", "1")],
+        vec![("NO_COLOR", "1"), ("CLICOLOR_FORCE", "1")],
+        vec![("CLICOLOR", "0")],
+        vec![("TERM", "dumb")],
+    ] {
+        let output = run_with_environment(&[], &environment);
+        assert_eq!(output.status.code(), Some(2), "{environment:?}");
+        assert!(output.stdout.is_empty());
+        assert_eq!(output.stderr, plain.stderr, "{environment:?}");
+    }
+}
+
+/// Forces white and red in a pipe and resets both styles before the existing help.
+#[test]
+fn no_command_forced_color_changes_only_logo_styles() {
+    let plain = run(&[]);
+    let output = run_with_environment(&[], &[("CLICOLOR_FORCE", "1")]);
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert_eq!(output.status.code(), Some(2));
+    assert!(output.stdout.is_empty());
+    assert!(stderr.starts_with("\x1b[37m⠙⢿⣿⣿⣿"));
+    assert!(stderr.contains("\x1b[0m\n\x1b[31m"));
+    assert_eq!(stderr.matches("\x1b[0m").count(), 2);
+    let (_, help) = stderr.rsplit_once("\x1b[0m\n").expect("reset before help");
+    assert_eq!(help.as_bytes(), run(&["--help"]).stdout);
+    let mut stripped = anstream::AutoStream::never(Vec::new());
+    stripped
+        .write_all(&output.stderr)
+        .expect("strip logo styles");
+    assert_eq!(stripped.into_inner(), plain.stderr);
+}
+
+/// Does not attach the startup logo to explicit requests or incomplete resource commands.
+#[test]
+fn logo_is_exclusive_to_no_argument_startup() {
+    for arguments in [
+        vec!["--help"],
+        vec!["-h"],
+        vec!["help"],
+        vec!["--version"],
+        vec!["book"],
+        vec!["auth"],
+        vec!["unknown"],
+        vec!["--unknown"],
+    ] {
+        let output = run_with_environment(&arguments, &[("CLICOLOR_FORCE", "1")]);
+        for bytes in [&output.stdout, &output.stderr] {
+            let text = String::from_utf8_lossy(bytes);
+            assert!(!text.contains('⣿'), "{arguments:?}");
+            assert!(!text.contains('\x1b'), "{arguments:?}");
+        }
+    }
+}
+
+/// Checks that root help explains authentication and the first protected read.
+#[test]
+fn help_reports_basic_authentication_usage() {
     let output = run(&["--help"]);
 
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Usage: beyond-gate"));
-    assert!(stdout.contains(beyond_gate_core::FOUNDATION_NOTICE));
-    assert!(stdout.contains("local MCP serving are available"));
-    assert!(stdout.contains("Web-catalog metadata"));
-    assert!(!stdout.contains("discovery remains blocked"));
-    assert!(!stdout.contains("MCP serving are not implemented"));
+    assert!(stdout.contains("Commands:"));
+    assert!(stdout.contains("Options:"));
+    assert!(stdout.contains("Authentication and getting started"));
+    assert!(stdout.contains("Read your D&D Beyond characters, campaigns, books, and game content"));
+    assert!(!stdout.contains("Local-first access to authorized D&D Beyond data"));
+    assert!(stdout.contains("To read D&D Beyond data"));
+    assert!(stdout.contains("does not unlock"));
+    assert!(stdout.contains("beyond-gate auth install edge"));
+    assert!(stdout.contains("beyond-gate auth login"));
+    assert!(stdout.contains("beyond-gate auth validate"));
+    assert!(stdout.contains("beyond-gate character list"));
+    assert!(stdout.contains("operating system's protected storage"));
+    assert!(stdout.contains("Do not enter your password"));
+    assert!(!stdout.contains(beyond_gate_core::FOUNDATION_NOTICE));
+    assert!(
+        stdout.lines().all(|line| line.chars().count() <= 100),
+        "root help must fit within 100 columns"
+    );
 }
 
-/// Reports Windows book reads without claiming support for every source layout.
+/// Reports book access and the shared authentication requirement.
 #[test]
 fn book_help_reports_web_catalog_scope() {
     let output = run(&["book", "--help"]);
     assert!(output.status.success());
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Bounded Windows library, outline, and selected-section reads"));
-    assert!(stdout.contains("canonical"));
+    assert!(stdout.contains("Find books, browse their sections, and read selected text"));
+    assert!(stdout.contains("Requires a saved Beyond Gate sign-in"));
     assert!(!stdout.contains("discovery blocked"));
 }
 
@@ -58,10 +170,10 @@ fn version_reports_package_version() {
     );
 }
 
-/// Checks that absent or unknown operations cannot return fake success.
+/// Checks that unknown operations cannot return fake success.
 #[test]
-fn missing_or_unknown_operation_fails() {
-    for arguments in [vec![], vec!["unknown", "list"], vec!["--unknown"]] {
+fn unknown_operation_fails() {
+    for arguments in [vec!["unknown", "list"], vec!["--unknown"]] {
         let output = run(&arguments);
 
         assert_eq!(output.status.code(), Some(2));
@@ -74,12 +186,48 @@ fn missing_or_unknown_operation_fails() {
 #[test]
 fn resource_help_matches_available_commands() {
     for arguments in [
+        vec!["--help"],
+        vec!["help", "auth"],
+        vec!["auth", "--help"],
+        vec!["auth", "login", "--help"],
+        vec!["auth", "status", "--help"],
+        vec!["auth", "validate", "--help"],
+        vec!["auth", "logout", "--help"],
+        vec!["auth", "install", "--help"],
+        vec!["auth", "uninstall", "--help"],
         vec!["character", "--help"],
         vec!["character", "list", "--help"],
         vec!["character", "show", "--help"],
         vec!["campaign", "--help"],
         vec!["campaign", "list", "--help"],
         vec!["campaign", "show", "--help"],
+        vec!["class", "--help"],
+        vec!["class", "list", "--help"],
+        vec!["class", "show", "--help"],
+        vec!["subclass", "--help"],
+        vec!["subclass", "list", "--help"],
+        vec!["subclass", "show", "--help"],
+        vec!["monster", "--help"],
+        vec!["monster", "list", "--help"],
+        vec!["monster", "show", "--help"],
+        vec!["spell", "--help"],
+        vec!["spell", "list", "--help"],
+        vec!["spell", "show", "--help"],
+        vec!["equipment", "--help"],
+        vec!["equipment", "list", "--help"],
+        vec!["equipment", "show", "--help"],
+        vec!["magic-item", "--help"],
+        vec!["magic-item", "list", "--help"],
+        vec!["magic-item", "show", "--help"],
+        vec!["feat", "--help"],
+        vec!["feat", "list", "--help"],
+        vec!["feat", "show", "--help"],
+        vec!["background", "--help"],
+        vec!["background", "list", "--help"],
+        vec!["background", "show", "--help"],
+        vec!["species", "--help"],
+        vec!["species", "list", "--help"],
+        vec!["species", "show", "--help"],
         vec!["book", "--help"],
         vec!["book", "list", "--help"],
         vec!["book", "outline", "--help"],
@@ -88,19 +236,75 @@ fn resource_help_matches_available_commands() {
         vec!["mcp", "--help"],
         vec!["mcp", "start", "--help"],
         vec!["mcp", "install", "--help"],
-        vec!["auth", "install", "--help"],
-        vec!["auth", "uninstall", "--help"],
     ] {
         let output = run(&arguments);
-        assert!(output.status.success());
+        assert!(
+            output.status.success(),
+            "{arguments:?}\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
         assert!(output.stderr.is_empty());
-        assert!(String::from_utf8_lossy(&output.stdout).contains("Usage: beyond-gate"));
+        let help = String::from_utf8_lossy(&output.stdout);
+        assert!(help.contains("Usage: beyond-gate"), "{arguments:?}");
+        assert!(!help.trim().is_empty(), "{arguments:?}");
+        let summary = help
+            .lines()
+            .find(|line| !line.trim().is_empty())
+            .expect("help summary");
+        let summary_position = help.find(summary).expect("summary position");
+        let usage_position = help.find("Usage:").expect("usage position");
+        assert!(summary_position < usage_position, "{arguments:?}\n{help}");
+        for line in help.lines() {
+            assert!(
+                line.chars().count() <= 100,
+                "{arguments:?} has an overlong line: {line}"
+            );
+        }
+    }
+    for arguments in [
+        vec!["character", "list", "--help"],
+        vec!["character", "show", "--help"],
+        vec!["campaign", "list", "--help"],
+        vec!["campaign", "show", "--help"],
+        vec!["class", "list", "--help"],
+        vec!["class", "show", "--help"],
+        vec!["subclass", "list", "--help"],
+        vec!["subclass", "show", "--help"],
+        vec!["monster", "list", "--help"],
+        vec!["monster", "show", "--help"],
+        vec!["spell", "list", "--help"],
+        vec!["spell", "show", "--help"],
+        vec!["equipment", "list", "--help"],
+        vec!["equipment", "show", "--help"],
+        vec!["magic-item", "list", "--help"],
+        vec!["magic-item", "show", "--help"],
+        vec!["feat", "list", "--help"],
+        vec!["feat", "show", "--help"],
+        vec!["background", "list", "--help"],
+        vec!["background", "show", "--help"],
+        vec!["species", "list", "--help"],
+        vec!["species", "show", "--help"],
+        vec!["book", "list", "--help"],
+        vec!["book", "outline", "--help"],
+        vec!["book", "read", "--help"],
+    ] {
+        let output = run(&arguments);
+        let help = String::from_utf8_lossy(&output.stdout);
+        assert!(output.status.success(), "{arguments:?}");
+        assert!(
+            help.contains("Requires a saved Beyond Gate sign-in"),
+            "{arguments:?}\n{help}"
+        );
+        let usage = help.find("Usage:").expect("action usage");
+        let details = help
+            .find("Requires a saved Beyond Gate sign-in")
+            .expect("session details");
+        assert!(usage < details, "{arguments:?}\n{help}");
     }
     let output = run(&["book", "read", "--help"]);
     let help = String::from_utf8_lossy(&output.stdout);
-    assert!(help.contains("4,096"));
+    assert!(help.contains("4,096 bytes of text"));
     assert!(help.contains("--continuation"));
-    assert!(help.contains("fresh access checks"));
     let output = run(&["mcp", "install", "--help"]);
     let help = String::from_utf8_lossy(&output.stdout);
     for expected in ["vscode", "claude-code", "copilot-cli", "--dry-run"] {
@@ -156,13 +360,18 @@ fn invalid_resource_usage_has_no_result() {
 
 /// Rejects invalid catalog selectors and combinations in the actual shipped parser.
 #[test]
-fn class_metadata_help_and_invalid_usage() {
+fn class_help_and_invalid_usage() {
     for resource in ["class", "subclass"] {
         for action in ["list", "show"] {
             let output = run(&[resource, action, "--help"]);
             assert!(output.status.success());
             assert!(output.stderr.is_empty());
-            assert!(String::from_utf8_lossy(&output.stdout).contains("metadata"));
+            let help = String::from_utf8_lossy(&output.stdout);
+            if action == "list" {
+                assert!(help.contains("names and IDs"));
+            } else {
+                assert!(help.contains("names and source details"));
+            }
         }
     }
     for arguments in [
@@ -308,6 +517,7 @@ fn spell_help_completions_and_invalid_usage() {
         vec!["spell", "list", "--class-id", "17", "--class-id", "17"],
         vec!["spell", "list", "--school-id", "2"],
         vec!["spell", "list", "--school-id", "11"],
+        vec!["spell", "list", "--name", " padded"],
         vec!["spell", "list", "--page", "0"],
         vec!["spell", "list", "--verbal", "null"],
         vec!["spell", "list", "--take", "1"],
@@ -318,6 +528,9 @@ fn spell_help_completions_and_invalid_usage() {
         assert_eq!(output.status.code(), Some(2), "{args:?}");
         assert!(output.stdout.is_empty());
         assert!(!String::from_utf8_lossy(&output.stderr).contains("session_absent"));
+        if args == ["spell", "list", "--name", " padded"] {
+            assert!(String::from_utf8_lossy(&output.stderr).contains("Spell name must"));
+        }
     }
     for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
         let output = run(&["completions", shell]);
@@ -386,7 +599,7 @@ fn equipment_help_completions_and_invalid_usage() {
         let output = run(&["equipment", action, "--help"]);
         assert!(output.status.success());
         assert!(output.stderr.is_empty());
-        assert!(String::from_utf8_lossy(&output.stdout).contains("source page"));
+        assert!(String::from_utf8_lossy(&output.stdout).contains("Page number"));
     }
     for args in [
         vec!["equipment"],
@@ -420,7 +633,12 @@ fn magic_item_help_completions_and_invalid_usage() {
         let output = run(&["magic-item", action, "--help"]);
         assert!(output.status.success());
         assert!(output.stderr.is_empty());
-        assert!(String::from_utf8_lossy(&output.stdout).contains("source page"));
+        let help = String::from_utf8_lossy(&output.stdout);
+        assert!(help.contains("Page number"));
+        if action == "list" {
+            assert!(help.contains("Match an exact item type label"));
+            assert!(help.contains("do not search other pages"));
+        }
     }
     for args in [
         vec!["magic-item"],
@@ -602,6 +820,14 @@ fn auth_help_describes_local_commands() {
     for name in ["login", "status", "logout", "validate"] {
         assert!(help.contains(name));
     }
+    let summary = help
+        .find("Sign in through your browser and manage the saved sign-in")
+        .expect("auth summary");
+    let usage = help.find("Usage: beyond-gate auth").expect("auth usage");
+    let options = help.find("Options:").expect("auth options");
+    let details = help.find("Sign-in works on Windows").expect("auth details");
+    assert!(summary < usage);
+    assert!(options < details);
 }
 
 /// Checks redirected login fails before terminal input, storage, or network activity.

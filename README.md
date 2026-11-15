@@ -157,7 +157,12 @@ pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-mcp -- --h
 pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-mcp -- --version
 ```
 
-The CLI shows help and exits with code 2 when no arguments are supplied.
+The CLI shows a stacked Unicode Braille logo followed by help on stderr and exits with
+code 2 when no arguments are supplied. The logo uses white for BEYOND and red
+for GATE when the terminal supports color. Redirected output and `NO_COLOR`
+use the same uncolored logo. The terminal font must support Unicode Braille
+characters. `CLICOLOR_FORCE=1` forces color unless `NO_COLOR`
+is set.
 The MCP binary starts its local stdio server when supplied no arguments. It waits
 for MCP protocol messages, not terminal input. Unknown arguments or commands
 exit with code 2. Help and version requests exit with code 0.

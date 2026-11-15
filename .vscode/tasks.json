@@ -8,7 +8,7 @@
   },
   "tasks": [
     {
-      "label": "Build",
+      "label": "Debug Build",
       "type": "process",
       "command": "cargo",
       "args": ["build", "--workspace", "--locked"],
@@ -20,7 +20,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Release build",
+      "label": "Release Build",
       "type": "process",
       "command": "cargo",
       "args": ["build", "--release", "--workspace", "--locked"],
@@ -185,8 +185,8 @@
         "MCP process tests",
         "Test API examples",
         "Build API docs",
-        "Build",
-        "Release build",
+        "Debug Build",
+        "Release Build",
         "Run CLI help",
         "Run MCP help",
         "Check Markdown",
