@@ -12,6 +12,7 @@ import {
   launchBrowser, reportPublicBrowserSymbols, cleanupActions, withCleanup, safeLaunchCause,
 } from "./browser-launch.mjs";
 import { rejectingProxy, registration, cleanupProbe, TEST_ROOT, REPO } from "./run.mjs";
+import { stageProductionExtension } from "./stage-production-extension.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const execute = promisify(execFile);
@@ -198,20 +199,7 @@ async function probe(name, recipe) {
       await copyFile(join(REPO, "target", "debug", "examples", "windows-login-fixture.exe"),
         join(directory, "host.exe"));
       const extension = join(directory, "extension");
-      await mkdir(extension);
-      for (const file of ["manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs"]) {
-        await copyFile(join(REPO, "beyond-gate-browser-extension", file), join(extension, file));
-      }
-      await mkdir(join(extension, "assets", "icons", "transparent"), { recursive: true });
-      await copyFile(join(REPO, "assets", "beyond-gate-logo.png"),
-        join(extension, "assets", "beyond-gate-logo.png"));
-      for (const file of [
-        "beyond-gate-icon-16.png", "beyond-gate-icon-24.png", "beyond-gate-icon-32.png",
-        "beyond-gate-icon-48.png", "beyond-gate-icon-128.png",
-      ]) {
-        await copyFile(join(REPO, "assets", "icons", "transparent", file),
-          join(extension, "assets", "icons", "transparent", file));
-      }
+      await stageProductionExtension(extension);
       for (const file of ["product-fixture.html", "product-fixture.mjs"]) {
         await copyFile(join(HERE, file), join(extension, file));
       }
