@@ -136,6 +136,54 @@ async function cases(page, name, directory, host, recipe) {
   return results;
 }
 
+/** Checks the real extension login page, local artwork, and responsive form layout. */
+async function verifyLoginSurface(browser, id) {
+  const page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", () => pageErrors.push("page_error"));
+  await page.setViewport({ width: 640, height: 780 });
+  await page.goto(`chrome-extension://${id}/login.html`);
+  await page.waitForFunction(() => {
+    const logo = document.querySelector(".brand img");
+    return logo?.complete && logo.naturalWidth > 0;
+  }, { timeout: 5000 });
+  const desktop = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    logoAlt: document.querySelector(".brand img")?.alt,
+    brandBackground: getComputedStyle(document.querySelector(".brand")).backgroundColor,
+    heading: document.querySelector("h1")?.textContent?.trim(),
+    keyLabel: document.querySelector('label[for="key"]')?.textContent?.trim(),
+    consent: document.querySelector('label[for="consent"]')?.textContent?.trim(),
+    buttonHeight: Number.parseFloat(getComputedStyle(document.querySelector("#connect")).minHeight),
+    darkMode: matchMedia("(prefers-color-scheme: dark)").matches,
+    buttonBackground: getComputedStyle(document.querySelector("#connect")).backgroundColor,
+    liveRegion: document.querySelector("#status")?.getAttribute("aria-live"),
+  }));
+  assert.equal(desktop.logoAlt, "Beyond Gate");
+  assert.equal(desktop.brandBackground, "rgb(0, 0, 0)");
+  assert.equal(desktop.heading, "Connect Beyond Gate");
+  assert.equal(desktop.keyLabel, "One-use pairing key");
+  assert.match(desktop.consent, /I authorize Beyond Gate/);
+  assert.equal(desktop.liveRegion, "polite");
+  assert.equal(desktop.buttonBackground,
+    desktop.darkMode ? "rgb(240, 113, 120)" : "rgb(180, 35, 45)");
+  assert.ok(desktop.buttonHeight >= 44);
+  assert.ok(desktop.scrollWidth <= desktop.width, "desktop login page must not overflow horizontally");
+
+  await page.setViewport({ width: 360, height: 800 });
+  const mobile = await page.evaluate(() => ({
+    width: document.documentElement.clientWidth,
+    scrollWidth: document.documentElement.scrollWidth,
+    logoWidth: document.querySelector(".brand img")?.getBoundingClientRect().width,
+    buttonWidth: document.querySelector("#connect")?.getBoundingClientRect().width,
+  }));
+  assert.ok(mobile.scrollWidth <= mobile.width, "mobile login page must not overflow horizontally");
+  assert.ok(mobile.logoWidth > 0 && mobile.buttonWidth > 0);
+  assert.deepEqual(pageErrors, []);
+  await page.close();
+}
+
 /** Loads the pinned production package in one new regular profile with outbound traffic blocked. */
 async function probe(name, recipe) {
   await mkdir(TEST_ROOT, { recursive: true });
@@ -153,6 +201,16 @@ async function probe(name, recipe) {
       await mkdir(extension);
       for (const file of ["manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs"]) {
         await copyFile(join(REPO, "beyond-gate-browser-extension", file), join(extension, file));
+      }
+      await mkdir(join(extension, "assets", "icons", "transparent"), { recursive: true });
+      await copyFile(join(REPO, "assets", "beyond-gate-logo.png"),
+        join(extension, "assets", "beyond-gate-logo.png"));
+      for (const file of [
+        "beyond-gate-icon-16.png", "beyond-gate-icon-24.png", "beyond-gate-icon-32.png",
+        "beyond-gate-icon-48.png", "beyond-gate-icon-128.png",
+      ]) {
+        await copyFile(join(REPO, "assets", "icons", "transparent", file),
+          join(extension, "assets", "icons", "transparent", file));
       }
       for (const file of ["product-fixture.html", "product-fixture.mjs"]) {
         await copyFile(join(HERE, file), join(extension, file));
@@ -173,6 +231,8 @@ async function probe(name, recipe) {
       stage = "extension-load";
       const id = await browser.installExtension(extension);
       assert.equal(id, recipe.extension_id, "actual package identity must match the native origin");
+      stage = "login-ui";
+      await verifyLoginSurface(browser, id);
       const page = await browser.newPage();
       await page.goto(`chrome-extension://${id}/product-fixture.html`);
       await page.waitForFunction(() => typeof globalThis.runProductFixture === "function", { timeout: 5000 });
