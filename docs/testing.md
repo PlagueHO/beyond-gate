@@ -487,10 +487,24 @@ the actual Noise relay tests. The package's public manifest key derives the
 expected extension ID. Tests require consent, regular context, exact native
 cookie limits, one query, final acknowledgement, safe cancellation, and fixed
 phase deadlines. They also check that the manifest icons and login-page artwork
-exist. The Windows package check verifies and extracts the nested extension ZIP.
-The Chrome and Edge product flow loads the production extension with its visual
-assets and synthetic native messaging. It does not read a real cookie or account.
-Existing synthetic-browser tests remain separate.
+exist. The source directory does not include repository-level artwork and is
+not loadable by itself. Use the staging command to create a complete unpacked
+extension in `target\browser-extension`:
+
+```powershell
+node .\scripts\browser-tests\stage-production-extension.mjs
+```
+
+The destination must not exist. The command fails without changing existing
+content if it exists. To use a different destination, pass a new directory path
+as the command's only argument.
+
+Load that output directory from `chrome://extensions` or `edge://extensions`
+with Developer mode enabled. The stage test checks every manifest and page
+asset. The Chrome and Edge product flow uses the same staging helper and loads
+the production extension with its visual assets and synthetic native messaging.
+It does not read a real cookie or account. Existing synthetic-browser tests
+remain separate.
 
 ```powershell
 npm test --prefix .\scripts\browser-tests

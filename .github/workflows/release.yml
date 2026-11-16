@@ -47,6 +47,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: runner.os == 'Windows'
+        with:
+          node-version: '26.12.1'
+          package-manager-cache: false
       - name: Select repository toolchain
         run: rustup show
       - name: Ensure Visual Studio 2022 Build Tools
@@ -127,24 +132,8 @@ jobs:
           if ($IsWindows) {
             Copy-Item target/release/beyond-gate-native-host.exe -Destination package
             $browserStage = Join-Path $env:RUNNER_TEMP "beyond-gate-browser-$([guid]::NewGuid().ToString('N'))"
-            New-Item -ItemType Directory -Path $browserStage | Out-Null
-            $browserFiles = @("manifest.json", "launch.mjs", "flow.mjs", "login.html", "login.css", "login.mjs") |
-              ForEach-Object { Join-Path beyond-gate-browser-extension $_ }
-            Copy-Item -LiteralPath $browserFiles -Destination $browserStage
-            $browserAssets = @(
-              "assets\beyond-gate-logo.png",
-              "assets\icons\transparent\beyond-gate-icon-16.png",
-              "assets\icons\transparent\beyond-gate-icon-24.png",
-              "assets\icons\transparent\beyond-gate-icon-32.png",
-              "assets\icons\transparent\beyond-gate-icon-48.png",
-              "assets\icons\transparent\beyond-gate-icon-128.png"
-            )
-            foreach ($asset in $browserAssets) {
-              $relativeDirectory = Split-Path $asset -Parent
-              $destination = Join-Path $browserStage $relativeDirectory
-              New-Item -ItemType Directory -Force -Path $destination | Out-Null
-              Copy-Item -LiteralPath (Join-Path . $asset) -Destination $destination
-            }
+            & node ./scripts/browser-tests/stage-production-extension.mjs $browserStage
+            if ($LASTEXITCODE -ne 0) { throw "Browser extension staging failed." }
             Compress-Archive -Path (Join-Path $browserStage "*") -DestinationPath package/beyond-gate-browser.zip
           }
           $stem = "beyond-gate-v$env:VERSION-$env:TARGET"
