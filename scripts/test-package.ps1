@@ -324,14 +324,29 @@ try {
     $result = Invoke-PackagedProcess $native @('chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/')
     Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('origin_rejected')) 'Native host must refuse another extension before input or endpoint access.'
     $browserZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $extracted 'beyond-gate-browser.zip'))
-    $browserNames = @('manifest.json', 'launch.mjs', 'flow.mjs', 'login.html', 'login.css', 'login.mjs')
+    $browserNames = @(
+      'manifest.json', 'launch.mjs', 'flow.mjs', 'login.html', 'login.css', 'login.mjs',
+      'assets/beyond-gate-logo.png',
+      'assets/icons/transparent/beyond-gate-icon-16.png',
+      'assets/icons/transparent/beyond-gate-icon-24.png',
+      'assets/icons/transparent/beyond-gate-icon-32.png',
+      'assets/icons/transparent/beyond-gate-icon-48.png',
+      'assets/icons/transparent/beyond-gate-icon-128.png'
+    )
+    $browserDirectories = @('assets', 'assets/icons', 'assets/icons/transparent')
     $browserSeen = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::Ordinal)
     try {
       foreach ($entry in $browserZip.Entries) {
-        Assert-Package ($browserNames -ccontains $entry.FullName) 'Unexpected or unsafe browser archive member.'
-        Assert-Package ($browserSeen.Add($entry.FullName)) 'Duplicate browser archive member.'
+        $entryName = $entry.FullName.Replace('\', '/')
+        if ($entryName.EndsWith('/')) {
+          $directoryName = $entryName.TrimEnd('/')
+          Assert-Package ($browserDirectories -ccontains $directoryName) 'Unexpected or unsafe browser archive member.'
+          continue
+        }
+        Assert-Package ($browserNames -ccontains $entryName) 'Unexpected or unsafe browser archive member.'
+        Assert-Package ($browserSeen.Add($entryName)) 'Duplicate browser archive member.'
         $fileType = ($entry.ExternalAttributes -shr 16) -band 0xF000
-        Assert-Package ($fileType -in @(0, 0x8000) -and $entry.Length -gt 0 -and $entry.Length -le 65536) 'Browser archive members must be bounded nonempty regular files.'
+        Assert-Package ($fileType -in @(0, 0x8000) -and $entry.Length -gt 0 -and $entry.Length -le 524288) 'Browser archive members must be bounded nonempty regular files.'
       }
       Assert-Package ($browserSeen.Count -eq $browserNames.Count) 'Browser package is missing required files.'
       $reader = [System.IO.StreamReader]::new($browserZip.GetEntry('manifest.json').Open())
@@ -342,6 +357,24 @@ try {
       Assert-Package ($manifest.manifest_version -eq 3 -and $manifest.incognito -ceq 'not_allowed') 'Browser package must use MV3 and refuse incognito.'
       Assert-Package (($manifest.permissions | Sort-Object) -join ',' -ceq 'cookies,nativeMessaging') 'Browser package permission scope changed.'
       Assert-Package (($manifest.host_permissions | Sort-Object) -join ',' -ceq 'https://dndbeyond.com/*,https://www.dndbeyond.com/*') 'Browser package host scope changed.'
+      $expectedIcons = @{
+        '16' = 'assets/icons/transparent/beyond-gate-icon-16.png'
+        '24' = 'assets/icons/transparent/beyond-gate-icon-24.png'
+        '32' = 'assets/icons/transparent/beyond-gate-icon-32.png'
+        '48' = 'assets/icons/transparent/beyond-gate-icon-48.png'
+        '128' = 'assets/icons/transparent/beyond-gate-icon-128.png'
+      }
+      Assert-Package ($manifest.icons.Count -eq 4 -and $manifest.action.default_icon.Count -eq 4) 'Browser package icon declarations changed.'
+      foreach ($size in @('16', '24', '32', '48', '128')) {
+        $iconPath = $expectedIcons[$size]
+        if ($size -ne '24') {
+          Assert-Package ($manifest.icons[$size] -ceq $iconPath) "Manifest icon $size is missing or unexpected."
+        }
+        if ($size -ne '128') {
+          Assert-Package ($manifest.action.default_icon[$size] -ceq $iconPath) "Toolbar icon $size is missing or unexpected."
+        }
+        Assert-Package ($browserSeen.Contains($iconPath)) "Browser package is missing icon $size."
+      }
       $hash = [System.Security.Cryptography.SHA256]::HashData([Convert]::FromBase64String($manifest.key))
       $id = -join (0..15 | ForEach-Object {
         [char](97 + ($hash[$_] -shr 4)); [char](97 + ($hash[$_] -band 15))
@@ -350,8 +383,21 @@ try {
       $browserId = $id
       Assert-Package (!$manifest.ContainsKey('content_scripts') -and !$manifest.ContainsKey('web_accessible_resources')) 'Browser package must not expose scripts to websites.'
       Assert-Package ($manifest.content_security_policy.extension_pages.Contains("connect-src 'none'") -and $manifest.content_security_policy.extension_pages.Contains("script-src 'self'")) 'Browser package must prohibit remote connections and scripts.'
+      $reader = [System.IO.StreamReader]::new($browserZip.GetEntry('login.html').Open())
+      try { $loginHtml = $reader.ReadToEnd() }
+      finally { $reader.Dispose() }
+      Assert-Package ($loginHtml.Contains('src="assets/beyond-gate-logo.png"') -and $loginHtml.Contains('href="assets/icons/transparent/beyond-gate-icon-32.png"')) 'Browser page must reference the packaged Beyond Gate artwork.'
     }
     finally { $browserZip.Dispose() }
+    $browserExtract = Join-Path $temporary 'browser extension'
+    New-Item -ItemType Directory -Path $browserExtract | Out-Null
+    [System.IO.Compression.ZipFile]::ExtractToDirectory(
+      (Join-Path $extracted 'beyond-gate-browser.zip'), $browserExtract)
+    foreach ($name in $browserNames) {
+      $relativePath = $name.Replace('/', [string][System.IO.Path]::DirectorySeparatorChar)
+      Assert-Package (Test-Path -LiteralPath (Join-Path $browserExtract $relativePath) -PathType Leaf) 'Extracted browser package is missing a required file.'
+    }
+    Assert-Package (@(Get-ChildItem -LiteralPath $browserExtract -File -Recurse).Count -eq $browserNames.Count) 'Extracted browser package contains unexpected files.'
     Complete-PackageCase 'browser.package'
   } else {
     $row = $cases | Where-Object { $_.id -ceq 'browser.package' }

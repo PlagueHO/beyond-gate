@@ -486,7 +486,11 @@ The [production recipes](fixtures/windows-login-v1.json) are shared with
 the actual Noise relay tests. The package's public manifest key derives the
 expected extension ID. Tests require consent, regular context, exact native
 cookie limits, one query, final acknowledgement, safe cancellation, and fixed
-phase deadlines. Existing synthetic-browser tests remain separate.
+phase deadlines. They also check that the manifest icons and login-page artwork
+exist. The Windows package check verifies and extracts the nested extension ZIP.
+The Chrome and Edge product flow loads the production extension with its visual
+assets and synthetic native messaging. It does not read a real cookie or account.
+Existing synthetic-browser tests remain separate.
 
 ```powershell
 npm test --prefix .\scripts\browser-tests

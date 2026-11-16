@@ -69,6 +69,29 @@ test("public package identity and permissions match the native contract", async 
   assert.equal(manifest.incognito, "not_allowed");
   assert.equal(manifest.content_scripts, undefined);
   assert.equal(manifest.action.default_popup, undefined);
+  assert.deepEqual(manifest.icons, {
+    16: "assets/icons/transparent/beyond-gate-icon-16.png",
+    32: "assets/icons/transparent/beyond-gate-icon-32.png",
+    48: "assets/icons/transparent/beyond-gate-icon-48.png",
+    128: "assets/icons/transparent/beyond-gate-icon-128.png",
+  });
+  assert.deepEqual(manifest.action.default_icon, {
+    16: "assets/icons/transparent/beyond-gate-icon-16.png",
+    24: "assets/icons/transparent/beyond-gate-icon-24.png",
+    32: "assets/icons/transparent/beyond-gate-icon-32.png",
+    48: "assets/icons/transparent/beyond-gate-icon-48.png",
+  });
+  const imagePaths = new Set([
+    "assets/beyond-gate-logo.png",
+    ...Object.values(manifest.icons),
+    ...Object.values(manifest.action.default_icon),
+  ]);
+  for (const imagePath of imagePaths) {
+    assert.ok((await readFile(new URL(`../../${imagePath}`, import.meta.url))).length > 0);
+  }
+  const loginHtml = await readFile(new URL("../login.html", import.meta.url), "utf8");
+  assert.match(loginHtml, /src="assets\/beyond-gate-logo\.png"/);
+  assert.match(loginHtml, /href="assets\/icons\/transparent\/beyond-gate-icon-32\.png"/);
 });
 
 test("toolbar action opens a separate owned form without native or cookie access", async () => {

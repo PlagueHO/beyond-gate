@@ -10,7 +10,21 @@
     "https://www.dndbeyond.com/*"
   ],
   "incognito": "not_allowed",
-  "action": { "default_title": "Open Beyond Gate login" },
+  "icons": {
+    "16": "assets/icons/transparent/beyond-gate-icon-16.png",
+    "32": "assets/icons/transparent/beyond-gate-icon-32.png",
+    "48": "assets/icons/transparent/beyond-gate-icon-48.png",
+    "128": "assets/icons/transparent/beyond-gate-icon-128.png"
+  },
+  "action": {
+    "default_title": "Open Beyond Gate login",
+    "default_icon": {
+      "16": "assets/icons/transparent/beyond-gate-icon-16.png",
+      "24": "assets/icons/transparent/beyond-gate-icon-24.png",
+      "32": "assets/icons/transparent/beyond-gate-icon-32.png",
+      "48": "assets/icons/transparent/beyond-gate-icon-48.png"
+    }
+  },
   "background": { "service_worker": "launch.mjs", "type": "module" },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'none'; connect-src 'none'; base-uri 'none'"

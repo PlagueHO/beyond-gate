@@ -33,9 +33,11 @@ Each archive contains exactly these files at its root:
 - `README.md`, `LICENSE`, `CHANGELOG.md`, and `installation.md` (this guide).
 
 Windows archives also contain `beyond-gate-native-host.exe` and
-`beyond-gate-browser.zip`. The browser ZIP contains only `manifest.json`,
-`launch.mjs`, `flow.mjs`, `login.html`, `login.css`, and `login.mjs`.
-Development fixtures and tests are not included.
+`beyond-gate-browser.zip`. The browser ZIP ships inside the same Windows
+archive as the CLI, MCP server, and native host. It contains `manifest.json`,
+`launch.mjs`, `flow.mjs`, `login.html`, `login.css`, `login.mjs`, the Beyond Gate
+logo, and the declared extension icons. Development fixtures and tests are not
+included.
 
 Keep both binaries together in one stable directory. MCP registration records
 the absolute server path. If you move the files later, remove the old registration
