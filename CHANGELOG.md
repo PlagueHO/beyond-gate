@@ -454,6 +454,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Share MCP tool declarations and cancellation handling. All 24 tool names,
+  input schemas, outputs, and errors remain unchanged. CLI commands and core
+  operations are unchanged.
 - Shared CLI read cancellation, filter assembly, pagination formatting, and
   output options. Live reads use shared operation defaults. Commands,
   help, completions, output, and exit codes remain unchanged.

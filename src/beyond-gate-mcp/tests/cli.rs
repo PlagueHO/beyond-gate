@@ -199,6 +199,12 @@ fn stdio_protocol_handles_discovery_and_strict_input() {
     for tool in tools {
         assert_eq!(tool["annotations"]["readOnlyHint"], true);
         assert_eq!(tool["annotations"]["destructiveHint"], false);
+        assert_eq!(tool["annotations"]["openWorldHint"], true);
+        assert_eq!(
+            tool["annotations"]["idempotentHint"],
+            tool["name"] != "auth_validate"
+        );
+        assert_eq!(tool["inputSchema"]["additionalProperties"], false);
     }
     let book_read = tools
         .iter()
