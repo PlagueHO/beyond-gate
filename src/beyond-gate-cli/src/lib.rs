@@ -25,7 +25,10 @@ use std::{
 use beyond_gate_core::{
     auth::{
         self, SessionStatus,
-        establishment::{LoginControl, SessionEstablishmentInput, establish_session},
+        establishment::{
+            EstablishmentError, LoginControl, SavedSession, SessionEstablishmentInput,
+            establish_session,
+        },
         input::{SESSION_ENV_VAR, SessionSource},
         session::Session,
     },
@@ -56,11 +59,27 @@ const MAX_CATALOG_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Defers a validated resource operation until its session source is selected.
 type PreparedRead<'a> = Box<dyn FnOnce(&Session) -> Result<Vec<u8>, Failure> + 'a>;
 
-/// Supplies only the shared resource operations required by the command runner.
+/// Supplies the shared resource and import operations required by the command runner.
 ///
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
+    /// Validates explicit import and performs its single protected save.
+    ///
+    /// Tests can inject a loopback service and synthetic store without product
+    /// fixture arguments or native credential access.
+    ///
+    /// # Errors
+    ///
+    /// Preserves the shared validation, cancellation, and uncertain-save errors.
+    fn establish_session(
+        &self,
+        input: SessionEstablishmentInput,
+        control: LoginControl,
+    ) -> impl std::future::Future<Output = Result<SavedSession, EstablishmentError>> {
+        establish_session(input, control)
+    }
+
     /// Reads one mixed page with bounded local magic-item filters.
     ///
     /// # Errors
@@ -567,7 +586,9 @@ where
     if let Some(arguments) = matches.subcommand_matches("auth")
         && let Some(import) = arguments.subcommand_matches("import")
     {
-        return match import_session(import, stderr).and_then(|bytes| write_output(stdout, &bytes)) {
+        return match import_session(import, reads, stderr)
+            .and_then(|bytes| write_output(stdout, &bytes))
+        {
             Ok(()) => 0,
             Err(error) => report(&error, stderr),
         };
@@ -604,7 +625,11 @@ where
 }
 
 /// Validates explicit import and preserves uncertain-write evidence on Ctrl+C.
-fn import_session(arguments: &ArgMatches, stderr: &mut impl Write) -> Result<Vec<u8>, Failure> {
+fn import_session(
+    arguments: &ArgMatches,
+    operations: &impl ReadOperations,
+    stderr: &mut impl Write,
+) -> Result<Vec<u8>, Failure> {
     let input = if arguments.get_flag("prompt") {
         SessionEstablishmentInput::from_prompt(hidden_input::read(stderr)?)
     } else {
@@ -623,7 +648,7 @@ fn import_session(arguments: &ArgMatches, stderr: &mut impl Write) -> Result<Vec
                 signal.map_err(Failure::Signal)?;
                 Err(Failure::ImportOutcome(cancellation.cancel_outcome()))
             }
-            result = establish_session(input, control) => result.map_err(Failure::Establishment),
+            result = operations.establish_session(input, control) => result.map_err(Failure::Establishment),
         }
     })?;
     Ok(format!(
@@ -1467,6 +1492,7 @@ fn prepare_book<'a>(
         "outline" => {
             let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "book-id")?;
+            book::validate_book_id(id).map_err(Failure::Book)?;
             Ok(Box::new(move |session| {
                 let value = execute_read(|| reads.get_book_outline(session, id), Failure::Book)?;
                 let json = output::outline(&value);
@@ -1489,6 +1515,12 @@ fn prepare_book<'a>(
                 .map_err(Failure::Cursor)?;
             let book_id = selection(arguments, "book-id")?;
             let section_id = selection(arguments, "section-id")?;
+            book::validate_section_request(SectionRequest {
+                book_id,
+                section_id,
+                continuation: cursor.as_ref(),
+            })
+            .map_err(Failure::Book)?;
             Ok(Box::new(move |session| {
                 let request = SectionRequest {
                     book_id,

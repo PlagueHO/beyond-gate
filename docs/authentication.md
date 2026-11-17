@@ -85,8 +85,10 @@ beyond-gate --auth-prompt auth validate
 ```
 
 Stdin and stderr must be terminals. Stdout can be redirected. Input is not echoed.
-Enter submits; Backspace edits; Escape or Ctrl+C cancels. Input waits at most five
-minutes. Terminal mode is restored before exchange and on normal error exits.
+Ctrl+D submits; Backspace edits; Escape or Ctrl+C cancels. Enter and pasted line
+breaks invalidate the input without submitting or restoring echo. Invalid input
+stays hidden until Ctrl+D or cancellation. Input waits at most five minutes.
+Terminal mode is restored before exchange and on normal error exits.
 Forced process termination or terminal recording remains outside this guarantee.
 The global flag is refused for MCP, setup, status/logout, and completions.
 

@@ -76,6 +76,7 @@ pub use model::{
     BookOutline, OutlineEntry, OutlineEntryRecord, OutlineRecord, SectionChunk, SectionCursor,
     SectionRecord, SectionRequest,
 };
+pub use source::{validate_book_id, validate_section_request};
 
 use std::collections::HashMap;
 

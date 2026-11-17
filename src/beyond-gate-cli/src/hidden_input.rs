@@ -35,7 +35,7 @@ pub(crate) fn read(stderr: &mut impl Write) -> Result<Vec<u8>, Failure> {
     terminal::enable_raw_mode().map_err(Failure::HiddenInput)?;
     let mut guard = RawMode(true);
     let result = stderr
-        .write_all(b"CobaltSession (hidden; Enter submits, Esc or Ctrl+C cancels): ")
+        .write_all(b"CobaltSession (hidden; Ctrl+D submits, Esc or Ctrl+C cancels): ")
         .and_then(|()| stderr.flush())
         .map_err(Failure::Output)
         .and_then(|()| read_events());
@@ -46,7 +46,7 @@ pub(crate) fn read(stderr: &mut impl Write) -> Result<Vec<u8>, Failure> {
     result.map(|mut bytes| std::mem::take(&mut *bytes))
 }
 
-/// Reads bounded input on one thread and treats control keys as local actions.
+/// Accepts at most 2,552 cookie bytes and submits only with explicit Ctrl+D.
 fn read_events() -> Result<Zeroizing<Vec<u8>>, Failure> {
     let deadline = Instant::now() + Duration::from_secs(300);
     let mut bytes = Zeroizing::new(Vec::with_capacity(2_552));
@@ -68,11 +68,19 @@ fn read_events() -> Result<Zeroizing<Vec<u8>>, Failure> {
                 KeyCode::Char('c' | 'C') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     return Err(Failure::Cancelled);
                 }
-                KeyCode::Enter => {
+                KeyCode::Char('d' | 'D') if key.modifiers.contains(KeyModifiers::CONTROL) => {
                     return match invalid {
                         Some(message) => Err(Failure::Usage(message)),
                         None => Ok(bytes),
                     };
+                }
+                KeyCode::Enter => {
+                    invalid = Some("Hidden cookie input must not contain line breaks.");
+                }
+                KeyCode::Char('j' | 'J' | 'm' | 'M')
+                    if key.modifiers.contains(KeyModifiers::CONTROL) =>
+                {
+                    invalid = Some("Hidden cookie input must not contain line breaks.");
                 }
                 KeyCode::Backspace => {
                     if let Some(last) = bytes.last_mut() {

@@ -3,6 +3,8 @@
 //! The child uses the shipped parser and runner with original synthetic core
 //! inputs. No fixture mode is compiled into the product binary.
 
+mod import_process;
+
 use std::{
     io::{self, Write},
     process::{Command, Output},
@@ -25,6 +27,11 @@ use beyond_gate_core::{
     },
 };
 use serde_json::{Value, json};
+
+/// Canonical live-shaped identity for an invented section, not source content.
+const SECTION: &str = "s-0000000000000000000000000000000000000000000000000000000000000000";
+/// A second valid identity for cursor scope rejection.
+const OTHER_SECTION: &str = "s-1111111111111111111111111111111111111111111111111111111111111111";
 
 /// Selects synthetic source behavior only in this integration-test executable.
 struct Fixtures {
@@ -232,7 +239,7 @@ impl ReadOperations for Fixtures {
         if self.scenario != "empty" {
             for evidence in evidence {
                 entries.push(BookRecord {
-                    id: "book".into(),
+                    id: "1".into(),
                     title: "An invented book".into(),
                     source_url: "https://example.com/book".into(),
                     evidence,
@@ -263,7 +270,7 @@ impl ReadOperations for Fixtures {
                         vec![]
                     } else {
                         vec![OutlineEntryRecord {
-                            id: "section".into(),
+                            id: SECTION.into(),
                             title: "An invented opening".into(),
                             parent_id: None,
                             source_url: "https://example.com/book#section".into(),
@@ -345,7 +352,7 @@ fn list_contracts() {
         ),
         (&["book", "list"], "id\ttitle\taccess\tsource_url\n"),
         (
-            &["book", "outline", "book"],
+            &["book", "outline", "1"],
             "id\ttitle\tparent_id\tsource_url\n",
         ),
     ];
@@ -384,7 +391,7 @@ fn list_contracts() {
         let value = read_json(&run("empty", &json_args));
         if arguments[1] == "outline" {
             assert_eq!(value["entries"], json!([]));
-            assert_eq!(value["book_id"], "book");
+            assert_eq!(value["book_id"], "1");
         } else {
             assert_eq!(value, json!([]));
         }
@@ -454,9 +461,9 @@ fn list_contracts() {
     assert_eq!(books[0]["evidence"][1]["context_id"], "campaign");
     let outline = read_json(&run(
         "normal",
-        &["book", "outline", "book", "--format", "json"],
+        &["book", "outline", "1", "--format", "json"],
     ));
-    assert_eq!(outline["entries"][0]["id"], "section");
+    assert_eq!(outline["entries"][0]["id"], SECTION);
     assert!(outline["entries"][0]["parent_id"].is_null());
     for arguments in [
         vec!["character", "list", "--format", "json"],
@@ -508,7 +515,7 @@ fn section_contracts() {
         let mut text = String::new();
         let mut token: Option<String> = None;
         loop {
-            let mut arguments = vec!["book", "read", "book", "section"];
+            let mut arguments = vec!["book", "read", "1", SECTION];
             if let Some(token) = token.as_deref() {
                 arguments.extend(["--continuation", token]);
             }
@@ -516,8 +523,8 @@ fn section_contracts() {
             let chunk = value["text"].as_str().expect("text");
             assert!(chunk.len() <= book::MAX_SECTION_BYTES);
             assert_eq!(value["max_text_bytes"], 4096);
-            assert_eq!(value["book_id"], "book");
-            assert_eq!(value["section_id"], "section");
+            assert_eq!(value["book_id"], "1");
+            assert_eq!(value["section_id"], SECTION);
             assert_eq!(value["source_url"], "https://example.com/book#section");
             text.push_str(chunk);
             if value["is_complete"] == true {
@@ -530,7 +537,7 @@ fn section_contracts() {
         }
         assert_eq!(text, expected);
     }
-    let value = read_json(&run("normal", &["book", "read", "book", "section"]));
+    let value = read_json(&run("normal", &["book", "read", "1", SECTION]));
     assert_eq!(value["text"].as_str().expect("text").len(), 4096);
     assert_eq!(value["is_complete"], false);
     let token = value["next_cursor"].as_str().expect("continuation");
@@ -547,7 +554,7 @@ fn section_contracts() {
         failure(
             run(
                 scenario,
-                &["book", "read", "book", "section", "--continuation", token],
+                &["book", "read", "1", SECTION, "--continuation", token],
             ),
             1,
             diagnostic,
@@ -556,14 +563,7 @@ fn section_contracts() {
     failure(
         run(
             "normal",
-            &[
-                "book",
-                "read",
-                "other-book",
-                "section",
-                "--continuation",
-                token,
-            ],
+            &["book", "read", "2", SECTION, "--continuation", token],
         ),
         1,
         "scope or position",
@@ -571,27 +571,20 @@ fn section_contracts() {
     failure(
         run(
             "normal",
-            &[
-                "book",
-                "read",
-                "book",
-                "other-section",
-                "--continuation",
-                token,
-            ],
+            &["book", "read", "1", OTHER_SECTION, "--continuation", token],
         ),
         1,
         "scope or position",
     );
     failure(
-        run("huge-cursor", &["book", "read", "book", "section"]),
+        run("huge-cursor", &["book", "read", "1", SECTION]),
         1,
         "16 KiB",
     );
     let invalid = "private-invalid-token";
     let output = run(
         "normal",
-        &["book", "read", "book", "section", "--continuation", invalid],
+        &["book", "read", "1", SECTION, "--continuation", invalid],
     );
     assert!(!String::from_utf8_lossy(&output.stderr).contains(invalid));
     failure(output, 2, "continuation");
@@ -599,14 +592,7 @@ fn section_contracts() {
     failure(
         run(
             "normal",
-            &[
-                "book",
-                "read",
-                "book",
-                "section",
-                "--continuation",
-                &oversized,
-            ],
+            &["book", "read", "1", SECTION, "--continuation", &oversized],
         ),
         2,
         "16 KiB",
@@ -618,7 +604,7 @@ fn section_contracts() {
         "unsupported-section",
         "malformed",
     ] {
-        let output = run(scenario, &["book", "outline", "book"]);
+        let output = run(scenario, &["book", "outline", "1"]);
         assert_eq!(output.status.code(), Some(1));
         assert!(output.stdout.is_empty());
         assert!(!output.stderr.is_empty());
@@ -644,7 +630,7 @@ fn cursor_rejections(original: &str) {
         failure(
             run(
                 "normal",
-                &["book", "read", "book", "section", "--continuation", &token],
+                &["book", "read", "1", SECTION, "--continuation", &token],
             ),
             code,
             message,
@@ -656,7 +642,7 @@ fn cursor_rejections(original: &str) {
     failure(
         run(
             "unicode",
-            &["book", "read", "book", "section", "--continuation", &token],
+            &["book", "read", "1", SECTION, "--continuation", &token],
         ),
         1,
         "scope or position",
@@ -669,7 +655,7 @@ fn cursor_rejections(original: &str) {
     failure(
         run(
             "normal",
-            &["book", "read", "book", "section", "--continuation", &token],
+            &["book", "read", "1", SECTION, "--continuation", &token],
         ),
         1,
         "older or changed",
@@ -680,8 +666,8 @@ fn cursor_rejections(original: &str) {
             &[
                 "book",
                 "read",
-                "book",
-                "section",
+                "1",
+                SECTION,
                 "--continuation",
                 &(token + "A"),
             ],
@@ -695,8 +681,8 @@ fn cursor_rejections(original: &str) {
             &[
                 "book",
                 "read",
-                "book",
-                "section",
+                "1",
+                SECTION,
                 "--continuation",
                 &original.replacen("bg1.", "bg2.", 1),
             ],
@@ -773,7 +759,7 @@ fn output_failures() {
     assert!(String::from_utf8_lossy(&stderr).contains("could not be written"));
     assert_eq!(
         beyond_gate_cli::run(
-            ["beyond-gate", "book", "read", "book", "section"],
+            ["beyond-gate", "book", "read", "1", SECTION],
             &Fixtures {
                 scenario: "denied".into()
             },
@@ -1375,6 +1361,16 @@ fn main() {
     let arguments: Vec<_> = std::env::args_os().collect();
     if arguments
         .get(1)
+        .is_some_and(|argument| argument == "--import-child")
+    {
+        let mode = arguments
+            .get(2)
+            .and_then(|mode| mode.to_str())
+            .expect("import mode");
+        std::process::exit(import_process::child(mode));
+    }
+    if arguments
+        .get(1)
         .is_some_and(|argument| argument == "--fixture-child")
     {
         let scenario = arguments
@@ -1513,6 +1509,7 @@ fn main() {
             &mut io::stderr().lock(),
         ));
     }
+    import_process::check();
     list_contracts();
     species_contracts();
     spell_contracts();

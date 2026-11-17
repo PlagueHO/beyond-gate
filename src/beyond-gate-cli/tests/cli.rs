@@ -166,6 +166,54 @@ fn invalid_prompted_requests_preserve_usage_errors_without_terminal_input() {
     }
 }
 
+/// Rejects pure core book selection failures before hidden input or session access.
+#[test]
+fn invalid_book_selections_fail_before_hidden_input() {
+    use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+    let section = format!("s-{}", "a".repeat(64));
+    let other_section = format!("s-{}", "b".repeat(64));
+    let uppercase_section = format!("s-{}", "A".repeat(64));
+    let mut cases = vec![
+        vec!["book", "read", "1", "section"],
+        vec!["book", "read", "1", "s-abc"],
+        vec!["book", "read", "1", &other_section[..65]],
+        vec!["book", "read", "1", &uppercase_section],
+    ];
+    for book in ["0", "01", "18446744073709551616"] {
+        cases.push(vec!["book", "outline", book]);
+        cases.push(vec!["book", "read", book, &section]);
+    }
+    let mut tokens = Vec::new();
+    for (book, cursor_section) in [("2", &section), ("1", &other_section)] {
+        let wire = serde_json::json!({
+            "book_id": book,
+            "section_id": cursor_section,
+            "revision": "invented",
+            "source_url": "https://example.com/invented",
+            "next_byte": 4096,
+        });
+        tokens.push(format!("bg1.{}", URL_SAFE_NO_PAD.encode(wire.to_string())));
+    }
+    for token in &tokens {
+        cases.push(vec!["book", "read", "1", &section, "--continuation", token]);
+    }
+    for arguments in cases {
+        let ordinary = run(&arguments);
+        assert_eq!(ordinary.status.code(), Some(1), "{arguments:?}");
+        let mut prompted = vec!["--auth-prompt"];
+        prompted.extend_from_slice(&arguments);
+        let prompted = run(&prompted);
+        assert_eq!(
+            prompted.status.code(),
+            ordinary.status.code(),
+            "{arguments:?}"
+        );
+        assert!(prompted.stdout.is_empty());
+        assert_eq!(prompted.stderr, ordinary.stderr, "{arguments:?}");
+        assert!(!String::from_utf8_lossy(&prompted.stderr).contains("terminal"));
+    }
+}
+
 /// Checks that the startup artwork precedes unchanged help without changing usage status.
 #[test]
 fn no_command_shows_plain_logo_before_help() {

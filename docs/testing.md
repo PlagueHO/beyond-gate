@@ -26,12 +26,18 @@ Explicit import uses mock stores and a loopback exchange. Tests check validation
 before save and keep storage failures distinct from uncertain writes.
 
 CLI process checks cover source-aware status/logout, restart, import selection,
-malformed input, and redirected-input refusal. The development-only
+malformed input, and redirected-input refusal. Book selection failures, including
+cursor scope mismatches, keep the same errors before hidden input.
+The `adapter_process` suite checks import success output and exit status. It sends
+real Ctrl+C before and after synthetic write admission to check preserved prior
+storage and conservative `save_indeterminate` reporting.
+The development-only
 `hidden_terminal` test uses portable-pty and the real CLI runner with local mock
 services. It checks hidden typing/paste, Backspace, Escape, Ctrl+C, terminal
 restoration, and redirected result stdout. It also checks full-length input,
-invalid Unicode, tabs, and oversized pastes. Invalid input stays hidden until
-Enter or cancellation. Failed input makes no exchange request.
+invalid Unicode, tabs, oversized pastes, and multiline pastes split across reads.
+Ctrl+D submits on every platform; Enter never submits. Invalid input stays
+hidden until Ctrl+D or cancellation. Failed input makes no exchange request.
 No account or native store is used.
 The Unix build selects crossterm's
 [poll-based terminal backend](https://docs.rs/crossterm/0.29.0/src/crossterm/event/source/unix/tty.rs.html)
