@@ -7,6 +7,15 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Shared Windows/Linux CLI and MCP process-only authentication through
+  `BEYOND_GATE_COBALT_SESSION`, hidden CLI `--auth-prompt`, and explicit protected
+  `auth import --prompt` or `--env`. Explicit input never falls back to another
+  source. Source-aware status/logout preserve saved credentials in process-only
+  mode; `--stored` selects the saved entry explicitly. Existing exchange bounds,
+  bearer reuse, book access checks, and Windows browser login remain shared.
+  Synthetic tests include no-store input, protected import, CLI/MCP parity, and
+  PTY/ConPTY no-echo and cancellation checks. Native account, client, Linux
+  release-binary, and macOS acceptance remain separate.
 - Beyond Gate icon assets in `assets/icons`, with transparent, black, and white
   backgrounds. Each set includes a 1024-pixel source and PNG exports at 16, 24,
   32, 48, 64, and 128 pixels. The Chrome and Edge extension now uses the approved
@@ -536,6 +545,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- CLI resource requests now use shared preparation before hidden cookie input.
+  Invalid output controls, filters, and continuation input fail without opening
+  the prompt. Normal and prompted reads preserve the same errors and exit codes.
 - Package verification includes both equipment tools in the exact MCP inventory
   and checks invalid equipment input before session or network access.
 - Class/subclass tables now check an 8 MiB presentation limit before allocating

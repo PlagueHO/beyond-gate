@@ -40,6 +40,12 @@ fn scenario(name: &str) -> Scenario {
 
 /// Selects fixed invented source cases only in this self-spawning test executable.
 fn session(name: &str) -> Session {
+    stored_session(name.strip_prefix("process-").unwrap_or(name))
+        .with_environment_value(std::env::var_os("BEYOND_GATE_COBALT_SESSION"))
+}
+
+/// Builds existing mock services independently of the selected credential source.
+fn stored_session(name: &str) -> Session {
     if let Some(name) = name.strip_prefix("equipment-") {
         use beyond_gate_core::item_catalog::fixture::{self, Scenario};
         let scenario = match name {
@@ -248,11 +254,18 @@ fn cli(name: &str, arguments: &[&str]) -> Output {
     {
         arguments.extend(["--output", "json"]);
     }
-    Command::new(std::env::current_exe().expect("test executable"))
-        .args(["--cli-child", name])
-        .args(arguments)
-        .output()
-        .expect("CLI child")
+    let mut command = Command::new(std::env::current_exe().expect("test executable"));
+    command.args(["--cli-child", name]).args(arguments);
+    process_environment(&mut command, name);
+    command.output().expect("CLI child")
+}
+
+/// Supplies invented environment material only to explicitly selected test children.
+fn process_environment(command: &mut Command, name: &str) {
+    command.env_remove("BEYOND_GATE_COBALT_SESSION");
+    if name.starts_with("process-") {
+        command.env("BEYOND_GATE_COBALT_SESSION", "invented-process-cookie");
+    }
 }
 
 /// Exchanges protocol messages with the actual rmcp stdio server until validation completes.
@@ -262,8 +275,10 @@ fn mcp(name: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
 
 /// Calls an actual registered tool while preserving protocol-only stdout and bounded waits.
 fn mcp_tool(name: &str, tool: &str, arguments: Value, cancel: bool) -> (Output, Vec<Value>) {
-    let mut child = Command::new(std::env::current_exe().expect("test executable"))
-        .args(["--mcp-child", name])
+    let mut command = Command::new(std::env::current_exe().expect("test executable"));
+    command.args(["--mcp-child", name]);
+    process_environment(&mut command, name);
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -341,6 +356,122 @@ fn mcp_tool(name: &str, tool: &str, arguments: Value, cancel: bool) -> (Output, 
     reader_worker.join().expect("protocol reader");
     let output = child.wait_with_output().expect("MCP EOF");
     (output, messages)
+}
+
+/// Repeats actual adapter reads through environment selection rather than saved input.
+fn process_input_contracts() {
+    for (name, tool, input, args) in [
+        (
+            "process-valid",
+            "auth_validate",
+            json!({}),
+            vec!["auth", "validate"],
+        ),
+        (
+            "process-character-normal",
+            "character_list",
+            json!({}),
+            vec!["character", "list", "-o", "json"],
+        ),
+        (
+            "process-character-normal",
+            "character_show",
+            json!({"id":"42"}),
+            vec!["character", "show", "42"],
+        ),
+        (
+            "process-character-normal",
+            "campaign_list",
+            json!({}),
+            vec!["campaign", "list", "-o", "json"],
+        ),
+        (
+            "process-character-normal",
+            "campaign_show",
+            json!({"id":"8"}),
+            vec!["campaign", "show", "8"],
+        ),
+        (
+            "process-library-normal",
+            "book_list",
+            json!({}),
+            vec!["book", "list", "-o", "json"],
+        ),
+        (
+            "process-library-normal",
+            "book_outline",
+            json!({"book_id":"1"}),
+            vec!["book", "outline", "1", "-o", "json"],
+        ),
+        (
+            "process-species-normal",
+            "species_list",
+            json!({}),
+            vec!["species", "list", "-o", "json"],
+        ),
+        (
+            "process-equipment-normal",
+            "equipment_list",
+            json!({}),
+            vec!["equipment", "list", "-o", "json"],
+        ),
+        (
+            "process-equipment-normal",
+            "magic_item_list",
+            json!({}),
+            vec!["magic-item", "list", "-o", "json"],
+        ),
+        (
+            "process-class-normal",
+            "class_list",
+            json!({}),
+            vec!["class", "list", "-o", "json"],
+        ),
+        (
+            "process-monster-normal",
+            "monster_list",
+            json!({}),
+            vec!["monster", "list", "-o", "json"],
+        ),
+        (
+            "process-background-normal",
+            "background_list",
+            json!({}),
+            vec!["background", "list", "-o", "json"],
+        ),
+        (
+            "process-feat-normal",
+            "feat_list",
+            json!({}),
+            vec!["feat", "list", "-o", "json"],
+        ),
+        (
+            "process-spell-normal",
+            "spell_list",
+            json!({}),
+            vec!["spell", "list", "-o", "json"],
+        ),
+    ] {
+        let output = cli(name, &args);
+        assert!(
+            output.status.success(),
+            "process CLI {tool}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        let cli_value: Value = serde_json::from_slice(&output.stdout).expect("CLI JSON");
+        let (output, messages) = mcp_tool(name, tool, input, false);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("result")["result"];
+        assert_eq!(result["isError"], false, "process MCP {tool}: {result}");
+        let mcp_value: Value =
+            serde_json::from_str(result["content"][0]["text"].as_str().expect("JSON text"))
+                .expect("MCP JSON");
+        assert_eq!(cli_value, mcp_value, "process source parity: {tool}");
+    }
 }
 
 /// Checks real process success/failure, strict empty inputs, and equal adapter results.
@@ -612,9 +743,25 @@ fn tool_result(output: &Output, messages: &[Value]) -> Value {
 }
 
 /// Checks real CLI/MCP source parsing, bounded continuation, access loss, and safe failures.
-fn book_contracts() {
+fn book_contracts(process_input: bool) {
+    let run_cli = |name: &str, args: &[&str]| {
+        let name = if process_input {
+            format!("process-{name}")
+        } else {
+            name.to_owned()
+        };
+        self::cli(&name, args)
+    };
+    let run_mcp = |name: &str, tool: &str, input: Value, cancel: bool| {
+        let name = if process_input {
+            format!("process-{name}")
+        } else {
+            name.to_owned()
+        };
+        self::mcp_tool(&name, tool, input, cancel)
+    };
     let arguments = ["book", "outline", "1", "--format", "json"];
-    let outline = cli("library-normal", &arguments);
+    let outline = run_cli("library-normal", &arguments);
     assert!(
         outline.status.success(),
         "{}",
@@ -622,7 +769,7 @@ fn book_contracts() {
     );
     assert!(outline.stderr.is_empty());
     let outline: Value = serde_json::from_slice(&outline.stdout).expect("CLI outline");
-    let (output, messages) = mcp_tool(
+    let (output, messages) = run_mcp(
         "library-normal",
         "book_outline",
         json!({"book_id":"1"}),
@@ -645,7 +792,7 @@ fn book_contracts() {
         if let Some(token) = &token {
             arguments.extend(["--continuation", token]);
         }
-        let cli = cli("library-normal", &arguments);
+        let cli = run_cli("library-normal", &arguments);
         assert!(
             cli.status.success(),
             "{}",
@@ -657,7 +804,7 @@ fn book_contracts() {
         if let Some(token) = &token {
             arguments["continuation"] = json!(token);
         }
-        let (output, messages) = mcp_tool("library-normal", "book_read", arguments, false);
+        let (output, messages) = run_mcp("library-normal", "book_read", arguments, false);
         let result = tool_result(&output, &messages);
         let mcp: Value = serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
             .expect("MCP section");
@@ -676,8 +823,8 @@ fn book_contracts() {
                 "book-preview",
                 "book-malformed",
             ] {
-                let cli = self::cli(name, &["book", "read", "1", id, "--continuation", token]);
-                let (output, messages) = mcp_tool(
+                let cli = run_cli(name, &["book", "read", "1", id, "--continuation", token]);
+                let (output, messages) = run_mcp(
                     name,
                     "book_read",
                     json!({"book_id":"1","section_id":id,"continuation":token}),
@@ -723,8 +870,8 @@ fn book_contracts() {
         "book-oversized",
         "book-wrong-media",
     ] {
-        let cli = cli(name, &["book", "read", "1", id]);
-        let (output, messages) = mcp_tool(
+        let cli = run_cli(name, &["book", "read", "1", id]);
+        let (output, messages) = run_mcp(
             name,
             "book_read",
             json!({"book_id":"1","section_id":id}),
@@ -747,17 +894,17 @@ fn book_contracts() {
         json!({"book_id":"1","section_id":id,"continuation":"bad-token"}),
         json!({"book_id":"1","section_id":id,"continuation":"x".repeat(16385)}),
     ] {
-        let (output, messages) = mcp_tool("library-normal", "book_read", arguments, false);
+        let (output, messages) = run_mcp("library-normal", "book_read", arguments, false);
         assert_eq!(tool_result(&output, &messages)["isError"], true);
     }
-    let table = cli(
+    let table = run_cli(
         "library-normal",
         &["book", "outline", "1", "--format", "tsv", "--no-headers"],
     );
     assert!(table.status.success());
     assert!(!table.stdout.starts_with(b"id\t"));
     assert_eq!(String::from_utf8_lossy(&table.stdout).lines().count(), 3);
-    let (output, messages) = mcp_tool(
+    let (output, messages) = run_mcp(
         "book-waiting",
         "book_read",
         json!({"book_id":"1","section_id":id}),
@@ -2821,9 +2968,11 @@ fn main() {
             });
         }
         _ => {
+            process_input_contracts();
             contracts();
             library_contracts();
-            book_contracts();
+            book_contracts(false);
+            book_contracts(true);
             character_campaign_contracts();
             class_table_limit_contracts();
             class_contracts();

@@ -4,6 +4,38 @@ use beyond_gate_core::auth::SessionStatus;
 
 use super::*;
 
+/// Prepares a read without running it, then uses the session chosen after preparation.
+#[test]
+fn prepared_reads_wait_for_the_selected_session() {
+    struct DeferredReads(std::cell::Cell<usize>);
+
+    impl ReadOperations for DeferredReads {
+        /// Observes only the selected source and returns a synthetic denial.
+        fn get_book_outline(
+            &self,
+            session: &Session,
+            _id: &str,
+        ) -> impl std::future::Future<Output = Result<BookOutline, BookError>> {
+            self.0.set(self.0.get() + 1);
+            assert_eq!(session.source(), SessionSource::Prompt);
+            std::future::ready(Err(BookError::AccessDenied))
+        }
+    }
+
+    let reads = DeferredReads(std::cell::Cell::new(0));
+    let matches = command()
+        .try_get_matches_from(["beyond-gate", "book", "outline", "1"])
+        .expect("valid command");
+    let operation = prepare_resource(&matches, &reads).expect("prepared read");
+    assert_eq!(reads.0.get(), 0);
+    let session = Session::default().with_prompt(b"invented-prompt-cookie".to_vec());
+    assert!(matches!(
+        operation(&session),
+        Err(Failure::Book(BookError::AccessDenied))
+    ));
+    assert_eq!(reads.0.get(), 1);
+}
+
 /// Returns an output failure instead of usage status when startup cannot be written or flushed.
 #[test]
 fn startup_output_failure_returns_one() {

@@ -1,8 +1,8 @@
 //! Shared protected loading, fresh validation, and bounded process-local bearer reuse.
 //!
-//! Production use is Windows-only. Portable synthetic tests exercise the same
-//! policy without native credential access. No operation accepts credentials from
-//! an adapter. Cookie expiry and upstream revocation remain unknown.
+//! Windows and Linux share stored or process-only input and the same read policy.
+//! Synthetic tests exercise this policy without native credential access.
+//! Cookie expiry and upstream revocation remain unknown.
 
 use std::{
     error::Error,
@@ -18,8 +18,9 @@ use tokio::{
 };
 
 use super::{
-    AuthError, AuthErrorKind, SessionStore,
+    AuthError, AuthErrorKind, SessionStatus, SessionStore,
     handoff::ErrorCode,
+    input::{SESSION_ENV_VAR, SessionSource, cookie_value},
     service::{self, BrowserSessionCookie, EstablishmentError, ValidatedBearer},
 };
 use crate::http::{ErrorKind, HttpClient, HttpError};
@@ -200,7 +201,7 @@ impl fmt::Display for SessionError {
         formatter.write_str(self.kind.as_str())?;
         formatter.write_str(match self.kind {
             SessionErrorKind::Absent | SessionErrorKind::Rejected =>
-                ": human browser login is required; run beyond-gate auth login; do not supply credentials to MCP",
+                ": supply new process environment input or use beyond-gate --auth-prompt; Windows browser login is also available; do not supply credentials to MCP tools",
             SessionErrorKind::Expired =>
                 ": the service-issued bearer expired; cookie expiry is unknown",
             SessionErrorKind::StorageAccess =>
@@ -210,7 +211,7 @@ impl fmt::Display for SessionError {
             SessionErrorKind::AmbiguousEntry =>
                 ": resolve duplicate entries in your OS credential manager",
             SessionErrorKind::UnsupportedPlatform =>
-                ": production session validation and reuse are currently Windows-only",
+                ": production session validation and reuse require Windows or Linux",
             SessionErrorKind::AccessDenied => ": the service denied access to the selected resource",
             SessionErrorKind::NotFound => ": the selected resource was not found",
             SessionErrorKind::Changed =>
@@ -282,9 +283,16 @@ enum Backend {
     Synthetic(Arc<SessionStore>),
 }
 
+/// Owns selected process material independently of the derived bearer cache.
+struct ProcessInput {
+    /// Logout removes even invalid input without selecting another source.
+    cookie: Option<Result<BrowserSessionCookie, SessionErrorKind>>,
+}
+
 /// Owns one process-local cache shared by explicit validation and authenticated reads.
 ///
-/// Each operation rereads the fixed entry. No caller can retrieve a bearer or
+/// Stored-source operations reread the fixed entry; process-only input never opens it.
+/// No caller can retrieve a bearer or
 /// supply a production exchange URL. Dropping an operation cancels network work;
 /// any already-running blocking native read may finish, but cannot install evidence.
 /// Logout in another process is observed on the next load, not in-flight.
@@ -293,6 +301,13 @@ pub struct Session {
     state: Arc<Mutex<State>>,
     /// Does not contact a store at construction.
     backend: Backend,
+    /// Keeps process-only selection fixed across scopes and clears it on logout.
+    input: Option<Arc<Mutex<ProcessInput>>>,
+    /// Does not expose credential values or imply successful validation.
+    source: SessionSource,
+    /// Counts opener calls in unit tests, including failed attempts.
+    #[cfg(test)]
+    store_opens: Arc<std::sync::atomic::AtomicUsize>,
     /// Pins the first protected load across one multi-request resource operation.
     binding: Option<Arc<Mutex<Option<BrowserSessionCookie>>>>,
     /// Synthetic service selection cannot be configured in a product invocation.
@@ -331,11 +346,15 @@ pub struct Session {
 }
 
 impl Default for Session {
-    /// Constructs an empty owner without store, network, or browser activity.
+    /// Constructs a stored-source owner without store, network, or browser activity.
     fn default() -> Self {
         Self {
             state: Arc::new(Mutex::new(State::default())),
             backend: Backend::Native,
+            input: None,
+            source: SessionSource::Stored,
+            #[cfg(test)]
+            store_opens: Arc::default(),
             binding: None,
             #[cfg(any(test, feature = "session-fixture"))]
             exchange: None,
@@ -371,6 +390,86 @@ impl fmt::Debug for Session {
 }
 
 impl Session {
+    /// Snapshots environment input without opening storage or contacting a service.
+    ///
+    /// Invalid material is reported only when an operation uses the selected input.
+    pub fn from_environment() -> Self {
+        Self::default().with_environment_value(std::env::var_os(SESSION_ENV_VAR))
+    }
+
+    /// Selects one environment snapshot, or retains the existing selection if absent.
+    ///
+    /// This also lets offline callers use the real selector without mutating the
+    /// global process environment. An invalid explicit value never falls back.
+    pub fn with_environment_value(self, value: Option<std::ffi::OsString>) -> Self {
+        match value {
+            Some(value) => {
+                self.with_process_input(value.into_encoded_bytes(), SessionSource::Environment)
+            }
+            None => self,
+        }
+    }
+
+    /// Selects hidden CLI input ahead of environment or saved input without saving.
+    pub fn with_prompt(self, bytes: Vec<u8>) -> Self {
+        self.with_process_input(bytes, SessionSource::Prompt)
+    }
+
+    /// Clears invalid owned input immediately while retaining its safe failure.
+    fn with_process_input(mut self, bytes: Vec<u8>, source: SessionSource) -> Self {
+        self.input = Some(Arc::new(Mutex::new(ProcessInput {
+            cookie: Some(cookie_value(bytes).map_err(|_| SessionErrorKind::InvalidMaterial)),
+        })));
+        self.source = source;
+        self
+    }
+
+    /// Reports provenance only, never current upstream acceptance.
+    pub fn source(&self) -> SessionSource {
+        self.source
+    }
+
+    /// Selects hidden input while retaining only this owner's source test seams.
+    pub fn prompt_source(&self, bytes: Vec<u8>) -> Self {
+        self.stored_source().with_prompt(bytes)
+    }
+
+    /// Explicitly selects saved input without inheriting process credentials or evidence.
+    pub fn stored_source(&self) -> Self {
+        let mut session = self.read_scope();
+        session.state = Arc::new(Mutex::new(State::default()));
+        session.binding = None;
+        session.input = None;
+        session.source = SessionSource::Stored;
+        session
+    }
+    /// Reports local presence or syntax without validating upstream.
+    ///
+    /// # Errors
+    ///
+    /// Returns redacted input, storage, worker, or deadline failures.
+    pub async fn status(&self) -> Result<SessionStatus, SessionError> {
+        let deadline = Instant::now() + Duration::from_secs(5);
+        if self.input.is_some() {
+            return self.load_cookie(deadline).await.map(|cookie| {
+                if cookie.is_some() {
+                    SessionStatus::ProvidedUnverified
+                } else {
+                    SessionStatus::Absent
+                }
+            });
+        }
+        let open = self.opener();
+        timeout_at(
+            deadline,
+            tokio::task::spawn_blocking(move || open()?.status()),
+        )
+        .await
+        .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?
+        .map_err(SessionError::worker)?
+        .map_err(SessionError::storage)
+    }
+
     /// Shares the bearer cache while preventing account changes within one read operation.
     ///
     /// Construction does not open storage. The first protected load pins the
@@ -379,6 +478,10 @@ impl Session {
         Self {
             state: Arc::clone(&self.state),
             backend: self.backend.clone(),
+            input: self.input.clone(),
+            source: self.source,
+            #[cfg(test)]
+            store_opens: self.store_opens.clone(),
             binding: Some(
                 self.binding
                     .as_ref()
@@ -415,7 +518,7 @@ impl Session {
         match &self.backend {
             #[cfg(any(test, feature = "session-fixture"))]
             Backend::Synthetic(_) => Ok(()),
-            Backend::Native if cfg!(windows) => Ok(()),
+            Backend::Native if cfg!(any(windows, target_os = "linux")) => Ok(()),
             Backend::Native => Err(SessionError::new(SessionErrorKind::UnsupportedPlatform)),
         }
     }
@@ -429,12 +532,16 @@ impl Session {
 
     /// Opens only the fixed protected entry off the executor, or clones a synthetic one.
     fn opener(&self) -> impl FnOnce() -> Result<Arc<SessionStore>, AuthError> + Send + 'static {
+        #[cfg(test)]
+        let calls = self.store_opens.clone();
         #[cfg(any(test, feature = "session-fixture"))]
         let synthetic = match &self.backend {
             Backend::Synthetic(store) => Some(Arc::clone(store)),
             Backend::Native => None,
         };
         move || {
+            #[cfg(test)]
+            calls.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
             #[cfg(any(test, feature = "session-fixture"))]
             if let Some(store) = synthetic {
                 return Ok(store);
@@ -451,20 +558,18 @@ impl Session {
         if Instant::now() >= deadline {
             return Err(SessionError::new(SessionErrorKind::TimedOut));
         }
-        let open = self.opener();
-        let worker = tokio::task::spawn_blocking(move || open()?.load());
-        let loaded = timeout_at(
-            deadline.min(Instant::now() + Duration::from_secs(5)),
-            worker,
-        )
-        .await
-        .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?
-        .map_err(SessionError::worker)?
-        .map_err(SessionError::storage)?;
-        let cookie = loaded
-            .map(BrowserSessionCookie::from_persisted)
-            .transpose()
-            .map_err(SessionError::service)?;
+        let cookie = if let Some(input) = &self.input {
+            let input = timeout_at(deadline, input.lock())
+                .await
+                .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?;
+            match input.cookie.as_ref() {
+                Some(Ok(cookie)) => Some(BrowserSessionCookie(cookie.0.clone())),
+                Some(Err(kind)) => return Err(SessionError::new(*kind)),
+                None => None,
+            }
+        } else {
+            self.load_stored_cookie(deadline).await?
+        };
         if let (Some(binding), Some(cookie)) = (&self.binding, &cookie) {
             let mut binding = timeout_at(deadline, binding.lock())
                 .await
@@ -478,6 +583,27 @@ impl Session {
             }
         }
         Ok(cookie)
+    }
+
+    /// Opens and reads only the stored source, never a process-only fallback.
+    async fn load_stored_cookie(
+        &self,
+        deadline: Instant,
+    ) -> Result<Option<BrowserSessionCookie>, SessionError> {
+        let open = self.opener();
+        let worker = tokio::task::spawn_blocking(move || open()?.load());
+        let loaded = timeout_at(
+            deadline.min(Instant::now() + Duration::from_secs(5)),
+            worker,
+        )
+        .await
+        .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?
+        .map_err(SessionError::worker)?
+        .map_err(SessionError::storage)?;
+        loaded
+            .map(BrowserSessionCookie::from_persisted)
+            .transpose()
+            .map_err(SessionError::service)
     }
 
     /// Uses only the current cookie for a source page, never a bearer fallback or exchange.
@@ -987,7 +1113,7 @@ impl Session {
         }
     }
 
-    /// Clears this owner's cache and removes only the fixed local protected entry.
+    /// Clears selected process input or removes the selected protected entry.
     ///
     /// # Errors
     ///
@@ -998,6 +1124,13 @@ impl Session {
         let deadline = Instant::now() + Duration::from_secs(30);
         let mut state = self.lock(deadline).await?;
         *state = State::default();
+        if let Some(input) = &self.input {
+            timeout_at(deadline, input.lock())
+                .await
+                .map_err(|_| SessionError::new(SessionErrorKind::TimedOut))?
+                .cookie = None;
+            return Ok(());
+        }
         if Instant::now() >= deadline {
             return Err(SessionError::new(SessionErrorKind::TimedOut));
         }

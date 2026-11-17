@@ -85,10 +85,12 @@ impl Error for ServerFailure {
 
 /// Runs the server until its stdio transport closes or fails.
 async fn serve() -> Result<(), ServerFailure> {
-    let service = BeyondGateServer::default()
-        .serve(stdio())
-        .await
-        .map_err(|error| ServerFailure::Initialization(Box::new(error)))?;
+    let service = BeyondGateServer::with_session(
+        beyond_gate_core::auth::session::Session::from_environment(),
+    )
+    .serve(stdio())
+    .await
+    .map_err(|error| ServerFailure::Initialization(Box::new(error)))?;
     service
         .waiting()
         .await

@@ -3,13 +3,20 @@
 use clap::{Arg, ArgAction, Command, builder::ValueParser, value_parser};
 use clap_complete::Shell;
 
-const PROTECTED_READ_HELP: &str = "Requires a saved Beyond Gate sign-in.\n\
-     On Windows, run `beyond-gate auth login` to create one.\n\
+const PROTECTED_READ_HELP: &str = "Requires selected Beyond Gate session input on Windows or Linux.\n\
+     Use BEYOND_GATE_COBALT_SESSION, --auth-prompt, or a saved session.\n\
      Your D&D Beyond account must be able to open the requested content.";
 
 /// Builds help and parsing without accessing credentials, sources, or storage.
 pub fn command() -> Command {
     Command::new("beyond-gate")
+        .arg(
+            Arg::new("auth-prompt")
+                .long("auth-prompt")
+                .global(true)
+                .action(ArgAction::SetTrue)
+                .help("Read a hidden process-only cookie for a resource read or auth validate"),
+        )
         .bin_name("beyond-gate")
         .version(env!("CARGO_PKG_VERSION"))
         .about("Read your D&D Beyond characters, campaigns, books, and game content")
@@ -17,9 +24,11 @@ pub fn command() -> Command {
         .after_help(
             r#"Authentication and getting started
 
-To read D&D Beyond data, first sign in and save your sign-in on this device.
-Beyond Gate calls this saved sign-in a session. It lets the CLI use your
-existing account access; it does not unlock content that your account cannot open.
+On Windows and Linux, use BEYOND_GATE_COBALT_SESSION for process-only input.
+Use --auth-prompt for a hidden cookie prompt before one CLI read or auth validate.
+Prompt input takes precedence over environment input, then a saved session.
+Invalid selected input fails without fallback. No process-only input is saved.
+Your session does not unlock content that your account cannot open.
 Character and campaign reads use fixed bounded sources.
 
 First-time setup on Windows:
@@ -34,14 +43,15 @@ First-time setup on Windows:
   5. Run `beyond-gate auth validate`, then try:
        beyond-gate character list
 
-Beyond Gate stores the sign-in in your operating system's protected storage.
-`auth status` checks whether a session is stored; it does not check whether it
-still works. `auth validate` sends one new request to D&D Beyond.
-`auth logout` deletes the saved session from this device. It does not sign your
-browser out of D&D Beyond.
+Only auth login or auth import --prompt/--env explicitly saves a sign-in to your
+operating system's protected storage. Process-only use needs no browser or store.
+`auth status` reports local input, not upstream usability.
+`auth validate` sends one fresh request to D&D Beyond.
+`auth logout` clears the selected source. Environment logout does not delete saved
+credentials or erase the parent environment. Use auth logout --stored to delete
+the saved entry explicitly. Neither action revokes an upstream session.
 
-Login and data reads currently work on Windows. Do not enter your password,
-cookies, or tokens in a command."#,
+Do not enter your password, cookies, or tokens in command arguments or chat."#,
         )
         .arg_required_else_help(true)
         .subcommand(
@@ -50,10 +60,11 @@ cookies, or tokens in a command."#,
                 "Sign in through your browser and manage the saved sign-in",
             )
                 .after_help(
-                    "Sign-in works on Windows. First install the browser extension and register the local browser helper with `auth install`.\n\
-                     Use a normal terminal; do not pipe or redirect its input or output.\n\
-                     The saved sign-in is kept in your operating system's protected storage.\n\n\
-                     These commands never ask you to enter your password, cookies, or tokens.",
+                    "Sign-in works on Windows through optional browser assistance.\n\
+                     Windows and Linux also accept BEYOND_GATE_COBALT_SESSION without a store or browser.\n\
+                     Use --auth-prompt for one read or auth validate; stdin and stderr must be terminals.\n\
+                     Use auth import --prompt or --env only when you want a protected save.\n\
+                     No command requests your D&D Beyond password.",
                 )
                 .subcommand(
                     Command::new("login")
@@ -68,19 +79,37 @@ cookies, or tokens in a command."#,
                 .subcommand(browser_setup("install", "Set up the browser connection for Chrome or Edge"))
                 .subcommand(browser_setup("uninstall", "Remove this browser's Beyond Gate connection"))
                 .subcommand(
+                    Command::new("import")
+                        .about("Validate explicit cookie input and save it to protected OS storage")
+                        .arg(
+                            Arg::new("prompt").long("prompt")
+                                .action(ArgAction::SetTrue)
+                                .required_unless_present("env")
+                                .conflicts_with("env")
+                                .help("Request a hidden cookie value in this terminal"),
+                        )
+                        .arg(
+                            Arg::new("env").long("env")
+                                .action(ArgAction::SetTrue)
+                                .required_unless_present("prompt")
+                                .help("Import BEYOND_GATE_COBALT_SESSION without a prompt"),
+                        ),
+                )
+                .subcommand(
                     Command::new("status")
-                        .about("Check whether a Beyond Gate sign-in is stored on this device")
+                        .arg(stored_selection())
+                        .about("Report the selected input source without upstream validation")
                         .after_help(
-                            "Checks only whether Beyond Gate saved a sign-in on this device.\n\n\
+                            "Checks local environment input syntax or saved presence. Use --stored to ignore environment input.\n\n\
                              It does not contact D&D Beyond, check whether the sign-in still works, \
                              or check access to specific content.",
                         ),
                 )
                 .subcommand(
                     Command::new("validate")
-                        .about("Check whether your saved sign-in still works with one D&D Beyond request")
+                        .about("Check the selected session with one fresh D&D Beyond request")
                         .after_help(
-                            "Uses the saved sign-in to send one request to D&D Beyond. Prints \
+                            "Uses selected process-only or saved input to send one request to D&D Beyond. Prints \
                              one JSON result.\n\n\
                              This checks the sign-in only; it does not test access to every character \
                              or book. Use `auth status` to check whether a sign-in is stored without \
@@ -89,10 +118,12 @@ cookies, or tokens in a command."#,
                 )
                 .subcommand(
                     Command::new("logout")
-                        .about("Delete the saved Beyond Gate sign-in from this device")
+                        .arg(stored_selection())
+                        .about("Clear the selected local session without upstream revocation")
                         .after_help(
-                            "Deletes only the sign-in stored by Beyond Gate on this device.\n\n\
-                             This does not sign your browser out of D&D Beyond or end that browser session.",
+                            "Environment selection clears only this process's session state, not saved credentials or the parent environment.\n\
+                             Use --stored to delete the protected saved entry explicitly.\n\n\
+                             Neither action signs your browser out of D&D Beyond.",
                         ),
                 ),
         )
@@ -353,6 +384,14 @@ cookies, or tokens in a command."#,
                         .help("Choose your shell: bash, elvish, fish, powershell, or zsh"),
                 ),
         )
+}
+
+/// Makes access to the saved entry explicit when process input is selected.
+fn stored_selection() -> Arg {
+    Arg::new("stored")
+        .long("stored")
+        .action(ArgAction::SetTrue)
+        .help("Select only the saved OS entry, ignoring environment input")
 }
 
 /// Builds the shared bounded one-based page selector, required for detail.

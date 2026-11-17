@@ -12,8 +12,9 @@ returned matching metadata and evidence. Windows book outline/read and
 character/campaign sources are implemented with synthetic process coverage.
 Selected book acceptance has evidence; character/campaign live acceptance remains
 unverified.
-macOS/Linux browser login and production session use remain deferred.
-Linux implementation is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Windows and Linux now share process-only authentication and existing resource
+reads. Linux browser integration remains deferred. macOS production reads remain
+gated; its native validation is tracked in #62.
 
 The user accepted the
 [Windows pairing boundary](browser-handoff.md#accepted-windows-pairing-boundary).
@@ -33,42 +34,78 @@ They do not describe the current Windows implementation or authorize new tests.
 
 ## Agreed authentication follow-up
 
-**Planned, not implemented:** [#52](https://github.com/PlagueHO/beyond-gate/issues/52)
-now owns shared CLI/MCP authentication and Linux terminal use. This user-directed
-scope replaces the earlier blanket prohibition on environment credential input.
-It does not change current commands or remove account-test approval boundaries.
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52) adds shared CLI/MCP input
+and Linux terminal use. This scope replaces the earlier blanket prohibition on
+environment credential input. It does not remove account-test approval boundaries.
 
 | Input path | Intended use | Storage |
 |------------|--------------|---------|
-| `CobaltSession` environment input | Recommended for CLI/MCP terminal-only use and client-supplied startup secrets | Process memory only; no browser or native store required |
-| Hidden CLI cookie prompt | Explicit manual input without echoed characters | Process memory unless protected save is explicitly requested |
+| `BEYOND_GATE_COBALT_SESSION` | Recommended for CLI/MCP terminal-only use and client-supplied startup secrets | Process memory only; no browser or native store required |
+| `--auth-prompt` | Explicit hidden input before one CLI read or `auth validate` | Process memory only |
+| `auth import --prompt` or `--env` | Explicit validation and protected import | Cookie envelope in OS protected storage |
 | Supported Chrome/Edge extension | Preferred interactive browser-assisted login when available | Protected save through explicit login |
 
-Select and document one environment variable name and the hidden-input command
-surface during implementation. MCP must not prompt on protocol streams or
-implicitly open a browser. Client secret-input references may supply its process
-environment; examples and client settings must not contain literal secrets.
+The environment value is the `CobaltSession` cookie value only, at most 2,552
+bytes. Do not include its name, a `Cookie:` header, spaces, or newlines.
+Empty, non-Unicode, malformed, and oversized input fails without fallback.
+MCP never prompts on protocol streams or implicitly opens a browser.
+Client environment references can supply its process environment; examples and
+client settings must not contain literal secrets.
 Do not add raw-cookie command-line arguments or credential-bearing MCP tools.
 
-An explicitly selected input overrides saved credentials. Invalid or rejected
-explicit input fails without silently switching sources. The shared core
+Source order is an explicit hidden prompt, environment presence, then saved
+credentials. An empty environment value is present, not absent. Invalid or rejected
+explicit input fails without switching sources. The shared core
 exchanges the cookie and keeps the derived bearer in memory. Normal environment
 use never saves automatically. It must work without a desktop, D-Bus, or Secret
 Service. Environment values can be inherited by child processes; process memory
 does not guarantee erasure of OS or caller copies.
 
 Only explicit login/import persists to protected OS storage. Its locked or
-unavailable state remains an error, not a plaintext fallback. Define safe
-source/status/logout meanings before implementing the new paths. A restarted
-process needs its process-only input again. Logout cannot erase environment input
-from another process or claim upstream revocation.
+unavailable state remains an error, not a plaintext fallback. A restarted process
+needs its process-only input again. The MCP process snapshots its input once;
+later calls do not silently select another account.
 
-Prioritize Windows and Linux implementation and acceptance. Use the common design
-for macOS, but defer native validation to
+`auth status` reports `source=environment` and `provided-unverified` for locally
+valid environment input. It performs no store or account calls. Without environment
+input, it reports saved presence as absent or stored-unverified. Neither result
+proves upstream usability. `auth status --stored` checks only saved presence.
+
+`auth logout` clears the selected source. Environment selection clears only this
+process's session state; it preserves saved credentials. It cannot erase the
+parent environment or another process's copy. A new process can receive the same
+input again. `auth logout --stored` explicitly deletes the protected saved entry.
+Neither action revokes an upstream session or signs out the browser.
+
+Use hidden input for one CLI operation:
+
+```shell
+beyond-gate --auth-prompt character list --output json
+beyond-gate --auth-prompt auth validate
+```
+
+Stdin and stderr must be terminals. Stdout can be redirected. Input is not echoed.
+Enter submits; Backspace edits; Escape or Ctrl+C cancels. Input waits at most five
+minutes. Terminal mode is restored before exchange and on normal error exits.
+Forced process termination or terminal recording remains outside this guarantee.
+The global flag is refused for MCP, setup, status/logout, and completions.
+
+To save explicitly, use one of these commands:
+
+```shell
+beyond-gate auth import --prompt
+beyond-gate auth import --env
+```
+
+Each import validates before opening storage. A failed or cancelled validation
+does not save. An unconfirmed started write reports `save_indeterminate`; it is
+not retried or deleted automatically. Browser login keeps the same save rules.
+
+Linux browser registration and protected handoff remain optional. Process-only
+reads do not require them. Native Linux account, client, and packaged-binary
+acceptance remains under [#34](https://github.com/PlagueHO/beyond-gate/issues/34).
+macOS native validation remains under
 [#62](https://github.com/PlagueHO/beyond-gate/issues/62).
-Linux browser registration and protected handoff are a later optional stage,
-not a prerequisite for environment authentication or Linux reads.
-The current behavior below remains in effect until #52 is implemented.
 
 ## Browser login window
 
@@ -125,25 +162,23 @@ Windows browser login now has approved product verification.
 | Command | Current result |
 |---------|----------------|
 | `beyond-gate auth login` | Windows: requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Real Chrome and Edge Dev login/save checks passed. Other platforms retain the unsupported error. |
-| `beyond-gate auth status` | Exits with code 0 for `absent` or `stored-unverified`. Reports only local presence on stdout. It does not check current upstream usability; expiry is unknown. |
-| `beyond-gate auth validate` | Windows: loads the fixed protected entry and makes one fresh service exchange. Success writes safe validation JSON with code 0. Other platforms fail before credential or service access. |
-| `beyond-gate auth logout` | Exits with code 0 after local deletion or when the entry is already absent. States that upstream revocation is not implemented. |
+| `beyond-gate auth status` | Reports source and local syntax/presence. `--stored` checks only the protected entry. No upstream validation. |
+| `beyond-gate auth validate` | Windows/Linux: uses selected input for one fresh exchange and returns safe JSON. macOS retains the production read gate. |
+| `beyond-gate auth logout` | Clears process-only input or deletes the selected saved entry. `--stored` explicitly selects saved deletion. No upstream revocation. |
+| `beyond-gate auth import --prompt` or `--env` | Explicitly validates and saves the cookie envelope through the shared establishment lifecycle. |
 
 Storage errors exit with code 1 and use stderr. Invalid command usage exits with
 code 2. A locked store or a failed service is not an absent session. Status does
 not modify a credential. Logout deletes its entry without first reading its
 secret, so it can also remove invalid stored data.
 
-There is currently no credential import command. Do not create a credential manually to
-work around failed browser setup. The Windows CLI calls the core write
-boundary after paired submission. Offline tests use synthetic values only.
-Current commands do not accept environment cookie input or a hidden cookie
-prompt. Those paths and explicit protected import are planned in
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Do not create a credential entry manually. Explicit import and Windows browser
+completion call the same core validation/save boundary. Offline tests use invented
+values only. Process-only reads never save.
 Raw-cookie arguments and credential-bearing MCP inputs remain excluded.
 The MCP `auth_validate` tool uses the same core validation as the CLI.
 Both explicit validation operations can contact the fixed authentication service.
-Resource read tools use the protected stored session for supported reads.
+Resource tools use the selected process-only or protected stored session.
 
 ### Protected-store selection and recovery
 
@@ -166,9 +201,8 @@ An ambiguous match is an error; no duplicate is selected or deleted automaticall
 
 Headless Linux and WSL do not always provide a session bus or default collection.
 If protected storage cannot work in that environment, the command fails. Do not
-use a plaintext file as a replacement. Current production session use does not
-accept environment input; #52's planned process-only path will not require native
-storage. No password collection or headless unlock script is supplied.
+use a plaintext file as a replacement. Process-only input does not require native
+storage and never opens it. No password collection or headless unlock script is supplied.
 Other operating systems fail explicitly.
 
 Backends do not expose identical errors. Access denied and locked storage share
@@ -542,9 +576,9 @@ outcomes and dates without credentials, token payloads, or raw responses.
 
 `beyond-gate-core::auth::session::Session` owns the shared lifecycle.
 Its construction does not open storage or contact the service. Production
-validation and reuse are Windows-only. The policy and synthetic tests are
-portable so [Linux support](https://github.com/PlagueHO/beyond-gate/issues/52)
-can use the same rules after its platform contract is implemented.
+validation and reuse support Windows and Linux. Process-only input uses the same
+exchange and cache without opening native storage. macOS production reads remain
+gated pending [native validation](https://github.com/PlagueHO/beyond-gate/issues/62).
 
 CLI `auth validate` and MCP `auth_validate` always make one fresh exchange,
 unless loading fails or the owner has already rejected the same material.
@@ -644,8 +678,9 @@ input or upload while production session use and endpoint contracts are absent.
 The separately tested future Actions lifecycle uses a unique repository secret
 per submission and `gh secret set` stdin. This defines a development-only
 exception to the local-probe rule, not an enabled product or CI login flow.
-No general product credential environment variable or MCP credential parameter
-is added. This manual live-resource suite remains blocked; the separately
+This suite adds no product credential selector or MCP credential parameter.
+The product's separate process-only input is documented above.
+This manual live-resource suite remains blocked; the separately
 verified Windows browser login does not enable it.
 
 Windows establishment fixes the selected cookie, direct exchange host, response

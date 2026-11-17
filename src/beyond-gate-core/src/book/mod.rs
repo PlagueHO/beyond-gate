@@ -4,7 +4,7 @@
 //! Each operation calls an access check before its selected source loader. The
 //! caller must supply current, truthful evidence and change source revisions when
 //! content changes. A library snapshot and a continuation are never access grants.
-//! The live operations use the Windows session and fresh source pages. Offline
+//! The live operations use the selected session and fresh source pages on Windows/Linux. Offline
 //! validators do not read credentials or fetch URLs. No operation persists content.
 //!
 //! # Examples

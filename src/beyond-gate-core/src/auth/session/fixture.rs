@@ -72,7 +72,7 @@ impl Drop for Service {
 }
 
 /// Builds a bounded invented token response without a real account identifier.
-pub(super) fn response(expiry: u64) -> Vec<u8> {
+pub(in crate::auth) fn response(expiry: u64) -> Vec<u8> {
     let claims = json!({
         "http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier": 42,
         "exp": expiry
@@ -235,6 +235,10 @@ pub fn session(scenario: Scenario) -> Result<Session, SessionError> {
     Ok(Session {
         state: Arc::new(tokio::sync::Mutex::new(State::default())),
         backend: Backend::Synthetic(store),
+        input: None,
+        source: SessionSource::Stored,
+        #[cfg(test)]
+        store_opens: Arc::default(),
         binding: None,
         exchange: Some((client, url)),
         fixture: Some(Arc::new(fixture)),

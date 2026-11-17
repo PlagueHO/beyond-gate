@@ -51,10 +51,13 @@ page-scoped, not global. All rows validate before selection; raw/source extensio
 survive. No global scan, HTML fallback, access-code inference, or automatic
 continuation is implemented. Browser paging and repeat raw identity were checked.
 Native compatibility and real owned/shared behavior remain unverified.
-Shared environment authentication, hidden CLI input, explicit protected save,
-and Linux production session/read support are tracked in #52. These paths are
-planned, not implemented. Browser assistance is optional for terminal-only use.
-Use the common design for macOS, but defer native validation to #62.
+Windows and Linux share BEYOND_GATE_COBALT_SESSION input, hidden CLI --auth-prompt,
+explicit auth import --prompt/--env, and existing session/read operations.
+Prompt input overrides environment input, then saved input. Invalid selected input
+never falls back. Process-only input never opens a native store or saves implicitly.
+Status/logout act on the selected source; --stored selects the saved entry.
+Browser assistance remains optional. Native Linux account/client acceptance is
+unverified. macOS production reads remain gated; native validation stays in #62.
 
 - Keep v1 read-only and local; do not add remote hosting or multiuser services.
 - Do not bypass access controls, paywalls, or bot protection.

@@ -54,7 +54,7 @@ also applies to macOS, but its native acceptance stays low priority.
 
 | Order | Work item | Boundary |
 |-------|-----------|----------|
-| First | [#52](https://github.com/PlagueHO/beyond-gate/issues/52): shared authentication and Linux terminal use | Process-only `CobaltSession` environment input, hidden CLI input, explicit protected save, and existing Linux resource reads; not implemented yet |
+| First | [#52](https://github.com/PlagueHO/beyond-gate/issues/52): shared authentication and Linux terminal use | Shared `BEYOND_GATE_COBALT_SESSION`, hidden CLI input, explicit protected import, and Linux read support implemented; native account/client acceptance remains separate |
 | After implementation | [#34](https://github.com/PlagueHO/beyond-gate/issues/34): Windows/Linux CLI and MCP simple-use acceptance | Identified native candidate, terminal-only operation, real VS Code/Copilot CLI, and bounded read parity |
 | Optional path | [#46](https://github.com/PlagueHO/beyond-gate/issues/46): browser extension | Keep consent, native messaging, and browser evidence separate; Linux browser integration is a later #52 stage |
 | Alongside implementation | [#40](https://github.com/PlagueHO/beyond-gate/issues/40): privacy and support | Explain process-only lifetime, environment inheritance, explicit save, tested baselines, and unverified combinations |
@@ -62,7 +62,7 @@ also applies to macOS, but its native acceptance stays low priority.
 | Deferred | [#62](https://github.com/PlagueHO/beyond-gate/issues/62): macOS and Claude Code | Common design does not establish verified native behavior |
 
 Environment input will not require a browser, desktop, D-Bus, or Secret Service.
-Explicit input will override stored credentials without silent fallback.
+Explicit input overrides stored credentials without silent fallback.
 Persist only through explicit login/import. Keep derived bearers in memory.
 See the [agreed authentication follow-up](authentication.md#agreed-authentication-follow-up).
 
@@ -97,7 +97,7 @@ Authentication follow-up work remains open:
 |-------|-------|--------------------|
 | [#29](https://github.com/PlagueHO/beyond-gate/issues/29) | Native host, browser registration, pending CLI login and protected handoff | Windows implementation and #46 integration verified. Hosted CI and approved Chrome/Edge Dev login/save/restart/logout passed. Shared core contract agreed with #30. Code is on the feature branch, not merged. |
 | [#30](https://github.com/PlagueHO/beyond-gate/issues/30) | Shared authenticated session validation and lifecycle for CLI and MCP | Windows fresh validation and bounded process-local reuse implemented locally with portable synthetic and CLI/MCP process checks. Uses the agreed #29 establishment contract. Local presence is not upstream validation; live reads remain separate. |
-| [#52](https://github.com/PlagueHO/beyond-gate/issues/52) | Shared CLI/MCP authentication and Linux terminal use | Reuse #30's lifecycle; implement process-only environment input, hidden CLI input, explicit save, and existing Linux reads before optional Linux browser integration. |
+| [#52](https://github.com/PlagueHO/beyond-gate/issues/52) | Shared CLI/MCP authentication and Linux terminal use | Implemented through #30's lifecycle: process-only environment input, hidden CLI input, explicit save, and existing Linux reads. Linux browser integration remains deferred. |
 | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Windows product integration and separate browser CI passed against the accepted #29 contracts. Review and merge remain separate. |
 
 The user reported one successful
@@ -243,15 +243,16 @@ Issue #3 remains partial. Windows `auth login` now starts one-use pairing and
 calls shared completion after bound submission. Windows setup and synthetic
 browser integration are implemented. Real Chrome and Edge Dev login/save checks
 and hosted CI passed. Other platforms retain unsupported login.
-`auth status` can establish only `absent` or `stored-unverified`, not upstream
-usability or expiry. `auth logout` removes the local entry but cannot revoke
-upstream sessions. Native-store runtime checks need separate approval; automated
+`auth status` establishes local presence only, including `provided-unverified`
+for selected process input. It does not establish upstream usability or expiry.
+`auth logout` clears the selected source but cannot revoke upstream sessions.
+Native-store runtime checks need separate approval; automated
 tests use synthetic stores. Windows establishment covers exchange failures,
 expired bearer evidence, and browser cancellation.
 Issue #30 adds fresh CLI/MCP validation and process-local bearer reuse with
 one bounded exchange after bearer expiry. Cookie expiry and upstream revocation
 remain unknown. Synthetic process checks prove validation parity, not live
-resource reads. Linux support is tracked in #52.
+resource reads. Issue #52 enables the same lifecycle for Linux and process-only input.
 
 v1 is local-only and read-only. It needs simple authentication, consistent CLI/MCP
 results, source URLs, bounded book reads, and clear errors before a usable release.

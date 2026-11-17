@@ -1,8 +1,9 @@
 # CLI command reference
 
 **Current status:** `beyond-gate` supports help, version output, shell completions,
-local session status and logout, Windows session validation, and local MCP start and registration. Windows
-login, explicit browser setup, and the native host are implemented.
+local session status and logout, Windows/Linux session validation, and local MCP
+start and registration. Windows login, explicit browser setup, and the native host
+are implemented.
 Approved Chrome and Edge Dev login/save/restart/logout checks passed.
 Windows `book list` has bounded live metadata transport through the shared stored session.
 Web-catalog scope, category selection, and title cleanup are implemented and verified natively.
@@ -10,11 +11,11 @@ Windows `book outline/read` now use fresh library evidence and checked canonical
 cookie pages. Their production source path has synthetic process checks.
 Native adapter acceptance passed for one selected chapter with matching outlines
 and initial chunks. Live continuation and sharing remain unchecked.
-Character and campaign reads use fixed, bounded operations through the stored
-Windows session. Synthetic process checks cover successful reads and matching
+Character and campaign reads use fixed, bounded operations through selected
+process-only or saved input on Windows and Linux. Synthetic process checks cover matching
 CLI/MCP data. No live character or campaign acceptance has been run.
 Default and JSON class/subclass output contains metadata only through bounded
-Windows catalog reads. Explicit HTML and Markdown can read one checked selected
+Windows/Linux catalog reads. Explicit HTML and Markdown can read one checked selected
 page. Browser metadata contracts were inspected under separate
 approvals. Native class/subclass acceptance has not been run.
 Monster commands return one explicit page or unchanged selected detail, only
@@ -81,21 +82,22 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`auth install`](#auth-install-and-auth-uninstall) | Register a native browser host | Windows; explicit directory, preview, and confirmation |
 | [`auth uninstall`](#auth-install-and-auth-uninstall) | Remove matching native setup | Windows; preserves other installations |
 | [`auth status`](#auth-status) | Inspect local credential presence | Implemented; no upstream validation |
-| [`auth validate`](#auth-validate) | Make one fresh session check | Windows; safe JSON, no credential input |
-| [`auth logout`](#auth-logout) | Remove the local credential | Implemented; no upstream revocation |
-| [`character list`](#character-list) | List character summaries | Windows; bounded complete response |
-| [`character show`](#character-show) | Select one character | Windows; fixed source route |
-| [`campaign list`](#campaign-list) | List campaigns and associations | Windows; `--active-only` selects the active collection |
-| [`campaign show`](#campaign-show) | Select one campaign and active roster | Windows; selected roster only |
-| [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows; metadata only |
-| [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows; scoped or bounded global metadata |
-| [`species list/show`](#species-metadata-and-selected-detail) | Browse website metadata and selected raw detail | Windows; detail route is a candidate; live access unverified |
-| [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows; verified access code 1 only |
-| [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows; complete bounded source reads; live acceptance unverified |
-| [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows; bounded protected collection |
-| [`equipment list/show`](#equipment-source-pages-and-raw-detail) | Read equipment from one mixed source page | Windows; explicit page and full definition key |
-| [`magic-item list/show`](#magic-item-local-filters-and-raw-detail) | Filter magic metadata locally and select unchanged raw detail | Windows; explicit source page and full definition key |
-| [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows; browser structure checked; native acceptance unverified |
+| [`auth validate`](#auth-validate) | Make one fresh session check | Windows/Linux; safe JSON, selected input |
+| [`auth import`](#auth-import) | Validate and save explicitly | `--prompt` or `--env`; protected storage required |
+| [`auth logout`](#auth-logout) | Clear selected input | Implemented; `--stored` selects saved deletion; no upstream revocation |
+| [`character list`](#character-list) | List character summaries | Windows/Linux; bounded complete response |
+| [`character show`](#character-show) | Select one character | Windows/Linux; fixed source route |
+| [`campaign list`](#campaign-list) | List campaigns and associations | Windows/Linux; `--active-only` selects the active collection |
+| [`campaign show`](#campaign-show) | Select one campaign and active roster | Windows/Linux; selected roster only |
+| [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows/Linux; metadata only |
+| [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows/Linux; scoped or bounded global metadata |
+| [`species list/show`](#species-metadata-and-selected-detail) | Browse website metadata and selected raw detail | Windows/Linux; detail route is a candidate; live access unverified |
+| [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows/Linux; verified access code 1 only |
+| [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows/Linux; complete bounded source reads; live acceptance unverified |
+| [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows/Linux; bounded protected collection |
+| [`equipment list/show`](#equipment-source-pages-and-raw-detail) | Read equipment from one mixed source page | Windows/Linux; explicit page and full definition key |
+| [`magic-item list/show`](#magic-item-local-filters-and-raw-detail) | Filter magic metadata locally and select unchanged raw detail | Windows/Linux; explicit source page and full definition key |
+| [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows/Linux; browser structure checked; native acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
@@ -327,7 +329,7 @@ beyond-gate feat list --prerequisite-subtype-id <option-id> --tag-id <option-id>
 beyond-gate feat show <id>
 ```
 
-List reads the fixed `/feats` website GET form through the stored Windows
+List reads the fixed `/feats` website GET form through the selected
 session. It returns `id`, `name`, `source`, and `source_url` in website order,
 not descriptions, snippets, prerequisites text, or rules. Duplicate names
 remain separate when their IDs differ. Returned links never select a fetch.
@@ -378,7 +380,7 @@ beyond-gate background show <id>
 
 List reads one filtered website result. Show selects one raw source definition
 from a fresh complete authenticated collection, not a guessed detail route.
-Both use the shared Windows session and fail without partial output.
+Both use the shared Windows/Linux session and fail without partial output.
 
 | CLI option | MCP field | Website control |
 |------------|-----------|-----------------|
@@ -443,7 +445,7 @@ beyond-gate monster list -n wolf --cr-max 2 --size-id 4 --size-id 5 --page 2 --f
 beyond-gate monster show <id>
 ```
 
-`list` reads one website-filtered page using the stored Windows session cookie.
+`list` reads one website-filtered page using the selected Windows/Linux session cookie.
 For a nonempty page, it makes one selected-ID monster-service request and checks
 fresh access for every record before output. It does not filter an already-fetched
 page or traverse the catalog. A required session exchange can precede these reads.
@@ -583,7 +585,7 @@ are 3 for class, 5 for scoped subclass, and 67 for global subclass operations.
 Empty lists require complete successful discovery. Missing IDs mean absent from
 the checked default catalog scope, not globally nonexistent. Denial, session
 expiry/rejection, invalid metadata, incomplete discovery, ambiguity, and exceeded
-bounds fail without partial results. Linux/macOS production session use remains
+bounds fail without partial results. macOS production session use remains
 unsupported. Native compatibility, live global traversal, and real sharing are
 unverified. More live account tests require separate approval.
 
@@ -618,9 +620,32 @@ candidate detail route still lacks live response and access evidence. See the
 
 ## Authentication commands
 
-`auth login`, `auth status`, `auth validate`, and `auth logout` have no positional arguments or
-action-specific options.
-They do not accept passwords, cookies, tokens, or account identities.
+Authentication commands never accept credential values as arguments.
+Windows/Linux source order is explicit `--auth-prompt`, environment
+`BEYOND_GATE_COBALT_SESSION`, then saved input. Invalid selected input never falls
+back. Process-only use does not open a native store.
+
+Use `beyond-gate --auth-prompt character list` or
+`beyond-gate --auth-prompt auth validate` for one hidden-input operation.
+Stdin and stderr must be terminals; stdout can be redirected. Escape or Ctrl+C
+cancels. MCP, setup, status/logout, and completions refuse this global flag.
+Invalid pasted input stays hidden until Enter or cancellation. Input has a
+2,552-byte limit and a five-minute deadline.
+CLI argument validation uses the same path with or without the flag.
+With the flag, it runs before the hidden prompt opens.
+
+### auth import
+
+```shell
+beyond-gate auth import --prompt
+beyond-gate auth import --env
+```
+
+Select exactly one input. Each command explicitly requests fresh validation and
+protected save. `--env` requires the environment variable to be present.
+The stored cookie uses the existing versioned envelope; derived bearers remain in
+memory. Rejected input never opens storage. Store failures remain explicit;
+an unconfirmed started write returns `save_indeterminate` without automatic retry.
 
 ### auth login
 
@@ -654,8 +679,9 @@ logout checks passed. Browser versions and remaining limits are in the
 [verification record](testing.md#approved-windows-product-login-verification).
 See the [Windows runtime contract](browser-handoff.md#windows-runtime-integration).
 
-macOS and Linux retain the unsupported-login error. No credential argument,
-password prompt, cookie import, environment ingress, or MCP input is added.
+macOS and Linux retain the unsupported browser-login error. Use process-only
+input or explicit import on Linux instead. No password collection or
+credential-bearing MCP input is added.
 The developer authentication probe is not product login.
 
 ### auth install and auth uninstall
@@ -711,13 +737,17 @@ macOS and Linux setup fail explicitly before filesystem or registry access.
 beyond-gate auth status
 ```
 
-Inspects only Beyond Gate's protected local credential entry. On success it
-writes one text line to stdout and exits with code 0:
+Reports the selected source without upstream validation. With environment input,
+it checks local syntax and reports `source=environment; provided-unverified`.
+It does not open a store. Without environment input, it checks saved presence.
+Use `auth status --stored` to select saved presence explicitly.
+Success writes one line with a `source=...;` prefix, a space, and one state:
 
 | State prefix | Meaning |
 |--------------|---------|
 | `absent:` | No local Beyond Gate session is stored |
 | `stored-unverified:` | Local session material exists; upstream usability is not checked and expiry is unknown |
+| `provided-unverified:` | Process-only input passed local syntax checks; upstream usability is not checked |
 
 Status does not modify the credential. A locked store or other storage failure
 is an error, not an absent session. Storage errors exit with code 1 and use stderr.
@@ -729,7 +759,7 @@ This command can trigger an OS access or unlock dialog.
 beyond-gate auth validate
 ```
 
-On Windows, reads the fixed protected entry and makes one fresh exchange
+On Windows and Linux, uses the selected input and makes one fresh exchange
 through the shared core. No credential, URL, or account argument is accepted.
 Success writes this JSON object on stdout and exits with code 0:
 
@@ -740,21 +770,25 @@ Success writes this JSON object on stdout and exits with code 0:
 Stored presence or earlier cached evidence cannot substitute for fresh validation.
 The result does not establish cookie expiry, content access, or a protected save.
 Errors use safe shared categories on stderr with exit code 1 and no result on
-stdout. Missing or rejected sessions require human `auth login`.
-Ctrl+C cancels pending validation. macOS and Linux return `unsupported_platform`
-before credential or service access. Linux support is tracked in
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+stdout. Missing or rejected sessions require new user-controlled input.
+Ctrl+C cancels pending validation. macOS retains `unsupported_platform`
+for production reads before credential or service access.
 See [lifecycle bounds and failures](authentication.md#session-lifecycle).
 
 ### auth logout
 
-**Warning:** This command deletes Beyond Gate's local credential entry.
+**Warning:** Saved-source logout deletes Beyond Gate's local credential entry.
 
 ```shell
 beyond-gate auth logout
 ```
 
-Deletes only that entry, without first reading its secret. An already absent entry
+Environment-source logout clears only the current owner's input and cached evidence.
+It preserves saved credentials and cannot erase the parent environment.
+A new process can receive that value again. It makes no store calls.
+Use `auth logout --stored` to select saved deletion explicitly.
+
+Saved-source logout deletes only that entry, without reading its secret. An absent entry
 is also success. It writes one text line to stdout and exits with code 0 after
 successful deletion or absence. The line states that upstream revocation is not
 implemented and the browser session can remain active.
@@ -766,14 +800,14 @@ Logout does not log the browser out or revoke the upstream session. It can remov
 invalid stored local data. Storage failures exit with code 1 and use stderr.
 This command can trigger an OS access or unlock dialog.
 
-Status and logout use Windows Credential Manager, macOS login Keychain, or Linux
+Saved-entry status/logout use Windows Credential Manager, macOS login Keychain, or Linux
 Secret Service. No plaintext fallback exists. See
 [protected-store selection and recovery](authentication.md#protected-store-selection-and-recovery)
 for the fixed entry identity, backend requirements, and failure recovery.
 
 ## Resource commands
 
-All resource reads use fixed origins and the protected stored session.
+All resource reads use fixed origins and the selected process-only or stored session.
 Book outline/read also repeat fresh library and page-level access checks.
 Character and campaign success outputs are offline-tested. No live character
 or campaign acceptance has been run.
@@ -898,7 +932,7 @@ Metadata links are never fetched.
 
 Success returns complete data with code 0. Discovery and session failures use
 code 1 and empty stdout. Invalid options use code 2. Ctrl+C cancels the operation.
-Non-Windows production session use remains unsupported.
+macOS production session use remains unsupported.
 Earlier native CLI acceptance failed `InvalidMetadata`; MCP was skipped.
 Later diagnostics validated category selection and title cleanup without broader
 URL rules. That mapping is now implemented and checked offline. Fresh native CLI
@@ -921,7 +955,7 @@ most 1,000 entries. Table and TSV columns are `id`, `title`, `parent_id`, and
 `source_url`, in that order. JSON uses an
 [outline envelope](#outline-and-section-objects), not a bare entry array.
 
-Use the numeric book ID returned by `book list`. Windows reads require fresh
+Use the numeric book ID returned by `book list`. Windows/Linux reads require fresh
 positive library evidence and one checked canonical source page. Unknown access,
 unsafe links, unsupported layouts, and malformed sources return no outline.
 At most 1,000 raw anchors are allowed before filtering or duplicate-role handling.
@@ -943,7 +977,7 @@ The success contract is one JSON
 There are no format, header, whole-book, or automatic continuation options.
 
 Use a section ID from `book outline`, not a heading label or URL.
-Each Windows read repeats fresh metadata, outline, and selected-page checks.
+Each Windows/Linux read repeats fresh metadata, outline, and selected-page checks.
 Native adapter acceptance passed for one selected chapter. Synthetic local
 services cover continuation and failure cases; live continuation remains unchecked.
 Parser-invalid identifiers, missing arguments, and malformed or oversized input

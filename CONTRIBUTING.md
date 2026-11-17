@@ -261,7 +261,12 @@ The [session-exchange probe](docs/authentication.md#opt-in-session-exchange-prob
 is an ignored developer test, not product login. Its ordinary tests use synthetic
 data and local mocks. Run its live case only from an unrecorded interactive
 terminal with separate explicit test approval. Never pass a cookie through agent tools,
-command arguments, environment variables, or files.
+command arguments or files. That probe does not use environment input.
+Product environment input uses only `BEYOND_GATE_COBALT_SESSION`; supply it locally,
+never through agent tools, chat, shell profiles, or literal client settings.
+Process-only tests must use invented values and counting/failing stores.
+The synthetic `hidden_terminal` process test uses a development-only PTY library
+to check no echo and terminal restoration. It does not use real credentials.
 
 ### Manual capability suite
 

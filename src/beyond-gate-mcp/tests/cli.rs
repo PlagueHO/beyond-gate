@@ -14,6 +14,7 @@ use serde_json::{Value, json};
 /// Panics if the operating system cannot start or wait for the test binary.
 fn run(arguments: &[&str]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_beyond-gate-mcp"))
+        .env_remove("BEYOND_GATE_COBALT_SESSION")
         .args(arguments)
         .output()
         .expect("the MCP test binary must run")
@@ -26,7 +27,14 @@ fn run(arguments: &[&str]) -> Output {
 /// Panics if the process cannot start, the input cannot be written, or it cannot
 /// be waited on.
 fn run_protocol(messages: impl IntoIterator<Item = Value>) -> Output {
-    let mut child = Command::new(env!("CARGO_BIN_EXE_beyond-gate-mcp"))
+    let mut command = Command::new(env!("CARGO_BIN_EXE_beyond-gate-mcp"));
+    command.env_remove("BEYOND_GATE_COBALT_SESSION");
+    run_protocol_command(command, messages)
+}
+
+/// Sends protocol input to an owned command, including a real sibling launcher.
+fn run_protocol_command(mut command: Command, messages: impl IntoIterator<Item = Value>) -> Output {
+    let mut child = command
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -44,6 +52,61 @@ fn run_protocol(messages: impl IntoIterator<Item = Value>) -> Output {
     child
         .wait_with_output()
         .expect("the MCP server process must exit")
+}
+
+/// Proves product startup selects environment input without breaking discovery.
+#[test]
+fn malformed_environment_is_lazy_for_direct_and_sibling_startup() {
+    let direct = std::path::Path::new(env!("CARGO_BIN_EXE_beyond-gate-mcp"));
+    let cli = direct.with_file_name(if cfg!(windows) {
+        "beyond-gate.exe"
+    } else {
+        "beyond-gate"
+    });
+    for sibling in [false, true] {
+        let mut command = Command::new(if sibling { cli.as_path() } else { direct });
+        if sibling {
+            command.args(["mcp", "start"]);
+        }
+        command.env("BEYOND_GATE_COBALT_SESSION", "invented invalid sentinel");
+        let output = run_protocol_command(
+            command,
+            [
+                json!({"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+                "protocolVersion":"2026-07-28","capabilities":{},
+                "clientInfo":{"name":"environment-test","version":"1"}}}),
+                json!({"jsonrpc":"2.0","method":"notifications/initialized"}),
+                json!({"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}),
+                json!({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+                "name":"auth_validate","arguments":{}}}),
+            ],
+        );
+        assert!(
+            output.status.success(),
+            "sibling={sibling}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(output.stderr.is_empty());
+        let messages = protocol_output(&output);
+        assert!(
+            messages
+                .iter()
+                .any(|message| message["id"] == 2 && message["result"]["tools"].is_array())
+        );
+        let result = &messages
+            .iter()
+            .find(|message| message["id"] == 3)
+            .expect("validation result")["result"];
+        assert_eq!(result["isError"], true);
+        let text = result["content"][0]["text"].as_str().expect("safe error");
+        let category = if cfg!(target_os = "macos") {
+            "unsupported_platform"
+        } else {
+            "invalid_material"
+        };
+        assert!(text.starts_with(category), "{text}");
+        assert!(!String::from_utf8_lossy(&output.stdout).contains("sentinel"));
+    }
 }
 
 /// Parses every stdout line as one protocol message.

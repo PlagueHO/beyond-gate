@@ -10,6 +10,207 @@ use std::{
     sync::mpsc,
 };
 
+/// Exercises the actual environment selector without modifying global test state.
+#[tokio::test]
+async fn process_input_never_opens_storage_and_logout_never_falls_back() {
+    let session = fixture::session(Scenario::Locked)
+        .expect("fixture")
+        .with_environment_value(Some("invented-process-cookie".into()));
+    assert_eq!(session.source(), SessionSource::Environment);
+    assert_eq!(
+        session.status().await.expect("local syntax"),
+        SessionStatus::ProvidedUnverified
+    );
+    session.validate().await.expect("process exchange");
+    let scoped = session.read_scope();
+    acquire(&scoped).await.expect("shared bearer");
+    assert_eq!(request_count(&session), 1);
+    session.logout().await.expect("process logout");
+    assert!(session.state.lock().await.cookie.is_none());
+    assert_eq!(
+        scoped.validate().await.expect_err("cleared source").kind(),
+        SessionErrorKind::Absent
+    );
+    assert_eq!(
+        session.status().await.expect("cleared status"),
+        SessionStatus::Absent
+    );
+    assert_eq!(
+        session
+            .store_opens
+            .load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+    assert_eq!(
+        store(&session)
+            .status()
+            .expect_err("store error untouched")
+            .kind(),
+        AuthErrorKind::StorageAccess
+    );
+    assert_eq!(
+        store(&session).status().expect("saved entry unchanged"),
+        SessionStatus::StoredUnverified
+    );
+}
+
+/// Invalid explicit values fail before exchange or storage, even with valid saved input.
+#[tokio::test]
+async fn explicit_input_is_bounded_redacted_and_never_uses_saved_fallback() {
+    for bytes in [
+        Vec::new(),
+        b"private sentinel".to_vec(),
+        vec![b'x'; 2_553],
+        b"CobaltSession=invented".to_vec(),
+        b"Cookie:invented".to_vec(),
+        vec![0xff],
+    ] {
+        let session = fixture::session(Scenario::Valid)
+            .expect("fixture")
+            .with_prompt(bytes);
+        assert_eq!(
+            session.status().await.expect_err("invalid syntax").kind(),
+            SessionErrorKind::InvalidMaterial
+        );
+        let error = session.validate().await.expect_err("invalid input");
+        assert_eq!(error.kind(), SessionErrorKind::InvalidMaterial);
+        assert!(!format!("{error:?}").contains("private"));
+        assert_eq!(request_count(&session), 0);
+        session.logout().await.expect("invalid input cleanup");
+        assert_eq!(
+            session
+                .store_opens
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+    }
+}
+
+/// Prompt input overrides even invalid environment input; rejected material stays rejected.
+#[tokio::test]
+async fn prompt_precedence_and_process_rejection_preserve_source_selection() {
+    let session = fixture::session(Scenario::Valid)
+        .expect("fixture")
+        .with_environment_value(Some("".into()))
+        .with_prompt(b"invented-prompt".to_vec());
+    session.validate().await.expect("explicit prompt wins");
+    assert_eq!(session.source(), SessionSource::Prompt);
+    assert_eq!(
+        session
+            .store_opens
+            .load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+    let rejected = fixture::session(Scenario::Rejected)
+        .expect("fixture")
+        .with_environment_value(Some("invented-environment".into()));
+    for _ in 0..2 {
+        assert_eq!(
+            rejected.validate().await.expect_err("rejected").kind(),
+            SessionErrorKind::Rejected
+        );
+    }
+    assert_eq!(request_count(&rejected), 1);
+    assert_eq!(
+        rejected
+            .store_opens
+            .load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+}
+
+/// OS-native non-Unicode input stays an explicit invalid source.
+#[tokio::test]
+async fn non_unicode_environment_is_not_absence() {
+    #[cfg(windows)]
+    let value = {
+        use std::os::windows::ffi::OsStringExt;
+        std::ffi::OsString::from_wide(&[0xd800])
+    };
+    #[cfg(unix)]
+    let value = {
+        use std::os::unix::ffi::OsStringExt;
+        std::ffi::OsString::from_vec(vec![0xff])
+    };
+    let session = fixture::session(Scenario::Valid)
+        .expect("fixture")
+        .with_environment_value(Some(value));
+    assert_eq!(
+        session.status().await.expect_err("invalid Unicode").kind(),
+        SessionErrorKind::InvalidMaterial
+    );
+    assert_eq!(
+        session
+            .store_opens
+            .load(std::sync::atomic::Ordering::SeqCst),
+        0
+    );
+}
+
+/// Explicit saved access bypasses malformed environment input without replacing it.
+#[tokio::test]
+async fn stored_selection_does_not_change_the_process_source() {
+    let session = fixture::session(Scenario::Valid)
+        .expect("fixture")
+        .with_environment_value(Some("".into()));
+    assert_eq!(
+        session
+            .stored_source()
+            .status()
+            .await
+            .expect("saved presence"),
+        SessionStatus::StoredUnverified
+    );
+    assert_eq!(
+        session
+            .store_opens
+            .load(std::sync::atomic::Ordering::SeqCst),
+        1
+    );
+    assert_eq!(
+        session
+            .status()
+            .await
+            .expect_err("original input remains invalid")
+            .kind(),
+        SessionErrorKind::InvalidMaterial
+    );
+    assert_eq!(request_count(&session), 0);
+}
+
+/// Service failures keep their classification without any process-only store access.
+#[tokio::test]
+async fn process_service_failures_never_open_storage() {
+    for (scenario, kind) in [
+        (Scenario::Rejected, SessionErrorKind::Rejected),
+        (Scenario::Expired, SessionErrorKind::Expired),
+        (Scenario::Malformed, SessionErrorKind::ValidationUnavailable),
+        (
+            Scenario::RateLimited,
+            SessionErrorKind::ValidationUnavailable,
+        ),
+    ] {
+        let session = fixture::session(scenario)
+            .expect("fixture")
+            .with_environment_value(Some("invented-process-cookie".into()));
+        assert_eq!(
+            session
+                .validate()
+                .await
+                .expect_err("service failure")
+                .kind(),
+            kind
+        );
+        assert_eq!(request_count(&session), 1);
+        assert_eq!(
+            session
+                .store_opens
+                .load(std::sync::atomic::Ordering::SeqCst),
+            0
+        );
+    }
+}
+
 /// Runs one actual JSON read with a separately controlled synthetic resource server.
 fn read_service(status: u16) -> (HttpClient, String, std::thread::JoinHandle<String>) {
     let listener = TcpListener::bind("127.0.0.1:0").expect("local read service");
@@ -234,50 +435,54 @@ fn fail(session: &Session, error: keyring_core::Error) {
 /// Clears the cache after exact monotonic expiry and exchanges once, never in the background.
 #[tokio::test]
 async fn fresh_validation_reuse_and_expiry_have_exact_request_counts() {
-    let session = fixture::session(Scenario::Valid).expect("fixture");
-    let stored = store(&session).entry.get_secret().expect("cookie envelope");
-    let first = session.validate().await.expect("fresh");
-    assert_eq!(
-        serde_json::to_value(first).expect("safe JSON"),
-        serde_json::json!({
-            "validation": "service_validated", "expiry": "unknown", "bearer_expiry": "future"
-        })
-    );
-    acquire(&session).await.expect("reuse");
-    acquire(&session).await.expect("reuse again");
-    assert_eq!(request_count(&session), 1);
-    session.validate().await.expect("explicitly fresh");
-    assert_eq!(request_count(&session), 2);
-    let deadline = session
-        .state
-        .lock()
-        .await
-        .bearer
-        .as_ref()
-        .expect("bearer")
-        .deadline();
-    tokio::time::pause();
-    tokio::time::advance(deadline - Instant::now()).await;
-    assert!(
-        !session
+    for process in [None, Some("invented-process-cookie".into())] {
+        let session = fixture::session(Scenario::Valid)
+            .expect("fixture")
+            .with_environment_value(process);
+        let stored = store(&session).entry.get_secret().expect("cookie envelope");
+        let first = session.validate().await.expect("fresh");
+        assert_eq!(
+            serde_json::to_value(first).expect("safe JSON"),
+            serde_json::json!({
+                "validation": "service_validated", "expiry": "unknown", "bearer_expiry": "future"
+            })
+        );
+        acquire(&session).await.expect("reuse");
+        acquire(&session).await.expect("reuse again");
+        assert_eq!(request_count(&session), 1);
+        session.validate().await.expect("explicitly fresh");
+        assert_eq!(request_count(&session), 2);
+        let deadline = session
             .state
             .lock()
             .await
             .bearer
             .as_ref()
-            .expect("expired")
-            .usable(SystemTime::now())
-    );
-    tokio::time::resume();
-    acquire(&session).await.expect("one exchange after expiry");
-    assert_eq!(request_count(&session), 3);
-    assert_eq!(
-        store(&session)
-            .entry
-            .get_secret()
-            .expect("unchanged cookie"),
-        stored
-    );
+            .expect("bearer")
+            .deadline();
+        tokio::time::pause();
+        tokio::time::advance(deadline - Instant::now()).await;
+        assert!(
+            !session
+                .state
+                .lock()
+                .await
+                .bearer
+                .as_ref()
+                .expect("expired")
+                .usable(SystemTime::now())
+        );
+        tokio::time::resume();
+        acquire(&session).await.expect("one exchange after expiry");
+        assert_eq!(request_count(&session), 3);
+        assert_eq!(
+            store(&session)
+                .entry
+                .get_secret()
+                .expect("unchanged cookie"),
+            stored
+        );
+    }
 }
 
 /// Keeps absence, rejection, verified expiry, format, and store failures distinct.
@@ -482,8 +687,8 @@ async fn portable_service_contract_rejects_expiry_and_malformed_material() {
     }
 }
 
-/// Non-Windows validation and discovery stop before credential or public service access.
-#[cfg(not(windows))]
+/// Unsupported-platform validation and discovery stop before storage or service access.
+#[cfg(not(any(windows, target_os = "linux")))]
 #[tokio::test]
 async fn production_platform_guard_precedes_native_access() {
     assert_eq!(

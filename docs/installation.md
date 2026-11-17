@@ -191,12 +191,13 @@ The image included system Python 3. No extra development runtime was installed.
 See the [Linux package-only evidence](desktop-acceptance.md#azure-linux-package-only-follow-up)
 for the inventory, PATH, removal, and desktop limits.
 
-Local `auth status` and `auth logout` also require a user session D-Bus service
+Saved-entry `auth status --stored` and `auth logout --stored` require a user session D-Bus service
 and a Secret Service provider with an unlocked default collection. Examples are
 GNOME Keyring and a compatible KDE Wallet. Headless systems and WSL may not have
-these services. There is no plaintext fallback. Environment input is not
-implemented yet; the [agreed #52 authentication follow-up](authentication.md#agreed-authentication-follow-up)
-will allow process-only CLI/MCP use without these services or a browser.
+these services. There is no plaintext fallback. Process-only
+`BEYOND_GATE_COBALT_SESSION` and CLI `--auth-prompt` work without these services or
+a browser. Use `auth import --prompt` or `--env` only to request protected save.
+See [source selection](authentication.md#agreed-authentication-follow-up).
 Package checks do not unlock or access a real credential store.
 
 **macOS:** Local session commands use the user's login Keychain. Unlock it through
@@ -302,15 +303,15 @@ with a fresh selected-ID access check before output. Monster tools permit
 only observed access code 1; code 4 is denied, and
 unverified codes, including 2 and 3, are unsupported. Native monster account
 acceptance has not run.
-Windows book reads use fresh library evidence
+Windows and Linux book reads use fresh library evidence
 and checked canonical cookie pages. Character and campaign reads use fixed
 bounded routes through the protected session. The additional `auth_validate`
-tool accepts no credential input, but loads the protected Windows entry and
+tool accepts no credential input, but uses selected process-only or saved input and
 makes one fresh service check. It is not an account-free smoke check and does
 not grant content access.
 Do not interpret discovery as successful login or live read access.
-Linux production login and session use are tracked in
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Linux supports environment input, hidden CLI input, and explicit protected import.
+Linux browser login remains deferred.
 
 To remove registration, stop the server in the client. Remove only the
 `beyond-gate` entry from the settings file's `mcpServers` object. Keep unrelated
@@ -344,11 +345,11 @@ for candidate-specific passes and remaining gaps. That guide also defines
 the procedures and required evidence.
 Native stores, real clients, browser setup, and account reads have separate
 approval gates. Package evidence never grants those approvals.
-Implement shared authentication and Linux terminal use in
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52) first. Then
+Shared authentication and Linux terminal use are implemented in
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
 [#34](https://github.com/PlagueHO/beyond-gate/issues/34) checks Windows/Linux
-CLI and real MCP clients. Environment input and a hidden CLI prompt remain
-planned, not usable commands. Optional browser/protected-save checks and deeper
+CLI and real MCP clients. Environment input and hidden CLI input do not establish
+real account or client acceptance. Optional browser/protected-save checks and deeper
 hardening remain separate; no live test is authorized by the backlog revision.
 macOS desktop and Keychain checks and Claude Code client checks are deferred to
 [#62](https://github.com/PlagueHO/beyond-gate/issues/62).
