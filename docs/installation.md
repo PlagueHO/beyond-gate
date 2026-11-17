@@ -96,6 +96,44 @@ $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInv
 if ($actual -cne $match.Groups[1].Value) { throw 'SHA-256 mismatch. Do not extract.' }
 ```
 
+### Verify build provenance
+
+Before extraction, also verify the archive and its `.sha256` sidecar with
+[GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). Use a current
+version that supports the flags below. These checks need network access and
+access to the public repository's attestation API. GitHub CLI is a download
+verification tool, not a product runtime dependency.
+
+Replace `ARCHIVE` with the native archive name. Replace `REVIEWED_COMMIT_SHA`
+with the full 40-character source commit from the maintainer-reviewed candidate
+or release. Do not take this expected identity from an unverified sidecar.
+Replace `VERSION` with the reviewed release version:
+
+```sh
+gh attestation verify ARCHIVE --repo PlagueHO/beyond-gate --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml --source-digest REVIEWED_COMMIT_SHA --source-ref refs/tags/vVERSION --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners
+gh attestation verify ARCHIVE.sha256 --repo PlagueHO/beyond-gate --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml --source-digest REVIEWED_COMMIT_SHA --source-ref refs/tags/vVERSION --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners
+```
+
+These single-line commands also work in PowerShell. Both must succeed. For a
+manual candidate from `main`, use `--source-ref refs/heads/main` and that reviewed
+run's source commit instead. If the default branch changes, use its actual name.
+An outer Actions ZIP container is not the attested archive.
+
+Only version-tag pushes and default-branch manual packaging runs can create
+release attestations. They must pass final package and provenance checks first.
+PR packages, other-ref manual packages, and older test packages can have no
+attestation. Treat them as unattested test outputs, not verified distribution.
+An unavailable service, missing attestation, identity mismatch, or changed bytes
+must stop this verification path. Do not silently use the checksum alone.
+
+An attestation links exact bytes to the repository, workflow, commit, and ref.
+It does not prove that the software is safe or reproducible. It does not provide
+Windows Authenticode publisher signing, macOS Developer ID signing, notarization,
+or freedom from OS warnings. See the [code signing policy][signing-policy].
+No signed-distribution claim applies until the candidate's workflow checks pass.
+
+[signing-policy]: https://github.com/PlagueHO/beyond-gate/blob/main/MAINTAINERS.md#code-signing-policy
+
 ## Extract and run
 
 The product binaries do not require Rust, Python, Node.js, PowerShell, or Visual
@@ -359,6 +397,8 @@ Candidate-release decisions remain in
 | Requirement | Evidence or blocker |
 |-------------|---------------------|
 | Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
+| Final-byte build provenance | Trusted tag and default-branch manual runs must attest and verify all six assets against the exact repository, source commit, ref, and release workflow. The draft job verifies the assets again. Missing or failed provenance blocks draft preparation. Real candidate evidence requires a successful trusted run. |
+| Native publisher signing | No Windows Authenticode publisher signing or macOS Developer ID/notarization is configured. Paid signing is not a release prerequisite. This does not waive OS download trust checks or permit protection bypasses. |
 | Native startup and Windows runtime prerequisite | Package checks use a restricted child PATH and process-local PATH lookup. The Windows CI runner still provides system runtime libraries. `dumpbin /DEPENDENTS` records native imports, but does not prove a clean Windows desktop has the required Visual C++ Redistributable. The user must install it before first run. Clean-desktop, two-version upgrade, and OS trust checks remain manual acceptance cases. |
 | Local MCP startup and registration | Protocol checks and temporary synthetic settings. Retained Windows VS Code and Copilot CLI discovery results have candidate-specific evidence; remaining lifecycle and isolation gaps stay open. |
 | CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library parity and one selected chapter's outline/initial-chunk parity passed separately from packaging. Synthetic source checks cover continuation and failures. Live continuation and sharing remain unchecked. |
