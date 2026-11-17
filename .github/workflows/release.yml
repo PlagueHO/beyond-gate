@@ -28,6 +28,8 @@ jobs:
   build:
     name: Package (${{ matrix.target }})
     runs-on: ${{ matrix.os }}
+    outputs:
+      version: ${{ steps.package.outputs.version }}
     strategy:
       fail-fast: false
       matrix:
@@ -54,6 +56,17 @@ jobs:
           package-manager-cache: false
       - name: Select repository toolchain
         run: rustup show
+      - name: Check release verification helpers
+        run: ./scripts/test-release-provenance.ps1
+      - name: Record candidate trust scope
+        env:
+          TRUSTED_CANDIDATE: ${{ github.repository == 'PlagueHO/beyond-gate' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))) }}
+        run: |
+          if ($env:TRUSTED_CANDIDATE -eq 'true') {
+            "Provenance is required after all package jobs pass. Native publisher signing is not configured." >> $env:GITHUB_STEP_SUMMARY
+          } else {
+            "Unattested test package: this event/ref cannot create release provenance or a draft release." >> $env:GITHUB_STEP_SUMMARY
+          }
       - name: Ensure Visual Studio 2022 Build Tools
         if: runner.os == 'Windows'
         run: |
@@ -163,11 +176,98 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  provenance:
+    name: Attest and verify final candidate
+    if: github.repository == 'PlagueHO/beyond-gate' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)))
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      actions: read
+      id-token: write
+      attestations: write
+    defaults:
+      run:
+        shell: pwsh
+    env:
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          pattern: beyond-gate-*
+          path: dist
+          merge-multiple: true
+      - name: Check final inventory and checksums
+        id: assets
+        run: |
+          $assets = @(./scripts/test-release-assets.ps1 -Directory dist -Version $env:VERSION)
+          "subjects<<RELEASE_SUBJECTS" >> $env:GITHUB_OUTPUT
+          $assets >> $env:GITHUB_OUTPUT
+          "RELEASE_SUBJECTS" >> $env:GITHUB_OUTPUT
+      - name: Attest final archives and checksum sidecars
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: ${{ steps.assets.outputs.subjects }}
+          create-storage-record: false
+      - name: Verify provenance and reject changed bytes or identity
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ATTESTATION_BUNDLE: ${{ steps.attest.outputs.bundle-path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Path provenance-evidence | Out-Null
+          Copy-Item -LiteralPath $env:ATTESTATION_BUNDLE -Destination provenance-evidence/attestation.json
+          $assets = @(./scripts/test-release-assets.ps1 -Directory dist -Version $env:VERSION)
+          foreach ($asset in $assets) {
+            $result = ./scripts/verify-release-provenance.ps1 -Artifact $asset -SourceCommit $env:GITHUB_SHA -SourceRef $env:GITHUB_REF
+            $result | Set-Content -LiteralPath (Join-Path provenance-evidence "$([IO.Path]::GetFileName($asset)).verification.json")
+          }
+          # A negative policy check must not turn a successful verification into a pass.
+          function Assert-RejectedAttestation {
+            param([string]$Path, [string]$Commit, [string]$Ref, [string]$Workflow)
+            & gh attestation verify $Path --bundle $env:ATTESTATION_BUNDLE --repo PlagueHO/beyond-gate --source-digest $Commit --source-ref $Ref --signer-workflow $Workflow --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners *> $null
+            if ($LASTEXITCODE -eq 0) { throw 'Invalid artifact or build identity passed provenance verification.' }
+          }
+          $workflow = 'PlagueHO/beyond-gate/.github/workflows/release.yml'
+          $archive = $assets[0]
+          $changed = Join-Path $env:RUNNER_TEMP "beyond-gate-tampered-$([guid]::NewGuid().ToString('N'))"
+          try {
+            Copy-Item -LiteralPath $archive -Destination $changed
+            $stream = [IO.File]::Open($changed, [IO.FileMode]::Open, [IO.FileAccess]::ReadWrite)
+            try {
+              $byte = $stream.ReadByte()
+              $stream.Position = 0
+              $stream.WriteByte($byte -bxor 1)
+            } finally { $stream.Dispose() }
+            Assert-RejectedAttestation $changed $env:GITHUB_SHA $env:GITHUB_REF $workflow
+            $wrongCommit = if ($env:GITHUB_SHA -ceq ('a' * 40)) { 'b' * 40 } else { 'a' * 40 }
+            Assert-RejectedAttestation $archive $wrongCommit $env:GITHUB_REF $workflow
+            $wrongRef = if ($env:GITHUB_REF -ceq 'refs/heads/provenance-rejection') { 'refs/heads/provenance-other' } else { 'refs/heads/provenance-rejection' }
+            Assert-RejectedAttestation $archive $env:GITHUB_SHA $wrongRef $workflow
+            Assert-RejectedAttestation $archive $env:GITHUB_SHA $env:GITHUB_REF 'PlagueHO/beyond-gate/.github/workflows/not-the-release.yml'
+            ./scripts/verify-release-provenance.ps1 -Artifact $archive -SourceCommit $env:GITHUB_SHA -SourceRef $env:GITHUB_REF > $null
+            'Verified rejection of changed bytes, wrong source commit, wrong ref, and wrong signer workflow.' | Set-Content provenance-evidence/rejections.txt
+          } finally {
+            if (Test-Path -LiteralPath $changed) { Remove-Item -LiteralPath $changed }
+          }
+          "Verified final-byte provenance for six candidate assets. This is not Windows publisher signing or macOS notarization." >> $env:GITHUB_STEP_SUMMARY
+      - name: Retain provenance evidence separately from release assets
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-provenance-evidence
+          path: provenance-evidence/*
+          if-no-files-found: warn
+
   draft-release:
     name: Prepare draft release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
+    needs: [build, provenance]
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     steps:
@@ -184,8 +284,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ github.ref_name }}
+          VERSION: ${{ needs.build.outputs.version }}
         run: |
-          $assets = @(Get-ChildItem dist -File | ForEach-Object FullName)
-          if ($assets.Count -ne 6) { throw "Expected three archives and three checksums." }
+          $assets = @(./scripts/test-release-assets.ps1 -Directory dist -Version $env:VERSION)
+          foreach ($asset in $assets) {
+            ./scripts/verify-release-provenance.ps1 -Artifact $asset -SourceCommit $env:GITHUB_SHA -SourceRef $env:GITHUB_REF > $null
+          }
           gh release create $env:RELEASE_TAG @assets --verify-tag --draft --title "Beyond Gate $env:RELEASE_TAG" --notes-file CHANGELOG.md
           if ($LASTEXITCODE -ne 0) { throw "Draft release creation failed." }

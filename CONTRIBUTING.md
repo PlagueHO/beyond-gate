@@ -298,6 +298,8 @@ Ubuntu 24.04 x86_64, Windows Server 2022 x86_64, and macOS 15 Apple Silicon.
 These are test baselines, not verified minimum OS versions.
 A relevant pull request runs the same package checks without creating a release.
 A manual run uploads archives and SHA-256 checksums without creating a release.
+Only a manual run on the default branch or a version-tag push can also create
+release provenance. PR and other-ref manual packages are unattested test outputs.
 Assets include the Rust target triple to identify architecture and platform.
 The packages include both binaries, the README, license, changelog, and the
 self-contained [installation guide](docs/installation.md).
@@ -336,9 +338,61 @@ not clean-desktop installation, real credential-store tests, or download trust
 checks.
 
 An explicit maintainer push of a `vX.Y.Z` tag also prepares a **draft** GitHub
-release after all build jobs pass. The tag must match the workspace package version.
+release after all build and provenance jobs pass. The tag must match the workspace
+package version.
 The draft needs review before publication. Never publish from a pull request.
 No crates are published to crates.io. No release is part of this foundation change.
+
+### Release provenance checks
+
+The [code signing policy](MAINTAINERS.md#code-signing-policy) permits only free
+signing. GitHub artifact attestations link final archive and checksum bytes to
+the release workflow, source commit, and ref. They do not provide native publisher
+signing or notarization. No signing secrets, certificate purchase, or paid signing
+service is configured.
+
+Build jobs keep read-only permissions. A separate job on `ubuntu-24.04` downloads
+only the current run's packages, requires the exact six-file inventory, and
+rechecks all checksums before attestation. Only that job gets OIDC token and
+attestation write permissions. A pinned `actions/attest` signs the final six files
+with GitHub and Sigstore. No files change after attestation.
+
+The job verifies all six files against `PlagueHO/beyond-gate`, the exact source SHA
+and ref, and `PlagueHO/beyond-gate/.github/workflows/release.yml`. It rejects
+self-hosted runners. Real negative checks require rejection of changed archive
+bytes and incorrect source SHA, ref, and signer workflow. Bundles and verification
+evidence stay in the separate `release-provenance-evidence` Actions artifact.
+They are not additional release assets. The draft job checks inventory, checksums,
+and provenance again before it creates a draft.
+
+Run the local synthetic checks without a GitHub token or network access:
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-release-provenance.ps1
+```
+
+These checks use a `gh` test double. They check policy arguments, invalid inputs,
+unavailable tools/services, failure propagation, and final asset inventory and
+checksum rejection. They do not verify a real signature. Packaging runs them on
+each native runner.
+
+To check one real candidate locally, use its reviewed commit and ref:
+
+```powershell
+pwsh -NoProfile -File .\scripts\verify-release-provenance.ps1 `
+    -Artifact .\dist\beyond-gate-v0.1.0-x86_64-pc-windows-msvc.zip `
+    -SourceCommit REVIEWED_COMMIT_SHA -SourceRef refs/tags/v0.1.0
+```
+
+Use the candidate's actual version. Repeat for its `.sha256` sidecar. A manual
+`main` candidate uses `refs/heads/main`, not a version tag. This command needs a
+current GitHub CLI and network access. Follow the
+[download verification guide](docs/installation.md#verify-build-provenance).
+A missing or failed attestation is an error, not permission to fall back to a
+checksum-only result. A local synthetic pass does not establish real candidate
+provenance. A separately approved trusted manual run can check the service
+integration without a release tag. Do not claim signed distribution until it
+succeeds.
 
 Before a real release, resolve the [release blockers](docs/installation.md#release-readiness)
 in the release-usability roadmap issue. Offline package checks do not prove

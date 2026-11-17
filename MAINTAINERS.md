@@ -48,3 +48,49 @@ Review the version, lockfile, dated changelog, native assets, checksums, and
 validation evidence before approving a tag or draft publication.
 A tag must match the workspace version. Release actions need explicit approval.
 This setup does not publish releases or Cargo crates.
+
+## Code signing policy
+
+The maintainer approved free GitHub build provenance for issue
+[#35](https://github.com/PlagueHO/beyond-gate/issues/35). Signing must cost nothing.
+Do not buy certificates, enroll in paid programs, or provision paid signing
+services. Native publisher signing is not a release requirement when no approved
+free route is available.
+
+[GitHub artifact attestations](https://github.com/actions/attest) are available
+for public repositories on all current GitHub plans. They use GitHub Actions
+OIDC and Sigstore without a purchased certificate or a stored private signing key.
+Existing Actions usage limits still apply. Public attestations enter a public
+transparency log; never include private account data.
+
+Require the final archive and checksum bytes to match an attestation from
+`PlagueHO/beyond-gate/.github/workflows/release.yml`, the reviewed source commit,
+and the expected tag or default-branch ref. Only version-tag pushes and manual
+default-branch runs can create attestations. PR packages and other-ref manual
+packages are unattested test outputs. A missing or failed attestation blocks the
+verified-download path and draft release preparation; do not fall back to a
+checksum-only claim.
+
+Provenance links bytes to a build identity. It does not prove that the software
+is safe, reproducible, or approved by an OS publisher program. Trust depends on
+GitHub, Sigstore, and control of the repository and workflow. See
+[GitHub's trust limits](https://docs.github.com/en/actions/concepts/security/artifact-attestations)
+and the [download verification guide](docs/installation.md#verify-the-download).
+
+Windows binaries have no Authenticode publisher signing. macOS packages have no
+Developer ID signing or notarization. Ad hoc and self-signed signatures do not
+provide those guarantees. [SignPath Foundation](https://signpath.org/) offers
+free OSS signing, but its [conditions](https://signpath.org/terms) require service
+approval and project controls. No approval or integration is established here.
+It is an optional future free route, not a release blocker.
+
+Apple requires a suitable distribution identity for
+[notarization](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+Its [fee waiver](https://developer.apple.com/help/account/membership/fee-waivers/)
+has specific organization requirements; no eligible approved arrangement is
+established here. Paid membership is not a release prerequisite.
+
+These decisions do not waive native download trust checks. Never disable
+SmartScreen, Gatekeeper, quarantine, or organization policy to pass them.
+Stop on an OS protection denial. Changes to this policy, release tags, publication,
+and applications to external signing services need separate maintainer approval.
