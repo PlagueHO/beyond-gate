@@ -12,8 +12,6 @@ Set-StrictMode -Version Latest
 if (!(Test-Path -LiteralPath $Artifact -PathType Leaf)) { throw 'Artifact file is missing.' }
 $path = (Resolve-Path -LiteralPath $Artifact).ProviderPath
 if ((Get-Item -LiteralPath $path).Length -eq 0) { throw 'Artifact file is empty.' }
-$null = Get-Command gh -ErrorAction Stop
-$LASTEXITCODE = 0
 & gh attestation verify $path --repo PlagueHO/beyond-gate `
   --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml `
   --source-digest $SourceCommit --source-ref $SourceRef `
