@@ -14,7 +14,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   mode; `--stored` selects the saved entry explicitly. Existing exchange bounds,
   bearer reuse, book access checks, and Windows browser login remain shared.
   Synthetic tests include no-store input, protected import, CLI/MCP parity, and
-  PTY/ConPTY no-echo and cancellation checks. Native account, client, Linux
+  PTY/ConPTY no-echo and cancellation checks. The ConPTY test host answers cursor
+  requests before it waits for hidden input. Native account, client, Linux
   release-binary, and macOS acceptance remain separate.
 - Beyond Gate icon assets in `assets/icons`, with transparent, black, and white
   backgrounds. Each set includes a 1024-pixel source and PNG exports at 16, 24,
