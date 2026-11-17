@@ -3,7 +3,9 @@
 use std::{error::Error, fmt, io};
 
 use beyond_gate_core::{
-    auth::{AuthError, session::SessionError},
+    auth::{
+        AuthError, establishment::EstablishmentError, handoff::ErrorCode, session::SessionError,
+    },
     background::BackgroundError,
     book::BookError,
     character_campaign::CharacterCampaignError,
@@ -25,6 +27,9 @@ pub(crate) enum Failure {
     Login(crate::login::LoginError),
     Auth(AuthError),
     Session(SessionError),
+    Establishment(EstablishmentError),
+    ImportOutcome(ErrorCode),
+    HiddenInput(io::Error),
     Runtime(io::Error),
     Cancelled,
     Signal(io::Error),
@@ -99,6 +104,13 @@ impl fmt::Display for Failure {
             Self::Login(error) => write!(formatter, "{error}")?,
             Self::Auth(error) => write!(formatter, "{error}")?,
             Self::Session(error) => write!(formatter, "{error}")?,
+            Self::Establishment(error) => write!(formatter, "{error}")?,
+            Self::ImportOutcome(code) => formatter.write_str(code.as_str())?,
+            Self::HiddenInput(error) => write!(
+                formatter,
+                "Hidden terminal input or restoration failed ({:?}).",
+                error.kind()
+            )?,
             Self::Runtime(_) => formatter.write_str("Session runtime could not start.")?,
             Self::Cancelled => formatter.write_str("cancelled")?,
             Self::Signal(_) => formatter.write_str("Session cancellation handler failed.")?,
@@ -139,7 +151,7 @@ impl fmt::Display for Failure {
 /// Adds login guidance only when the typed cause rejects a session, not on denial.
 fn login_hint(kind: ErrorKind) -> &'static str {
     if kind == ErrorKind::SessionUnusable {
-        "; browser login is not implemented; do not supply a password, cookie, or token"
+        "; supply new process environment input or use --auth-prompt; do not supply credentials to MCP tools"
     } else {
         ""
     }
@@ -161,6 +173,8 @@ impl Error for Failure {
             Self::Login(error) => Some(error),
             Self::Auth(error) => Some(error),
             Self::Session(error) => Some(error),
+            Self::Establishment(error) => Some(error),
+            Self::ImportOutcome(_) | Self::HiddenInput(_) => None,
             Self::Runtime(error) => Some(error),
             Self::Signal(error) => Some(error),
             Self::Cancelled => None,
@@ -191,9 +205,9 @@ mod tests {
 
     /// Does not mistake denied access, malformed data, or network errors for expiry.
     #[test]
-    fn only_a_rejected_session_needs_human_login() {
+    fn only_a_rejected_session_needs_replacement_input() {
         assert!(
-            login_hint(ErrorKind::SessionUnusable).contains("browser login is not implemented")
+            login_hint(ErrorKind::SessionUnusable).contains("supply new process environment input")
         );
         assert!(!login_hint(ErrorKind::SessionUnusable).contains("expired"));
         for kind in [

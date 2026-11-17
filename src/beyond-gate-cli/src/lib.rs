@@ -6,6 +6,7 @@
 mod browser_setup;
 mod command;
 mod error;
+mod hidden_input;
 mod logo;
 mod mcp;
 mod output;
@@ -22,7 +23,12 @@ use std::{
 };
 
 use beyond_gate_core::{
-    auth::{self, SessionStatus, SessionStore, session::Session},
+    auth::{
+        self, SessionStatus,
+        establishment::{LoginControl, SessionEstablishmentInput, establish_session},
+        input::{SESSION_ENV_VAR, SessionSource},
+        session::Session,
+    },
     background::{self, BackgroundError, BackgroundQuery},
     book::{self, BookError, BookOutline, SectionChunk, SectionCursor, SectionRequest},
     character_campaign::{
@@ -44,8 +50,11 @@ pub use command::command;
 use error::Failure;
 use output::ListOptions;
 
-/// Maximum class/subclass table bytes, including escaped cells, padding, and framing.
-const MAX_CLASS_TABLE_BYTES: usize = 8 * 1024 * 1024;
+/// Maximum catalog table bytes, including escaped cells, padding, and framing.
+const MAX_CATALOG_TABLE_BYTES: usize = 8 * 1024 * 1024;
+
+/// Defers a validated resource operation until its session source is selected.
+type PreparedRead<'a> = Box<dyn FnOnce(&Session) -> Result<Vec<u8>, Failure> + 'a>;
 
 /// Supplies only the shared resource operations required by the command runner.
 ///
@@ -435,6 +444,9 @@ fn status_message(status: SessionStatus) -> &'static str {
         SessionStatus::StoredUnverified => {
             "stored-unverified: local session material exists; upstream usability is not checked; expiry is unknown."
         }
+        SessionStatus::ProvidedUnverified => {
+            "provided-unverified: process-only input; upstream usability is not checked; expiry is unknown."
+        }
     }
 }
 
@@ -476,7 +488,14 @@ where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
 {
-    run_with_session_input(arguments, reads, &Session::default(), stdin, stdout, stderr)
+    run_with_session_input(
+        arguments,
+        reads,
+        &Session::from_environment(),
+        stdin,
+        stdout,
+        stderr,
+    )
 }
 
 /// Runs the shipped parser and presentation with an explicitly owned core session.
@@ -517,6 +536,42 @@ where
             };
         }
     };
+    if matches.get_flag("auth-prompt") {
+        let allowed = matches!(auth_action(&matches), Some(AuthAction::Validate))
+            || matches!(
+                matches.subcommand_name(),
+                Some(
+                    "character"
+                        | "campaign"
+                        | "book"
+                        | "class"
+                        | "subclass"
+                        | "monster"
+                        | "spell"
+                        | "equipment"
+                        | "magic-item"
+                        | "feat"
+                        | "background"
+                        | "species"
+                )
+            );
+        if !allowed {
+            return report(
+                &Failure::Usage(
+                    "--auth-prompt is only valid for a resource read or auth validate.",
+                ),
+                stderr,
+            );
+        }
+    }
+    if let Some(arguments) = matches.subcommand_matches("auth")
+        && let Some(import) = arguments.subcommand_matches("import")
+    {
+        return match import_session(import, stderr).and_then(|bytes| write_output(stdout, &bytes)) {
+            Ok(()) => 0,
+            Err(error) => report(&error, stderr),
+        };
+    }
     if let Some(("mcp", arguments)) = matches.subcommand() {
         return execute_mcp(arguments, stdin, stdout, stderr);
     }
@@ -528,10 +583,55 @@ where
             Err(error) => report(&Failure::BrowserSetup(error), stderr),
         };
     }
-    match execute(&matches, reads, session).and_then(|bytes| write_output(stdout, &bytes)) {
+    let result = if matches.get_flag("auth-prompt") {
+        let prepared: Result<PreparedRead<'_>, Failure> =
+            if matches!(auth_action(&matches), Some(AuthAction::Validate)) {
+                Ok(Box::new(|selected| execute(&matches, reads, selected)))
+            } else {
+                prepare_resource(&matches, reads)
+            };
+        prepared.and_then(|operation| {
+            let selected = session.prompt_source(hidden_input::read(stderr)?);
+            operation(&selected)
+        })
+    } else {
+        execute(&matches, reads, session)
+    };
+    match result.and_then(|bytes| write_output(stdout, &bytes)) {
         Ok(()) => 0,
         Err(error) => report(&error, stderr),
     }
+}
+
+/// Validates explicit import and preserves uncertain-write evidence on Ctrl+C.
+fn import_session(arguments: &ArgMatches, stderr: &mut impl Write) -> Result<Vec<u8>, Failure> {
+    let input = if arguments.get_flag("prompt") {
+        SessionEstablishmentInput::from_prompt(hidden_input::read(stderr)?)
+    } else {
+        SessionEstablishmentInput::from_environment_value(std::env::var_os(SESSION_ENV_VAR))
+    }
+    .map_err(Failure::Establishment)?;
+    let saved = execute_session(async {
+        let control = LoginControl::for_import(
+            tokio::time::Instant::now() + std::time::Duration::from_secs(30),
+        )
+        .map_err(Failure::Establishment)?;
+        let cancellation = control.cancellation();
+        tokio::select! {
+            biased;
+            signal = tokio::signal::ctrl_c() => {
+                signal.map_err(Failure::Signal)?;
+                Err(Failure::ImportOutcome(cancellation.cancel_outcome()))
+            }
+            result = establish_session(input, control) => result.map_err(Failure::Establishment),
+        }
+    })?;
+    Ok(format!(
+        "saved: Beyond Gate session; validation={}; expiry={}.\n",
+        saved.validation_evidence(),
+        saved.expiry_evidence(),
+    )
+    .into_bytes())
 }
 
 /// Writes and flushes through a fallible path rather than panic-prone print macros.
@@ -603,6 +703,18 @@ fn execute(
     session: &Session,
 ) -> Result<Vec<u8>, Failure> {
     if let Some(action) = auth_action(matches) {
+        let stored;
+        let session = if matches
+            .subcommand_matches("auth")
+            .and_then(|arguments| arguments.subcommand())
+            .is_some_and(|(name, arguments)| {
+                matches!(name, "status" | "logout") && arguments.get_flag("stored")
+            }) {
+            stored = session.stored_source();
+            &stored
+        } else {
+            session
+        };
         if matches!(action, AuthAction::Validate) {
             let result = execute_read(|| session.validate(), Failure::Session)?;
             let mut bytes = serde_json::to_vec(&result).map_err(Failure::Json)?;
@@ -611,6 +723,9 @@ fn execute(
         }
         if matches!(action, AuthAction::Logout) {
             execute_session(async { session.logout().await.map_err(Failure::Session) })?;
+            if session.source() != SessionSource::Stored {
+                return Ok(b"Process-only Beyond Gate session cleared. Saved credentials are unchanged. The parent environment and other processes are unchanged; a new process can receive the same input again. Upstream revocation is not implemented.\n".to_vec());
+            }
             return Ok(b"Local Beyond Gate session removed or already absent. Upstream revocation is not implemented; the browser session can remain active.\n".to_vec());
         }
         #[cfg(windows)]
@@ -625,10 +740,14 @@ fn execute(
         }
         return match action {
             AuthAction::Status => {
-                let status = SessionStore::open()
-                    .and_then(|store| store.status())
-                    .map_err(Failure::Auth)?;
-                Ok(format!("{}\n", status_message(status)).into_bytes())
+                let status =
+                    execute_session(async { session.status().await.map_err(Failure::Session) })?;
+                Ok(format!(
+                    "source={}; {}\n",
+                    session.source().as_str(),
+                    status_message(status)
+                )
+                .into_bytes())
             }
             AuthAction::Login => Err(Failure::Auth(auth::login_blocker())),
             AuthAction::Logout | AuthAction::Validate => Err(Failure::Usage(
@@ -647,40 +766,54 @@ fn execute(
         clap_complete::generate(*shell, &mut command(), "beyond-gate", &mut bytes);
         return Ok(bytes);
     }
+    prepare_resource(matches, reads)?(session)
+}
+
+/// Prepares a resource operation without input, storage, network, or read execution.
+fn prepare_resource<'a>(
+    matches: &'a ArgMatches,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
+    let (resource, arguments) = matches
+        .subcommand()
+        .ok_or(Failure::Usage("Select a resource operation."))?;
     let (action, arguments) = arguments
         .subcommand()
         .ok_or(Failure::Usage("Select a resource operation."))?;
-    if action == "show" {
-        let options = ListOptions::parse(arguments)?;
-        if options.uses_html_source() {
-            return execute_html(resource, arguments, &options, reads, session);
-        }
+    if resource == "book" {
+        return prepare_book(action, arguments, reads);
     }
+    let options = ListOptions::parse(arguments)?;
+    if action == "show" && options.uses_html_source() {
+        return prepare_html(resource, arguments, options, reads);
+    }
+    let options = match resource {
+        "character" | "campaign" => options,
+        _ => options.with_table_byte_limit(MAX_CATALOG_TABLE_BYTES),
+    };
     match resource {
-        "species" => execute_species(action, arguments, reads, session),
-        "spell" => execute_spell(action, arguments, reads, session),
-        "class" => execute_class(action, arguments, reads, session, ClassKind::Class),
-        "subclass" => execute_class(action, arguments, reads, session, ClassKind::Subclass),
-        "monster" => execute_monster(action, arguments, reads, session),
-        "background" => execute_background(action, arguments, reads, session),
-        "feat" => execute_feat(action, arguments, reads, session),
-        "equipment" => execute_item(action, arguments, reads, session, ItemKind::Equipment),
-        "magic-item" => execute_item(action, arguments, reads, session, ItemKind::MagicItem),
-        "character" => execute_character(action, arguments, reads, session),
-        "campaign" => execute_campaign(action, arguments, reads, session),
-        "book" => execute_book(action, arguments, reads, session),
+        "species" => prepare_species(action, arguments, options, reads),
+        "spell" => prepare_spell(action, arguments, options, reads),
+        "class" => prepare_class(action, arguments, options, reads, ClassKind::Class),
+        "subclass" => prepare_class(action, arguments, options, reads, ClassKind::Subclass),
+        "monster" => prepare_monster(action, arguments, options, reads),
+        "background" => prepare_background(action, arguments, options, reads),
+        "feat" => prepare_feat(action, arguments, options, reads),
+        "equipment" => prepare_item(action, arguments, options, reads, ItemKind::Equipment),
+        "magic-item" => prepare_item(action, arguments, options, reads, ItemKind::MagicItem),
+        "character" => prepare_character(action, arguments, options, reads),
+        "campaign" => prepare_campaign(action, arguments, options, reads),
         _ => Err(Failure::Usage("Select a supported resource operation.")),
     }
 }
 
-/// Routes only explicit HTML or Markdown through the shared checked source operation.
-fn execute_html(
+/// Prepares explicit HTML or Markdown before deferring the checked source operation.
+fn prepare_html<'a>(
     resource: &str,
-    arguments: &ArgMatches,
-    options: &ListOptions,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     use beyond_gate_core::record_html::{Request, Resource};
     let resource = match resource {
         "character" => Resource::Character,
@@ -723,19 +856,20 @@ fn execute_html(
             .is_some_and(|value| value == "markdown"),
     };
     request.validate().map_err(Failure::Html)?;
-    let result = execute_read(|| reads.show_html(session, &request), Failure::Html)?;
-    output::selected_html(options, &result)
+    Ok(Box::new(move |session| {
+        let result = execute_read(|| reads.show_html(session, &request), Failure::Html)?;
+        output::selected_html(&options, &result)
+    }))
 }
 
 /// Presents either item view without copying classification, filtering, or request policy.
-fn execute_item(
+fn prepare_item<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
     kind: ItemKind,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+) -> Result<PreparedRead<'a>, Failure> {
     let page = arguments
         .get_one::<u32>("page")
         .copied()
@@ -759,52 +893,54 @@ fn execute_item(
     } else {
         return Err(Failure::Usage("Select item list or show."));
     };
-    let value = execute_read(
-        || async {
-            if let Some(selection) = &selected {
-                match kind {
-                    ItemKind::Equipment => reads.show_equipment(session, selection).await,
-                    ItemKind::MagicItem => reads.show_magic_item(session, selection).await,
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(selection) = &selected {
+                    match kind {
+                        ItemKind::Equipment => reads.show_equipment(session, selection).await,
+                        ItemKind::MagicItem => reads.show_magic_item(session, selection).await,
+                    }
+                } else if let Some(query) = &magic_query {
+                    reads.list_magic_items(session, query).await
+                } else {
+                    reads.list_equipment(session, &query).await
                 }
-            } else if let Some(query) = &magic_query {
-                reads.list_magic_items(session, query).await
-            } else {
-                reads.list_equipment(session, &query).await
+            },
+            Failure::Item,
+        )?;
+        if selected.is_some() {
+            output::record(
+                &options,
+                &["id", "name", "page", "source_url", "sources", "raw"],
+                &value,
+            )
+        } else {
+            let mut columns = vec![
+                "id",
+                "name",
+                "filter_type",
+                "cost",
+                "weight",
+                "sources",
+                "source_url",
+                "page",
+                "next_page",
+                "source_count",
+                "source_total",
+            ];
+            if kind == ItemKind::MagicItem {
+                columns.extend(["rarity", "tags", "can_attune"]);
             }
-        },
-        Failure::Item,
-    )?;
-    if selected.is_some() {
-        render_record(
-            &options,
-            &["id", "name", "page", "source_url", "sources", "raw"],
-            value,
-        )
-    } else {
-        let mut columns = vec![
-            "id",
-            "name",
-            "filter_type",
-            "cost",
-            "weight",
-            "sources",
-            "source_url",
-            "page",
-            "next_page",
-            "source_count",
-            "source_total",
-        ];
-        if kind == ItemKind::MagicItem {
-            columns.extend(["rarity", "tags", "can_attune"]);
+            output::paginated_list(
+                &options,
+                &columns,
+                &value,
+                &["page", "next_page", "source_count", "source_total"],
+                Failure::Item(ItemError::InvalidResponse),
+            )
         }
-        output::paginated_list(
-            &options,
-            &columns,
-            &value,
-            &["page", "next_page", "source_count", "source_total"],
-            Failure::Item(ItemError::InvalidResponse),
-        )
-    }
+    }))
 }
 
 /// Assembles the shared local query from clap values, like other resource queries.
@@ -881,13 +1017,12 @@ fn website_query_fields(
 }
 
 /// Presents spell metadata and untrusted detail without copying access policy.
-fn execute_spell(
+fn prepare_spell<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     let slug = if action == "show" {
         Some(selection(arguments, "slug")?)
     } else {
@@ -911,50 +1046,51 @@ fn execute_spell(
     } else {
         return Err(Failure::Usage("Select spell list or show."));
     }
-    let value = execute_read(
-        || async {
-            if let Some(slug) = slug {
-                reads.show_spell(session, slug).await
-            } else {
-                reads.list_spells(session, &query).await
-            }
-        },
-        Failure::Spell,
-    )?;
-    if slug.is_some() {
-        render_record(
-            &options,
-            &["id", "slug", "name", "source_url", "raw_html"],
-            value,
-        )
-    } else {
-        output::paginated_list(
-            &options,
-            &[
-                "id",
-                "slug",
-                "name",
-                "level",
-                "school",
-                "source_url",
-                "page",
-                "next_page",
-            ],
-            &value,
-            &["page", "next_page"],
-            Failure::Spell(SpellError::InvalidResponse),
-        )
-    }
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(slug) = slug {
+                    reads.show_spell(session, slug).await
+                } else {
+                    reads.list_spells(session, &query).await
+                }
+            },
+            Failure::Spell,
+        )?;
+        if slug.is_some() {
+            output::record(
+                &options,
+                &["id", "slug", "name", "source_url", "raw_html"],
+                &value,
+            )
+        } else {
+            output::paginated_list(
+                &options,
+                &[
+                    "id",
+                    "slug",
+                    "name",
+                    "level",
+                    "school",
+                    "source_url",
+                    "page",
+                    "next_page",
+                ],
+                &value,
+                &["page", "next_page"],
+                Failure::Spell(SpellError::InvalidResponse),
+            )
+        }
+    }))
 }
 
 /// Presents shared species results without copying source or access policy.
-fn execute_species(
+fn prepare_species<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     let id = (action == "show")
         .then(|| selection(arguments, "id"))
         .transpose()?;
@@ -963,44 +1099,45 @@ fn execute_species(
     } else if action != "list" {
         return Err(Failure::Usage("Select species list or show."));
     }
-    let value = execute_read(
-        || async {
-            if let Some(id) = id {
-                reads.show_species(session, id).await
-            } else {
-                reads.list_species(session).await
-            }
-        },
-        Failure::Species,
-    )?;
-    if id.is_some() {
-        let fields = [
-            "id",
-            "name",
-            "is_homebrew",
-            "is_legacy",
-            "is_subrace",
-            "base_race_name",
-            "raw",
-        ];
-        render_record(&options, &fields, value)
-    } else {
-        let fields = ["id", "name", "source", "source_url", "is_legacy"];
-        let rows = value
-            .as_array()
-            .ok_or(Failure::Species(SpeciesError::InvalidResponse))?;
-        output::list(&options, &fields, rows, None)
-    }
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(id) = id {
+                    reads.show_species(session, id).await
+                } else {
+                    reads.list_species(session).await
+                }
+            },
+            Failure::Species,
+        )?;
+        if id.is_some() {
+            let fields = [
+                "id",
+                "name",
+                "is_homebrew",
+                "is_legacy",
+                "is_subrace",
+                "base_race_name",
+                "raw",
+            ];
+            output::record(&options, &fields, &value)
+        } else {
+            let fields = ["id", "name", "source", "source_url", "is_legacy"];
+            let rows = value
+                .as_array()
+                .ok_or(Failure::Species(SpeciesError::InvalidResponse))?;
+            output::list(&options, &fields, rows, None)
+        }
+    }))
 }
 
 /// Presents shared feat results without duplicating source, access, or bound policy.
-fn execute_feat(
+fn prepare_feat<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     let id = if action == "show" {
         Some(selection(arguments, "id")?)
     } else {
@@ -1020,51 +1157,52 @@ fn execute_feat(
         return Err(Failure::Usage("Select feat list or show."));
     };
     query.validate().map_err(Failure::Feat)?;
-    let value = execute_read(
-        || async {
-            if let Some(id) = id {
-                reads.show_feat(session, id).await
-            } else {
-                reads.list_feats(session, &query).await
-            }
-        },
-        Failure::Feat,
-    )?;
-    if id.is_some() {
-        render_record(
-            &options,
-            &[
-                "id",
-                "name",
-                "source_url",
-                "sources",
-                "is_repeatable",
-                "repeatable_parent_id",
-                "raw",
-            ],
-            value,
-        )
-    } else {
-        let rows = value
-            .as_array()
-            .ok_or(Failure::Feat(FeatError::InvalidResponse))?;
-        output::list(
-            &options,
-            &["id", "name", "source", "source_url"],
-            rows,
-            None,
-        )
-    }
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(id) = id {
+                    reads.show_feat(session, id).await
+                } else {
+                    reads.list_feats(session, &query).await
+                }
+            },
+            Failure::Feat,
+        )?;
+        if id.is_some() {
+            output::record(
+                &options,
+                &[
+                    "id",
+                    "name",
+                    "source_url",
+                    "sources",
+                    "is_repeatable",
+                    "repeatable_parent_id",
+                    "raw",
+                ],
+                &value,
+            )
+        } else {
+            let rows = value
+                .as_array()
+                .ok_or(Failure::Feat(FeatError::InvalidResponse))?;
+            output::list(
+                &options,
+                &["id", "name", "source", "source_url"],
+                rows,
+                None,
+            )
+        }
+    }))
 }
 
 /// Presents background results without duplicating source or access policy.
-fn execute_background(
+fn prepare_background<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     let id = if action == "show" {
         Some(selection(arguments, "id")?)
     } else {
@@ -1081,43 +1219,44 @@ fn execute_background(
         return Err(Failure::Usage("Select background list or show."));
     };
     query.validate().map_err(Failure::Background)?;
-    let value = execute_read(
-        || async {
-            if let Some(id) = id {
-                reads.show_background(session, id).await
-            } else {
-                reads.list_backgrounds(session, &query).await
-            }
-        },
-        Failure::Background,
-    )?;
-    if id.is_some() {
-        render_record(
-            &options,
-            &["id", "name", "source_url", "sources", "raw"],
-            value,
-        )
-    } else {
-        let rows = value
-            .as_array()
-            .ok_or(Failure::Background(BackgroundError::InvalidResponse))?;
-        output::list(
-            &options,
-            &["id", "name", "source", "source_url"],
-            rows,
-            None,
-        )
-    }
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(id) = id {
+                    reads.show_background(session, id).await
+                } else {
+                    reads.list_backgrounds(session, &query).await
+                }
+            },
+            Failure::Background,
+        )?;
+        if id.is_some() {
+            output::record(
+                &options,
+                &["id", "name", "source_url", "sources", "raw"],
+                &value,
+            )
+        } else {
+            let rows = value
+                .as_array()
+                .ok_or(Failure::Background(BackgroundError::InvalidResponse))?;
+            output::list(
+                &options,
+                &["id", "name", "source", "source_url"],
+                rows,
+                None,
+            )
+        }
+    }))
 }
 
 /// Presents shared monster results without copying access or paging logic.
-fn execute_monster(
+fn prepare_monster<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(8 * 1024 * 1024);
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     let id = (action == "show")
         .then(|| selection(arguments, "id"))
         .transpose()?;
@@ -1129,37 +1268,39 @@ fn execute_monster(
     } else {
         return Err(Failure::Usage("Select monster list or show."));
     };
-    let value = execute_read(
-        || async {
-            if let Some(id) = id {
-                reads.show_monster(session, id).await
-            } else {
-                reads.list_monsters(session, &query).await
-            }
-        },
-        Failure::Monster,
-    )?;
-    if id.is_some() {
-        return render_record(
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(id) = id {
+                    reads.show_monster(session, id).await
+                } else {
+                    reads.list_monsters(session, &query).await
+                }
+            },
+            Failure::Monster,
+        )?;
+        if id.is_some() {
+            return output::record(
+                &options,
+                &["id", "name", "source_url", "access_code", "raw"],
+                &value,
+            );
+        }
+        output::paginated_list(
             &options,
-            &["id", "name", "source_url", "access_code", "raw"],
-            value,
-        );
-    }
-    output::paginated_list(
-        &options,
-        &[
-            "id",
-            "name",
-            "source_url",
-            "access_code",
-            "page",
-            "next_page",
-        ],
-        &value,
-        &["page", "next_page"],
-        Failure::Monster(MonsterError::InvalidResponse),
-    )
+            &[
+                "id",
+                "name",
+                "source_url",
+                "access_code",
+                "page",
+                "next_page",
+            ],
+            &value,
+            &["page", "next_page"],
+            Failure::Monster(MonsterError::InvalidResponse),
+        )
+    }))
 }
 
 /// Converts parsed flags to the same strict query model used by MCP.
@@ -1190,14 +1331,13 @@ fn monster_query(arguments: &ArgMatches) -> Result<monster::MonsterQuery, Failur
 }
 
 /// Renders shared class metadata without duplicating discovery or access logic.
-fn execute_class(
+fn prepare_class<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
     kind: ClassKind,
-) -> Result<Vec<u8>, Failure> {
-    let options = ListOptions::parse(arguments)?.with_table_byte_limit(MAX_CLASS_TABLE_BYTES);
+) -> Result<PreparedRead<'a>, Failure> {
     let class_id = if kind == ClassKind::Subclass {
         arguments.get_one::<String>("class-id").map(String::as_str)
     } else {
@@ -1213,36 +1353,37 @@ fn execute_class(
         _ => return Err(Failure::Usage("Select class/subclass list or show.")),
     };
     class_catalog::validate_input(kind, name, class_id, id).map_err(Failure::Class)?;
-    let value = execute_read(
-        || async {
-            if let Some(id) = id {
-                reads.show_class(session, kind, id, class_id).await
-            } else {
-                reads.list_classes(session, kind, name, class_id).await
-            }
-        },
-        Failure::Class,
-    )?;
-    if id.is_some() {
-        render_record(&options, &fields, value)
-    } else {
-        let rows = value
-            .as_array()
-            .ok_or(Failure::Class(ClassCatalogError::InvalidMetadata))?;
-        output::list(&options, &fields, rows, None)
-    }
+    Ok(Box::new(move |session| {
+        let value = execute_read(
+            || async {
+                if let Some(id) = id {
+                    reads.show_class(session, kind, id, class_id).await
+                } else {
+                    reads.list_classes(session, kind, name, class_id).await
+                }
+            },
+            Failure::Class,
+        )?;
+        if id.is_some() {
+            output::record(&options, &fields, &value)
+        } else {
+            let rows = value
+                .as_array()
+                .ok_or(Failure::Class(ClassCatalogError::InvalidMetadata))?;
+            output::list(&options, &fields, rows, None)
+        }
+    }))
 }
 
-/// Routes character operations without interpreting raw character fields.
-fn execute_character(
+/// Prepares character operations without interpreting raw character fields.
+fn prepare_character<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     match action {
-        "list" => {
-            let options = ListOptions::parse(arguments)?;
+        "list" => Ok(Box::new(move |session| {
             let snapshot = execute_read(|| reads.list_characters(session), Failure::Character)?;
             let rows: Vec<_> = snapshot
                 .characters()
@@ -1250,89 +1391,95 @@ fn execute_character(
                 .map(output::character)
                 .collect();
             output::list(&options, &["id", "name", "source_url"], &rows, None)
-        }
+        })),
         "show" => {
-            let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "id")?;
-            let value = execute_read(|| reads.get_character(session, id), Failure::Character)?;
-            let row = output::character(&value);
-            render_record(&options, &["id", "name", "source_url", "raw"], row)
+            Ok(Box::new(move |session| {
+                let value = execute_read(|| reads.get_character(session, id), Failure::Character)?;
+                let row = output::character(&value);
+                output::record(&options, &["id", "name", "source_url", "raw"], &row)
+            }))
         }
         _ => Err(Failure::Usage("Select a supported character operation.")),
     }
 }
 
-/// Routes campaign operations while retaining opaque character associations.
-fn execute_campaign(
+/// Prepares campaign operations while retaining opaque character associations.
+fn prepare_campaign<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
+    arguments: &'a ArgMatches,
+    options: ListOptions,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     match action {
         "list" => {
-            let options = ListOptions::parse(arguments)?;
             let active_only = arguments.get_flag("active-only");
-            let snapshot = execute_read(
-                || reads.list_campaigns(session, active_only),
-                Failure::Character,
-            )?;
-            let rows: Vec<_> = snapshot.campaigns().iter().map(output::campaign).collect();
-            output::list(
-                &options,
-                &["id", "name", "source_url", "character_ids"],
-                &rows,
-                None,
-            )
+            Ok(Box::new(move |session| {
+                let snapshot = execute_read(
+                    || reads.list_campaigns(session, active_only),
+                    Failure::Character,
+                )?;
+                let rows: Vec<_> = snapshot.campaigns().iter().map(output::campaign).collect();
+                output::list(
+                    &options,
+                    &["id", "name", "source_url", "character_ids"],
+                    &rows,
+                    None,
+                )
+            }))
         }
         "show" => {
-            let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "id")?;
-            let value = execute_read(|| reads.get_campaign(session, id), Failure::Character)?;
-            let row = output::campaign(&value);
-            render_record(
-                &options,
-                &["id", "name", "source_url", "character_ids", "raw"],
-                row,
-            )
+            Ok(Box::new(move |session| {
+                let value = execute_read(|| reads.get_campaign(session, id), Failure::Character)?;
+                let row = output::campaign(&value);
+                output::record(
+                    &options,
+                    &["id", "name", "source_url", "character_ids", "raw"],
+                    &row,
+                )
+            }))
         }
         _ => Err(Failure::Usage("Select a supported campaign operation.")),
     }
 }
 
-/// Routes book metadata, navigation, and one explicitly selected section chunk.
-fn execute_book(
+/// Prepares book metadata, navigation, or one explicitly selected section chunk.
+fn prepare_book<'a>(
     action: &str,
-    arguments: &ArgMatches,
-    reads: &impl ReadOperations,
-    session: &Session,
-) -> Result<Vec<u8>, Failure> {
+    arguments: &'a ArgMatches,
+    reads: &'a impl ReadOperations,
+) -> Result<PreparedRead<'a>, Failure> {
     match action {
         "list" => {
             let options = ListOptions::parse(arguments)?;
-            let snapshot = execute_read(|| reads.discover_library(session), Failure::Library)?;
-            let rows: Vec<_> = snapshot.books().iter().map(output::book).collect();
-            output::list(
-                &options,
-                &["id", "title", "access", "source_url"],
-                &rows,
-                None,
-            )
+            Ok(Box::new(move |session| {
+                let snapshot = execute_read(|| reads.discover_library(session), Failure::Library)?;
+                let rows: Vec<_> = snapshot.books().iter().map(output::book).collect();
+                output::list(
+                    &options,
+                    &["id", "title", "access", "source_url"],
+                    &rows,
+                    None,
+                )
+            }))
         }
         "outline" => {
             let options = ListOptions::parse(arguments)?;
             let id = selection(arguments, "book-id")?;
-            let value = execute_read(|| reads.get_book_outline(session, id), Failure::Book)?;
-            let json = output::outline(&value);
-            let rows = json["entries"]
-                .as_array()
-                .ok_or(Failure::Usage("Outline entries must be an array."))?;
-            output::list(
-                &options,
-                &["id", "title", "parent_id", "source_url"],
-                rows,
-                Some(&json),
-            )
+            Ok(Box::new(move |session| {
+                let value = execute_read(|| reads.get_book_outline(session, id), Failure::Book)?;
+                let json = output::outline(&value);
+                let rows = json["entries"]
+                    .as_array()
+                    .ok_or(Failure::Usage("Outline entries must be an array."))?;
+                output::list(
+                    &options,
+                    &["id", "title", "parent_id", "source_url"],
+                    rows,
+                    Some(&json),
+                )
+            }))
         }
         "read" => {
             let cursor = arguments
@@ -1340,13 +1487,18 @@ fn execute_book(
                 .map(|token| SectionCursor::from_token(token))
                 .transpose()
                 .map_err(Failure::Cursor)?;
-            let request = SectionRequest {
-                book_id: selection(arguments, "book-id")?,
-                section_id: selection(arguments, "section-id")?,
-                continuation: cursor.as_ref(),
-            };
-            let value = execute_read(|| reads.read_book_section(session, request), Failure::Book)?;
-            output::json_bytes(&output::section(&value)?)
+            let book_id = selection(arguments, "book-id")?;
+            let section_id = selection(arguments, "section-id")?;
+            Ok(Box::new(move |session| {
+                let request = SectionRequest {
+                    book_id,
+                    section_id,
+                    continuation: cursor.as_ref(),
+                };
+                let value =
+                    execute_read(|| reads.read_book_section(session, request), Failure::Book)?;
+                output::json_bytes(&output::section(&value)?)
+            }))
         }
         _ => Err(Failure::Usage("Select a supported book operation.")),
     }
@@ -1358,11 +1510,6 @@ fn selection<'a>(matches: &'a ArgMatches, name: &str) -> Result<&'a str, Failure
         .get_one::<String>(name)
         .map(String::as_str)
         .ok_or(Failure::Usage("A resource identifier is required."))
-}
-
-/// Presents one selected record in readable text, Markdown, or an explicit script format.
-fn render_record(options: &ListOptions, fields: &[&str], value: Value) -> Result<Vec<u8>, Failure> {
-    output::record(options, fields, &value)
 }
 
 #[cfg(test)]

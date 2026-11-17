@@ -3,7 +3,6 @@
 //! The accepted direct TLS response supplies bearer evidence, not an independent
 //! signature check, reusable-cookie expiry, or permission to read content.
 
-#[cfg(windows)]
 use super::AuthError;
 use super::{SessionSecret, handoff::ErrorCode};
 use crate::http::{HttpError, SessionHeaders, direct_client_builder, validate_cookie};
@@ -53,7 +52,6 @@ impl BrowserSessionCookie {
     }
 
     /// Encodes only the reusable cookie, never account claims or a derived bearer.
-    #[cfg(any(windows, test, feature = "session-fixture"))]
     pub(super) fn encode(&self) -> SessionSecret {
         let mut bytes = Zeroizing::new(Vec::with_capacity(8 + self.0.len()));
         bytes.extend_from_slice(MAGIC);
@@ -104,10 +102,8 @@ pub(super) enum Cause {
     /// Retains encoding failures without the token.
     Encoding(base64::DecodeError),
     /// Retains the native store's already redacted classification.
-    #[cfg(windows)]
     Storage(AuthError),
     /// Retains worker failure without task panic text.
-    #[cfg(windows)]
     Worker(tokio::task::JoinError),
 }
 
@@ -123,11 +119,8 @@ impl fmt::Display for Cause {
                 _ => "service JSON is invalid",
             },
             Self::Encoding(_error) => "service token encoding is invalid",
-            #[cfg(windows)]
             Self::Storage(error) => return fmt::Display::fmt(error, formatter),
-            #[cfg(windows)]
             Self::Worker(error) if error.is_cancelled() => "storage worker was cancelled",
-            #[cfg(windows)]
             Self::Worker(_) => "storage worker failed",
         })
     }

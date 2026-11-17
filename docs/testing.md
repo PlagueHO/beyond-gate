@@ -18,6 +18,46 @@ The [issue #27 plan](https://github.com/PlagueHO/beyond-gate/issues/27) permits
 this blocked-first stage. It does not authorize live tests. A supplied cookie
 does not change this suite's zero live-request budget.
 
+## Shared process-only authentication checks
+
+Issue #52 adds core tests for environment presence, invalid and non-Unicode input,
+prompt precedence, no fallback, rejection, process logout, and zero store opens.
+Explicit import uses mock stores and a loopback exchange. Tests check validation
+before save and keep storage failures distinct from uncertain writes.
+
+CLI process checks cover source-aware status/logout, restart, import selection,
+malformed input, and redirected-input refusal. The development-only
+`hidden_terminal` test uses portable-pty and the real CLI runner with local mock
+services. It checks hidden typing/paste, Backspace, Escape, Ctrl+C, terminal
+restoration, and redirected result stdout. It also checks full-length input,
+invalid Unicode, tabs, and oversized pastes. Invalid input stays hidden until
+Enter or cancellation. Failed input makes no exchange request.
+No account or native store is used.
+The Unix build selects crossterm's
+[poll-based terminal backend](https://docs.rs/crossterm/0.29.0/src/crossterm/event/source/unix/tty.rs.html)
+to handle pastes across multiple read buffers.
+The MCP `session_process` suite repeats resource and validation parity
+through environment selection, including book chunks, explicit continuation,
+access loss, and cancellation. Product-binary checks cover malformed environment
+input with discovery and validation through direct MCP and the real sibling launcher.
+Build both binaries before the focused product-binary checks below.
+The existing cross-platform CI jobs include these tests. Fixtures do not remove
+the macOS production read gate.
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test cli --test hidden_terminal --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 build --workspace --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test cli --test session_process --locked
+```
+
+Local synthetic terminal checks passed on Windows ConPTY and a Linux-container
+PTY. The Linux run used the repository-selected toolchain and a read-only source
+mount. It used synthetic input and mock services, with no credential or native-store
+mounts. This does not prove packaged-binary, native-store, live-account, or
+real-client compatibility. Hosted CI and macOS native acceptance remain unverified.
+Retain #34's synthetic Linux Secret Service evidence within its original
+feature-build scope. Do not repeat native-store access without separate approval.
+
 ## Equipment and magic-item synthetic checks
 
 The package verifier includes `equipment_list`, `equipment_show`,
@@ -440,10 +480,9 @@ pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --lib auth::s
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
 ```
 
-No native credential-store entry or real account is accessed. Windows
-production validation and reuse are implemented; Linux/macOS calls fail before
-credential or service access. Linux implementation is tracked in
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+No native credential-store entry or real account is accessed. Windows and Linux
+production validation and reuse are implemented. macOS production reads fail
+before credential or service access.
 These checks do not prove live resource access or upstream revocation.
 The manual suite discovers `auth_validate` and tests rejected extra fields.
 It does not call valid production validation within its zero live request budget.

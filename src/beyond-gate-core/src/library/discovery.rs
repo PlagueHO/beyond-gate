@@ -286,7 +286,7 @@ async fn discover(
     assemble(catalog, owned, &selection)
 }
 
-/// Discovers complete bounded Web-catalog metadata through the protected Windows session.
+/// Discovers complete bounded Web-catalog metadata through the selected Windows/Linux session.
 ///
 /// Uses one public and two authenticated fixed GETs without retries or pagination. The complete
 /// operation is bounded to 30 seconds. Session loading and exchange remain in

@@ -40,11 +40,20 @@ Equipment and magic-item tools share the core mixed item page reader and explici
 classification. Detail requires full definition identity plus source-page
 context. No global scan or HTML fallback is added; native acceptance remains
 unverified.
-The core now also exports a Windows-only
+The core also exports the
 [shared establishment boundary](browser-handoff.md#shared-core-boundary)
 with a fixed authentication-service origin. Windows CLI completion now calls it
 after a production-bound submission. The native relay checks its fixed origin,
 authenticates pairing, and waits for final browser receipt confirmation.
+
+Windows and Linux use the same selected source: explicit hidden CLI input, then
+`BEYOND_GATE_COBALT_SESSION`, then the protected entry. Process-only input never
+opens a native store. Explicit import reuses establishment without a browser
+reservation; browser completion retains its reservation through blocking writes.
+Both paths preserve cancellation admission and uncertain-write errors.
+Existing resource operations keep their shared read scopes, fresh access checks,
+and bounded continuation. macOS production reads remain gated. See
+[source selection and logout](authentication.md#agreed-authentication-follow-up).
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
@@ -66,9 +75,9 @@ Windows establishment reuses the HTTP module's direct transport and cookie
 header helpers, not its resource-read operation.
 The portable `auth::session::Session` owns protected loading and bounded
 process-local bearer reuse. Both validation adapters use it.
-Production session use is Windows-only; the shared policy has portable
-synthetic coverage. Linux implementation is tracked in
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Production session use supports Windows and Linux with selected process-only
+or saved input. macOS reads remain gated. Synthetic coverage does not establish
+live account or real-client acceptance.
 
 ## Spell read boundary
 
@@ -241,7 +250,7 @@ See the [source contract](api-catalog.md#background-read-contract).
 
 `monster` owns shared input, access, pagination, result, and error policy.
 Both adapters use it directly. One Session read scope pins the protected
-identity. Production is Windows-only; compiled synthetic services never provide
+identity. Production supports Windows and Linux; compiled synthetic services never provide
 a product URL override.
 
 List uses a shared strict query model and JSON Schema for both adapters.
@@ -319,7 +328,7 @@ based on character widths, separators, newlines, and optional headers with check
 arithmetic. Exceeded limits or arithmetic overflow fail with no stdout. JSON
 and TSV keep their existing metadata output; unrelated resources are unchanged.
 
-Production session use remains Windows-only. Browser contracts and synthetic
+Production session use supports Windows and Linux. Browser contracts and synthetic
 process parity do not establish native compatibility, sharing, global coverage,
 or permission to return rules text.
 
@@ -337,7 +346,7 @@ requires a successful character-service envelope with array `data` and null
 `pagination`, then preserves unknown fields in the selected record. The
 collection and canonical result are limited to 1 MiB, collection size to
 1,000 records, and show time to 60 seconds. List time is limited to 30 seconds.
-Production use is Windows-only. Browser evidence supports the public page
+Production use supports Windows and Linux. Browser evidence supports the public page
 structure, but the detail route still has only first-party client and
 pinned-candidate evidence. Live detail access, completeness, native
 compatibility, and account acceptance remain unverified.
@@ -389,8 +398,9 @@ absence; other errors remain failures. Invalid local values are not silently
 deleted. Logout removes the fixed entry without reading the secret and treats
 an already missing entry as success. It does not revoke an upstream session.
 The shared session owner caches derived bearers in memory only.
-It reads the fixed entry before each use and clears prior bearer evidence after
-entry removal or replacement, failed loading, or failed fresh validation.
+Saved selection reads the fixed entry before each use. Process-only selection
+uses fixed owned input instead. Both clear prior bearer evidence after
+input removal or replacement, failed loading, or failed fresh validation.
 
 Windows establishment separates browser cookie input, transient bearer evidence,
 and versioned persistent bytes. It trusts the accepted direct TLS response rule,
@@ -400,7 +410,7 @@ preserves pre-write state; a started write with unconfirmed completion is
 `save_indeterminate`. Worker ownership retains the pending reservation after
 caller drop. In-memory keyring and local HTTP tests cover this boundary.
 The production browser controller checks the selected cookie profile.
-Authenticated adapter reads remain deferred.
+Explicit import uses the same save boundary without a browser reservation.
 
 Errors retain typed native causes behind a redacted wrapper. Display, Debug, and
 the standard error chain omit credential bytes and raw native messages. The safe
@@ -746,7 +756,8 @@ build a page or its JSON values. Future adapters must apply response-byte limits
 before parsing or constructing records.
 
 `list_characters`, `get_character`, `list_campaigns`, and `get_campaign` use
-fixed character-service and website routes with a protected Windows session.
+fixed character-service and website routes with selected process-only or saved
+session input on Windows and Linux.
 The core bounds each operation to 30 seconds, accepts at most 100 records for
 list responses, rejects incomplete character collections, and requests only the
 selected campaign's active roster. CLI and MCP call these shared operations.
@@ -848,7 +859,7 @@ complete reconstruction, access changes, stale tokens, and safe diagnostics.
 The [source operation](../src/beyond-gate-core/src/book/source.rs) implements the
 user-approved page-level contract. It relies on server page-level access
 enforcement, not a separately verified entitlement API. Initial production
-session support is Windows. Native source/chapter probes established delivery
+session support was Windows; it now includes Linux. Native source/chapter probes established delivery
 and structure for one selected book. The anonymous chapter control returned
 HTTP 307; its reason remains unknown.
 [Native CLI/MCP book acceptance](api-survey.md#native-book-adapter-acceptance)

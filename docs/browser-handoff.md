@@ -590,10 +590,11 @@ versions; Chromium is not an unlabelled Chrome or Edge pass.
 
 ## Shared core boundary
 
-The Windows implementation now exports the following API through
+The shared implementation exports the following API through
 `beyond-gate-core::auth::establishment`. It replaces the earlier borrowed-store
 proposal. Windows CLI completion now calls it. Windows browser setup is
 implemented; MCP cannot accept credentials or start this ingress.
+Explicit terminal import reuses this API without a browser reservation.
 
 ```rust
 async fn establish_session(
@@ -606,7 +607,7 @@ async fn establish_session(
 |------|----------------|
 | `SessionEstablishmentInput` | Own one `BrowserSessionCookie` for the fixed service rule; no arbitrary URL or runtime cookie name |
 | `BrowserSessionCookie` | Own a nonempty RFC 6265 value of at most 2,552 bytes; zeroize owned allocations and redact Debug; browser attributes are a separate ingress check |
-| `LoginControl` | Own a monotonic deadline of at most five minutes, cancellation state, and the pending-slot reservation; adapters cannot extend it |
+| `LoginControl` | Own a monotonic deadline of at most five minutes, cancellation state, and the browser pending-slot reservation when present; adapters cannot extend it |
 | `LoginCancellation` | Cancel the owning operation without retaining the reservation after completion |
 | `SavedSession` | Expose only `validation: "service_validated"` and `expiry: "unknown"` after confirmed save; adapters format the result without a cookie or token |
 | `EstablishmentError` | Expose a safe typed category and redacted typed cause; no raw credential, URL input, response body, or native error text |
@@ -630,7 +631,7 @@ off executor threads. Use isolated synthetic stores and services in tests,
 not the real `SessionStore::open` backend. The implementation reuses the keyring
 test seam. Production store setup and saving run in one blocking worker, after
 validation. Cancellation and write admission use one atomic state transition.
-A worker retains the reservation even if its caller is dropped. A queued write
+A browser worker retains the reservation even if its caller is dropped. A queued write
 cannot start after cancellation wins admission. A started or late write is
 `save_indeterminate` unless the caller receives confirmed completion.
 

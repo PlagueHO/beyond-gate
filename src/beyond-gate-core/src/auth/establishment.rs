@@ -1,4 +1,4 @@
-//! Windows service validation and one confirmed protected save.
+//! Shared service validation and one explicitly requested protected save.
 //!
 //! This boundary trusts a direct TLS response from the fixed authentication
 //! service. It does not independently verify JWT signatures or content access.
@@ -28,22 +28,22 @@ use crate::http::direct_client_builder;
 
 pub use super::service::{BrowserSessionCookie, EstablishmentError};
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use super::service::{
     MAX_COOKIE_BYTES, MAX_RESPONSE_BYTES, MAX_STORED_BYTES, MAX_TOKEN_BYTES, validate_response,
 };
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use std::{
     error::Error,
     time::{SystemTime, UNIX_EPOCH},
 };
-#[cfg(test)]
+#[cfg(all(test, windows))]
 use zeroize::Zeroizing;
 
 /// Runs only compiled invented material through isolated development processes.
-#[cfg(feature = "windows-login-fixture")]
+#[cfg(all(windows, feature = "windows-login-fixture"))]
 #[path = "windows_login_fixture.rs"]
 pub mod fixture;
 
@@ -69,6 +69,27 @@ impl SessionEstablishmentInput {
         Self { cookie }
     }
 
+    /// Takes an explicit hidden value for validation and protected import.
+    ///
+    /// # Errors
+    ///
+    /// Returns `InvalidMaterial` for empty, malformed, or oversized input.
+    pub fn from_prompt(bytes: Vec<u8>) -> Result<Self, EstablishmentError> {
+        super::input::cookie_value(bytes).map(Self::new)
+    }
+
+    /// Takes an explicit environment snapshot without selecting saved input.
+    ///
+    /// # Errors
+    ///
+    /// Returns `CookieUnavailable` when absent and `InvalidMaterial` when invalid.
+    pub fn from_environment_value(
+        value: Option<std::ffi::OsString>,
+    ) -> Result<Self, EstablishmentError> {
+        let value = value.ok_or_else(|| EstablishmentError::new(ErrorCode::CookieUnavailable))?;
+        Self::from_prompt(value.into_encoded_bytes())
+    }
+
     /// Consumes a profile-bound receipt without copying its credential allocation.
     ///
     /// Receipt proves neither browser metadata nor service validation. The trusted
@@ -78,6 +99,7 @@ impl SessionEstablishmentInput {
     ///
     /// Returns `UnsupportedProfile` for synthetic material and `InvalidMaterial`
     /// if the transferred value does not meet the Windows cookie contract.
+    #[cfg(windows)]
     pub fn from_handoff(
         receipt: super::handoff::flow::ReceivedSubmission,
     ) -> Result<Self, EstablishmentError> {
@@ -113,7 +135,7 @@ impl SavedSession {
 /// Shares cancellation and write admission while retaining the pending reservation.
 struct ControlState {
     /// Keeps the OS-wide pending slot alive through blocking store work.
-    _reservation: Arc<PendingLoginSlot>,
+    _reservation: Option<Arc<PendingLoginSlot>>,
     /// Never extends the original pending-login deadline.
     deadline: Instant,
     /// Stops validation as well as pending write admission.
@@ -168,6 +190,23 @@ impl LoginControl {
     /// Returns the existing pending-deadline code for an expired or excessive bound.
     pub fn new(
         reservation: Arc<PendingLoginSlot>,
+        deadline: Instant,
+    ) -> Result<Self, EstablishmentError> {
+        Self::with_reservation(Some(reservation), deadline)
+    }
+
+    /// Bounds explicit import without requiring browser registration or a desktop.
+    ///
+    /// # Errors
+    ///
+    /// Returns the existing deadline error for an expired or excessive bound.
+    pub fn for_import(deadline: Instant) -> Result<Self, EstablishmentError> {
+        Self::with_reservation(None, deadline)
+    }
+
+    /// Uses the same write admission and cancellation rules for both input paths.
+    fn with_reservation(
+        reservation: Option<Arc<PendingLoginSlot>>,
         deadline: Instant,
     ) -> Result<Self, EstablishmentError> {
         check_pending_deadline(deadline).map_err(|error| EstablishmentError::new(error.code()))?;
@@ -339,6 +378,10 @@ pub async fn establish_session(
     .await
 }
 
-#[cfg(test)]
+#[cfg(all(test, windows))]
 #[path = "establishment_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "import_tests.rs"]
+mod import_tests;

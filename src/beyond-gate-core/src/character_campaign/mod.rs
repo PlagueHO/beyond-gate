@@ -2,7 +2,7 @@
 //!
 //! The normalized records are not an upstream schema. Assembly validates
 //! explicitly supplied pages. Live reads use fixed source routes and a
-//! protected Windows session. Synthetic fixtures do not establish live access.
+//! selected session on Windows and Linux. Synthetic fixtures do not establish live access.
 
 mod error;
 mod model;

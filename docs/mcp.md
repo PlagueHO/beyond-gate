@@ -9,10 +9,10 @@ Windows `book_outline` and `book_read` use fresh library evidence and checked
 canonical cookie pages. Synthetic process checks cover both adapters.
 Native book adapter acceptance passed for one selected chapter with matching
 outlines and initial chunks. Live continuation and sharing remain unchecked.
-Character and campaign reads use fixed, bounded operations through the stored
-Windows session. Synthetic process checks cover successful reads and matching
+Character and campaign reads use fixed, bounded operations through selected
+process-only or saved input on Windows and Linux. Synthetic process checks cover matching
 CLI/MCP data. No live character or campaign acceptance has been run.
-Windows `auth_validate` makes one fresh session check
+Windows and Linux `auth_validate` makes one fresh session check
 through the shared core without credential input.
 `class_list` and `class_show` provide bounded class/subclass metadata only.
 Browser catalog contracts were inspected; native compatibility, real sharing,
@@ -33,7 +33,8 @@ evidence of successful live access.
 
 See [native installation](installation.md) for setup and
 [authentication limits](authentication.md#local-session-commands) for
-human-controlled Windows browser login and protected local session commands. The server does not provide
+human-controlled Windows browser login and protected local session commands.
+The server does not provide
 a separate login or account-selection mechanism.
 
 ## Startup and lifecycle
@@ -55,15 +56,40 @@ HTTP listener, port, remote endpoint, or remote-hosting mode. The CLI launcher
 starts the sibling executable without a shell, inherits its streams, and passes
 through its exit status.
 
-**Planned startup input:** [#52](https://github.com/PlagueHO/beyond-gate/issues/52)
-will let a client supply `CobaltSession` through the server environment.
-The shared core will use it only in process memory, without a browser or native
-credential store. An explicit environment value will override saved credentials
-and fail safely rather than silently fall back. Client secret-input references
-must not embed literal secrets in configuration. MCP will not prompt on its
-streams, accept credential-bearing tool arguments, or open a browser implicitly.
-This input path is not implemented yet. See the
+Windows and Linux accept `BEYOND_GATE_COBALT_SESSION` through the server environment.
+The shared core uses it only in process memory, without a browser, desktop, D-Bus,
+or native store. Environment presence overrides saved credentials, including an
+empty value. Invalid or rejected input fails without fallback. The server snapshots
+its selected source once. Validation occurs only when an authenticated call needs
+it, not at discovery. Neither startup path prompts, accepts credentials in tool
+arguments, or opens a browser. See the
 [agreed authentication follow-up](authentication.md#agreed-authentication-follow-up).
+
+Portable Copilot client settings can reference an environment value without
+embedding it:
+
+```json
+{
+  "mcpServers": {
+    "beyond-gate": {
+      "type": "stdio",
+      "command": "beyond-gate-mcp",
+      "args": [],
+      "env": {
+        "BEYOND_GATE_COBALT_SESSION": "${BEYOND_GATE_COBALT_SESSION}"
+      }
+    }
+  }
+}
+```
+
+Supply the value locally in the execution host's environment. Do not put the value
+in a command argument, shell profile, configuration file, chat, or log.
+The [official Copilot configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration#_environment-variable-references)
+documents `${NAME}` references. Portable Copilot configuration does not support
+editor-only `${input:...}` prompts or a VS Code SecretStorage bridge. Do not assume
+all clients inherit arbitrary environment variables. The installer remains
+credential-free; review and add a reference manually if needed.
 
 The MCP client owns the process and connects its stdin and stdout. It initializes
 the session with `initialize`, sends `notifications/initialized`, discovers tools
@@ -424,7 +450,7 @@ deadline. Reads are sequential with single attempts and no automatic continuatio
 Class and scoped reads are not subject to the global parent count.
 Any failed parent prevents a partial result. Empty success requires complete
 checked discovery; missing IDs refer only to the default catalog scope.
-MCP cancellation drops pending work. Production session use remains Windows-only.
+MCP cancellation drops pending work. Production session use supports Windows and Linux.
 
 ### species_list and species_show
 
@@ -462,7 +488,8 @@ or service access. It does not accept cookies, passwords, tokens, or URLs.
 {"name": "auth_validate", "arguments": {}}
 ```
 
-On Windows, loads the fixed protected entry and makes one fresh service exchange.
+On Windows and Linux, uses selected process-only or saved input and makes one
+fresh service exchange.
 Success content contains the same JSON as CLI `auth validate`:
 
 ```json
@@ -471,9 +498,8 @@ Success content contains the same JSON as CLI `auth validate`:
 
 This proves accepted bearer evidence at that moment, not a content-access grant,
 cookie expiry, or a new protected save. Missing or rejected sessions return
-safe tool errors and require human browser login outside MCP.
-macOS and Linux return `unsupported_platform` before credential or service access.
-Linux support is tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+safe tool errors. Configure replacement input outside MCP.
+macOS returns `unsupported_platform` before credential or service access.
 
 One lazily used core session owner serves the process. Startup and discovery do
 not open storage or contact the service.
@@ -485,7 +511,7 @@ See [lifecycle limits and logout behavior](authentication.md#session-lifecycle).
 
 ### character_list
 
-Lists the complete authorized character collection from the stored Windows
+Lists the complete authorized character collection from the selected
 session.
 
 | Input | Type | Required | Validation |
@@ -583,7 +609,7 @@ Synthetic `tools/call` parameters:
 
 The success data is an array of [book objects](#book-data), with `id`, `title`,
 `source_url`, `access`, and `evidence`. Empty data would be `[]`.
-Windows calls use the same fixed protected session and bounded three-GET operation
+Windows and Linux calls use the same selected session and bounded three-GET operation
 as [CLI discovery](cli.md#book-list). The operation has a 30-second deadline and
 1 MiB response caps. It requires complete count equality, at most 1,000 catalog
 records, 100 ownership records, and 1,000 raw evidence/output observations.
@@ -599,7 +625,7 @@ Request cancellation stops pending work. Tool discovery does not open storage.
 
 Session, transport, metadata, evidence, completeness, conflict, and limit failures
 return `isError: true`, not partial data or empty fallback results. An empty array
-requires complete validated responses with no selected books. Non-Windows
+requires complete validated responses with no selected books. macOS
 production session use remains unsupported. Earlier native CLI acceptance failed
 catalog validation; MCP was skipped. Later category and title diagnostics passed.
 The approved mapping is implemented and checked offline. Fresh native CLI
@@ -633,7 +659,7 @@ The success data is an [outline envelope](#outline-data) with `book_id`,
 `source_url`, and `entries`. Each entry contains `id`, `title`, `parent_id`, and
 `source_url`. It is not a bare entry array.
 Use the numeric book ID returned by `book_list`. Invalid identifiers fail before
-credential access. Windows reads require fresh positive library evidence and a
+credential access. Windows/Linux reads require fresh positive library evidence and a
 checked canonical source page. Unknown access or unsupported layouts return no outline.
 
 The offline contract checks fresh supplied access before loading the source.
@@ -842,7 +868,7 @@ a terminal section object could look like this. It is not a current live result:
 
 ## Bounds and access
 
-Every Windows outline, section, and explicit continuation checks fresh positive
+Every Windows/Linux outline, section, and explicit continuation checks fresh positive
 library evidence and current canonical cookie-page structure within one session
 identity. Unknown access and unsupported layouts return no content. An outline,
 library observation, or token never grants later access. See the

@@ -564,7 +564,7 @@ mod tests {
         assert!(serde_json::to_vec(&rows).expect("compact metadata").len() < 1024 * 1024);
         for headers in [false, true] {
             let error = list(
-                &options("table", headers, crate::MAX_CLASS_TABLE_BYTES),
+                &options("table", headers, crate::MAX_CATALOG_TABLE_BYTES),
                 &fields,
                 &rows,
                 None,
@@ -572,7 +572,7 @@ mod tests {
             .expect_err("padded table must fail before allocation");
             assert!(matches!(
                 error,
-                Failure::PresentationLimit(crate::MAX_CLASS_TABLE_BYTES)
+                Failure::PresentationLimit(crate::MAX_CATALOG_TABLE_BYTES)
             ));
             assert_eq!(error.exit_code(), 1);
             let tsv = list(&options("tsv", headers, 0), &fields, &rows, None)

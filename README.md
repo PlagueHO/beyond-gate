@@ -15,7 +15,7 @@ and actual adapter process tests cover validation and bounded bearer reuse.
 Windows `auth login` now starts one-use terminal pairing and calls shared
 completion after a bound submit. Windows setup, real human-controlled login,
 protected save, restart/status, and logout passed with Chrome and Edge Dev.
-Other platforms retain the unsupported error.
+Other platforms retain the unsupported browser-login error.
 The CLI also generates shell completions. The MCP server uses stdio
 and exposes matching read tools. Windows `book list` and MCP `book_list` now
 have bounded live metadata transport through the shared stored session.
@@ -27,9 +27,9 @@ canonical cookie pages. Unknown access and unsupported layouts return no content
 The production source path has synthetic CLI/MCP process checks.
 [Native book acceptance](docs/api-survey.md#native-book-adapter-acceptance) passed
 for one selected chapter. Live continuation and sharing remain unchecked.
-Character and campaign reads use fixed, bounded operations through the stored
-Windows session. Synthetic process checks cover adapter parity; live source
-compatibility has not been validated.
+Character and campaign reads use fixed, bounded operations through the selected
+Windows/Linux session with process-only or saved input. Synthetic process checks
+cover adapter parity; live source compatibility has not been validated.
 Species lists parse bounded metadata from the fixed public website page.
 Selected detail uses a fresh candidate character-service collection and
 preserves the complete raw record. Synthetic process checks cover adapter
@@ -59,8 +59,14 @@ Show preserves raw JSON by full definition key and required page.
 See the [magic-item contract](docs/cli.md#magic-item-local-filters-and-raw-detail).
 Browser checks confirmed distinct pages and repeated magic raw identity;
 native compatibility and owned/shared acceptance remain unverified.
-Linux production login and session use
-are tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Windows and Linux share process-only `BEYOND_GATE_COBALT_SESSION` input for CLI
+and MCP reads. No browser, desktop, D-Bus, or Secret Service is needed for this
+path. For a hidden CLI prompt, use `beyond-gate --auth-prompt character list`.
+Use `auth import --prompt` or `auth import --env` only to request protected save.
+Invalid explicit input never falls back to saved credentials.
+See [source selection and logout](docs/authentication.md#agreed-authentication-follow-up).
+Native Linux account acceptance remains unverified. macOS production reads remain
+gated; its native validation is deferred to #62.
 No account credentials or live D&D Beyond access are needed to build or test.
 An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful

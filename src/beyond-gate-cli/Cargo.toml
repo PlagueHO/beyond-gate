@@ -31,7 +31,8 @@ anstream = "1.0"
 base64 = "0.23.1"
 clap = { workspace = true, features = ["wrap_help"] }
 clap_complete = "4.6"
-crossterm = { version = "=0.29.0", default-features = false, features = ["windows"] }
+# The poll-based Unix backend consumes pastes larger than one terminal read buffer.
+crossterm = { version = "=0.29.0", default-features = false, features = ["windows", "events", "use-dev-tty"] }
 serde_json = "1.0.154"
 scraper = { version = "0.27.0", default-features = false }
 zeroize = "1.8"
@@ -42,6 +43,12 @@ winreg = { version = "0.56", features = ["transactions"] }
 
 [dev-dependencies]
 beyond-gate-core = { workspace = true, features = ["session-fixture"] }
+portable-pty = "=0.9.0"
+
+[[test]]
+name = "hidden_terminal"
+path = "tests/hidden_terminal.rs"
+harness = false
 
 [[test]]
 name = "adapter_process"

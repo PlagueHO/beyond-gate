@@ -1,15 +1,18 @@
 //! Protected local storage and shared, bounded session establishment.
 //!
-//! Both adapters must use this fixed entry, not their own credential identities.
+//! Saved input uses one fixed entry, never adapter-specific credential identities.
 //! Stored presence does not establish current usability or expiry.
-//! Windows paired CLI login calls shared validation and protected saving.
-//! Windows browser login and explicit CLI/MCP validation are implemented.
-//! Shared process-local reuse has portable synthetic coverage; resource reads remain unsupported.
+//! Windows browser login and explicit cookie import share protected saving.
+//! Windows and Linux share process-only input, validation, and authenticated reads.
+//! Native account acceptance remains separate from portable synthetic coverage.
 //! The off-by-default `e2e-isolation` feature requires an approved test context
 //! and selects a separate test identity instead of the product entry.
 
 mod error;
 mod service;
+
+/// Selects bounded process-only input without native storage.
+pub mod input;
 
 /// Loads and validates the fixed local session with bounded process-local reuse.
 pub mod session;
@@ -17,8 +20,7 @@ pub mod session;
 /// Provides bounded messages, authenticated pairing, and Windows login completion.
 pub mod handoff;
 
-/// Validates and saves the accepted Windows service session after a protected handoff.
-#[cfg(windows)]
+/// Validates and saves explicit input through browser handoff or terminal import.
 pub mod establishment;
 
 pub use error::{AuthError, AuthErrorKind, StorageCause};
@@ -44,6 +46,8 @@ pub enum SessionStatus {
     Absent,
     /// A bounded credential exists; presence does not prove current upstream usability.
     StoredUnverified,
+    /// Process-only input passed local syntax checks, not upstream validation.
+    ProvidedUnverified,
 }
 
 /// Owns opaque session bytes and clears this allocation when dropped.
@@ -159,10 +163,10 @@ impl SessionStore {
         Ok(Self { entry })
     }
 
-    /// Saves opaque bytes; the establishment operation supplies its validated envelope.
+    /// Saves opaque bytes; explicit establishment supplies its validated envelope.
     ///
-    /// This does not validate the session upstream. No CLI or MCP input invokes
-    /// it. Native size limits can be smaller than the local 8 KiB input cap.
+    /// This does not validate upstream. Native size limits can be smaller than
+    /// the local 8 KiB input cap. Normal process-only reads never invoke it.
     ///
     /// # Errors
     ///

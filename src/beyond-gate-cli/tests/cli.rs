@@ -25,6 +25,7 @@ fn run(arguments: &[&str]) -> Output {
 fn run_with_environment(arguments: &[&str], environment: &[(&str, &str)]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_beyond-gate"))
         .args(arguments)
+        .env_remove("BEYOND_GATE_COBALT_SESSION")
         .env_remove("NO_COLOR")
         .env_remove("CLICOLOR")
         .env_remove("CLICOLOR_FORCE")
@@ -34,6 +35,135 @@ fn run_with_environment(arguments: &[&str], environment: &[(&str, &str)]) -> Out
         .envs(environment.iter().copied())
         .output()
         .expect("the CLI test binary must run")
+}
+
+/// Environment presence and logout never require a native store or service.
+#[test]
+fn environment_status_and_logout_are_process_only_and_redacted() {
+    let environment = [("BEYOND_GATE_COBALT_SESSION", "invented-private-cookie")];
+    let status = run_with_environment(&["auth", "status"], &environment);
+    assert!(status.status.success());
+    let text = String::from_utf8_lossy(&status.stdout);
+    assert!(text.contains("source=environment"));
+    assert!(text.contains("provided-unverified"));
+    assert!(!text.contains("invented-private-cookie"));
+    let logout = run_with_environment(&["auth", "logout"], &environment);
+    assert!(logout.status.success());
+    let text = String::from_utf8_lossy(&logout.stdout);
+    assert!(text.contains("Saved credentials are unchanged"));
+    assert!(text.contains("parent environment"));
+    let restarted = run_with_environment(&["auth", "status"], &environment);
+    assert!(String::from_utf8_lossy(&restarted.stdout).contains("provided-unverified"));
+}
+
+/// Malformed environment input cannot affect help, parsing, or process cleanup.
+#[test]
+fn invalid_environment_fails_only_when_selected_input_is_needed() {
+    let environment = [("BEYOND_GATE_COBALT_SESSION", "invented private sentinel")];
+    for args in [
+        vec!["--help"],
+        vec!["auth", "import", "--help"],
+        vec!["--auth-prompt", "auth", "validate", "--help"],
+        vec!["completions", "bash"],
+    ] {
+        assert!(run_with_environment(&args, &environment).status.success());
+    }
+    for args in [
+        vec!["auth", "status"],
+        vec!["auth", "validate"],
+        vec!["auth", "import", "--env"],
+    ] {
+        let output = run_with_environment(&args, &environment);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        let category = if args == ["auth", "validate"] && cfg!(target_os = "macos") {
+            "unsupported_platform"
+        } else {
+            "invalid_material"
+        };
+        assert!(diagnostic.contains(category));
+        assert!(!diagnostic.contains("sentinel"));
+    }
+    assert!(
+        run_with_environment(&["auth", "logout"], &environment)
+            .status
+            .success()
+    );
+}
+
+/// Prompting and importing cannot be selected accidentally through another command.
+#[test]
+fn prompt_and_import_usage_is_explicit_and_redirected_input_is_refused() {
+    for args in [
+        vec!["auth", "import"],
+        vec!["auth", "import", "--env", "--prompt"],
+        vec!["--auth-prompt", "auth", "status"],
+        vec!["--auth-prompt", "auth", "logout"],
+        vec!["--auth-prompt", "mcp", "start"],
+        vec!["--auth-prompt", "completions", "bash"],
+    ] {
+        assert_eq!(run(&args).status.code(), Some(2), "{args:?}");
+    }
+    for args in [
+        vec!["--auth-prompt", "auth", "validate"],
+        vec!["auth", "import", "--prompt"],
+    ] {
+        let output = run(&args);
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("terminal stdin and stderr"));
+    }
+    let absent = run(&["auth", "import", "--env"]);
+    assert_eq!(absent.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&absent.stderr).contains("cookie_unavailable"));
+}
+
+/// Rejects invalid prepared requests before a hidden prompt can read terminal input.
+#[test]
+fn invalid_prompted_requests_preserve_usage_errors_without_terminal_input() {
+    let mut cases: Vec<Vec<&str>> = [
+        "character",
+        "campaign",
+        "book",
+        "class",
+        "subclass",
+        "monster",
+        "spell",
+        "equipment",
+        "magic-item",
+        "feat",
+        "background",
+        "species",
+    ]
+    .into_iter()
+    .map(|resource| vec![resource, "list", "--output", "json", "--no-headers"])
+    .collect();
+    cases.extend([
+        vec![
+            "book",
+            "read",
+            "1",
+            "section",
+            "--continuation",
+            "bad-token",
+        ],
+        vec!["character", "show", "42", "--html-field", "name"],
+        vec!["monster", "list", "--cr-min", "10", "--cr-max", "1"],
+        vec!["feat", "list", "--tag-id", "1", "--tag-id", "1"],
+        vec!["background", "list", "--tag-id", "1", "--tag-id", "1"],
+        vec!["spell", "list", "--level", "1", "--level", "1"],
+    ]);
+    for args in cases {
+        let ordinary = run(&args);
+        assert_eq!(ordinary.status.code(), Some(2), "{args:?}");
+        let mut prompted = vec!["--auth-prompt"];
+        prompted.extend_from_slice(&args);
+        let prompted = run(&prompted);
+        assert_eq!(prompted.status.code(), Some(2), "{args:?}");
+        assert!(prompted.stdout.is_empty(), "{args:?}");
+        assert_eq!(prompted.stderr, ordinary.stderr, "{args:?}");
+    }
 }
 
 /// Checks that the startup artwork precedes unchanged help without changing usage status.
@@ -130,7 +260,8 @@ fn help_reports_basic_authentication_usage() {
     assert!(stdout.contains("Authentication and getting started"));
     assert!(stdout.contains("Read your D&D Beyond characters, campaigns, books, and game content"));
     assert!(!stdout.contains("Local-first access to authorized D&D Beyond data"));
-    assert!(stdout.contains("To read D&D Beyond data"));
+    assert!(stdout.contains("BEYOND_GATE_COBALT_SESSION"));
+    assert!(stdout.contains("Invalid selected input fails without fallback"));
     assert!(stdout.contains("does not unlock"));
     assert!(stdout.contains("Character and campaign reads use fixed bounded sources"));
     assert!(stdout.contains("beyond-gate auth install edge"));
@@ -154,7 +285,7 @@ fn book_help_reports_web_catalog_scope() {
     assert!(output.stderr.is_empty());
     let stdout = String::from_utf8_lossy(&output.stdout);
     assert!(stdout.contains("Find books, browse their sections, and read selected text"));
-    assert!(stdout.contains("Requires a saved Beyond Gate sign-in"));
+    assert!(stdout.contains("Requires selected Beyond Gate session input"));
     assert!(!stdout.contains("discovery blocked"));
 }
 
@@ -293,12 +424,12 @@ fn resource_help_matches_available_commands() {
         let help = String::from_utf8_lossy(&output.stdout);
         assert!(output.status.success(), "{arguments:?}");
         assert!(
-            help.contains("Requires a saved Beyond Gate sign-in"),
+            help.contains("Requires selected Beyond Gate session input"),
             "{arguments:?}\n{help}"
         );
         let usage = help.find("Usage:").expect("action usage");
         let details = help
-            .find("Requires a saved Beyond Gate sign-in")
+            .find("Requires selected Beyond Gate session input")
             .expect("session details");
         assert!(usage < details, "{arguments:?}\n{help}");
     }
