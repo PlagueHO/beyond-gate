@@ -8,13 +8,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - Free GitHub build provenance for final native archives and checksum sidecars
-  on version-tag pushes and default-branch manual packaging runs. A restricted
-  attestation job checks final assets and rejects changed bytes and incorrect
-  build identities before draft release preparation. Download guidance and
-  offline synthetic verification checks keep native publisher signing separate.
-  Windows Authenticode signing and macOS Developer ID/notarization remain absent;
-  paid signing is not a release prerequisite. Real candidate provenance still
-  requires a successful trusted workflow run.
+  on version tags and default-branch manual runs, with strict verification before
+  draft preparation. Paid native signing is not required. Real provenance still
+  needs a successful trusted candidate run.
 - Shared Windows/Linux CLI and MCP process-only authentication through
   `BEYOND_GATE_COBALT_SESSION`, hidden CLI `--auth-prompt`, and explicit protected
   `auth import --prompt` or `--env`. Explicit input never falls back to another

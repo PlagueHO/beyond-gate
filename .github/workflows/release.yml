@@ -58,15 +58,6 @@ jobs:
         run: rustup show
       - name: Check release verification helpers
         run: ./scripts/test-release-provenance.ps1
-      - name: Record candidate trust scope
-        env:
-          TRUSTED_CANDIDATE: ${{ github.repository == 'PlagueHO/beyond-gate' && ((github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) || (github.event_name == 'workflow_dispatch' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch))) }}
-        run: |
-          if ($env:TRUSTED_CANDIDATE -eq 'true') {
-            "Provenance is required after all package jobs pass. Native publisher signing is not configured." >> $env:GITHUB_STEP_SUMMARY
-          } else {
-            "Unattested test package: this event/ref cannot create release provenance or a draft release." >> $env:GITHUB_STEP_SUMMARY
-          }
       - name: Ensure Visual Studio 2022 Build Tools
         if: runner.os == 'Windows'
         run: |
@@ -163,6 +154,7 @@ jobs:
           New-Item -ItemType Directory -Path evidence | Out-Null
           ./scripts/test-package.ps1 -Archive (Join-Path dist $archive) -Checksum (Join-Path dist "$archive.sha256") -Version $env:VERSION -Target $env:TARGET -SourceCommit $env:GITHUB_SHA -ReportPath (Join-Path evidence "$env:TARGET.json")
           ./scripts/test-package-failures.ps1 -Archive (Join-Path dist $archive) -Version $env:VERSION -Target $env:TARGET
+          "Offline package checks passed. These are unattested test outputs unless this run's provenance job succeeds." >> $env:GITHUB_STEP_SUMMARY
       - name: Retain offline package evidence
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7

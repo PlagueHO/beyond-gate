@@ -98,39 +98,32 @@ if ($actual -cne $match.Groups[1].Value) { throw 'SHA-256 mismatch. Do not extra
 
 ### Verify build provenance
 
-Before extraction, also verify the archive and its `.sha256` sidecar with
-[GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). Use a current
-version that supports the flags below. These checks need network access and
-access to the public repository's attestation API. GitHub CLI is a download
-verification tool, not a product runtime dependency.
+An attestation links exact bytes to the repository, workflow, commit, and ref.
+Before extraction, verify both the archive and its `.sha256` sidecar with a current
+[GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). This needs
+network access; GitHub CLI is not a product runtime dependency.
 
-Replace `ARCHIVE` with the native archive name. Replace `REVIEWED_COMMIT_SHA`
-with the full 40-character source commit from the maintainer-reviewed candidate
-or release. Do not take this expected identity from an unverified sidecar.
-Replace `VERSION` with the reviewed release version:
+Replace `ARCHIVE` with the native archive name and `VERSION` with the reviewed
+release version. Take `REVIEWED_COMMIT_SHA` from the maintainer-reviewed candidate
+or release, not an unverified sidecar. Use the full 40-character commit:
 
 ```sh
 gh attestation verify ARCHIVE --repo PlagueHO/beyond-gate --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml --source-digest REVIEWED_COMMIT_SHA --source-ref refs/tags/vVERSION --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners
-gh attestation verify ARCHIVE.sha256 --repo PlagueHO/beyond-gate --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml --source-digest REVIEWED_COMMIT_SHA --source-ref refs/tags/vVERSION --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners
 ```
 
-These single-line commands also work in PowerShell. Both must succeed. For a
-manual candidate from `main`, use `--source-ref refs/heads/main` and that reviewed
-run's source commit instead. If the default branch changes, use its actual name.
-An outer Actions ZIP container is not the attested archive.
+Repeat with `ARCHIVE.sha256`. Both commands must succeed. This single-line command
+also works in PowerShell. For a default-branch manual candidate, use
+`--source-ref refs/heads/main` and the reviewed run's commit instead. Use the actual
+default-branch name if it changes.
 
-Only version-tag pushes and default-branch manual packaging runs can create
-release attestations. They must pass final package and provenance checks first.
-PR packages, other-ref manual packages, and older test packages can have no
-attestation. Treat them as unattested test outputs, not verified distribution.
-An unavailable service, missing attestation, identity mismatch, or changed bytes
-must stop this verification path. Do not silently use the checksum alone.
+Only version-tag and default-branch manual runs can create release attestations.
+PR, other-ref, and older packages can be unattested test outputs. Do not treat
+them as verified distribution. Stop on missing attestations, changed bytes,
+identity mismatches, or service errors; do not fall back to checksums alone.
 
-An attestation links exact bytes to the repository, workflow, commit, and ref.
-It does not prove that the software is safe or reproducible. It does not provide
-Windows Authenticode publisher signing, macOS Developer ID signing, notarization,
-or freedom from OS warnings. See the [code signing policy][signing-policy].
-No signed-distribution claim applies until the candidate's workflow checks pass.
+Provenance does not prove software safety or reproducibility. It does not replace
+native publisher signing, notarization, or [OS trust checks](#system-services-and-trust-limits).
+See the [code signing policy][signing-policy].
 
 [signing-policy]: https://github.com/PlagueHO/beyond-gate/blob/main/MAINTAINERS.md#code-signing-policy
 

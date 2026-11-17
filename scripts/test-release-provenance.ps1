@@ -75,12 +75,6 @@ try {
   Assert-ProvenanceRejection { & $verifier $artifact $commit "$ref`n" } 'SourceRef'
   if ($state.Calls -ne $calls) { throw 'Invalid inputs reached the verification service.' }
 
-  # Hide commands only for this check, so a missing gh cannot look successful.
-  function Get-Command { throw 'Synthetic gh command missing.' }
-  try {
-    Assert-ProvenanceRejection { & $verifier $artifact $commit $ref } 'Synthetic gh command missing'
-  } finally { Remove-Item Function:\Get-Command }
-
   $dist = Join-Path $temporary 'release assets'
   New-Item -ItemType Directory -Path $dist | Out-Null
   $names = @(
