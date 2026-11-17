@@ -109,7 +109,11 @@ impl Source {
 }
 
 /// Rejects noncanonical numeric library IDs before storage or network activity.
-fn validate_book_id(id: &str) -> Result<(), BookError> {
+///
+/// # Errors
+///
+/// Returns invalid metadata unless the ID is a canonical, positive `u64`.
+pub fn validate_book_id(id: &str) -> Result<(), BookError> {
     if id
         .parse::<u64>()
         .ok()
@@ -140,11 +144,16 @@ pub(super) async fn outline(session: &Session, id: &str) -> Result<BookOutline, 
     result
 }
 
-/// Resolves only the explicit selection, then reuses the bounded offline chunk contract.
-pub(super) async fn read(
-    session: &Session,
-    request: SectionRequest<'_>,
-) -> Result<SectionChunk, BookError> {
+/// Checks live selection syntax and cursor identity without storage or network activity.
+///
+/// This does not grant access or validate a cursor against current source content.
+/// Generic offline [`super::read_section`] inputs retain their separate contract.
+///
+/// # Errors
+///
+/// Returns invalid metadata for noncanonical IDs or invalid continuation for a
+/// cursor that does not match the explicitly selected book and section.
+pub fn validate_section_request(request: SectionRequest<'_>) -> Result<(), BookError> {
     validate_book_id(request.book_id)?;
     if request.section_id.len() != 66
         || !request.section_id.starts_with("s-")
@@ -159,6 +168,15 @@ pub(super) async fn read(
     }) {
         return Err(BookError::InvalidContinuation);
     }
+    Ok(())
+}
+
+/// Resolves only the explicit selection, then reuses the bounded offline chunk contract.
+pub(super) async fn read(
+    session: &Session,
+    request: SectionRequest<'_>,
+) -> Result<SectionChunk, BookError> {
+    validate_section_request(request)?;
     let deadline = Instant::now() + Duration::from_secs(30);
     let session = session.read_scope();
     let result = timeout_at(deadline, async {

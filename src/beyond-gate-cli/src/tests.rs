@@ -191,7 +191,7 @@ fn read_setup_has_a_runtime_before_constructing_its_future() {
     let mut stderr = Vec::new();
     assert_eq!(
         run(
-            ["beyond-gate", "book", "outline", "book"],
+            ["beyond-gate", "book", "outline", "1"],
             &RuntimeReads,
             &mut stdout,
             &mut stderr,

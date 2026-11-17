@@ -629,10 +629,11 @@ Use `beyond-gate --auth-prompt character list` or
 `beyond-gate --auth-prompt auth validate` for one hidden-input operation.
 Stdin and stderr must be terminals; stdout can be redirected. Escape or Ctrl+C
 cancels. MCP, setup, status/logout, and completions refuse this global flag.
-Invalid pasted input stays hidden until Enter or cancellation. Input has a
-2,552-byte limit and a five-minute deadline.
-CLI argument validation uses the same path with or without the flag.
-With the flag, it runs before the hidden prompt opens.
+Ctrl+D submits on every platform. Enter and pasted line breaks invalidate the
+input without submitting. Invalid input stays hidden until Ctrl+D or cancellation.
+Input has a 2,552-byte limit and a five-minute deadline.
+Local argument and book selection validation use the same path with or without
+the flag. With the flag, they run before the hidden prompt opens.
 
 ### auth import
 

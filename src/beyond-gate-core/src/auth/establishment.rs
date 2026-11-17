@@ -23,7 +23,7 @@ use super::{
     handoff::{ErrorCode, pairing::check_pending_deadline, slot::PendingLoginSlot},
     service::{Cause, SERVICE_URL, exchange},
 };
-#[cfg(any(test, feature = "windows-login-fixture"))]
+#[cfg(any(test, feature = "windows-login-fixture", feature = "session-fixture"))]
 use crate::http::direct_client_builder;
 
 pub use super::service::{BrowserSessionCookie, EstablishmentError};
@@ -46,6 +46,11 @@ use zeroize::Zeroizing;
 #[cfg(all(windows, feature = "windows-login-fixture"))]
 #[path = "windows_login_fixture.rs"]
 pub mod fixture;
+
+/// Supplies invented import material, loopback validation, and an in-memory store.
+#[cfg(feature = "session-fixture")]
+#[path = "import_fixture.rs"]
+pub mod import_fixture;
 
 /// Separates a write not started, a started write, and a permanently stopped write.
 const READY: u8 = 0;

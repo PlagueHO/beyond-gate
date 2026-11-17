@@ -546,6 +546,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Hidden CLI input now uses Ctrl+D to submit on every platform. Enter and pasted
+  line breaks invalidate the input without submitting or restoring echo.
+  Split-read multiline paste checks cover hidden rejection and zero exchanges.
+- Book selection validation now reuses the core's canonical ID and cursor-scope
+  checks before hidden input. Synthetic CLI import processes check success and
+  Ctrl+C before and after write admission without real credentials or storage.
 - CLI resource requests now use shared preparation before hidden cookie input.
   Invalid output controls, filters, and continuation input fail without opening
   the prompt. Normal and prompted reads preserve the same errors and exit codes.

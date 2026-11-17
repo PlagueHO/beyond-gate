@@ -7,8 +7,29 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beyond_gate_core::auth::session::fixture::{self, Scenario};
+use beyond_gate_cli::ReadOperations;
+use beyond_gate_core::auth::{
+    establishment::{
+        EstablishmentError, LoginControl, SavedSession, SessionEstablishmentInput,
+        import_fixture::{COOKIE, ImportFixture, Scenario as ImportScenario},
+    },
+    session::fixture::{self, Scenario},
+};
 use portable_pty::{CommandBuilder, PtySize, native_pty_system};
+
+/// Routes prompt imports through the real lifecycle with a synthetic store.
+struct ImportOperations(ImportFixture);
+
+impl ReadOperations for ImportOperations {
+    /// Validates and saves only the fixture cookie through local mock services.
+    async fn establish_session(
+        &self,
+        input: SessionEstablishmentInput,
+        control: LoginControl,
+    ) -> Result<SavedSession, EstablishmentError> {
+        self.0.establish(input, control).await
+    }
+}
 
 /// Runs the actual CLI input path with local mock exchange and no native store.
 fn child() -> i32 {
@@ -24,6 +45,31 @@ fn child() -> i32 {
         &mut io::stderr().lock(),
     );
     assert_eq!(fixture::request_count(&session), usize::from(code == 0));
+    finish_child(code)
+}
+
+/// Checks that prompt submission saves only valid input to the mock entry.
+fn import_child() -> i32 {
+    let session = fixture::session(Scenario::Locked)
+        .expect("mock session")
+        .with_environment_value(Some("".into()));
+    let operations = ImportOperations(ImportFixture::new(ImportScenario::Success));
+    let code = beyond_gate_cli::run_with_session_input(
+        ["beyond-gate", "auth", "import", "--prompt"],
+        &operations,
+        &session,
+        &mut io::empty(),
+        &mut io::stdout().lock(),
+        &mut io::stderr().lock(),
+    );
+    assert_eq!(operations.0.imported_cookie_is_saved(), code == 0);
+    assert_eq!(operations.0.prior_is_unchanged(), code != 0);
+    assert_eq!(fixture::request_count(&session), 0);
+    finish_child(code)
+}
+
+/// Confirms normal terminal input resumes after either hidden-input command.
+fn finish_child(code: i32) -> i32 {
     eprintln!("input-complete:{code}");
     eprintln!("restoration-check:");
     let mut line = String::new();
@@ -111,6 +157,11 @@ fn check_cursor_reports() {
 
 /// Checks no echo, editing/cancellation, restoration, and bounded process exit.
 fn check(case: &str, mode: &str, input: &[u8], expected: i32) {
+    check_chunks(case, mode, &[input], expected);
+}
+
+/// Separates paste chunks so a newline cannot submit before the tail arrives.
+fn check_chunks(case: &str, mode: &str, chunks: &[&[u8]], expected: i32) {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 24,
@@ -148,10 +199,15 @@ fn check(case: &str, mode: &str, input: &[u8], expected: i32) {
             b"Esc or Ctrl+C cancels): ",
         )
         .map_err(|_| "hidden prompt missing")?;
-        writer
-            .write_all(input)
-            .map_err(|_| "terminal input failed")?;
-        writer.flush().map_err(|_| "terminal flush failed")?;
+        for (index, input) in chunks.iter().enumerate() {
+            writer
+                .write_all(input)
+                .map_err(|_| "terminal input failed")?;
+            writer.flush().map_err(|_| "terminal flush failed")?;
+            if index + 1 < chunks.len() {
+                std::thread::sleep(Duration::from_millis(150));
+            }
+        }
         until(&receive, &mut output, &mut writer, b"restoration-check:")
             .map_err(|_| "input did not finish")?;
         if !output
@@ -160,9 +216,9 @@ fn check(case: &str, mode: &str, input: &[u8], expected: i32) {
         {
             return Err("unexpected input outcome");
         }
-        if output
-            .windows(b"invented-terminal".len())
-            .any(|bytes| bytes == b"invented-terminal")
+        if [b"invented-terminal".as_slice(), COOKIE.as_bytes()]
+            .iter()
+            .any(|secret| output.windows(secret.len()).any(|bytes| bytes == *secret))
         {
             return Err("hidden input was echoed");
         }
@@ -199,17 +255,79 @@ fn check(case: &str, mode: &str, input: &[u8], expected: i32) {
     }
 }
 
+/// Rejects delayed multiline input without echo or a first-line exchange.
+fn check_pastes() {
+    check_chunks(
+        "split single-line paste",
+        "--child",
+        &[b"invented-terminal-", b"cookie", b"\x04"],
+        0,
+    );
+    check_chunks(
+        "split multiline CR paste",
+        "--child",
+        &[
+            b"invented-terminal-first\r",
+            b"invented-terminal-tail",
+            b"\x04",
+        ],
+        2,
+    );
+    check_chunks(
+        "split multiline LF paste",
+        "--child",
+        &[
+            b"invented-terminal-first\n",
+            b"invented-terminal-tail",
+            b"\x04",
+        ],
+        2,
+    );
+    check_chunks(
+        "split multiline CRLF paste",
+        "--child",
+        &[
+            b"invented-terminal-first\r",
+            b"\ninvented-terminal-tail",
+            b"\x04",
+        ],
+        2,
+    );
+    let mut paste = b"invented-terminal-".to_vec();
+    paste.resize(8_192, b'x');
+    check_chunks(
+        "split oversized paste",
+        "--child",
+        &[&paste, b"invented-terminal-tail", b"\x04"],
+        2,
+    );
+    check_chunks(
+        "prompt import",
+        "--import-child",
+        &[COOKIE.as_bytes(), b"\x04"],
+        0,
+    );
+    check_chunks(
+        "split multiline prompt import",
+        "--import-child",
+        &[COOKIE.as_bytes(), b"\r", b"invented-terminal-tail", b"\x04"],
+        2,
+    );
+}
+
 /// Selects synthetic children before running the bounded terminal matrix.
 fn main() {
     match std::env::args().nth(1).as_deref() {
         Some("--child") => std::process::exit(child()),
+        Some("--import-child") => std::process::exit(import_child()),
         Some("--redirected-child") => std::process::exit(redirected_child()),
+        Some("--paste-check") => check_pastes(),
         _ => {
             check_cursor_reports();
             let editing: &[u8] = if cfg!(windows) {
-                b"invented-terminal \x08-cookie\r"
+                b"invented-terminal \x08-cookie\x04"
             } else {
-                b"invented-terminal \x7f-cookie\r"
+                b"invented-terminal \x7f-cookie\x04"
             };
             check("editing", "--child", editing, 0);
             check("Ctrl+C", "--child", b"invented-terminal-cancel\x03", 1);
@@ -217,25 +335,26 @@ fn main() {
             check(
                 "non-ASCII",
                 "--child",
-                b"invented-terminal-invalid\xc3\xa9-tail\r",
+                b"invented-terminal-invalid\xc3\xa9-tail\x04",
                 2,
             );
-            check("tab", "--child", b"invented-terminal-invalid\t-tail\r", 2);
+            check("tab", "--child", b"invented-terminal-invalid\t-tail\x04", 2);
             let mut maximum = b"invented-terminal-".to_vec();
             maximum.resize(2_552, b'x');
-            maximum.push(b'\r');
+            maximum.push(4);
             check("maximum length", "--child", &maximum, 0);
             let mut oversized = b"invented-terminal-".to_vec();
             oversized.extend(std::iter::repeat_n(b'x', 2_553));
             oversized.extend_from_slice(b"invented-terminal-tail");
-            oversized.push(b'\r');
+            oversized.push(4);
             check("oversized", "--child", &oversized, 2);
             check(
                 "redirected stdout",
                 "--redirected-child",
-                b"invented-terminal-cookie\r",
+                b"invented-terminal-cookie\x04",
                 0,
             );
+            check_pastes();
         }
     }
 }
