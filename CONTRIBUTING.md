@@ -366,7 +366,7 @@ pwsh -NoProfile -File .\scripts\test-release-provenance.ps1
 Packaging runs these tests on each native runner. They use a `gh` test double
 to check policy arguments, failure propagation, invalid inputs, and asset
 rejection. They do not verify real signatures. Service integration still needs
-a separately approved trusted candidate run before a signed-distribution claim.
+verification for each trusted candidate before a provenance claim.
 
 Before a real release, resolve the [release blockers](docs/installation.md#release-readiness)
 in the release-usability roadmap issue. Offline package checks do not prove
@@ -375,3 +375,29 @@ behavior. Those checks remain blocked or need separate approval.
 Change the shared version in `Cargo.toml` and lockfile together. Add a dated
 changelog entry before tagging. A maintainer must review the version, lockfile,
 changelog, assets, evidence, and draft before publication.
+
+#### Verified manual candidate
+
+On 2026-11-17, approved manual
+[run 44048471076, attempt 1](https://github.com/PlagueHO/beyond-gate/actions/runs/44048471076/attempts/1)
+passed for `refs/heads/main` at commit
+`59ec128e32ae071a350a299a690d9cc42c113a5c`, version `0.1.0`.
+Native Rust and package checks passed on Linux x86_64, Windows x86_64, and
+macOS Apple Silicon. The provenance job attested and verified all three final
+archives and their three checksum sidecars.
+
+The downloaded six-file inventory and checksums passed local checks. All six
+files also passed the repository's provenance verifier against that exact source
+commit, ref, and release workflow.
+[Attestation 68531490](https://github.com/PlagueHO/beyond-gate/attestations/68531490)
+records the six SHA-256 digests and GitHub-hosted workflow identity.
+CI and local bundle checks rejected changed archive bytes, a wrong source commit,
+a wrong ref, and a wrong signer workflow. Valid verification passed before and
+after the negative checks.
+
+The run retained package reports and `release-provenance-evidence` separately
+from the candidate assets. Draft creation was skipped. No tag or release was
+created. The version-tag draft path remains untested. This evidence establishes
+candidate provenance, not native publisher signing, notarization, desktop trust,
+live account acceptance, or reproducible builds. Later candidates need their own
+verification.
