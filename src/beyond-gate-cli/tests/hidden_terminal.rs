@@ -53,10 +53,11 @@ fn redirected_child() -> i32 {
     status.code().expect("child exit")
 }
 
-/// Waits for one fixed marker without printing captured terminal material.
+/// Answers ConPTY cursor requests while waiting for a fixed, unprinted marker.
 fn until(
     receive: &mpsc::Receiver<Vec<u8>>,
     output: &mut Vec<u8>,
+    writer: &mut impl Write,
     marker: &[u8],
 ) -> Result<(), &'static str> {
     let deadline = Instant::now() + Duration::from_secs(15);
@@ -67,12 +68,45 @@ fn until(
         let bytes = receive
             .recv_timeout(remaining)
             .map_err(|_| "terminal response missing")?;
+        let query_start = output.len().saturating_sub(3);
         output.extend(bytes);
         if output.len() > 64 * 1024 {
             return Err("terminal output exceeded its bound");
         }
+        // portable-pty enables PSEUDOCONSOLE_INHERIT_CURSOR; act as its terminal host.
+        for _ in output[query_start..]
+            .windows(4)
+            .filter(|bytes| *bytes == b"\x1b[6n")
+        {
+            writer
+                .write_all(b"\x1b[1;1R")
+                .and_then(|()| writer.flush())
+                .map_err(|_| "cursor response failed")?;
+        }
     }
     Ok(())
+}
+
+/// Checks split cursor requests, repeated requests, and replies across marker waits.
+fn check_cursor_reports() {
+    for split in 0..=4 {
+        let (send, receive) = mpsc::channel();
+        let mut output = Vec::new();
+        let mut replies = Vec::new();
+        let query = b"\x1b[6n";
+        send.send(query[..split].to_vec()).expect("query prefix");
+        send.send(query[split..].to_vec()).expect("query suffix");
+        send.send(b"first-marker".to_vec()).expect("first marker");
+        until(&receive, &mut output, &mut replies, b"first-marker").expect("first cursor response");
+        assert_eq!(replies, b"\x1b[1;1R");
+        send.send(b"\x1b[?25h".to_vec())
+            .expect("unrelated sequence");
+        send.send(query.to_vec()).expect("repeated query");
+        send.send(b"second-marker".to_vec()).expect("second marker");
+        until(&receive, &mut output, &mut replies, b"second-marker")
+            .expect("second cursor response");
+        assert_eq!(replies, b"\x1b[1;1R\x1b[1;1R");
+    }
 }
 
 /// Checks no echo, editing/cancellation, restoration, and bounded process exit.
@@ -107,13 +141,19 @@ fn check(case: &str, mode: &str, input: &[u8], expected: i32) {
     });
     let mut output = Vec::new();
     let result = (|| {
-        until(&receive, &mut output, b"Esc or Ctrl+C cancels): ")
-            .map_err(|_| "hidden prompt missing")?;
+        until(
+            &receive,
+            &mut output,
+            &mut writer,
+            b"Esc or Ctrl+C cancels): ",
+        )
+        .map_err(|_| "hidden prompt missing")?;
         writer
             .write_all(input)
             .map_err(|_| "terminal input failed")?;
         writer.flush().map_err(|_| "terminal flush failed")?;
-        until(&receive, &mut output, b"restoration-check:").map_err(|_| "input did not finish")?;
+        until(&receive, &mut output, &mut writer, b"restoration-check:")
+            .map_err(|_| "input did not finish")?;
         if !output
             .windows(format!("input-complete:{expected}").len())
             .any(|bytes| bytes == format!("input-complete:{expected}").as_bytes())
@@ -130,7 +170,7 @@ fn check(case: &str, mode: &str, input: &[u8], expected: i32) {
             .write_all(b"visible-after-input\r")
             .map_err(|_| "restored input failed")?;
         writer.flush().map_err(|_| "restored flush failed")?;
-        until(&receive, &mut output, b"restoration-complete")?;
+        until(&receive, &mut output, &mut writer, b"restoration-complete")?;
         let deadline = Instant::now() + Duration::from_secs(10);
         loop {
             if let Some(status) = child.try_wait().map_err(|_| "child wait failed")? {
@@ -165,6 +205,7 @@ fn main() {
         Some("--child") => std::process::exit(child()),
         Some("--redirected-child") => std::process::exit(redirected_child()),
         _ => {
+            check_cursor_reports();
             let editing: &[u8] = if cfg!(windows) {
                 b"invented-terminal \x08-cookie\r"
             } else {
