@@ -206,6 +206,8 @@ uses a BOM-free stdin writer during process creation, then restores the parent
 encoding. This prevents .NET Framework from adding bytes before the payload.
 No bytes are removed from captured output. The fixture is removed after the check.
 Packaged applications do not require .NET Framework.
+The regression script exits successfully only after every assertion passes.
+Expected inspector rejection codes must not set the enclosing CI shell's result.
 To check the clean-guest helper's complete startup sequence locally against an
 extracted candidate, run:
 
