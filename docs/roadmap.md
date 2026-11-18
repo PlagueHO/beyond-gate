@@ -64,7 +64,7 @@ also applies to macOS, but its native acceptance stays low priority.
 Environment input will not require a browser, desktop, D-Bus, or Secret Service.
 Explicit input overrides stored credentials without silent fallback.
 Persist only through explicit login/import. Keep derived bearers in memory.
-See the [agreed authentication follow-up](authentication.md#agreed-authentication-follow-up).
+See the [agreed authentication follow-up](authentication-design.md#agreed-authentication-follow-up).
 
 Keep older minimum-runtime claims, real upgrades, trust prompts, and deeper
 browser/store failure cases as separate hardening work. They do not block #52
@@ -101,7 +101,7 @@ Authentication follow-up work remains open:
 | [#46](https://github.com/PlagueHO/beyond-gate/issues/46) | Manually installed Chrome/Edge extension and real synthetic browser CI | Windows product integration and separate browser CI passed against the accepted #29 contracts. Review and merge remain separate. |
 
 The user reported one successful
-[synthetic Edge handoff](authentication.md#edge-synthetic-browser-test).
+[synthetic Edge handoff](authentication-design.md#edge-synthetic-browser-test).
 The later [isolated browser suite](testing.md#isolated-browser-feasibility) passed
 local Chrome and Edge cookie/native-host checks and owned cleanup. Rust tests
 execute canonical messages and selected parsing/framing recipes. Full state
@@ -168,7 +168,7 @@ assumes user-triggered lookups, not background collection.
 Track missing contracts and test approval in the
 [integration evidence and live-test guidance](architecture.md#integration-evidence-and-live-tests).
 The initial official-source review found no API schema. A later user-requested
-[developer probe](authentication.md#opt-in-session-exchange-probe) adds synthetic
+[developer probe](authentication-design.md#opt-in-session-exchange-probe) adds synthetic
 tests and one ignored manual token-exchange test based on community evidence.
 The user reported one successful manual exchange on 2026-10-27. This narrow
 technical result does not add product operations, verify data reads or expiry,

@@ -63,6 +63,7 @@ export default defineConfig({
         items: [
           { text: 'Developer guide', link: '/development' },
           { text: 'Architecture', link: '/architecture' },
+          { text: 'Authentication design', link: '/authentication-design' },
           { text: 'Testing', link: '/testing' },
           { text: 'Roadmap', link: '/roadmap' },
           { text: 'Browser login contracts', link: '/browser-handoff' },

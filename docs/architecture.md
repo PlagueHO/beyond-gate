@@ -53,7 +53,7 @@ reservation; browser completion retains its reservation through blocking writes.
 Both paths preserve cancellation admission and uncertain-write errors.
 Existing resource operations keep their shared read scopes, fresh access checks,
 and bounded continuation. macOS production reads remain gated. See
-[source selection and logout](authentication.md#agreed-authentication-follow-up).
+[source selection and logout](authentication-design.md#agreed-authentication-follow-up).
 
 The workspace uses Rust 2024 and resolver 3. The
 [Cargo edition guide](https://doc.rust-lang.org/edition-guide/rust-2024/cargo-resolver.html)
@@ -66,7 +66,7 @@ uses serde_json and URL-safe unpadded base64.
 The core HTTP boundary uses async
 [reqwest 0.13.5](https://docs.rs/reqwest/0.13.5/reqwest/), Tokio, serde,
 serde_json, and httpdate. The developer-only
-[session probe](authentication.md#opt-in-session-exchange-probe) additionally uses
+[session probe](authentication-design.md#opt-in-session-exchange-probe) additionally uses
 blocking reqwest and rpassword through development dependencies.
 `Cargo.lock` records exact resolved versions, including development dependencies.
 Local auth uses `keyring-core`, explicit target-specific credential-store crates,
@@ -383,7 +383,7 @@ The core `auth` module owns one entry: service `beyond-gate`, account
 `local-session`. It selects Windows Credential Manager, macOS login Keychain, or
 Linux Secret Service explicitly. Windows writes use local-machine persistence.
 No global default, credential enumeration, browser-profile access, or plaintext
-fallback is used. See [backend requirements](authentication.md#protected-store-selection-and-recovery).
+fallback is used. See [backend requirements](authentication-design.md#protected-store-selection-and-recovery).
 
 `SessionStore` wraps a concrete keyring entry. The existing keyring store interface
 provides the real test boundary, so no additional storage trait is needed.
@@ -1151,14 +1151,14 @@ locations, not an approved runtime host allowlist.
 No officially supported runtime API host, endpoint, cookie name, token field,
 exchange, expiry interval, refresh method, rate limit, or stable response schema
 is established for Beyond Gate. A later
-[community-based probe](authentication.md#opt-in-session-exchange-probe) tests a
+[community-based probe](authentication-design.md#opt-in-session-exchange-probe) tests a
 candidate exchange offline and can be run manually. On 2026-10-27, the user
 reported one successful live exchange. This is a narrow technical result, not an
 official API contract or a general data-access result.
 No versioning or endpoint support commitment was found in the reviewed official
 sources. E1 section 10 and E2 section 4.7 allow service or availability changes;
 neither is an API stability contract. See the
-[login assessment](authentication.md#browser-handoff-assessment) for flow details
+[login assessment](authentication-design.md#browser-handoff-assessment) for flow details
 that remain unknown.
 
 The review searched public official terms, D&D Beyond feature and subscription
@@ -1202,7 +1202,7 @@ Persistent protected session storage belongs to later approved product work.
 The initial official-source review did not establish a response contract to test.
 Later community implementation evidence supports an isolated candidate token
 exchange. The ignored live test and its synthetic offline cases are documented in
-the [authentication design](authentication.md#opt-in-session-exchange-probe).
+the [authentication design](authentication-design.md#opt-in-session-exchange-probe).
 The user reported one passing live token-exchange test on 2026-10-27. No character,
 campaign, or book read, expiry check, or automatic login handoff was demonstrated.
 The agent did not access the account or rerun the live request. The result does
