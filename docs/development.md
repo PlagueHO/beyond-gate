@@ -40,6 +40,96 @@ The browser checks use the built output. Install Chrome or Edge, or set
 temporary browser profile. They do not read account credentials or browse
 D&D Beyond. They start and stop their own loopback preview server.
 
+## Pages validation and deployment
+
+The [documentation workflow](https://github.com/PlagueHO/beyond-gate/actions/workflows/docs.yml)
+checks every pull request, push to `main`, and explicit manual run.
+Broad event coverage includes shared Markdown, assets, configuration, dependencies,
+and workflow changes. No path filter can omit a required site check.
+
+Site and Markdown jobs have read-only repository permissions.
+They build and test production output, check all five themes, and check Markdown
+style and offline links. Pull requests cannot upload a Pages artifact or run the
+deployment job. This includes pull requests from branches in this repository.
+
+Successful default-branch push and manual runs can publish only
+`docs/.vitepress/dist`. Theme samples are not published.
+Deployment requires both validation jobs to succeed. Its separate job has
+`actions: read`, `contents: read`, `pages: write`, and `id-token: write`.
+No documentation dependencies are installed or run in that job.
+Actions use full commit SHA pins. Site dependencies use the frozen lockfile.
+
+The deployment uses the existing `github-pages` environment and its `main` branch
+policy. The workflow does not add a reviewer approval rule or change repository
+policy. Do not treat the environment name as proof of human approval.
+Obtain maintainer approval before the first live deployment.
+After integration into `main`, successful pushes deploy automatically.
+
+One `github-pages` concurrency group serializes deployments without cancelling an
+active deployment. After any environment or concurrency wait, the preflight checks
+the Pages host, base path, publishing type, and current default-branch commit.
+An older run fails even if its build passed. Failed API reads stop deployment.
+The deployment action consumes only the artifact from that workflow run.
+
+### Configured address and acceptance status
+
+The configured site uses `danielscottraynsford.com` and `/beyond-gate/`.
+Do not replace it with a `github.io` address or remove the base path.
+The workflow reads Pages metadata without enabling Pages or changing its settings.
+An unexpected host, base path, or publishing type stops deployment.
+
+On 2026-11-18, the Pages API reported
+`http://danielscottraynsford.com/beyond-gate/`, an approved TLS certificate,
+and `https_enforced: false`. Public HTTP and HTTPS requests both returned 404.
+The [configured HTTPS address](https://danielscottraynsford.com/beyond-gate/)
+is therefore **not yet a verified working site**. No canonical working URL is
+claimed. HTTPS support is not the same as an HTTP-to-HTTPS redirect.
+
+After an approved deployment, record its run URL and tested canonical URL here.
+Check the home page, direct `.html` page links, fragments, CSS, JavaScript,
+images, and a local search result at the public address.
+Check HTTP behavior separately. Do not bypass certificate errors.
+Domain, DNS, HTTPS-enforcement, and environment policy changes need separate approval.
+
+### Manual runs
+
+Use **Actions > Documentation checks and Pages > Run workflow**.
+Select `main`, then select **Run workflow**.
+The CLI equivalent, run from the repository root, is:
+
+```powershell
+gh workflow run docs.yml --repo PlagueHO/beyond-gate --ref main
+gh run list --repo PlagueHO/beyond-gate --workflow docs.yml --limit 5
+```
+
+Open the new run to check both validation jobs and the deployment result.
+The deployment environment links to the URL returned by the Pages action.
+That URL does not replace public browser acceptance.
+A manual feature-branch or tag run can validate but cannot publish.
+An old run cannot publish after `main` advances.
+
+### Deployment recovery
+
+If a validation job fails, fix the failure before attempting deployment.
+The existing site remains unchanged when no deployment starts.
+If Pages deployment fails, inspect the deployment action and Pages service status.
+Rerun the workflow only if its commit is still the current default-branch commit.
+If `main` has advanced, start a fresh manual run instead.
+Uploaded Pages artifacts expire after one day; a full new run rebuilds the artifact.
+
+To restore earlier content, revert the responsible change on `main` through the
+normal review process. Let the new revert commit pass all checks and deploy.
+Do not rerun an older deployment to bypass the current-commit rule.
+Pending deployments can be replaced by another pending run in the concurrency
+group. If this leaves the current commit without a deployment, start a fresh run.
+Do not cancel an active deployment merely to move another run ahead.
+
+Check deployment refusal cases locally without GitHub access:
+
+```powershell
+node --test .\docs\tests\pages-deployment.test.mjs
+```
+
 ## Five theme samples
 
 The separate comparison build keeps five working themes available for review:
