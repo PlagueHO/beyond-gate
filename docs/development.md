@@ -62,8 +62,8 @@ Actions use full commit SHA pins. Site dependencies use the frozen lockfile.
 The deployment uses the existing `github-pages` environment and its `main` branch
 policy. The workflow does not add a reviewer approval rule or change repository
 policy. Do not treat the environment name as proof of human approval.
-Obtain maintainer approval before the first live deployment.
-After integration into `main`, successful pushes deploy automatically.
+The first live deployment received explicit maintainer approval.
+Successful pushes to `main` deploy automatically.
 
 One `github-pages` concurrency group serializes deployments without cancelling an
 active deployment. After any environment or concurrency wait, the preflight checks
@@ -71,24 +71,30 @@ the Pages host, base path, publishing type, and current default-branch commit.
 An older run fails even if its build passed. Failed API reads stop deployment.
 The deployment action consumes only the artifact from that workflow run.
 
-### Configured address and acceptance status
+### Published address and acceptance
 
 The configured site uses `danielscottraynsford.com` and `/beyond-gate/`.
 Do not replace it with a `github.io` address or remove the base path.
 The workflow reads Pages metadata without enabling Pages or changing its settings.
 An unexpected host, base path, or publishing type stops deployment.
 
-On 2026-11-18, the Pages API reported
-`http://danielscottraynsford.com/beyond-gate/`, an approved TLS certificate,
-and `https_enforced: false`. Public HTTP and HTTPS requests both returned 404.
-The [configured HTTPS address](https://danielscottraynsford.com/beyond-gate/)
-is therefore **not yet a verified working site**. No canonical working URL is
-claimed. HTTPS support is not the same as an HTTP-to-HTTPS redirect.
+The tested canonical link is
+[https://danielscottraynsford.com/beyond-gate/](https://danielscottraynsford.com/beyond-gate/).
+On 2026-11-18, both the approved
+[automatic deployment](https://github.com/PlagueHO/beyond-gate/actions/runs/44280511769)
+and [manual deployment](https://github.com/PlagueHO/beyond-gate/actions/runs/44281746032)
+passed for commit `7b7b87204d4ac555e66a876ec17cbbb0d5ff894a`.
 
-After an approved deployment, record its run URL and tested canonical URL here.
-Check the home page, direct `.html` page links, fragments, CSS, JavaScript,
-images, and a local search result at the public address.
-Check HTTP behavior separately. Do not bypass certificate errors.
+A fresh browser verified the home page, installation, CLI, MCP, and development
+pages, images, CSS, JavaScript, and the direct `cli.html#auth-validate` fragment.
+Local search for `auth validate` returned a working link to that fragment.
+The final browser check reported no JavaScript errors or failed same-site responses.
+Certificate verification remained enabled.
+
+The Pages API still reports `http://danielscottraynsford.com/beyond-gate/`,
+an approved TLS certificate, and `https_enforced: false`.
+HTTP also returns 200. It does not redirect to HTTPS.
+Use the verified HTTPS link above.
 Domain, DNS, HTTPS-enforcement, and environment policy changes need separate approval.
 
 ### Manual runs
@@ -123,6 +129,13 @@ Do not rerun an older deployment to bypass the current-commit rule.
 Pending deployments can be replaced by another pending run in the concurrency
 group. If this leaves the current commit without a deployment, start a fresh run.
 Do not cancel an active deployment merely to move another run ahead.
+
+Refresh tabs opened before a deployment if search or navigation fails.
+An open tab can retain an earlier application bundle that requests removed,
+hashed JavaScript assets. This occurred between the automatic and manual
+acceptance deployments. A fresh browser loaded the final assets and passed.
+This workflow does not guarantee that open tabs survive deployment or that all
+CDN caches update at the same instant.
 
 Check deployment refusal cases locally without GitHub access:
 

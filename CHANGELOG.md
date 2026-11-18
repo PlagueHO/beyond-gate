@@ -21,8 +21,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   environment, with narrow permissions, serialized deployment, and rejection of
   outdated commits or unexpected Pages configuration. Offline refusal tests and
   manual-run/revert recovery guidance are included. The configured custom domain
-  and `/beyond-gate/` path are unchanged. First live deployment and public URL
-  acceptance remain pending.
+  and `/beyond-gate/` path are unchanged. Approved automatic and manual deployments
+  passed public page, asset, fragment, and local-search checks at
+  `https://danielscottraynsford.com/beyond-gate/`.
+  HTTP still serves content without redirecting to HTTPS. Refresh tabs opened
+  before a deployment if they reference removed, hashed JavaScript assets.
 - Free GitHub build provenance for final native archives and checksum sidecars
   on version tags and default-branch manual runs, with strict verification before
   draft preparation. Paid native signing is not required. Approved manual run
