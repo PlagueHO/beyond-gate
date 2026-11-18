@@ -13,8 +13,16 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   A basic authentication guide covers extension login and supplied sessions.
   The authentication design is separate under Development.
   Five theme samples remain in a separate comparison build for later refinement.
-  The locked pnpm package, editor/app tasks, offline browser checks, build-only CI,
-  and dependency-update coverage are development-only. No publishing is configured.
+  The locked pnpm package, editor/app tasks, offline browser checks, and
+  dependency-update coverage are development-only.
+- GitHub Pages deployment after successful site and Markdown checks on current
+  default-branch push and manual runs. Pull requests remain read-only.
+  SHA-pinned Pages actions publish only production output through the existing
+  environment, with narrow permissions, serialized deployment, and rejection of
+  outdated commits or unexpected Pages configuration. Offline refusal tests and
+  manual-run/revert recovery guidance are included. The configured custom domain
+  and `/beyond-gate/` path are unchanged. First live deployment and public URL
+  acceptance remain pending.
 - Free GitHub build provenance for final native archives and checksum sidecars
   on version tags and default-branch manual runs, with strict verification before
   draft preparation. Paid native signing is not required. Approved manual run

@@ -59,6 +59,12 @@ Run `pnpm --dir docs build` and `pnpm --dir docs test`.
 Browser checks need installed Chrome or Edge, or `CHROME_PATH`.
 See [site development](docs/development.md#documentation-site) for preview commands
 and the separate five-theme comparison build. Do not publish the site as part of checks.
+The [configured Pages address](https://danielscottraynsford.com/beyond-gate/) is not
+yet verified after deployment. Keep `/beyond-gate/` and the configured domain.
+See [Pages deployment](docs/development.md#pages-validation-and-deployment) for
+manual runs, recovery, and acceptance limits.
+Check deployment refusal cases with
+`node --test .\docs\tests\pages-deployment.test.mjs`.
 
 ## Layout
 
@@ -100,6 +106,10 @@ MCP `tests/cli.rs` for protocol checks. Parser-only tests do not replace them.
 - Manual packaging uploads artifacts only; a version tag can create a draft release.
 - No workflow publishes Cargo crates.
 - Documentation CI runs pinned rumdl style and offline file/anchor checks.
+- Documentation PR builds are read-only and cannot deploy. Successful current
+  default-branch push or manual runs deploy only checked production output.
+  The Pages job uses narrow permissions, the existing environment, serialized
+  deployment, and a fresh default-branch SHA check. First live acceptance is pending.
 - Copilot setup applies to GitHub Actions sessions, not desktop or cloud sandboxes.
 
 ## Conventions
