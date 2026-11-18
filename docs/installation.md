@@ -1,89 +1,49 @@
-# Native installation and first-run checks
+# Installation
 
-**Status: Windows login, Web-library discovery, and bounded book reads.**
-There is no published release yet. The packaging workflow produces test archives.
-Windows login and native-host setup are implemented.
-Approved real Chrome and Edge Dev login/save/restart/logout checks passed.
-Approved native CLI/MCP Web-library checks passed in the development checkout.
-They do not verify a packaged release or authorize later content reads.
-Local MCP serving and registration work; tool discovery alone does not establish
-access to account data.
+<!-- Keep extended checks in the packaged guide without expanding the main steps. -->
+<!-- rumdl-configure-file { "MD033": { "allowed-elements": ["details", "summary"] } } -->
 
-## Package matrix
+Follow steps 1 to 4 to install Beyond Gate and check that it starts.
+Step 5 is optional.
+You do not need Rust, Python, Node.js, or Visual Studio to run Beyond Gate.
 
-Select the archive for your operating system and CPU. Replace `VERSION` with
-the version of the artifact you are testing.
+**There is no public release yet.** Use a maintainer-reviewed test package.
+Installing the tools does not sign you in to D&D Beyond.
 
-| OS test baseline | CPU | Rust target | Archive |
-|------------------|-----|-------------|---------|
-| Ubuntu 24.04 | x86_64 | `x86_64-unknown-linux-gnu` | `beyond-gate-vVERSION-x86_64-unknown-linux-gnu.tar.gz` |
-| Windows Server 2022 | x86_64 | `x86_64-pc-windows-msvc` | `beyond-gate-vVERSION-x86_64-pc-windows-msvc.zip` |
-| macOS 15 | Apple Silicon (ARM64) | `aarch64-apple-darwin` | `beyond-gate-vVERSION-aarch64-apple-darwin.tar.gz` |
+## 1. Download your package
 
-These are the fixed native CI runners, not a verified minimum OS version.
-The [GitHub runner reference](https://docs.github.com/en/actions/reference/runners/github-hosted-runners)
-documents their architectures. Other Linux distributions, older OS versions,
-Windows desktop versions, WSL, and headless sessions need separate validation.
-There are no Intel macOS, Linux ARM64, musl, or Windows ARM64 packages.
-Do not assume emulation is tested.
+Download the archive for your computer and its matching `.sha256` file from the
+[packaging workflow](https://github.com/PlagueHO/beyond-gate/actions/workflows/release.yml).
+Use the run and commit reviewed by the maintainer.
 
-Each archive contains exactly these files at its root:
+An Actions download can contain an outer ZIP. Open that ZIP to get the package
+archive and `.sha256` file. Do not extract the package itself until step 2 is complete.
 
-- `beyond-gate` and `beyond-gate-mcp` (with `.exe` on Windows).
-- `README.md`, `LICENSE`, `CHANGELOG.md`, and `installation.md` (this guide).
+### Package matrix
 
-Windows archives also contain `beyond-gate-native-host.exe` and
-`beyond-gate-browser.zip`. The browser ZIP ships inside the same Windows
-archive as the CLI, MCP server, and native host. It contains `manifest.json`,
-`launch.mjs`, `flow.mjs`, `login.html`, `login.css`, `login.mjs`, the Beyond Gate
-logo, and the declared extension icons. Development fixtures and tests are not
-included.
+Replace `VERSION` in this guide with the version in your downloaded filename.
 
-Keep both binaries together in one stable directory. MCP registration records
-the absolute server path. If you move the files later, remove the old registration
-and register the new path. Do not copy only the CLI.
+| Computer | Package archive | CI test system |
+|----------|-----------------|----------------|
+| Windows x64 | `beyond-gate-vVERSION-x86_64-pc-windows-msvc.zip` | Windows Server 2022 |
+| Linux x64 | `beyond-gate-vVERSION-x86_64-unknown-linux-gnu.tar.gz` | Ubuntu 24.04 |
+| Mac with Apple Silicon | `beyond-gate-vVERSION-aarch64-apple-darwin.tar.gz` | macOS 15 |
 
-For Windows browser setup, keep the native host beside the CLI in the stable
-installation directory. Extract `beyond-gate-browser.zip` into a separate
-`beyond-gate-browser-extension` subdirectory. Load that unpacked directory from
-`chrome://extensions` or `edge://extensions` with Developer mode enabled.
-Check that its ID is `gnhdconfgjfdbbgkemadegjcjnnodefh`.
-Do not continue if the ID differs. No browser-store package is published.
+These are CI test systems, not minimum OS versions. Other OS versions and
+emulation need separate checks. There are no Intel Mac, Linux ARM64, musl,
+or Windows ARM64 packages.
 
-Use `auth install edge --directory PATH --dry-run` or
-`auth install chrome --directory PATH --dry-run` to preview native-host setup.
-Remove `--dry-run` to request confirmation.
-Use the same directory with `auth uninstall` to preview or remove matching
-per-user setup. The command preserves binaries, other browsers, and machine-wide
-entries. Edge can still find a Chrome fallback after explicit Edge removal.
-See the [Windows setup commands](cli.md#auth-install-and-auth-uninstall) for the
-trust boundary and conflict rules. Do not register a temporary source worktree
-or build directory. These instructions do not establish completed live login.
+## 2. Verify the download
 
-## Verify the download
+Open a terminal in the folder that contains your download.
+Check the checksum with the command for your computer below.
+Then complete the build provenance check.
+**Do not extract or run the package if either check fails.**
 
-Download the archive and its matching `.sha256` file from the same trusted
-workflow artifact or a future maintainer-reviewed release. An Actions artifact
-can have an outer ZIP container; extract that container to obtain the native
-archive and sidecar first.
+<details>
+<summary>Windows checksum command</summary>
 
-Check SHA-256 before extracting the native archive. A checksum detects damaged
-or changed bytes. It is not a digital signature or proof of the publisher.
-If the check fails, stop and obtain a fresh copy from a trusted source.
-
-On Linux, in the download directory:
-
-```sh
-sha256sum --check beyond-gate-vVERSION-x86_64-unknown-linux-gnu.tar.gz.sha256
-```
-
-On macOS:
-
-```sh
-shasum -a 256 --check beyond-gate-vVERSION-aarch64-apple-darwin.tar.gz.sha256
-```
-
-On Windows, use PowerShell in the download directory:
+Run this in PowerShell. Replace `VERSION` first.
 
 ```powershell
 $archive = 'beyond-gate-vVERSION-x86_64-pc-windows-msvc.zip'
@@ -96,311 +56,297 @@ $actual = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInv
 if ($actual -cne $match.Groups[1].Value) { throw 'SHA-256 mismatch. Do not extract.' }
 ```
 
+No error means the checksum matches.
+
+</details>
+
+<details>
+<summary>Linux and macOS checksum commands</summary>
+
+On Linux:
+
+```sh
+sha256sum --check beyond-gate-vVERSION-x86_64-unknown-linux-gnu.tar.gz.sha256
+```
+
+On macOS:
+
+```sh
+shasum -a 256 --check beyond-gate-vVERSION-aarch64-apple-darwin.tar.gz.sha256
+```
+
+The command must report `OK`.
+
+</details>
+
+<details>
+<summary>Build provenance check (required)</summary>
+
 ### Verify build provenance
 
-An attestation links exact bytes to the repository, workflow, commit, and ref.
-Before extraction, verify both the archive and its `.sha256` sidecar with a current
-[GitHub CLI](https://cli.github.com/manual/gh_attestation_verify). This needs
-network access; GitHub CLI is not a product runtime dependency.
+A checksum detects changed bytes. It does not prove who built the package.
+Build provenance links the files to the repository, workflow, and source commit.
 
-Replace `ARCHIVE` with the native archive name and `VERSION` with the reviewed
-release version. Take `REVIEWED_COMMIT_SHA` from the maintainer-reviewed candidate
-or release, not an unverified sidecar. Use the full 40-character commit:
+Use a current [GitHub CLI](https://cli.github.com/manual/gh_attestation_verify).
+This check needs network access. GitHub CLI is not needed to run Beyond Gate.
+
+Ask the maintainer for the reviewed full 40-character commit SHA and source ref.
+Do not take them from an unverified sidecar.
+Replace `ARCHIVE` and `REVIEWED_COMMIT_SHA` below.
+For a default-branch test package, run:
 
 ```sh
-gh attestation verify ARCHIVE --repo PlagueHO/beyond-gate --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml --source-digest REVIEWED_COMMIT_SHA --source-ref refs/tags/vVERSION --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners
+gh attestation verify ARCHIVE --repo PlagueHO/beyond-gate --signer-workflow PlagueHO/beyond-gate/.github/workflows/release.yml --source-digest REVIEWED_COMMIT_SHA --source-ref refs/heads/main --predicate-type https://slsa.dev/provenance/v1 --deny-self-hosted-runners
 ```
 
-Repeat with `ARCHIVE.sha256`. Both commands must succeed. This single-line command
-also works in PowerShell. For a default-branch manual candidate, use
-`--source-ref refs/heads/main` and the reviewed run's commit instead. Use the actual
-default-branch name if it changes.
+Run it again with `ARCHIVE.sha256`. Both commands must succeed.
+The same commands work in PowerShell.
+Use the actual default-branch name if it changes.
+For a reviewed version-tag package, use `--source-ref refs/tags/vVERSION` instead.
 
-Only version-tag and default-branch manual runs can create release attestations.
-PR, other-ref, and older packages can be unattested test outputs. Do not treat
-them as verified distribution. Stop on missing attestations, changed bytes,
-identity mismatches, or service errors; do not fall back to checksums alone.
+PR packages, other-ref packages, and older test packages can lack attestations.
+Do not treat them as verified distribution.
+Stop if an attestation is missing, the identity differs, or the service returns
+an error. Do not fall back to checksums alone.
 
-Provenance does not prove software safety or reproducibility. It does not replace
-native publisher signing, notarization, or [OS trust checks](#system-services-and-trust-limits).
+Provenance does not prove software safety or reproducibility.
+It does not replace publisher signing, notarization, or OS trust checks.
 See the [code signing policy][signing-policy].
 
-[signing-policy]: https://github.com/PlagueHO/beyond-gate/blob/main/MAINTAINERS.md#code-signing-policy
+</details>
 
-## Extract and run
+## 3. Extract and run
 
-The product binaries do not require Rust, Python, Node.js, PowerShell, or Visual
-Studio Build Tools. The commands below use the OS shell to extract and start
-them. Contributor builds have separate tool requirements.
-
-### Linux and macOS
-
-Use an empty user-local directory. Select the matching archive from the matrix.
-This example uses Linux; change the archive name for macOS:
-
-```sh
-archive='beyond-gate-vVERSION-x86_64-unknown-linux-gnu.tar.gz'
-destination="$HOME/.local/opt/beyond-gate"
-mkdir -p "$destination"
-tar -xzf "$archive" -C "$destination"
-"$destination/beyond-gate" --help
-"$destination/beyond-gate" --version
-"$destination/beyond-gate-mcp" --help
-"$destination/beyond-gate-mcp" --version
-```
-
-Both binaries must retain their executable permission. If a copy tool removes
-it, restore permission on these two verified files only:
-
-```sh
-chmod u+x "$destination/beyond-gate" "$destination/beyond-gate-mcp"
-```
-
-Optionally add the directory to your shell's `PATH`:
-
-```sh
-export PATH="$HOME/.local/opt/beyond-gate:$PATH"
-```
-
-To keep this setting, add that line to your normal shell configuration.
-No administrator installation or `sudo` is needed.
+Follow only the instructions for your computer.
+Use an empty, permanent folder. Keep all files from the package together.
 
 ### Windows
 
-The Windows x64 binaries require the Microsoft Visual C++ v14 x64
-Redistributable. They import `VCRUNTIME140.dll` and Windows Universal CRT
-libraries. The archive does not include or install this system dependency.
-Install the latest supported x64 runtime before the first run. Its version must
-be at least as recent as the MSVC tools used to build the package.
+1. Open PowerShell.
+2. Install the Microsoft Visual C++ x64 runtime:
 
-If WinGet is available, install the Microsoft package:
+   ```powershell
+   winget install --id Microsoft.VCRedist.2015+.x64 --exact --source winget --interactive
+   ```
 
-```powershell
-winget install --id Microsoft.VCRedist.2015+.x64 --exact --source winget --interactive
-```
+   If WinGet is not available, use Microsoft's
+   [x64 runtime installer](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+   Do not download individual DLLs from other websites.
+3. In your download folder, extract the verified archive:
 
-Otherwise, use Microsoft's
-[supported x64 Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
-Do not install Visual Studio to run the package. Do not download individual DLLs
-from other sites.
+   ```powershell
+   $archive = 'beyond-gate-vVERSION-x86_64-pc-windows-msvc.zip'
+   $destination = Join-Path $env:LOCALAPPDATA 'Programs\Beyond Gate'
+   Expand-Archive -LiteralPath $archive -DestinationPath $destination
+   ```
 
-Use PowerShell and an empty directory under your user profile:
+4. Make the commands available in this PowerShell window:
 
-```powershell
-$archive = 'beyond-gate-vVERSION-x86_64-pc-windows-msvc.zip'
-$destination = Join-Path $env:LOCALAPPDATA 'Programs\Beyond Gate'
-Expand-Archive -LiteralPath $archive -DestinationPath $destination
-& (Join-Path $destination 'beyond-gate.exe') --help
-& (Join-Path $destination 'beyond-gate.exe') --version
-& (Join-Path $destination 'beyond-gate-mcp.exe') --help
-& (Join-Path $destination 'beyond-gate-mcp.exe') --version
-```
+   ```powershell
+   $env:PATH = "$destination;$env:PATH"
+   ```
 
-The call operator `&` supports executable paths that contain spaces.
-Optionally add this directory to your **user** Path in Windows Environment
-Variables. Start a new terminal after you change it. For the current terminal:
+To keep this setting, add the installation folder to your **user** Path in
+Windows Environment Variables. Open a new terminal after you change it.
 
-```powershell
-$env:PATH = "$destination;$env:PATH"
-```
+### Linux and macOS
 
-If Windows reports a missing `VCRUNTIME` or `MSVCP` DLL, install the runtime
-above and retry. Package CI logs record native dependencies, but the CI runner
-already has its system libraries. A passing package check on that runner does
-not prove that a new Windows desktop has the required runtime.
+1. Open a terminal in your download folder.
+2. Set the archive name for your computer.
 
-## System services and trust limits
+   Linux:
 
-**Linux:** These packages use the system glibc runtime, not musl. Packaging logs
-record `ldd` output for both binaries. A build on Ubuntu 24.04 is not proof of
-compatibility with an older glibc. A missing loader or shared library needs a
-compatible OS/runtime, not a Python or Node.js installation.
-The retained `0.1.0` package also passed startup and shell lifecycle checks on
-Ubuntu 24.04.5 x64 with glibc `2.39` and `libgcc-s1`
-`14.2.0-4ubuntu2~24.04.1`. These are tested combinations, not minimum versions.
-The image included system Python 3. No extra development runtime was installed.
-See the [Linux package-only evidence](desktop-acceptance.md#azure-linux-package-only-follow-up)
-for the inventory, PATH, removal, and desktop limits.
+   ```sh
+   archive='beyond-gate-vVERSION-x86_64-unknown-linux-gnu.tar.gz'
+   ```
 
-Saved-entry `auth status --stored` and `auth logout --stored` require a user session D-Bus service
-and a Secret Service provider with an unlocked default collection. Examples are
-GNOME Keyring and a compatible KDE Wallet. Headless systems and WSL may not have
-these services. There is no plaintext fallback. Process-only
-`BEYOND_GATE_COBALT_SESSION` and CLI `--auth-prompt` work without these services or
-a browser. Use `auth import --prompt` or `--env` only to request protected save.
-See [source selection](authentication.md#agreed-authentication-follow-up).
-Package checks do not unlock or access a real credential store.
+   macOS:
 
-**macOS:** Local session commands use the user's login Keychain. Unlock it through
-normal OS controls if needed. The workflow does not use a Developer ID signing
-identity or notarize packages. A linker-generated ad hoc signature is not
-Developer ID signing. Local CI execution does not test a quarantined browser
-download or establish Gatekeeper trust. Apple explains the difference in its
-[notarization guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
-If macOS blocks a download, stop and review the source and OS warning. Do not
-disable Gatekeeper or remove quarantine as an install step.
+   ```sh
+   archive='beyond-gate-vVERSION-aarch64-apple-darwin.tar.gz'
+   ```
 
-**Windows:** Local session commands use Windows Credential Manager under the
-current Windows account. SmartScreen or organization policy can block an
-untrusted executable. No Windows signing process is configured. Do not disable
-those protections to make a smoke check pass.
+3. Extract the verified archive and make its commands available:
 
-Native-store access can cause an OS prompt. See the repository's authentication
-design for backend details. A locked store or a service error is not an absent
-session. Real store checks need separate approval.
+   ```sh
+   destination="$HOME/.local/opt/beyond-gate"
+   mkdir -p "$destination"
+   tar -xzf "$archive" -C "$destination"
+   export PATH="$destination:$PATH"
+   ```
 
-## First-run results
+To keep this setting, add `export PATH="$HOME/.local/opt/beyond-gate:$PATH"`
+to your normal shell configuration.
+No administrator installation or `sudo` is needed.
 
-The help and version commands above must exit with code 0 and no stderr output.
-The CLI with no arguments shows usage on stderr and exits with code 2.
-Unknown arguments also exit with code 2.
+## 4. Check that the tools start
 
-After PATH setup, use help commands for a smoke check without an account:
+Run these commands in the same terminal:
 
 ```sh
-beyond-gate character list --help
-beyond-gate campaign show --help
+beyond-gate --help
+beyond-gate --version
+beyond-gate-mcp --help
+beyond-gate-mcp --version
 ```
 
-These commands do not access the protected store or contact D&D Beyond.
-Do not run a valid character, campaign, or book read as a package smoke check.
-Those operations use the real OS store and can contact D&D Beyond.
-Do not supply a password, cookie, or token. Do not create a credential manually.
-Do not run `auth status` or `auth logout` as an automated package check:
-they access the real OS store.
-On Windows, valid character, campaign, and book reads through either adapter use the real
-OS store and can contact D&D Beyond. Package checks reject unknown CLI options
-and MCP input fields before discovery instead. Synthetic process tests check
-successful discovery and session failures without a real account.
-Do not run interactive `auth login` as an account-free check. After human pairing
-and consent, it reads the selected browser cookie, validates it, and replaces the
-protected local entry. Separate explicit approval is required for real account
-or credential-store tests. Redirected package checks verify refusal before those
-operations.
+Each command must show help or a version and finish without an error.
+These checks do not sign in, open the credential store, or contact D&D Beyond.
+Do not use an account read or `auth login` as an installation check.
 
-Starting `beyond-gate-mcp` with no arguments starts a stdio server. It waits for
-MCP messages, not terminal commands. It is not a login prompt. Use an MCP client
-for normal operation. `beyond-gate mcp start` starts the sibling server with the
-same transport.
+**Installation is complete.** Use the [CLI reference](cli.md) for terminal
+commands, or continue below to connect an MCP client.
+See [authentication](authentication.md#agreed-authentication-follow-up) when
+you are ready to supply a session.
 
-## MCP registration
+## 5. Connect an MCP client (optional)
 
-The supported clients are VS Code, Claude Code, and GitHub Copilot CLI.
-Their commands (`code`, `claude`, or `copilot`) must be available on PATH.
-Client applications have their own requirements; they are not a runtime
-dependency of the Beyond Gate binaries.
-The VS Code installer checks only `code`. An Insiders-only installation with
-`code-insiders` does not meet that prerequisite. This does not establish whether
-manual MCP registration works in Insiders.
+Choose **one** client that is already installed.
+Its command (`code`, `claude`, or `copilot`) must be available in your terminal.
 
-Preview the selected registration first:
+1. Preview the setup for your client:
 
-```sh
-beyond-gate mcp install vscode --dry-run
-beyond-gate mcp install claude-code --dry-run
-beyond-gate mcp install copilot-cli --dry-run
-```
+   | Client | Preview command |
+   |--------|-----------------|
+   | VS Code | `beyond-gate mcp install vscode --dry-run` |
+   | Claude Code | `beyond-gate mcp install claude-code --dry-run` |
+   | GitHub Copilot CLI | `beyond-gate mcp install copilot-cli --dry-run` |
 
-Choose one installed client. Run its command again without `--dry-run`, review
-the absolute server path, and confirm the write. A repeated identical install
-does not change settings. A conflicting `beyond-gate` entry is not overwritten.
-Back up existing client settings before manual edits.
+2. Run your selected command again without `--dry-run`.
+3. Check the server path and confirm the change.
+4. Open your client's MCP server list and find `beyond-gate`.
 
-VS Code uses Copilot Global settings. VS Code and Copilot CLI share
-`$COPILOT_HOME/mcp-config.json`, or `~/.copilot/mcp-config.json` when
-`COPILOT_HOME` is not set. Claude Code uses `~/.claude.json`.
-No entry contains a secret, remote URL, Python command, or Node.js command.
-
-Check the MCP server list in VS Code, use `/mcp` in Copilot CLI, or run
-`claude mcp list` in Claude Code. The server exposes these resource read tools:
-`character_list`, `character_show`, `campaign_list`, `campaign_show`, `book_list`,
-`book_outline`, `book_read`, `class_list`, `class_show`, `monster_list`, and
-`monster_show`, `background_list`, `background_show`, `feat_list`, `feat_show`,
-`species_list`, `species_show`, `spell_list`, `spell_show`,
-`equipment_list`, `equipment_show`, `magic_item_list`, and `magic_item_show`.
-Equipment tools read one mixed source page. Detail requires a full definition
-key and explicit page. See the [equipment contract](cli.md#equipment-source-pages-and-raw-detail).
-Magic tools share this reader and support page-local filters, not global search.
-See the [magic-item contract](cli.md#magic-item-local-filters-and-raw-detail).
-Feat list reads bounded website metadata. Feat show selects one checked raw
-definition from a fresh bounded protected collection.
-Background tools share website metadata filters and selected raw definitions.
-The observed live definition collection exceeds the unchanged 1 MiB transport
-cap, so show fails explicitly for it. Native background acceptance has not run.
-Class tools return bounded class/subclass metadata, not raw definitions or rules
-text. Native class compatibility has not been validated.
-Monster lists support website filters and explicit page-based continuation,
-with a fresh selected-ID access check before output. Monster tools permit
-only observed access code 1; code 4 is denied, and
-unverified codes, including 2 and 3, are unsupported. Native monster account
-acceptance has not run.
-Windows and Linux book reads use fresh library evidence
-and checked canonical cookie pages. Character and campaign reads use fixed
-bounded routes through the protected session. The additional `auth_validate`
-tool accepts no credential input, but uses selected process-only or saved input and
-makes one fresh service check. It is not an account-free smoke check and does
-not grant content access.
-Do not interpret discovery as successful login or live read access.
-Linux supports environment input, hidden CLI input, and explicit protected import.
-Linux browser login remains deferred.
-
-To remove registration, stop the server in the client. Remove only the
-`beyond-gate` entry from the settings file's `mcpServers` object. Keep unrelated
-entries. For browser login removal, also use the matching `auth uninstall`
-command before removing the native host and extension files. Remove the installed
-binaries and their documentation if you no longer need them. Remove any PATH
-line you added. Unregistering or deleting the binaries
-does not revoke an upstream session or remove a stored credential.
+The server list confirms registration, not account access.
+Do not put credentials in client settings or MCP tool inputs.
+See [client setup details](cli.md#mcp-install) and the [MCP reference](mcp.md)
+for requirements, settings locations, and available tools.
 
 ## Troubleshooting
 
-| Condition | Action |
-|-----------|--------|
-| Wrong CPU or executable format | Select the exact OS/CPU archive. Do not assume emulation support. |
-| Checksum mismatch or missing package file | Stop. Obtain the complete archive and matching checksum again. |
-| Permission denied on Unix | Check executable permissions on the verified binaries. Respect OS trust controls. |
-| Missing loader, shared library, or Windows runtime DLL | Check the package baseline and native-dependency logs. Use the OS vendor's runtime installer where applicable. |
-| Missing sibling MCP executable | Put both binaries from the same package in the same directory. |
-| Client not found on PATH | Install the selected client and enable its documented command-line launcher. |
-| Malformed client JSON or conflicting server name | Repair or remove only the conflicting entry after a backup. The installer will not overwrite it. |
-| MCP waits without output | It expects MCP JSON-RPC on stdin. Start it through a client, not as a terminal REPL. |
-| Locked or unavailable credential service | Use the desktop's normal unlock/service controls. Do not use a file fallback. |
-| Windows login setup fails | Check the pinned extension ID, matching native-host registration, and three interactive terminal streams. Use a new login key after failure. |
-| Other-platform login or unsupported read | This is the current product limit. Runtime installation will not resolve it. |
+| Problem | What to do |
+|---------|------------|
+| Command not found | Repeat the PATH step in your current terminal. Check that both binaries are in the installation folder. |
+| Windows reports a missing runtime DLL | Install the Microsoft x64 runtime from step 3. Do not install Visual Studio or download individual DLLs. |
+| Wrong executable format or missing Linux loader | Check the package, CPU, and OS. These Linux packages require glibc, not musl. |
+| Permission denied on Linux or macOS | Restore execute permission on the two verified binaries with `chmod u+x "$destination/beyond-gate" "$destination/beyond-gate-mcp"`. |
+| Windows or macOS blocks the program | Stop and review the download source and OS warning. Do not disable SmartScreen, Gatekeeper, or quarantine. |
+| MCP waits without output | Start it through your MCP client. It waits for protocol messages, not terminal commands. |
+| Client not found or settings conflict | Check the client's command-line launcher. Back up settings before fixing a conflicting `beyond-gate` entry. The installer will not overwrite it. |
+| Credential store is locked or unavailable | Use normal OS unlock controls. There is no plaintext fallback. Process-only authentication does not require the native store. |
 
-## Release readiness
+## Additional setup details
 
-An offline package check is not a v1 acceptance decision.
-See the [desktop acceptance matrix](desktop-acceptance.md#remaining-acceptance-matrix)
-for candidate-specific passes and remaining gaps. That guide also defines
-the procedures and required evidence.
+Open these sections only when you need them.
+
+<details>
+<summary>Windows browser-assisted sign-in</summary>
+
+Browser setup is optional. It is separate from installing and checking the tools.
+
+1. Keep `beyond-gate-native-host.exe` beside the CLI in the permanent installation folder.
+2. Extract `beyond-gate-browser.zip` into a `beyond-gate-browser-extension` subfolder.
+3. Open `chrome://extensions` or `edge://extensions` and enable Developer mode.
+4. Load that unpacked extension folder.
+5. Check that its ID is `gnhdconfgjfdbbgkemadegjcjnnodefh`. Stop if it differs.
+6. Follow the [browser setup commands](cli.md#auth-install-and-auth-uninstall)
+   to preview and confirm native-host registration.
+7. Follow the [interactive login steps](cli.md#auth-login).
+
+Do not register a temporary source worktree or build folder.
+No browser-store package is published.
+Login needs human pairing and consent. It can read a browser cookie, contact
+D&D Beyond, and replace the saved session. It is not an account-free test.
+
+</details>
+
+<details>
+<summary>Package contents, moving, and removal</summary>
+
+Every archive contains the CLI and MCP binaries, `README.md`, `LICENSE`,
+`CHANGELOG.md`, and this `installation.md` guide.
+Windows also includes `beyond-gate-native-host.exe` and `beyond-gate-browser.zip`.
+The browser ZIP includes the extension manifest, scripts, login page, styles,
+logo, and icons. It does not include development fixtures or tests.
+
+MCP setup records an absolute server path. If you move the installation, remove
+its old registration and register the new path. Do not copy only the CLI.
+
+To remove an installation, stop the server in the client. Remove only the
+`beyond-gate` entry from the settings file's `mcpServers` object.
+Keep unrelated entries. For browser setup, run the matching `auth uninstall`
+command before deleting the native host and extension files.
+The command preserves other browsers and machine-wide entries.
+Edge can still find a Chrome fallback after explicit Edge removal.
+Then delete the installation files and remove any PATH entry you added.
+
+Removing the tools does not delete a saved credential or revoke an upstream
+session. See [logout](cli.md#auth-logout) before removal if needed.
+
+</details>
+
+<details>
+<summary>OS services and download trust</summary>
+
+### System services and trust limits
+
+**Windows:** The binaries require the Microsoft Visual C++ v14 x64
+Redistributable and system runtime libraries.
+Use the latest supported x64 runtime. Its version must be at least as recent
+as the build tools used for the package. A passing CI check does not prove
+that a clean Windows desktop has this runtime.
+Saved sessions use Windows Credential Manager.
+No Windows publisher signing is configured. Respect SmartScreen and organization policy.
+
+**Linux:** The packages require a compatible glibc runtime.
+Ubuntu 24.04 CI does not establish support for older distributions.
+See the [package-only evidence](desktop-acceptance.md#azure-linux-package-only-follow-up)
+for a tested desktop combination.
+Saved sessions require a user D-Bus service and an unlocked Secret Service
+provider, such as GNOME Keyring or a compatible KDE Wallet.
+Headless systems and WSL may not provide them.
+
+**macOS:** Saved sessions use the login Keychain.
+Packages do not have Developer ID signing or notarization.
+A local CI run does not establish Gatekeeper trust for a browser download.
+Do not remove quarantine or disable Gatekeeper to run the package.
+See Apple's [notarization guidance](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution).
+macOS production reads remain gated.
+
+An OS prompt or store error is not proof that no saved session exists.
+Windows and Linux process-only authentication does not require a native store.
+See [session input choices](authentication.md#agreed-authentication-follow-up).
+Real account and credential-store tests need separate explicit approval.
+
+</details>
+
+<details>
+<summary>Release checks for maintainers</summary>
+
+### Release readiness
+
+Installation checks do not establish release readiness or live account support.
+Use the [desktop acceptance matrix](desktop-acceptance.md#remaining-acceptance-matrix)
+for candidate-specific evidence and remaining gaps.
 Native stores, real clients, browser setup, and account reads have separate
-approval gates. Package evidence never grants those approvals.
-Shared authentication and Linux terminal use are implemented in
+approval gates. Package evidence does not grant those approvals.
+
+Before publication, review checksums, final-byte provenance, native startup,
+OS download trust, client setup, version, lockfile, dated changelog, and assets.
+Trusted tag and default-branch manual runs must attest all six distribution
+assets. Missing or failed provenance blocks draft preparation.
+Manual packaging uploads test artifacts only. A maintainer-approved version
+tag can prepare a draft. Do not publish while release blockers remain.
+
+Windows/Linux client acceptance remains in
+[#34](https://github.com/PlagueHO/beyond-gate/issues/34).
+Shared authentication is implemented in
 [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
-[#34](https://github.com/PlagueHO/beyond-gate/issues/34) checks Windows/Linux
-CLI and real MCP clients. Environment input and hidden CLI input do not establish
-real account or client acceptance. Optional browser/protected-save checks and deeper
-hardening remain separate; no live test is authorized by the backlog revision.
-macOS desktop and Keychain checks and Claude Code client checks are deferred to
+macOS and Claude Code acceptance remain in
 [#62](https://github.com/PlagueHO/beyond-gate/issues/62).
 Candidate-release decisions remain in
 [#41](https://github.com/PlagueHO/beyond-gate/issues/41).
+There is no crate publishing, cloud hosting, auto-updater, or required cloud service.
 
-| Requirement | Evidence or blocker |
-|-------------|---------------------|
-| Checksums, exact archive contents, extraction, help/version, and executable paths | Automated on each selected native packaging runner. Results apply only after that workflow succeeds for the candidate commit. |
-| Final-byte build provenance | Trusted tag and default-branch manual runs must attest and verify all six assets against the exact repository, source commit, ref, and release workflow. The draft job verifies the assets again. Missing or failed provenance blocks draft preparation. Approved manual [run 44048471076](https://github.com/PlagueHO/beyond-gate/actions/runs/44048471076) passed for its candidate; all six downloaded files also passed local provenance verification. Later candidates need their own evidence. The version-tag draft path remains untested. |
-| Native publisher signing | No Windows Authenticode publisher signing or macOS Developer ID/notarization is configured. Paid signing is not a release prerequisite. This does not waive OS download trust checks or permit protection bypasses. |
-| Native startup and Windows runtime prerequisite | Package checks use a restricted child PATH and process-local PATH lookup. The Windows CI runner still provides system runtime libraries. `dumpbin /DEPENDENTS` records native imports, but does not prove a clean Windows desktop has the required Visual C++ Redistributable. The user must install it before first run. Clean-desktop, two-version upgrade, and OS trust checks remain manual acceptance cases. |
-| Local MCP startup and registration | Protocol checks and temporary synthetic settings. Retained Windows VS Code and Copilot CLI discovery results have candidate-specific evidence; remaining lifecycle and isolation gaps stay open. |
-| CLI/MCP errors and output contracts, source attribution, book bounds | Native Web-library parity and one selected chapter's outline/initial-chunk parity passed separately from packaging. Synthetic source checks cover continuation and failures. Live continuation and sharing remain unchecked. |
-| Missing, expired, or rejected upstream session errors | Shared-session library and book source operations have synthetic failure checks. Live evidence is separate. |
-| Simple browser login and native credential-store operation | Approved Windows Chrome and Edge Dev product checks passed separately from packaging. Other-platform login remains deferred. New real-store tests need explicit approval. |
-| Live reads and client walkthrough | Native Web-library acceptance and one retained-candidate VS Code `book_list` call passed separately from packaging. Other real-client reads, model-driven routing, and sharing remain unverified. New account checks need explicit approval. Stop on access denial. |
-| Version, lockfile, dated changelog, assets, evidence, and draft release | Require maintainer review before publication. No tag or publication is authorized by issue #10 alone. |
+</details>
 
-Manual packaging uploads artifacts only. A maintainer-approved version tag can
-prepare a draft after all package jobs pass. Do not publish the draft while
-these release blockers remain. There is no crate publishing, cloud hosting,
-auto-updater, or required cloud service.
+[signing-policy]: https://github.com/PlagueHO/beyond-gate/blob/main/MAINTAINERS.md#code-signing-policy

@@ -1,5 +1,9 @@
 /target/
 /scripts/browser-tests/node_modules/
+/docs/node_modules/
+/docs/.vitepress/cache/
+/docs/.vitepress/dist/
+/docs/.vitepress/studies/
 .env
 .env.*
 *.log

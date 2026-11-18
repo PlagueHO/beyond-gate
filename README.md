@@ -6,6 +6,11 @@ Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
 project for access to your authorized D&D Beyond characters, campaigns,
 species, and purchased or shared books.
 
+Read the [documentation overview](docs/index.md), [installation guide](docs/installation.md),
+[CLI reference](docs/cli.md), and [MCP reference](docs/mcp.md).
+For the local documentation website and five theme samples, see
+[documentation development](docs/development.md#documentation-site).
+
 **Status: Windows login, Web-library discovery, bounded book reads, and synthetic-tested species reads.**
 The CLI and MCP binaries provide `--help` and `--version`.
 The CLI also provides local `auth status` and `auth logout`.

@@ -1,0 +1,227 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-17T23:22:06.544+13:00",
+  "title": "Design System: Beyond Gate documentation",
+  "extensions": {
+    "colorMeta": {
+      "action": {
+        "role": "primary",
+        "displayName": "Action Crimson",
+        "canonical": "#b51c27",
+        "tonalRamp": ["oklch(15% 0.1858 24.46)", "oklch(26% 0.1858 24.46)", "oklch(38% 0.1858 24.46)", "oklch(49% 0.1858 24.46)", "oklch(61% 0.1858 24.46)", "oklch(72% 0.1858 24.46)", "oklch(84% 0.1858 24.46)", "oklch(95% 0.1858 24.46)"]
+      },
+      "action-hover": {
+        "role": "primary",
+        "displayName": "Deep Crimson",
+        "canonical": "#97131e",
+        "tonalRamp": ["oklch(15% 0.1641 24.34)", "oklch(26% 0.1641 24.34)", "oklch(38% 0.1641 24.34)", "oklch(49% 0.1641 24.34)", "oklch(61% 0.1641 24.34)", "oklch(72% 0.1641 24.34)", "oklch(84% 0.1641 24.34)", "oklch(95% 0.1641 24.34)"]
+      },
+      "action-text": {
+        "role": "neutral",
+        "displayName": "Action White",
+        "canonical": "#ffffff",
+        "tonalRamp": ["oklch(15% 0 0)", "oklch(26% 0 0)", "oklch(38% 0 0)", "oklch(49% 0 0)", "oklch(61% 0 0)", "oklch(72% 0 0)", "oklch(84% 0 0)", "oklch(95% 0 0)"]
+      },
+      "dark-accent": {
+        "role": "primary",
+        "displayName": "Gate Ember",
+        "canonical": "#ff7778",
+        "tonalRamp": ["oklch(15% 0.1663 21.61)", "oklch(26% 0.1663 21.61)", "oklch(38% 0.1663 21.61)", "oklch(49% 0.1663 21.61)", "oklch(61% 0.1663 21.61)", "oklch(72% 0.1663 21.61)", "oklch(84% 0.1663 21.61)", "oklch(95% 0.1663 21.61)"]
+      },
+      "dark-accent-hover": {
+        "role": "primary",
+        "displayName": "Pale Ember",
+        "canonical": "#ffa0a1",
+        "tonalRamp": ["oklch(15% 0.1134 19.20)", "oklch(26% 0.1134 19.20)", "oklch(38% 0.1134 19.20)", "oklch(49% 0.1134 19.20)", "oklch(61% 0.1134 19.20)", "oklch(72% 0.1134 19.20)", "oklch(84% 0.1134 19.20)", "oklch(95% 0.1134 19.20)"]
+      },
+      "dark-bg": {
+        "role": "neutral",
+        "displayName": "Gate Charcoal",
+        "canonical": "#17191c",
+        "tonalRamp": ["oklch(15% 0.0067 258.37)", "oklch(26% 0.0067 258.37)", "oklch(38% 0.0067 258.37)", "oklch(49% 0.0067 258.37)", "oklch(61% 0.0067 258.37)", "oklch(72% 0.0067 258.37)", "oklch(84% 0.0067 258.37)", "oklch(95% 0.0067 258.37)"]
+      },
+      "dark-alt": {
+        "role": "neutral",
+        "displayName": "Deep Charcoal",
+        "canonical": "#111316",
+        "tonalRamp": ["oklch(15% 0.0069 258.37)", "oklch(26% 0.0069 258.37)", "oklch(38% 0.0069 258.37)", "oklch(49% 0.0069 258.37)", "oklch(61% 0.0069 258.37)", "oklch(72% 0.0069 258.37)", "oklch(84% 0.0069 258.37)", "oklch(95% 0.0069 258.37)"]
+      },
+      "dark-soft": {
+        "role": "neutral",
+        "displayName": "Soft Charcoal",
+        "canonical": "#202328",
+        "tonalRamp": ["oklch(15% 0.0104 260.70)", "oklch(26% 0.0104 260.70)", "oklch(38% 0.0104 260.70)", "oklch(49% 0.0104 260.70)", "oklch(61% 0.0104 260.70)", "oklch(72% 0.0104 260.70)", "oklch(84% 0.0104 260.70)", "oklch(95% 0.0104 260.70)"]
+      },
+      "dark-text": {
+        "role": "neutral",
+        "displayName": "Warm White",
+        "canonical": "#f5f3f0",
+        "tonalRamp": ["oklch(15% 0.0045 78.30)", "oklch(26% 0.0045 78.30)", "oklch(38% 0.0045 78.30)", "oklch(49% 0.0045 78.30)", "oklch(61% 0.0045 78.30)", "oklch(72% 0.0045 78.30)", "oklch(84% 0.0045 78.30)", "oklch(95% 0.0045 78.30)"]
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "Stone Text",
+        "canonical": "#bdbbb8",
+        "tonalRamp": ["oklch(15% 0.0048 78.29)", "oklch(26% 0.0048 78.29)", "oklch(38% 0.0048 78.29)", "oklch(49% 0.0048 78.29)", "oklch(61% 0.0048 78.29)", "oklch(72% 0.0048 78.29)", "oklch(84% 0.0048 78.29)", "oklch(95% 0.0048 78.29)"]
+      },
+      "dark-divider": {
+        "role": "neutral",
+        "displayName": "Charcoal Divider",
+        "canonical": "#3e4146",
+        "tonalRamp": ["oklch(15% 0.0094 260.72)", "oklch(26% 0.0094 260.72)", "oklch(38% 0.0094 260.72)", "oklch(49% 0.0094 260.72)", "oklch(61% 0.0094 260.72)", "oklch(72% 0.0094 260.72)", "oklch(84% 0.0094 260.72)", "oklch(95% 0.0094 260.72)"]
+      },
+      "light-bg": {
+        "role": "neutral",
+        "displayName": "Reading White",
+        "canonical": "#f9fafb",
+        "tonalRamp": ["oklch(15% 0.0017 247.84)", "oklch(26% 0.0017 247.84)", "oklch(38% 0.0017 247.84)", "oklch(49% 0.0017 247.84)", "oklch(61% 0.0017 247.84)", "oklch(72% 0.0017 247.84)", "oklch(84% 0.0017 247.84)", "oklch(95% 0.0017 247.84)"]
+      },
+      "light-alt": {
+        "role": "neutral",
+        "displayName": "Pale Slate",
+        "canonical": "#eceef1",
+        "tonalRamp": ["oklch(15% 0.0046 258.32)", "oklch(26% 0.0046 258.32)", "oklch(38% 0.0046 258.32)", "oklch(49% 0.0046 258.32)", "oklch(61% 0.0046 258.32)", "oklch(72% 0.0046 258.32)", "oklch(84% 0.0046 258.32)", "oklch(95% 0.0046 258.32)"]
+      },
+      "light-soft": {
+        "role": "neutral",
+        "displayName": "Soft Slate",
+        "canonical": "#eff1f4",
+        "tonalRamp": ["oklch(15% 0.0046 258.32)", "oklch(26% 0.0046 258.32)", "oklch(38% 0.0046 258.32)", "oklch(49% 0.0046 258.32)", "oklch(61% 0.0046 258.32)", "oklch(72% 0.0046 258.32)", "oklch(84% 0.0046 258.32)", "oklch(95% 0.0046 258.32)"]
+      },
+      "light-text": {
+        "role": "neutral",
+        "displayName": "Ink Text",
+        "canonical": "#262222",
+        "tonalRamp": ["oklch(15% 0.0061 17.55)", "oklch(26% 0.0061 17.55)", "oklch(38% 0.0061 17.55)", "oklch(49% 0.0061 17.55)", "oklch(61% 0.0061 17.55)", "oklch(72% 0.0061 17.55)", "oklch(84% 0.0061 17.55)", "oklch(95% 0.0061 17.55)"]
+      },
+      "light-muted": {
+        "role": "neutral",
+        "displayName": "Muted Ink",
+        "canonical": "#595150",
+        "tonalRamp": ["oklch(15% 0.0107 26.14)", "oklch(26% 0.0107 26.14)", "oklch(38% 0.0107 26.14)", "oklch(49% 0.0107 26.14)", "oklch(61% 0.0107 26.14)", "oklch(72% 0.0107 26.14)", "oklch(84% 0.0107 26.14)", "oklch(95% 0.0107 26.14)"]
+      },
+      "light-divider": {
+        "role": "neutral",
+        "displayName": "Stone Divider",
+        "canonical": "#d3cdca",
+        "tonalRamp": ["oklch(15% 0.0079 48.64)", "oklch(26% 0.0079 48.64)", "oklch(38% 0.0079 48.64)", "oklch(49% 0.0079 48.64)", "oklch(61% 0.0079 48.64)", "oklch(72% 0.0079 48.64)", "oklch(84% 0.0079 48.64)", "oklch(95% 0.0079 48.64)"]
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "Reference body",
+        "purpose": "Long reference paragraphs and list items, with a maximum line length of 74ch."
+      },
+      "body-mobile": {
+        "displayName": "Mobile reference body",
+        "purpose": "Reference text at widths up to 767px."
+      },
+      "action-label": {
+        "displayName": "Action label",
+        "purpose": "Primary action, secondary action, and overview reference links."
+      },
+      "command": {
+        "displayName": "Command sample",
+        "purpose": "Single-line credential-free help examples in the overview."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "action-hover",
+        "value": "background .18s ease-out",
+        "purpose": "Filled installation link hover. Reduced-motion mode removes transitions."
+      },
+      {
+        "name": "navigation-hover",
+        "value": "color 0.25s",
+        "purpose": "Inherited VitePress top-navigation link transition."
+      }
+    ],
+    "breakpoints": [
+      { "name": "overview-mobile-max", "value": "767px" },
+      { "name": "top-navigation-min", "value": "768px" },
+      { "name": "sidebar-min", "value": "960px" },
+      { "name": "overview-compact-max", "value": "1100px" },
+      { "name": "wide-layout-min", "value": "1440px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary installation action",
+      "kind": "button",
+      "refersTo": "action-primary",
+      "description": "Installed anchor action from DocsOverview.vue. This text-only specimen omits its decorative arrow glyph. No distinct active or disabled state exists.",
+      "html": "<a class=\"ds-action-primary\" href=\"/beyond-gate/installation\">Read installation</a>",
+      "css": ".ds-action-primary { display: inline-flex; justify-content: space-between; gap: 24px; padding: 13px 20px; font-family: var(--vp-font-family-base, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif); font-size: 15px; font-weight: 650; line-height: 24px; text-decoration: none; background: #b51c27; color: #fff; border: 1px solid #b51c27; border-radius: var(--study-radius, 2px); transition: background .18s ease-out; } .ds-action-primary:hover { background: #97131e; } .ds-action-primary:focus-visible { outline: 3px solid var(--vp-c-brand-1, #ff7778); outline-offset: 4px; border-radius: 2px; } @media (prefers-reduced-motion: reduce) { .ds-action-primary { transition: none !important; } }"
+    },
+    {
+      "name": "Secondary authentication action",
+      "kind": "button",
+      "refersTo": "action-secondary",
+      "description": "Unfilled anchor action from DocsOverview.vue, with an underline and theme-accent hover. No custom pressed or disabled variant.",
+      "html": "<a class=\"ds-action-secondary\" href=\"/beyond-gate/authentication\">Understand authentication</a>",
+      "css": ".ds-action-secondary { font-family: var(--vp-font-family-base, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif); font-size: 15px; font-weight: 650; line-height: 24px; color: var(--vp-c-text-1, #f5f3f0); text-decoration: underline; text-underline-offset: 4px; } .ds-action-secondary:hover { color: var(--vp-c-brand-1, #ff7778); } .ds-action-secondary:focus-visible { outline: 3px solid var(--vp-c-brand-1, #ff7778); outline-offset: 4px; border-radius: 2px; }"
+    },
+    {
+      "name": "Overview reference link",
+      "kind": "custom",
+      "refersTo": "text-link",
+      "description": "Theme-aware link used below interface paths. The text-only specimen omits the decorative arrow glyph.",
+      "html": "<a class=\"ds-text-link\" href=\"/beyond-gate/cli\">Open CLI reference</a>",
+      "css": ".ds-text-link { color: var(--vp-c-brand-1, #ff7778); font-family: var(--vp-font-family-base, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif); font-size: 15px; font-weight: 650; line-height: 24px; text-decoration: underline; text-underline-offset: 4px; } .ds-text-link:hover { color: var(--vp-c-brand-2, #ffa0a1); } .ds-text-link:focus-visible { outline: 3px solid var(--vp-c-brand-1, #ff7778); outline-offset: 4px; border-radius: 2px; }"
+    },
+    {
+      "name": "Credential-free command example",
+      "kind": "card",
+      "refersTo": "command-example",
+      "description": "Static command container from DocsOverview.vue, not a form, status, or interactive card. No hover, focus, selected, or validation state applies.",
+      "html": "<div class=\"ds-command-example\"><span class=\"ds-command-label\">Credential-free help</span><code class=\"ds-command-code\">beyond-gate --help</code></div>",
+      "css": ".ds-command-example { min-width: 0; padding: 16px 14px; margin-bottom: 22px; border: 1px solid var(--vp-c-divider, #3e4146); border-radius: var(--study-radius, 2px); background: var(--vp-c-bg-alt, #111316); color: var(--vp-c-text-1, #f5f3f0); font-family: var(--vp-font-family-base, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif); line-height: 24px; } .ds-command-label { display: block; margin-bottom: 8px; font-size: 12px; color: var(--vp-c-text-2, #bdbbb8); } .ds-command-code { display: block; overflow-x: auto; font-family: var(--vp-font-family-mono, Consolas, \"Liberation Mono\", monospace); font-size: 13px; white-space: nowrap; }"
+    },
+    {
+      "name": "Production top navigation",
+      "kind": "nav",
+      "refersTo": "navigation-link",
+      "description": "Desktop VitePress navigation with the installed route labels, active weight override, hover, and shared focus. This specimen does not simulate the mobile menu or local-search dialog.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Main Navigation\"><a class=\"ds-nav-link ds-nav-active\" href=\"/beyond-gate/\" aria-current=\"page\">Overview</a><a class=\"ds-nav-link\" href=\"/beyond-gate/installation\">Installation</a><a class=\"ds-nav-link\" href=\"/beyond-gate/cli\">CLI</a><a class=\"ds-nav-link\" href=\"/beyond-gate/mcp\">MCP</a><a class=\"ds-nav-link\" href=\"/beyond-gate/development\">Development</a></nav>",
+      "css": ".ds-nav { display: flex; background: var(--vp-c-bg, #17191c); font-family: var(--vp-font-family-base, \"Segoe UI\", \"Helvetica Neue\", Arial, sans-serif); } .ds-nav-link { display: flex; align-items: center; padding: 0 12px; line-height: var(--vp-nav-height, 64px); font-size: 14px; font-weight: 500; color: var(--vp-c-text-1, #f5f3f0); text-decoration: none; transition: color 0.25s; } .ds-nav-active { color: var(--vp-c-brand-1, #ff7778); font-weight: 700; } .ds-nav-link:hover { color: var(--vp-c-brand-1, #ff7778); } .ds-nav-link:focus-visible { outline: 3px solid var(--vp-c-brand-1, #ff7778); outline-offset: 4px; border-radius: 2px; } @media (prefers-reduced-motion: reduce) { .ds-nav-link { transition: none !important; } }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Gatehouse",
+    "overview": "This system covers the production documentation website only. It does not govern the native Rust CLI, terminal output, or MCP responses. Original red gate artwork and a white and red wordmark carry the fantasy identity. Quiet reading surfaces, clear links, and restrained borders support long references.\n\nGatehouse is the autonomous production default, not an explicitly approved visual direction. Dark mode opens by default; readers can select light mode. The confirmed brief asks for a fantasy feeling related to D&D Beyond without copied artwork or branding. Five working comparison studies remain separate from this system.",
+    "keyCharacteristics": [
+      "Original red, white, and black identity assets.",
+      "Dark and light reading surfaces with theme-aware link accents.",
+      "Flat sections, solid dividers, and compact control corners.",
+      "Responsive reference navigation with local search."
+    ],
+    "rules": [
+      {
+        "name": "The Mark Backing Rule",
+        "body": "Keep the white and red wordmark on its permanent charcoal backing in both modes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Flat Reading Rule",
+        "body": "Use tonal grounds and solid dividers for the custom reading sections rather than adding decorative elevation.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** use the original Beyond Gate identity assets and retain the wordmark backing.",
+      "**Do** select the dark or light semantic colors as a set.",
+      "**Do** preserve solid keyboard focus and the reduced-motion behavior.",
+      "**Do** retain readable line lengths, scrollable commands, and mobile stacking.",
+      "**Do** keep user references distinct from development navigation."
+    ],
+    "donts": [
+      "**Don't** treat comparison studies as production tokens or components.",
+      "**Don't** present the autonomous Gatehouse default as explicit visual approval.",
+      "**Don't** infer form, validation, or status variants from static command examples.",
+      "**Don't** use dashed or dotted UI outlines.",
+      "**Don't** turn the observed display-face and glyph drift into reusable rules."
+    ]
+  }
+}

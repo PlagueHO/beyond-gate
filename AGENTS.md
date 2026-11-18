@@ -52,6 +52,14 @@ pwsh -NoProfile -File .\scripts\check-docs.ps1
 The shared rumdl configuration includes root guidance, `docs`, and Markdown
 templates under `.github`. Do not replace local checks with network link checks.
 
+For the documentation website, use Node.js 24 or 26 and the pnpm version pinned
+in `docs/package.json`. These are development tools, not product runtimes.
+Install with `pnpm --dir docs install --frozen-lockfile`.
+Run `pnpm --dir docs build` and `pnpm --dir docs test`.
+Browser checks need installed Chrome or Edge, or `CHROME_PATH`.
+See [site development](docs/development.md#documentation-site) for preview commands
+and the separate five-theme comparison build. Do not publish the site as part of checks.
+
 ## Layout
 
 | Path | Responsibility |

@@ -7,6 +7,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A VitePress documentation site with the Gatehouse theme, existing Beyond Gate
+  artwork, shared reference pages, local search, and desktop/mobile navigation.
+  A numbered installation guide separates the main steps from detailed checks.
+  Five theme samples remain in a separate comparison build for later refinement.
+  The locked pnpm package, editor/app tasks, offline browser checks, build-only CI,
+  and dependency-update coverage are development-only. No publishing is configured.
 - Free GitHub build provenance for final native archives and checksum sidecars
   on version tags and default-branch manual runs, with strict verification before
   draft preparation. Paid native signing is not required. Approved manual run
