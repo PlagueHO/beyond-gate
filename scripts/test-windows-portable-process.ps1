@@ -28,9 +28,13 @@ $inputBytes = [byte[]]@(0, 10, 65, 128, 255)
 $results = @(Invoke-PortableProcess $executable $arguments $inputBytes)
 Assert-Portable ($results.Count -eq 1 -and $results[0] -is [hashtable]) 'Process capture must return exactly one result, without task objects.'
 $result = $results[0]
-Assert-Portable ($result.code -eq 7 -and $result.error -ceq 'synthetic-error' -and
-  ($result.bytes -join ',') -ceq ($inputBytes -join ',') -and
-  $result.text -ceq [Text.Encoding]::UTF8.GetString($inputBytes)) 'Process exit, binary output, text, or diagnostics changed.'
+Assert-Portable ($result.code -eq 7) "Synthetic process exit changed: $($result.code)"
+Assert-Portable ($result.error -ceq 'synthetic-error') (
+  "Synthetic process diagnostics changed (UTF-8 base64): $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($result.error)))")
+Assert-Portable (($result.bytes -join ',') -ceq ($inputBytes -join ',')) (
+  "Synthetic process binary output changed: $($result.bytes -join ',')")
+Assert-Portable ($result.text -ceq [Text.Encoding]::UTF8.GetString($inputBytes)) (
+  "Synthetic process text changed (UTF-8 base64): $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($result.text)))")
 Write-Output 'Verified Windows PowerShell process capture without stray task output.'
 if ($BinaryDirectory) {
   $installation = (Resolve-Path -LiteralPath $BinaryDirectory).Path
