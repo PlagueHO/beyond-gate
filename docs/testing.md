@@ -184,6 +184,75 @@ limit. It resumes real time before retry I/O so scheduler delays do not cause
 extra timeouts. Recovery still requires exactly two requests and the second
 response's value. Production time limits and retry counts remain unchanged.
 
+## Windows portable runtime checks
+
+The shared [Cargo configuration](../.cargo/config.toml) enables static runtime
+linking only for Windows x64 MSVC builds. Use the existing Cargo wrapper for
+debug, release, test, and documentation commands. Environment rustflag
+overrides can replace this setting; do not use them to bypass it.
+
+Run the import-policy regression checks with PowerShell 7.4 or later:
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-windows-runtime.ps1
+```
+
+On Windows, this also checks process capture under built-in Windows PowerShell
+5.1, including binary output, stderr, exit codes, and unwanted task output.
+To check the clean-guest helper's complete startup sequence locally against an
+extracted candidate, run:
+
+```powershell
+powershell.exe -NoProfile -File .\scripts\test-windows-portable-process.ps1 `
+    -BinaryDirectory <extracted-package> -Version 0.1.0
+```
+
+This local check does not claim clean-host acceptance.
+
+The package verifier checks normal and delay-loaded imports in all three
+extracted Windows executables. Its `binary.runtime` evidence case rejects
+separately distributed Visual C++ runtime DLLs and unreviewed dependencies.
+Windows system DLLs remain permitted. Other platforms mark this case
+`not_applicable`. The package rejection suite substitutes a compiled `/MD`
+fixture for each executable and checks the exact failed evidence case.
+
+The packaged native host also receives an invented, length-prefixed pairing
+preface with `consent: false`. It must return exactly one
+`consent_required` error frame. This checks binary stdin/stdout without opening
+a product endpoint, browser, native store, or account session.
+
+These are offline checks on a development or CI host, not clean-Windows proof.
+For clean-host evidence, check the exact ZIP on a clean
+supported Windows x64 desktop without the redistributable or administrator
+rights. Record the OS, runtime inventory, archive hash, CLI/MCP startup, synthetic
+protocol exchanges, and cleanup. Use a user-local extraction path with spaces.
+Do not install a runtime to convert that check into a pass. Static runtime
+security fixes require a new build and package release.
+
+On the clean guest, run the focused check as a standard user with built-in
+Windows PowerShell 5.1:
+
+```powershell
+powershell.exe -NoProfile -File .\scripts\test-windows-portable.ps1 `
+    -Archive <archive> -Checksum <checksum> -Version 0.1.0 -ReportPath <report.json>
+```
+
+The report parent must already exist and permit writes by that user.
+This script rejects administrator tokens and preinstalled Visual C++ runtimes.
+It checks installed-product records, runtime registration, and runtime files
+in both Windows system directories before and after the test.
+Reviewed legacy and .NET Framework DLL names are recorded separately only when
+the read-only Windows
+[file-protection API](https://learn.microsoft.com/en-us/windows/win32/api/sfc/nf-sfc-sfcisfileprotected)
+confirms OS protection. The names alone are not sufficient. Ordinary runtime
+DLLs such as `vcruntime140.dll` remain forbidden even if protected.
+The Windows component inventory must also remain unchanged.
+It extracts only the eight permitted package files into a unique user-local path with
+spaces. It checks CLI/MCP help and version, an MCP initialization/discovery
+exchange, one native-host refusal frame, and removal of the test installation.
+It does not register clients or browsers. Its JSON report identifies the exact
+archive hash and does not retain child output or private installation paths.
+
 ## Results and coverage
 
 For archive-based checks and separate approval gates, use the

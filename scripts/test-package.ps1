@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $caseIds = @(
-  'package.identity', 'archive.contents', 'archive.extraction', 'binary.startup',
+  'package.identity', 'archive.contents', 'archive.extraction', 'binary.runtime', 'binary.startup',
   'browser.package', 'cli.contracts', 'mcp.protocol',
   'registration.vscode', 'registration.claude-code', 'registration.copilot-cli',
   'lifecycle.path', 'lifecycle.missing-sibling', 'lifecycle.reinstall',
@@ -98,7 +98,7 @@ function Assert-Package {
 function Invoke-PackagedProcess {
   param(
     [string]$Executable, [string[]]$Arguments = @(), [string]$InputText = '',
-    [string]$SearchPath = $clients
+    [string]$SearchPath = $clients, [byte[]]$InputBytes
   )
   $start = [System.Diagnostics.ProcessStartInfo]::new($Executable)
   $start.UseShellExecute = $false
@@ -116,12 +116,18 @@ function Invoke-PackagedProcess {
   $process = [System.Diagnostics.Process]::new()
   $process.StartInfo = $start
   $started = $false
+  $binaryOutput = $null
   try {
     $started = $process.Start()
     Assert-Package $started "Cannot start $Executable."
-    $stdout = $process.StandardOutput.ReadToEndAsync()
+    $binaryOutput = [System.IO.MemoryStream]::new()
+    $stdout = if ($null -ne $InputBytes) {
+      $process.StandardOutput.BaseStream.CopyToAsync($binaryOutput)
+    } else { $process.StandardOutput.ReadToEndAsync() }
     $stderr = $process.StandardError.ReadToEndAsync()
-    $process.StandardInput.Write($InputText)
+    if ($null -ne $InputBytes) {
+      $process.StandardInput.BaseStream.Write($InputBytes, 0, $InputBytes.Length)
+    } else { $process.StandardInput.Write($InputText) }
     $process.StandardInput.Close()
     if (!$process.WaitForExit(20000)) {
       # This process and its companion are owned by this check, not by the user.
@@ -129,9 +135,14 @@ function Invoke-PackagedProcess {
       $process.WaitForExit()
       throw "Packaged process timed out: $Executable $Arguments"
     }
+    $outputText = if ($null -ne $InputBytes) {
+      $stdout.GetAwaiter().GetResult()
+      ''
+    } else { $stdout.GetAwaiter().GetResult() }
     return @{
       Code = $process.ExitCode
-      Out = $stdout.GetAwaiter().GetResult()
+      Out = $outputText
+      Bytes = $binaryOutput.ToArray()
       Err = $stderr.GetAwaiter().GetResult()
     }
   }
@@ -142,7 +153,10 @@ function Invoke-PackagedProcess {
         $process.WaitForExit()
       }
     }
-    finally { $process.Dispose() }
+    finally {
+      if ($null -ne $binaryOutput) { $binaryOutput.Dispose() }
+      $process.Dispose()
+    }
   }
 }
 
@@ -300,6 +314,20 @@ try {
   $files = @(Get-ChildItem -LiteralPath $extracted -File)
   Assert-Package ($files.Count -eq $expectedFiles.Count) 'Extracted package contents differ from the archive contract.'
   Complete-PackageCase 'archive.extraction'
+  $currentCase = 'binary.runtime'
+  if ($IsWindows) {
+    . (Join-Path $PSScriptRoot 'windows-runtime.ps1')
+    Assert-WindowsRuntime @(
+      (Join-Path $extracted 'beyond-gate.exe'),
+      (Join-Path $extracted 'beyond-gate-mcp.exe'),
+      (Join-Path $extracted 'beyond-gate-native-host.exe')
+    )
+    Complete-PackageCase $currentCase
+  } else {
+    $row = $cases | Where-Object { $_.id -ceq $currentCase }
+    $row.status = 'not_applicable'
+    $row.reason = 'windows_only'
+  }
   $currentCase = 'binary.startup'
   foreach ($name in @('beyond-gate', 'beyond-gate-mcp')) {
     $binary = Join-Path $extracted "$name$suffix"
@@ -323,6 +351,16 @@ try {
     $native = Join-Path $extracted 'beyond-gate-native-host.exe'
     $result = Invoke-PackagedProcess $native @('chrome-extension://aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/')
     Assert-Package ($result.Code -eq 1 -and $result.Out -eq '' -and $result.Err.Contains('origin_rejected')) 'Native host must refuse another extension before input or endpoint access.'
+    $preface = [System.Text.Encoding]::UTF8.GetBytes('{"protocol":"bg-browser-handoff","version":1,"type":"pair","browser":"edge","profile":"cobalt-session-v1","consent":false,"key":"synthetic-invalid"}')
+    $frame = [BitConverter]::GetBytes([uint32]$preface.Length) + $preface
+    $result = Invoke-PackagedProcess $native @('chrome-extension://gnhdconfgjfdbbgkemadegjcjnnodefh/') -InputBytes $frame
+    Assert-Package ($result.Code -eq 1 -and $result.Err -ceq "error: consent_required`n" -and $result.Bytes.Length -gt 4) 'Native host synthetic preface refusal failed.'
+    $length = [BitConverter]::ToUInt32($result.Bytes, 0)
+    Assert-Package ($result.Bytes.Length -eq $length + 4) 'Native host response must contain exactly one frame.'
+    $response = ConvertFrom-Json ([System.Text.Encoding]::UTF8.GetString($result.Bytes, 4, $length)) -AsHashtable
+    Assert-Package ($response.Count -eq 5 -and $response.protocol -ceq 'bg-browser-handoff' -and
+      $response.version -eq 1 -and $response.type -ceq 'error' -and
+      $null -eq $response.transaction -and $response.code -ceq 'consent_required') 'Native host refusal frame differs from the protocol contract.'
     $browserZip = [System.IO.Compression.ZipFile]::OpenRead((Join-Path $extracted 'beyond-gate-browser.zip'))
     $browserNames = @(
       'manifest.json', 'launch.mjs', 'flow.mjs', 'login.html', 'login.css', 'login.mjs',

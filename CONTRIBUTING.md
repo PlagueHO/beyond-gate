@@ -326,6 +326,17 @@ repository-selected environment. Every packaging Cargo command uses
 `scripts\cargo.ps1`. The developer-shell banner goes to the host stream so that
 in-process callers can parse Cargo metadata from the success stream.
 
+The shared [Cargo configuration](.cargo/config.toml) sets
+`-C target-feature=+crt-static` for `x86_64-pc-windows-msvc`. Local builds,
+CI checks, and release builds use the same setting. Other targets are unchanged.
+Do not override it with `RUSTFLAGS` or `CARGO_ENCODED_RUSTFLAGS`. Cargo environment
+overrides can replace target flags. The extracted-package check remains the
+final guard against a dynamic Visual C++ runtime dependency.
+
+Static runtime security fixes require a new build and package release.
+Contributor builds still need Visual Studio 2022 Build Tools and the Windows SDK.
+Static linking does not remove optional browser setup or MCP registration.
+
 Before upload, `scripts\test-package.ps1` verifies each checksum and exact archive
 contents, then extracts into a temporary path with spaces. It tests both packaged
 binaries with a restricted child PATH, offline errors, stdio MCP discovery, and
@@ -335,9 +346,18 @@ bad checksums, changed bytes, wrong versions/targets, missing files, empty files
 and unexpected archive members fail. These development scripts need PowerShell
 7.4 or later. Product binaries do not need PowerShell.
 
+On Windows, the verifier uses Visual Studio 2022 `dumpbin /IMPORTS` on all three
+extracted executables before startup. It rejects separate Visual C++ runtime
+DLLs in normal and delay-loaded imports. It permits reviewed Windows system
+DLLs and API sets, not arbitrary dependencies found on the development host.
+New DLL imports require review. Missing tools and failed inspections fail the
+check. The rejection suite compiles a synthetic `/MD` executable and requires
+rejection in each of the three archive positions.
+
 To check an existing Windows package locally:
 
 ```powershell
+pwsh -NoProfile -File .\scripts\test-windows-runtime.ps1
 pwsh -NoProfile -File .\scripts\test-package.ps1 `
     -Archive .\dist\beyond-gate-v0.1.0-x86_64-pc-windows-msvc.zip `
     -Checksum .\dist\beyond-gate-v0.1.0-x86_64-pc-windows-msvc.zip.sha256 `
@@ -352,6 +372,12 @@ matching `.tar.gz` archive on its native CPU. The packaging log records shared
 library dependencies with `ldd`, `otool`, or `dumpbin`. Restricted-PATH checks are
 not clean-desktop installation, real credential-store tests, or download trust
 checks.
+
+For a clean Windows desktop, use the built-in Windows PowerShell
+[portable startup check](docs/testing.md#windows-portable-runtime-checks).
+Run it as a non-administrator without the redistributable. Do not copy
+development tools or runtime DLLs into that guest. Keep this result separate
+from checks run on a development or CI host.
 
 An explicit maintainer push of a `vX.Y.Z` tag also prepares a **draft** GitHub
 release after all build and provenance jobs pass. The tag must match the workspace

@@ -122,17 +122,21 @@ Use an empty, permanent folder. Keep all files from the package together.
 
 ### Windows
 
+Current Windows x64 builds link the Visual C++ runtime statically. These packages
+do not require Visual Studio, a separate Visual C++ Redistributable, or
+administrator installation. Windows-supplied system libraries remain required.
+The [static-runtime candidate passed clean-Windows startup checks](desktop-acceptance.md#rdp-clean-windows-static-runtime-result)
+under a standard Windows 11 account without a separate redistributable.
+This does not establish a minimum supported Windows version.
+
+Earlier dynamic-runtime archives still require Microsoft's
+[supported x64 Visual C++ Redistributable](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
+The new evidence applies to the identified static-runtime candidate, not those
+earlier downloads. Do not download individual DLLs from other sites.
+Portable packaging does not remove optional browser setup or MCP registration.
+
 1. Open PowerShell.
-2. Install the Microsoft Visual C++ x64 runtime:
-
-   ```powershell
-   winget install --id Microsoft.VCRedist.2015+.x64 --exact --source winget --interactive
-   ```
-
-   If WinGet is not available, use Microsoft's
-   [x64 runtime installer](https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170).
-   Do not download individual DLLs from other websites.
-3. In your download folder, extract the verified archive:
+2. In your download folder, extract the verified archive:
 
    ```powershell
    $archive = 'beyond-gate-vVERSION-x86_64-pc-windows-msvc.zip'
@@ -140,7 +144,7 @@ Use an empty, permanent folder. Keep all files from the package together.
    Expand-Archive -LiteralPath $archive -DestinationPath $destination
    ```
 
-4. Make the commands available in this PowerShell window:
+3. Make the commands available in this PowerShell window:
 
    ```powershell
    $env:PATH = "$destination;$env:PATH"
