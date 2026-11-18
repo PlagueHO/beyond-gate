@@ -22,10 +22,11 @@ foreach ($name in @('Assert-Portable', 'Invoke-PortableProcess', 'Assert-Portabl
   . ([scriptblock]::Create($definition[0].Extent.Text))
 }
 $installation = Join-Path (Split-Path $PSScriptRoot -Parent) "target\portable process $([guid]::NewGuid().ToString('N'))"
+$inputEncoding = [Console]::InputEncoding
 try {
   New-Item -ItemType Directory -Path $installation | Out-Null
-  # Windows PowerShell can add a UTF-8 BOM before its command runs on UTF-8 system locales.
-  # Compile a raw-stream child with the .NET Framework compiler already required by that shell.
+  # Keep the child independent of shell encoding so only the capture helper can add bytes.
+  # The compiler is part of the built-in .NET Framework used by Windows PowerShell.
   $source = Join-Path $installation 'capture.cs'
   $executable = Join-Path $installation 'capture.exe'
   [IO.File]::WriteAllText($source, @'
@@ -44,23 +45,30 @@ public static class CaptureFixture {
   $compiler = Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319\csc.exe'
   & $compiler /nologo /target:exe "/out:$executable" $source
   if ($LASTEXITCODE -ne 0) { throw 'Cannot build the raw-stream process fixture.' }
-  foreach ($inputBytes in @(
-    [byte[]]@(0, 10, 65, 128, 255),
-    [byte[]]@(239, 187, 191, 0, 10, 65, 128, 255)
-  )) {
-    $results = @(Invoke-PortableProcess $executable '' $inputBytes)
-    Assert-Portable ($results.Count -eq 1 -and $results[0] -is [hashtable]) 'Process capture must return exactly one result, without task objects.'
-    $result = $results[0]
-    Assert-Portable ($result.code -eq 7) "Synthetic process exit changed: $($result.code)"
-    Assert-Portable ($result.error -ceq 'synthetic-error') (
-      "Synthetic process diagnostics changed (UTF-8 base64): $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($result.error)))")
-    Assert-Portable (($result.bytes -join ',') -ceq ($inputBytes -join ',')) (
-      "Synthetic process binary output changed: $($result.bytes -join ',')")
-    Assert-Portable ($result.text -ceq [Text.Encoding]::UTF8.GetString($inputBytes)) (
-      "Synthetic process text changed (UTF-8 base64): $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($result.text)))")
+  foreach ($withBom in @($false, $true)) {
+    [Console]::InputEncoding = New-Object Text.UTF8Encoding($withBom)
+    $expectedPreamble = [Console]::InputEncoding.GetPreamble() -join ','
+    foreach ($inputBytes in @(
+      [byte[]]@(0, 10, 65, 128, 255),
+      [byte[]]@(239, 187, 191, 0, 10, 65, 128, 255)
+    )) {
+      $results = @(Invoke-PortableProcess $executable '' $inputBytes)
+      Assert-Portable ($results.Count -eq 1 -and $results[0] -is [hashtable]) 'Process capture must return exactly one result, without task objects.'
+      $result = $results[0]
+      Assert-Portable ($result.code -eq 7) "Synthetic process exit changed: $($result.code)"
+      Assert-Portable ($result.error -ceq 'synthetic-error') (
+        "Synthetic process diagnostics changed (UTF-8 base64): $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($result.error)))")
+      Assert-Portable (($result.bytes -join ',') -ceq ($inputBytes -join ',')) (
+        "Synthetic process binary output changed: $($result.bytes -join ',')")
+      Assert-Portable ($result.text -ceq [Text.Encoding]::UTF8.GetString($inputBytes)) (
+        "Synthetic process text changed (UTF-8 base64): $([Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($result.text)))")
+      Assert-Portable ([Console]::InputEncoding.CodePage -eq 65001 -and
+        ([Console]::InputEncoding.GetPreamble() -join ',') -ceq $expectedPreamble) 'Process capture changed the parent console input encoding.'
+    }
   }
 }
 finally {
+  [Console]::InputEncoding = $inputEncoding
   if (Test-Path -LiteralPath $installation) { Remove-Item -LiteralPath $installation -Recurse -Force }
 }
 Write-Output 'Verified Windows PowerShell process capture without stray task output.'

@@ -115,7 +115,14 @@ function Invoke-PortableProcess {
   $output = New-Object System.IO.MemoryStream
   $started = $false
   try {
-    $started = $process.Start()
+    # .NET Framework creates and flushes its stdin writer during Start, before raw writes.
+    # A BOM-bearing console encoding would otherwise prepend bytes to protocol frames.
+    $inputEncoding = [Console]::InputEncoding
+    try {
+      [Console]::InputEncoding = New-Object Text.UTF8Encoding($false)
+      $started = $process.Start()
+    }
+    finally { [Console]::InputEncoding = $inputEncoding }
     Assert-Portable $started 'Product process did not start.'
     $stdout = $process.StandardOutput.BaseStream.CopyToAsync($output)
     $stderr = $process.StandardError.ReadToEndAsync()

@@ -578,10 +578,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- Windows process-capture regression checks use a raw-stream child instead of
-  Windows PowerShell, which can add a UTF-8 byte order mark on CI hosts.
-  Exact byte checks cover input both with and without that mark. Product process
-  capture and package checks remain unchanged.
+- Clean-Windows process capture prevents .NET Framework from adding a UTF-8 byte
+  order mark to redirected stdin on UTF-8 hosts. It restores the parent input
+  encoding after process creation. A raw-stream child checks both parent encoding
+  modes and payloads with and without the mark. Product binaries and package
+  checks remain unchanged.
 - Hidden CLI input now uses Ctrl+D to submit on every platform. Enter and pasted
   line breaks invalidate the input without submitting or restoring echo.
   Split-read multiline paste checks cover hidden rejection and zero exchanges.
