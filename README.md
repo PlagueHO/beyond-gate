@@ -12,9 +12,9 @@ Read the [documentation overview](docs/index.md), [installation guide](docs/inst
 [CLI reference](docs/cli.md), and [MCP reference](docs/mcp.md).
 For the local documentation website and five theme samples, see
 [documentation development](docs/development.md#documentation-site).
-The [configured Pages address](https://danielscottraynsford.com/beyond-gate/)
-is not yet verified after deployment.
-See [deployment status and manual runs](docs/development.md#pages-validation-and-deployment).
+Read the published [documentation website](https://danielscottraynsford.com/beyond-gate/).
+See [deployment and manual runs](docs/development.md#pages-validation-and-deployment)
+for verified deployment evidence and recovery steps.
 
 **Status: Windows login, Web-library discovery, bounded book reads, and synthetic-tested species reads.**
 The CLI and MCP binaries provide `--help` and `--version`.
