@@ -93,3 +93,5 @@ if ($IsWindows) {
   }
 }
 Write-Output 'Verified normal/delay runtime import rejection, system imports, and inspection failures.'
+# Expected dumpbin failures must not become the Actions shell's final native exit code.
+exit 0
