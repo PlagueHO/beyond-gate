@@ -120,7 +120,7 @@ The production interactive CLI, live validation, native save, restart/status,
 logout, and owned cleanup passed in the separate approved local scope.
 
 The user accepted
-[native registration as trusted installed configuration](authentication.md#browser-login-window).
+[native registration as trusted installed configuration](authentication-design.md#browser-login-window).
 The browser passes its pairing key to the selected native host. The flow does
 not protect against a change that substitutes another host through registry
 entries, manifests, or launch mapping. Windows setup commands now check conflicts
@@ -132,7 +132,7 @@ mapping removal share one transaction. See the
 
 The [approved Windows product checks](testing.md#approved-windows-product-login-verification)
 record real Chrome and Edge Dev login, protected save, and cleanup.
-The [earlier feasibility evidence](authentication.md#extension-feasibility-evaluation)
+The [earlier feasibility evidence](authentication-design.md#extension-feasibility-evaluation)
 remains separate from that product result.
 
 | Work | Owner | Current boundary |
@@ -643,7 +643,7 @@ invalid lengths, trailing data, and invalid cookie syntax. It does not migrate
 old opaque entries, truncate values, split entries, or use files.
 Local status remains `stored-unverified`; creation-time validation is not a
 permanent access grant. The
-[shared lifecycle](authentication.md#session-lifecycle) now loads this same
+[shared lifecycle](authentication-design.md#session-lifecycle) now loads this same
 envelope, makes fresh checks, and manages bounded process-local bearer reuse.
 
 CLI login success requires `SavedSession`; a handoff receipt or

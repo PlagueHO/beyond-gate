@@ -273,7 +273,7 @@ Live login, account reads, and credential access still need separate explicit
 approval. Define the selected hosts, operations, request budget, stop conditions,
 and cleanup before a live test. Stop after an access denial; do not bypass it.
 
-The [session-exchange probe](docs/authentication.md#opt-in-session-exchange-probe)
+The [session-exchange probe](docs/authentication-design.md#opt-in-session-exchange-probe)
 is an ignored developer test, not product login. Its ordinary tests use synthetic
 data and local mocks. Run its live case only from an unrecorded interactive
 terminal with separate explicit test approval. Never pass a cookie through agent tools,

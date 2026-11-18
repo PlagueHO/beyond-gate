@@ -23,7 +23,7 @@ for observed access code 1. Code 4 is denied; unverified codes, including 2 and
 3, are unsupported. Browser route probes passed; native acceptance has not run.
 
 See [native installation](installation.md) for binary setup and
-[authentication](authentication.md#local-session-commands) for protected storage
+[authentication design](authentication-design.md#local-session-commands) for protected storage
 requirements. See the [MCP reference](mcp.md) for matching tools and stdio usage.
 
 ## Syntax, help, and version
@@ -673,7 +673,7 @@ saved: Beyond Gate session; validation=service_validated; expiry=unknown.
 
 The native executable is `beyond-gate-native-host.exe`.
 Install it and the manual browser package through the
-[explicit setup procedure](installation.md).
+[explicit setup procedure](authentication.md#use-the-browser-extension).
 The command does not open a website or install components automatically.
 Approved real Chrome and Edge Dev login, protected save, restart/status, and
 logout checks passed. Browser versions and remaining limits are in the
@@ -727,7 +727,7 @@ A moved installation requires removal with its old directory before registration
 of the new one.
 
 Registry entries, manifests, and launch mapping are
-[trusted installed configuration](authentication.md#browser-login-window).
+[trusted installed configuration](authentication-design.md#browser-login-window).
 Setup does not read cookies, make account requests, or access the credential
 store. Neither setup nor a preview proves successful browser login.
 macOS and Linux setup fail explicitly before filesystem or registry access.
@@ -774,7 +774,7 @@ Errors use safe shared categories on stderr with exit code 1 and no result on
 stdout. Missing or rejected sessions require new user-controlled input.
 Ctrl+C cancels pending validation. macOS retains `unsupported_platform`
 for production reads before credential or service access.
-See [lifecycle bounds and failures](authentication.md#session-lifecycle).
+See [lifecycle bounds and failures](authentication-design.md#session-lifecycle).
 
 ### auth logout
 
@@ -803,7 +803,7 @@ This command can trigger an OS access or unlock dialog.
 
 Saved-entry status/logout use Windows Credential Manager, macOS login Keychain, or Linux
 Secret Service. No plaintext fallback exists. See
-[protected-store selection and recovery](authentication.md#protected-store-selection-and-recovery)
+[protected-store selection and recovery](authentication-design.md#protected-store-selection-and-recovery)
 for the fixed entry identity, backend requirements, and failure recovery.
 
 ## Resource commands

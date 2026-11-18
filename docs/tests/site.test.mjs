@@ -68,7 +68,7 @@ after(async () => {
 test('overview and long references render below the deployment subpath', async () => {
   for (const width of [1440, 390]) {
     await page.setViewport({ width, height: 1000 })
-    for (const route of ['', 'installation.html', 'cli.html', 'mcp.html']) {
+    for (const route of ['', 'installation.html', 'authentication.html', 'cli.html', 'mcp.html']) {
       await page.goto(`${base}${route}`, { waitUntil: 'networkidle0' })
       assert.equal(await page.$eval('h1', heading => Boolean(heading.textContent.trim())), true)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${route} overflows at ${width}px`)
@@ -88,6 +88,19 @@ test('overview and long references render below the deployment subpath', async (
       }
     }
   }
+})
+
+test('authentication setup stays separate from development design', async () => {
+  await page.setViewport({ width: 1440, height: 1000 })
+  await page.goto(`${base}authentication.html`, { waitUntil: 'networkidle0' })
+  const guideGroup = await page.$eval('.VPSidebar a[href$="/authentication.html"]', link => link.closest('.group').textContent)
+  assert.match(guideGroup, /Start here/)
+  assert.doesNotMatch(guideGroup, /Authentication design/)
+  const designGroup = await page.$eval('.VPSidebar a[href$="/authentication-design.html"]', link => link.closest('.group').textContent)
+  assert.match(designGroup, /Development/)
+  await page.click('.VPSidebar a[href$="/authentication-design.html"]')
+  await page.waitForFunction(() => document.querySelector('.vp-doc h1')?.textContent.includes('Authentication design'))
+  assert.equal(new URL(page.url()).pathname, '/beyond-gate/authentication-design.html')
 })
 
 test('all generated internal page links and fragments resolve', async () => {

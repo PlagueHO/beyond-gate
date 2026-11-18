@@ -68,7 +68,7 @@ visual approval. The samples remain available for further discussion and refinem
 ## Design and source contracts
 
 - Read [Architecture](architecture.md) for shared core and adapter boundaries.
-- Read [Authentication](authentication.md) for session selection and platform limits.
+- Read [Authentication design](authentication-design.md) for session selection and platform limits.
 - Read [Browser login contracts](browser-handoff.md) for the human-controlled handoff.
 - Read [Testing](testing.md) for offline tests and separately approved live checks.
 - Read the [Roadmap](roadmap.md) for current priorities and development policy.

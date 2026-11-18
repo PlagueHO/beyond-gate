@@ -32,7 +32,7 @@ empty success results. Success shapes are offline-tested adapter contracts, not
 evidence of successful live access.
 
 See [native installation](installation.md) for setup and
-[authentication limits](authentication.md#local-session-commands) for
+[Authentication](authentication.md) for
 human-controlled Windows browser login and protected local session commands.
 The server does not provide
 a separate login or account-selection mechanism.
@@ -63,7 +63,7 @@ empty value. Invalid or rejected input fails without fallback. The server snapsh
 its selected source once. Validation occurs only when an authenticated call needs
 it, not at discovery. Neither startup path prompts, accepts credentials in tool
 arguments, or opens a browser. See the
-[agreed authentication follow-up](authentication.md#agreed-authentication-follow-up).
+[agreed authentication follow-up](authentication-design.md#agreed-authentication-follow-up).
 
 Portable Copilot client settings can reference an environment value without
 embedding it:
@@ -507,7 +507,7 @@ The core serializes validation and limits each operation to one exchange.
 It never retries the same rejected material automatically.
 MCP cancellation drops pending validation; rmcp can omit the cancelled response.
 The server remains available for subsequent requests.
-See [lifecycle limits and logout behavior](authentication.md#session-lifecycle).
+See [lifecycle limits and logout behavior](authentication-design.md#session-lifecycle).
 
 ### character_list
 

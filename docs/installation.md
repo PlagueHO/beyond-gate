@@ -196,8 +196,7 @@ Do not use an account read or `auth login` as an installation check.
 
 **Installation is complete.** Use the [CLI reference](cli.md) for terminal
 commands, or continue below to connect an MCP client.
-See [authentication](authentication.md#agreed-authentication-follow-up) when
-you are ready to supply a session.
+See [Authentication](authentication.md) to sign in or use a supplied session.
 
 ## 5. Connect an MCP client (optional)
 
@@ -237,27 +236,6 @@ for requirements, settings locations, and available tools.
 ## Additional setup details
 
 Open these sections only when you need them.
-
-<details>
-<summary>Windows browser-assisted sign-in</summary>
-
-Browser setup is optional. It is separate from installing and checking the tools.
-
-1. Keep `beyond-gate-native-host.exe` beside the CLI in the permanent installation folder.
-2. Extract `beyond-gate-browser.zip` into a `beyond-gate-browser-extension` subfolder.
-3. Open `chrome://extensions` or `edge://extensions` and enable Developer mode.
-4. Load that unpacked extension folder.
-5. Check that its ID is `gnhdconfgjfdbbgkemadegjcjnnodefh`. Stop if it differs.
-6. Follow the [browser setup commands](cli.md#auth-install-and-auth-uninstall)
-   to preview and confirm native-host registration.
-7. Follow the [interactive login steps](cli.md#auth-login).
-
-Do not register a temporary source worktree or build folder.
-No browser-store package is published.
-Login needs human pairing and consent. It can read a browser cookie, contact
-D&D Beyond, and replace the saved session. It is not an account-free test.
-
-</details>
 
 <details>
 <summary>Package contents, moving, and removal</summary>
@@ -314,7 +292,7 @@ macOS production reads remain gated.
 
 An OS prompt or store error is not proof that no saved session exists.
 Windows and Linux process-only authentication does not require a native store.
-See [session input choices](authentication.md#agreed-authentication-follow-up).
+See [session input choices](authentication-design.md#agreed-authentication-follow-up).
 Real account and credential-store tests need separate explicit approval.
 
 </details>

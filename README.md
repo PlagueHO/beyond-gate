@@ -1,5 +1,7 @@
 # Beyond Gate
 
+![Beyond Gate logo](assets/beyond-gate-logo.png)
+
 [![CI](https://github.com/PlagueHO/beyond-gate/actions/workflows/ci.yml/badge.svg)](https://github.com/PlagueHO/beyond-gate/actions/workflows/ci.yml)
 
 Beyond Gate is a local-first Rust CLI and Model Context Protocol (MCP) server
@@ -69,11 +71,11 @@ and MCP reads. No browser, desktop, D-Bus, or Secret Service is needed for this
 path. For a hidden CLI prompt, use `beyond-gate --auth-prompt character list`.
 Use `auth import --prompt` or `auth import --env` only to request protected save.
 Invalid explicit input never falls back to saved credentials.
-See [source selection and logout](docs/authentication.md#agreed-authentication-follow-up).
+See [source selection and logout](docs/authentication-design.md#agreed-authentication-follow-up).
 Native Linux account acceptance remains unverified. macOS production reads remain
 gated; its native validation is deferred to #62.
 No account credentials or live D&D Beyond access are needed to build or test.
-An ignored [developer authentication probe](docs/authentication.md#opt-in-session-exchange-probe)
+An ignored [developer authentication probe](docs/authentication-design.md#opt-in-session-exchange-probe)
 can test a manually supplied session separately. The user reported one successful
 exchange on 2026-10-27. It is not product login and does not verify data reads.
 
@@ -211,9 +213,11 @@ are implemented. Both browsers passed synthetic native/core completion checks.
 Approved real Chrome and Edge Dev login, protected save, restart/status, and
 logout checks passed. See the [tested scope and limits](docs/testing.md#approved-windows-product-login-verification).
 Other platforms report unsupported login.
-There is no product credential import command. See the
+To use a supplied `CobaltSession` value, see [Authentication](docs/authentication.md).
+See the
 [CLI authentication reference](docs/cli.md#authentication-commands) for syntax,
-results, and errors, and the [authentication guide](docs/authentication.md#local-session-commands)
+results, and errors, and the
+[authentication design](docs/authentication-design.md#protected-store-selection-and-recovery)
 for protected-store requirements and recovery.
 
 ## Structure
@@ -299,7 +303,7 @@ input schemas, output envelopes, errors, and CLI mappings.
 Do not put credentials in CLI arguments, tool inputs, or client settings.
 
 See the [roadmap](docs/roadmap.md), [architecture](docs/architecture.md), and
-[authentication design](docs/authentication.md). See [AGENTS.md](AGENTS.md) for
+[authentication design](docs/authentication-design.md). See [AGENTS.md](AGENTS.md) for
 agent operations and [.github/copilot-instructions.md](.github/copilot-instructions.md)
 for Rust authoring rules.
 Use the [shared API call catalog](docs/api-catalog.md) to plan resource work.
