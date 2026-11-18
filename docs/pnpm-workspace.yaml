@@ -1,0 +1,7 @@
+allowBuilds:
+  esbuild: true
+
+# Stable VitePress still requests Vite 5, which no longer receives security fixes.
+# Its Vue plugin supports Vite 6. Keep the override until stable VitePress moves on.
+overrides:
+  vitepress>vite: 6.4.6

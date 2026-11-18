@@ -6,6 +6,18 @@ instructions: |
   Separate shell calls do not retain the developer environment.
 
 scripts:
+  - name: Documentation dev
+    command: pnpm --dir docs dev
+  - name: Build documentation site
+    command: pnpm --dir docs build
+  - name: Test documentation site
+    command: pnpm --dir docs test
+  - name: Preview documentation site
+    command: pnpm --dir docs preview
+  - name: Build documentation themes
+    command: pnpm --dir docs build:themes
+  - name: Preview documentation themes
+    command: pnpm --dir docs preview:themes
   - name: Run CLI help
     command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) run --locked -p beyond-gate-cli '--' --help"
   - name: Run MCP help

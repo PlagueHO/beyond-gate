@@ -120,6 +120,9 @@ Select **Terminal: Run Task** from the Command Palette, then choose a task.
 **Validate workspace** runs all checks in sequence, including the release build,
 focused process tests, both help commands, Markdown, and offline links.
 It also tests the documentation checker's failure cases.
+**Validate documentation site** builds the website and runs its browser checks.
+Install the documentation development dependencies before selecting that task.
+The existing **Validate workspace** task does not require Node.js.
 It stops when a prerequisite fails. **Apply formatting** changes Rust files;
 it is not part of validation.
 
@@ -212,10 +215,21 @@ The checker tests use temporary synthetic files in a path with spaces. They
 verify that style errors, broken files/anchors, wrong versions, and missing tools
 fail. They also verify `.github` coverage and build-output exclusion.
 
+### Documentation website
+
+The VitePress site uses the locked pnpm package in `docs`.
+See [documentation development](docs/development.md#documentation-site) for Node.js,
+pnpm, browser prerequisites, and dev/build/preview commands.
+The named documentation tasks in VS Code and Copilot App use these commands.
+Development and preview servers are manual tasks. They are not aggregate checks.
+Node.js and pnpm are not requirements for the native binaries or Rust-only checks.
+Documentation CI builds and checks the site. It does not publish it.
+
 ### Dependency maintenance
 
 [Dependabot](.github/dependabot.yml) follows `dependabot-monthly-v1` for the root
-Cargo workspace and GitHub Actions. Routine checks run on the first day of each
+Cargo workspace, the `/docs` pnpm package, and GitHub Actions.
+Routine checks run on the first day of each
 month at 09:00 `Pacific/Auckland`. Routine releases have a three-day cooldown.
 Each ecosystem allows five open routine update PRs.
 
@@ -227,7 +241,9 @@ not change that setting. See the [Dependabot options reference](https://docs.git
 
 For a routine update outside the schedule, select **Check for updates** in the
 repository's Dependabot interface. The routine cooldown and PR limit still
-apply. Review release notes, compatibility, manifest changes, and `Cargo.lock`.
+apply. Review release notes, compatibility, manifest changes, `Cargo.lock`, and
+`docs/pnpm-lock.yaml`. The docs package has a narrow Vite override for stable
+VitePress. Check whether each VitePress update can remove it.
 Keep action references pinned to full commit SHAs. Run the relevant workspace,
 process, documentation, and packaging checks. No automatic approval or merging
 is configured. No dependency labels are added.

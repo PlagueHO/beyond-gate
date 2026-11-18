@@ -1,6 +1,26 @@
 # dependabot-monthly-v1: Routine updates are monthly; security updates are event-driven.
 version: 2
 updates:
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: monthly
+      time: "09:00"
+      timezone: Pacific/Auckland
+    cooldown:
+      default-days: 3
+    open-pull-requests-limit: 5
+    labels: []
+    commit-message:
+      prefix: deps
+    groups:
+      docs-minor-and-patch:
+        applies-to: version-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
+      docs-security:
+        applies-to: security-updates
+        patterns: ["*"]
   - package-ecosystem: cargo
     directory: /
     schedule:
