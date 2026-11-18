@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/release.yml"
+      - ".cargo/**"
       - "scripts/**"
       - "src/**"
       - "beyond-gate-browser-extension/**"
@@ -69,6 +70,8 @@ jobs:
             if ($LASTEXITCODE -notin @(0, 3010)) { throw "Visual Studio 2022 Build Tools installation failed." }
           }
           exit 0
+      - name: Check Windows runtime import policy
+        run: ./scripts/test-windows-runtime.ps1
       - name: Check package version and tag
         id: package
         env:

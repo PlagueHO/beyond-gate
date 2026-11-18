@@ -80,7 +80,7 @@ function Assert-TestReport {
     throw 'Package report has an invalid scope or result.'
   }
   $expectedIds = @(
-    'package.identity', 'archive.contents', 'archive.extraction', 'binary.startup',
+    'package.identity', 'archive.contents', 'archive.extraction', 'binary.runtime', 'binary.startup',
     'browser.package', 'cli.contracts', 'mcp.protocol',
     'registration.vscode', 'registration.claude-code', 'registration.copilot-cli',
     'lifecycle.path', 'lifecycle.missing-sibling', 'lifecycle.reinstall',
@@ -333,6 +333,23 @@ try {
   Assert-RejectedPackage $testArchive 'Package files must not be empty' $Version $Target 'archive.contents'
   [System.IO.File]::WriteAllText($guide, $guideText)
   if ($IsWindows) {
+    . (Join-Path $PSScriptRoot 'windows-runtime.ps1')
+    $null = Initialize-WindowsRuntimeTools
+    $source = Join-Path $temporary 'dynamic-runtime.c'
+    $dynamic = Join-Path $temporary 'dynamic-runtime.exe'
+    [IO.File]::WriteAllText($source, "#include <stdio.h>`nint main(void) { puts(`"synthetic runtime fixture`"); return 0; }`n")
+    & cl /nologo /MD $source "/Fe:$dynamic" "/Fo:$(Join-Path $temporary 'dynamic-runtime.obj')" /link /INCREMENTAL:NO
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot build the dynamic runtime rejection fixture.' }
+    foreach ($name in @('beyond-gate.exe', 'beyond-gate-mcp.exe', 'beyond-gate-native-host.exe')) {
+      $binary = Join-Path $contents $name
+      $original = [IO.File]::ReadAllBytes($binary)
+      try {
+        Copy-Item -LiteralPath $dynamic -Destination $binary -Force
+        Write-TestArchive $contents
+        Assert-RejectedPackage $testArchive 'Forbidden Visual C++ runtime import:' $Version $Target 'binary.runtime'
+      }
+      finally { [IO.File]::WriteAllBytes($binary, $original) }
+    }
     $browserArchive = Join-Path $contents 'beyond-gate-browser.zip'
     $browserBytes = [System.IO.File]::ReadAllBytes($browserArchive)
     $zip = [System.IO.Compression.ZipFile]::Open($browserArchive, [System.IO.Compression.ZipArchiveMode]::Update)

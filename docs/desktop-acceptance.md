@@ -100,6 +100,10 @@ The verifier checks exact archive membership before extraction. It checks both
 binaries, native MCP startup/discovery/shutdown, safe input errors, and synthetic
 client registration. Windows also checks the native-host origin refusal and
 browser package identity, version, permissions, and bounded members.
+Windows import inspection checks all three extracted executables for separate
+Visual C++ runtime DLLs before startup. A synthetic native-host pairing preface
+must also return exactly one length-prefixed `consent_required` error frame.
+Neither check uses a real browser, product endpoint, credential, or account.
 The extension version must equal the package version. Matching version numbers
 do not prove protocol compatibility.
 
@@ -712,6 +716,143 @@ emergency cleanup. A separate query confirmed that the VM resource group and
 protected local access files were absent. The deletion guard stopped after that
 check. Azure charges were not measured.
 
+### Static-runtime Windows package follow-up
+
+On 2026-11-18, local Windows x64 debug and release builds used the shared
+`-C target-feature=+crt-static` Cargo configuration. This candidate used
+uncommitted source changes based on commit
+`36a257c8675318805ceb8c13d74e69b1b46da295`. It is not an attested release.
+
+The locally assembled `0.1.0` Windows ZIP retained the existing eight-file
+layout and packaged browser extension. Its SHA-256 was
+`0cff9d18137ddfef5346ecc27dabf004fcbd5db8777220b386228987bf5336b3`.
+The archive, sidecar, offline report, and rejection log were retained under
+`target\portable-package-check`. The report has no supplied source identity.
+This ZIP contains the installation-guide draft from its assembly step.
+Permission to replace it with the final guide clarification and recheck the
+archive was denied. The retained ZIP is tested evidence, not a final package
+for distribution.
+
+| Command | Result |
+|---------|--------|
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 build --workspace --locked` | Passed |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 build --release --workspace --locked` | Passed |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 fmt --all -- --check` | Passed |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 clippy --workspace --all-targets --locked -- -D warnings` | Passed |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 test --workspace --locked` | Passed |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 test --workspace --doc --locked` | Passed |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 doc --workspace --no-deps --document-private-items --locked` | Passed |
+| `pwsh -NoProfile -File .\scripts\test-windows-runtime.ps1` | Passed, including normal/delay import classification and failed inspections |
+| `pwsh -NoProfile -File .\scripts\test-package.ps1 -Archive <archive> -Checksum <checksum> -Version 0.1.0 -Target x86_64-pc-windows-msvc -ReportPath <report>` | Passed; all 17 offline groups passed and all 11 manual groups remained blocked |
+| `pwsh -NoProfile -File .\scripts\test-package-failures.ps1 -Archive <archive> -Version 0.1.0 -Target x86_64-pc-windows-msvc` | Passed, including a compiled dynamic-runtime fixture in each executable position |
+| `npm test --prefix .\scripts\browser-tests` | Passed after restoring the missing development dependency; 65 passed, one skipped |
+| `pwsh -NoProfile -File .\scripts\check-docs.ps1` | Blocked: pinned `rumdl` was missing and permission to install it was denied |
+
+Debug and extracted release imports for all three executables contained only
+permitted Windows system libraries. Neither inspection found a separate Visual
+C++ runtime DLL. The native-host framed refusal and the CLI/MCP package checks
+passed without account or credential access.
+
+This was a development host, not a clean desktop without the redistributable.
+At this point, clean-Windows verification remained blocked until the user
+supplied a suitable VM or Windows Sandbox with a non-administrator test account.
+The separate runtime installation step remained in the installation guide.
+No minimum OS, real browser acceptance, or Linux/macOS result was established
+by this development-host check.
+Historical dynamic-runtime results above remain unchanged.
+
+### Approved static-runtime test continuation
+
+Later on 2026-11-18, the user approved installation of pinned `rumdl 0.3.2`
+and a refresh of the local test ZIP. Markdown style and offline file/anchor
+checks passed with `pwsh -NoProfile -File .\scripts\check-docs.ps1`.
+The refreshed ZIP SHA-256 was
+`35ff5431d4c9533fd66d451d53da85ea4cf1fc03f27bb631945eeb7951d9ef5c`.
+Its 17 offline package groups and the package rejection suite passed again.
+This supersedes the earlier installation and ZIP-refresh blockers, not the
+historical candidate hash.
+
+The user also approved a short-lived Windows 11 Enterprise 25H2 x64 Azure VM
+with a total test budget below USD 5 and confirmed eligible dev/test licensing.
+The first attempt stopped during private artifact download with
+`AuthorizationPermissionMismatch`. No product check, standard-user task,
+credential operation, or D&D Beyond request ran. The assigned role was
+Storage Blob Data Reader; permission propagation was a possible cause, not a
+verified diagnosis. Deletion of the complete test resource group was verified.
+Its resource lifetime was 11.47 minutes. Actual Azure charges were not available.
+
+The user approved one further attempt with the same private read-only scope.
+Storage and its role assignment were deployed first. A ten-minute propagation
+wait completed before VM creation. Private artifact download again returned
+`AuthorizationPermissionMismatch`, before any product check or standard-user
+task started. The wait did not resolve the failure. No further transfer attempt
+or permission change was made.
+Deletion of the second complete test resource group was verified. Its resource
+lifetime was 22.49 minutes, including the propagation wait. The two recorded
+lifetimes total 33.96 resource-group minutes, not VM billing minutes. Actual
+charges were not available.
+
+At this point, the clean-guest helper, `scripts/test-windows-portable.ps1`, had
+passed Windows PowerShell 5.1 syntax checks only. These two attempts did not
+establish clean-Windows startup or a new minimum supported OS.
+
+### RDP clean-Windows static-runtime result
+
+Later on 2026-11-18, the user approved another attempt through interactive RDP.
+The user had resolved a Defender for Cloud alert associated with the first
+Run Command attempt and prohibited further Run Command use. This attempt used
+normal VM provisioning and user-controlled RDP sign-in, not Run Command, guest
+extensions, or Blob downloads. RDP was restricted to the approved source IPv4.
+Only a staged test folder was redirected, not a complete host drive.
+
+The candidate was the unchanged Windows x64 ZIP with SHA-256
+`35ff5431d4c9533fd66d451d53da85ea4cf1fc03f27bb631945eeb7951d9ef5c`.
+The guest was Windows 11 Enterprise 25H2 x64, reporting `10.0.26200.0`, with
+built-in Windows PowerShell `5.1.26100.9818`. The initial administrator-token
+check was rejected before product execution. The user then created and used
+a temporary standard account without administrator membership.
+
+Three helper defects were corrected before the final pass. Filename-only
+inventory had counted protected legacy Windows and .NET Framework components
+as separate runtimes. The corrected check requires both a reviewed filename
+and confirmation from the read-only Windows file-protection API. Ordinary
+runtime DLLs and unprotected or unknown names remain forbidden.
+PowerShell 5.1 also exposed unwanted asynchronous task output, and the MCP
+check supplied an unsupported `--stdio` option. The output is now suppressed,
+and MCP starts without that option. Focused regressions passed. The complete
+startup sequence also passed locally under PowerShell 5.1 against the same ZIP
+before the final guest run. The binaries did not change.
+
+The user ran `powershell.exe -NoProfile -File .\start-check.ps1` in the
+standard account and returned the helper's JSON report through the isolated
+redirected folder. The report recorded all seven cases as passed:
+
+| Case | Result |
+|------|--------|
+| `baseline.clean-standard-user` | Non-administrator x64 token; no redistributable product, registration, or separate runtime DLL |
+| `archive.checksum-and-user-local-extraction` | Exact candidate hash and eight-file layout; extracted below the user profile into a path with spaces |
+| `beyond-gate.startup` | Help and version passed |
+| `beyond-gate-mcp.startup` | Help and version passed |
+| `mcp.initialize-and-discovery` | Initialization and tool discovery passed |
+| `native-host.framed-refusal` | Exactly one expected `consent_required` error frame |
+| `baseline.unchanged` | No separate runtime before or after; the same 21 Windows-protected component files |
+
+The helper removed its test installation and reported cleanup success.
+No runtime was installed or removed. No security control was disabled.
+The test had zero live-request budget and no product credential access.
+The safe reports, including the final `passed-result.json`, remain in the
+session artifacts.
+
+Whole-group deletion and removal of the redirected drive were independently
+verified. The now-unneeded deletion guard was stopped. Actual Azure charges
+were not available.
+
+The tested ZIP remains unchanged and contains the earlier installation-guide
+draft. The updated source guide removes the redistributable prerequisite only
+for static-runtime packages. This result is candidate-specific, not evidence
+for a changed archive, a published release, minimum OS support, real browser
+or client lifecycle, or account operations.
+
 ## Remaining acceptance matrix
 
 This matrix separates existing evidence from required work. A passed row
@@ -723,6 +864,7 @@ later desktop evidence is separate.
 | Case | Platform or client | Status | Evidence or blocker |
 |------|--------------------|--------|---------------------|
 | `package.offline` | Windows x64, Linux GNU x64, macOS ARM64 | passed | [Retained CI reports and archive hashes](#retained-ci-candidate-verification) |
+| `package.windows-portable` | Static-runtime Windows x64 ZIP | passed | [RDP clean-Windows result](#rdp-clean-windows-static-runtime-result); exact retained archive, standard account, no separate redistributable, both protocols, and unchanged baseline |
 | `desktop.startup` | Windows 11 Enterprise 25H2 x64 | passed | [Windows package results](#windows-package-startup-and-runtime) |
 | `desktop.path-lifecycle` | Windows 11 Enterprise 25H2 x64 | passed | [Windows PATH, reinstall, and relocation](#windows-package-startup-and-runtime) |
 | `desktop.startup` | Ubuntu 24.04.5 x64, XFCE | passed | [Linux desktop results](#azure-linux-desktop-baseline) |
@@ -796,10 +938,14 @@ session or an available Secret Service collection.
    or change organization policy to get a pass.
 3. Extract into an empty stable user-local path with spaces. Run help and version
    for both binaries. Check stdout, stderr, exit codes, and executable permission.
-4. On Windows, verify the x64 Visual C++ Redistributable is installed before
-   package startup. Record its version. If it is absent, record the startup
-   failure, install the supported runtime, and repeat on the same recorded
-   image. Do not install Visual Studio or individual downloaded DLLs.
+4. For a static-runtime Windows candidate, first record the absence of the
+   Visual C++ Redistributable using installed-package records and runtime-file
+   inventory. Use a standard-user account without elevation. Check CLI/MCP
+   startup and synthetic protocol exchanges, including a framed native-host
+   refusal. Do not install the runtime to convert a failure into a pass.
+   Earlier dynamic-runtime candidates require the prerequisite in their
+   installation guide; record that version separately. Never install Visual
+   Studio or individual downloaded DLLs to make a product check pass.
 5. Add only the test installation to the test account's PATH. Start a new terminal
    and run both binary names. Record current-terminal and new-terminal behavior.
 6. Reinstall the same candidate. For an upgrade, use two separately identified

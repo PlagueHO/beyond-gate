@@ -26,6 +26,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `https://danielscottraynsford.com/beyond-gate/`.
   HTTP still serves content without redirecting to HTTPS. Refresh tabs opened
   before a deployment if they reference removed, hashed JavaScript assets.
+- Windows x64 MSVC static runtime build configuration and extracted-package
+  import checks for all three executables. Package checks reject separate
+  Visual C++ runtime DLLs, including delay-loaded imports, and test a synthetic
+  native-host protocol frame. The retained static-runtime candidate passed
+  Windows 11 standard-user startup, MCP discovery, and native-host framing
+  without a separate redistributable. Remove that installation prerequisite
+  for static-runtime packages; earlier dynamic-runtime archives still need it.
 - Free GitHub build provenance for final native archives and checksum sidecars
   on version tags and default-branch manual runs, with strict verification before
   draft preparation. Paid native signing is not required. Approved manual run
