@@ -199,6 +199,11 @@ pwsh -NoProfile -File .\scripts\test-windows-runtime.ps1
 
 On Windows, this also checks process capture under built-in Windows PowerShell
 5.1, including binary output, stderr, exit codes, and unwanted task output.
+A raw-stream fixture uses the built-in .NET Framework C# compiler for this
+development check only. It avoids PowerShell child-process output encoding and
+checks byte preservation both with and without a leading UTF-8 byte order mark.
+No bytes are removed from captured output. The fixture is removed after the check.
+Packaged applications do not require .NET Framework.
 To check the clean-guest helper's complete startup sequence locally against an
 extracted candidate, run:
 
