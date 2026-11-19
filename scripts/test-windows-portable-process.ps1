@@ -1,5 +1,5 @@
 #Requires -Version 5.1
-# Check clean-guest process capture under the built-in Windows PowerShell runtime.
+# Check clean-guest process capture and reporting under built-in Windows PowerShell.
 [CmdletBinding()]
 param(
   [string]$BinaryDirectory,
@@ -13,7 +13,7 @@ $errors = $null
 $ast = [Management.Automation.Language.Parser]::ParseFile(
   (Join-Path $PSScriptRoot 'test-windows-portable.ps1'), [ref]$tokens, [ref]$errors)
 if ($errors.Count -gt 0) { throw ($errors | Out-String) }
-foreach ($name in @('Assert-Portable', 'Invoke-PortableProcess', 'Assert-PortableStartup')) {
+foreach ($name in @('Assert-Portable', 'Write-PortableReport', 'Invoke-PortableProcess', 'Assert-PortableStartup')) {
   $definition = @($ast.FindAll({
     param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq $name
@@ -21,6 +21,22 @@ foreach ($name in @('Assert-Portable', 'Invoke-PortableProcess', 'Assert-Portabl
   if ($definition.Count -ne 1) { throw "Expected one process-test function: $name" }
   . ([scriptblock]::Create($definition[0].Extent.Text))
 }
+# Exercise the real finalization with a synthetic body, without clean-host checks.
+$acceptance = @($ast.EndBlock.Statements | Where-Object {
+  $_ -is [Management.Automation.Language.TryStatementAst]
+})
+if ($acceptance.Count -ne 1) { throw 'Expected one acceptance try statement.' }
+$body = $acceptance[0].Body.Extent
+$acceptanceText = $acceptance[0].Extent.Text
+$acceptanceText = $acceptanceText.Remove(
+  ($body.StartOffset - $acceptance[0].Extent.StartOffset), $body.Text.Length).Insert(
+  ($body.StartOffset - $acceptance[0].Extent.StartOffset),
+  '{ if ($failCheck) { throw "Synthetic acceptance failure." }; $report.status = "passed" }')
+$failureCheck = @($ast.EndBlock.Statements | Where-Object {
+  $_ -is [Management.Automation.Language.IfStatementAst]
+})
+if ($failureCheck.Count -ne 1) { throw 'Expected one acceptance failure check.' }
+$reportCheck = [scriptblock]::Create("$acceptanceText`n$($failureCheck[0].Extent.Text)")
 $installation = Join-Path (Split-Path $PSScriptRoot -Parent) "target\portable process $([guid]::NewGuid().ToString('N'))"
 $inputEncoding = [Console]::InputEncoding
 try {
@@ -66,12 +82,62 @@ public static class CaptureFixture {
         ([Console]::InputEncoding.GetPreamble() -join ',') -ceq $expectedPreamble) 'Process capture changed the parent console input encoding.'
     }
   }
+  $originalLocation = Get-Location
+  $processDirectory = [Environment]::CurrentDirectory
+  $reportDirectory = Join-Path $installation 'reports'
+  New-Item -ItemType Directory -Path $reportDirectory | Out-Null
+  try {
+    Set-Location -LiteralPath $reportDirectory
+    [Environment]::CurrentDirectory = $installation
+    foreach ($case in @(
+      @{ path = 'relative-report.json'; fail = $false; file = 'relative-report.json'; error = $null },
+      @{ path = 'relative-failure.json'; fail = $true; file = 'relative-failure.json'; error = 'Synthetic acceptance failure.' },
+      @{ path = "FileSystem::$reportDirectory\provider-report.json"; fail = $false; file = 'provider-report.json'; error = $null },
+      @{ path = 'missing\report.json'; fail = $true; file = $null; error = 'Synthetic acceptance failure.' },
+      @{ path = 'Env:\BEYOND_GATE_SYNTHETIC_REPORT'; fail = $false; file = $null; error = 'Portable acceptance report requires a FileSystem destination.' },
+      @{ path = 'Env:\BEYOND_GATE_SYNTHETIC_REPORT'; fail = $true; file = $null; error = 'Synthetic acceptance failure.' },
+      @{ path = 'cleanup-failure.json'; fail = $true; cleanupFail = $true; file = 'cleanup-failure.json'; error = 'Synthetic acceptance failure.' },
+      @{ path = 'cleanup-only.json'; fail = $false; cleanupFail = $true; file = 'cleanup-only.json'; error = 'Synthetic cleanup failure.' }
+    )) {
+      # Use a child scope so report cleanup cannot remove the process fixture.
+      & {
+        $installation = $null
+        $report = [ordered]@{ status = 'failed'; cleanup = $false }
+        $failures = [System.Collections.Generic.List[System.Management.Automation.ErrorRecord]]::new()
+        $ReportPath = $case.path
+        $failCheck = $case.fail
+        $cleanupFailed = $case.ContainsKey('cleanupFail')
+        if ($cleanupFailed) {
+          $installation = $reportDirectory
+          # Inject cleanup refusal without removing any fixture or real installation.
+          function Remove-Item { throw 'Synthetic cleanup failure.' }
+        }
+        $message = $null
+        try { & $reportCheck 2>$null }
+        catch { $message = $_.Exception.Message }
+        Assert-Portable ($message -ceq $case.error) 'Acceptance reporting changed the primary failure.'
+        if ($case.file) {
+          $destination = Join-Path $reportDirectory $case.file
+          Assert-Portable (Test-Path -LiteralPath $destination) "Report did not use the PowerShell location: $($case.path)"
+          Assert-Portable (!(Test-Path -LiteralPath (Join-Path (Split-Path $reportDirectory -Parent) $case.file))) 'Report used the process directory.'
+          $saved = ConvertFrom-Json ([IO.File]::ReadAllText($destination))
+          $expectedStatus = if ($case.fail -or $cleanupFailed) { 'failed' } else { 'passed' }
+          Assert-Portable ($saved.status -ceq $expectedStatus -and $saved.cleanup -eq !$cleanupFailed) 'Acceptance report lost its result or cleanup status.'
+        }
+      }
+    }
+  }
+  finally {
+    Set-Location -LiteralPath $originalLocation.Path
+    [Environment]::CurrentDirectory = $processDirectory
+  }
 }
 finally {
   [Console]::InputEncoding = $inputEncoding
   if (Test-Path -LiteralPath $installation) { Remove-Item -LiteralPath $installation -Recurse -Force }
 }
 Write-Output 'Verified Windows PowerShell process capture without stray task output.'
+Write-Output 'Verified report destinations, provider rejection, and original failure preservation.'
 if ($BinaryDirectory) {
   $installation = (Resolve-Path -LiteralPath $BinaryDirectory).Path
   $report = @{ cases = @() }

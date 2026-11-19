@@ -578,6 +578,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Clean-Windows acceptance reports resolve relative destinations from the
+  PowerShell location and reject non-FileSystem destinations. Report or cleanup
+  failures no longer replace the original acceptance failure.
 - Clean-Windows process capture prevents .NET Framework from adding a UTF-8 byte
   order mark to redirected stdin on UTF-8 hosts. It restores the parent input
   encoding after process creation. A raw-stream child checks both parent encoding

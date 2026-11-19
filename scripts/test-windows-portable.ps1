@@ -21,6 +21,7 @@ public static class BeyondGateWindowsProtection {
 }
 '@
 $installation = $null
+$failures = [System.Collections.Generic.List[System.Management.Automation.ErrorRecord]]::new()
 $report = [ordered]@{
   scope = 'clean-windows-startup'
   status = 'failed'
@@ -42,6 +43,15 @@ $report = [ordered]@{
 function Assert-Portable {
   param([bool]$Condition, [string]$Message)
   if (!$Condition) { throw $Message }
+}
+
+# Resolve report paths from the PowerShell location, not the process directory.
+function Write-PortableReport {
+  $provider = $null
+  $drive = $null
+  $destination = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($ReportPath, [ref]$provider, [ref]$drive)
+  if ($provider.Name -cne 'FileSystem') { throw 'Portable acceptance report requires a FileSystem destination.' }
+  [IO.File]::WriteAllText($destination, ($report | ConvertTo-Json -Depth 10))
 }
 
 # Recognize reviewed OS/CLR names only when Windows also confirms file protection.
@@ -229,6 +239,9 @@ try {
   $report.cases += 'baseline.unchanged'
   $report.status = 'passed'
 }
+catch {
+  $failures.Add($_)
+}
 finally {
   try {
     if ($installation -and (Test-Path -LiteralPath $installation)) {
@@ -237,9 +250,16 @@ finally {
     }
     $report.cleanup = $true
   }
-  catch { $report.status = 'failed'; throw }
-  finally {
-    [IO.File]::WriteAllText($ReportPath, ($report | ConvertTo-Json -Depth 10))
+  catch {
+    $report.status = 'failed'
+    $failures.Add($_)
+    Write-Error 'Portable acceptance cleanup failed.' -ErrorAction Continue
+  }
+  try { Write-PortableReport }
+  catch {
+    $failures.Add($_)
+    Write-Error 'Portable acceptance report could not be written.' -ErrorAction Continue
   }
 }
+if ($failures.Count -gt 0) { throw $failures[0] }
 Write-Output 'Clean Windows standard-user package startup and protocol checks passed.'
