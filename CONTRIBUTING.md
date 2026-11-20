@@ -414,6 +414,10 @@ Keep each change small and coherent. Use the PR template. Update tests, affected
 documentation, and `CHANGELOG.md` under `Unreleased`. Use Keep a Changelog
 categories such as Added, Changed, Fixed, and Security. State which checks ran.
 Do not describe a planned feature as implemented.
+See [repository protections](docs/repository-protections.md#required-checks)
+for the exact required checks, approval record, and applied configuration.
+The default-branch rule requires a PR and up-to-date passing checks,
+not an approving review. It does not authorize an automatic merge.
 See [MAINTAINERS.md](MAINTAINERS.md#changelog-and-release-review) for owner review,
 dated release entries, synchronized versions, and explicit release approval.
 
@@ -494,6 +498,10 @@ release after all build and provenance jobs pass. The tag must match the workspa
 package version.
 The draft needs review before publication. Never publish from a pull request.
 No crates are published to crates.io. No release is part of this foundation change.
+See [version-tag controls](docs/repository-protections.md#version-tags) and
+[release permissions](docs/repository-protections.md#releases-and-permissions)
+for the proposed and applied policy. Get separate approval before a tag or
+publication. Review all assets in the draft before they become immutable.
 
 ### Release provenance checks
 
