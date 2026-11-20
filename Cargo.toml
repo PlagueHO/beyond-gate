@@ -18,7 +18,7 @@ publish = false
 beyond-gate-core = { path = "src/beyond-gate-core" }
 clap = "4.6.7"
 rmcp = {
-    version = "3.8.0",
+    version = "3.9.0",
     default-features = false,
     features = ["macros", "schemars", "server", "transport-io"],
 }

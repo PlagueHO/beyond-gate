@@ -7,6 +7,14 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A security policy with the enabled GitHub private reporting route, a
+  latest-release-only policy, and no guaranteed response time or support period.
+  Pinned cargo-deny local and CI checks cover all Rust targets and features,
+  build/test dependencies, advisories, and reviewed licenses, including MPL-2.0.
+  Controlled offline tests check rejection, freshness, and failure propagation.
+  Four named unmaintained-package advisories have approved temporary exceptions
+  through 2026-12-20, with separate tracking issues. Vulnerability and license
+  checks remain active.
 - A VitePress documentation site with the Gatehouse theme, existing Beyond Gate
   artwork, shared reference pages, local search, and desktop/mobile navigation.
   A numbered installation guide separates the main steps from detailed checks.
@@ -503,6 +511,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Updated rmcp from 3.8.0 to 3.9.0 for RUSTSEC-2026-0462 and the locked
+  async-executor from 1.14.0 to 1.14.1 to remove a yanked version.
 - Share MCP tool declarations and cancellation handling. All 24 tool names,
   input schemas, outputs, and errors remain unchanged. CLI commands and core
   operations are unchanged.

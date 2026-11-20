@@ -1,0 +1,40 @@
+[graph]
+# Do not restrict checks to the host platform.
+targets = []
+all-features = true
+exclude-dev = false
+exclude-unpublished = false
+
+[advisories]
+db-urls = ["https://github.com/RustSec/advisory-db"]
+maximum-db-staleness = "P7D"
+unmaintained = "all"
+unsound = "all"
+yanked = "warn"
+unused-ignored-advisory = "deny"
+ignore = [
+    { id = "RUSTSEC-2026-0370", reason = "zvariant 5.15.1: Linux keyring dependencies still require zbus 5; track migration in https://github.com/PlagueHO/beyond-gate/issues/109", expiry = "2026-12-20" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names 4.3.5: Linux keyring dependencies still require zbus 5; track migration in https://github.com/PlagueHO/beyond-gate/issues/112", expiry = "2026-12-20" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive 5.15.1: Linux keyring dependencies still require zbus 5; track migration in https://github.com/PlagueHO/beyond-gate/issues/110", expiry = "2026-12-20" },
+    { id = "RUSTSEC-2026-0543", reason = "chrono 0.4.45: rmcp still requires chrono; track upstream replacement in https://github.com/PlagueHO/beyond-gate/issues/111", expiry = "2026-12-20" },
+]
+
+[licenses]
+include-dev = true
+include-build = true
+confidence-threshold = 0.95
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MPL-2.0",
+    "Unicode-3.0",
+]
+exceptions = []
+
+[licenses.private]
+ignore = false
