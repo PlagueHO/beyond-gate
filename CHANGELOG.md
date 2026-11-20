@@ -7,6 +7,15 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- A repository protection policy with separate proposed, approved, and applied
+  settings for sole-maintainer PR checks, version tags, and immutable releases.
+  It documents exact check names, narrow release permissions, emergency recovery,
+  and non-destructive inspection limits. Approved main protections now require
+  eleven checks and resolved review threads, with zero approvals and no bypass.
+  Separate active version-tag rules restrict creation to administrators and
+  prevent updates and deletion without a bypass. Future releases are immutable.
+  Live API inspection verified the applied settings. No merge, tag, or release
+  was used as a test.
 - A security policy with the enabled GitHub private reporting route, a
   latest-release-only policy, and no guaranteed response time or support period.
   Pinned cargo-deny local and CI checks cover all Rust targets and features,

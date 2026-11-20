@@ -17,7 +17,11 @@ Follow [Contributing](CONTRIBUTING.md) for commands and pull request requirement
 file on the pull request's base branch to request owner review on ready pull
 requests. Draft pull requests do not request owner review automatically.
 The owner must have write access. Ownership does not itself require approval;
-that needs a separate repository rule. This setup does not change those rules.
+that needs a separate repository rule.
+See the [repository protection policy](docs/repository-protections.md) for
+proposed, approved, and applied settings. The default-branch rule requires
+PRs and passing checks, but no approving review or normal administrator bypass.
+Maintainer review is still required before a requested merge.
 See GitHub's [code-owner reference](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners).
 
 ## Dependency maintenance
@@ -57,6 +61,9 @@ Review the version, lockfile, dated changelog, native assets, checksums, and
 validation evidence before approving a tag or draft publication.
 A tag must match the workspace version. Release actions need explicit approval.
 This setup does not publish releases or Cargo crates.
+Follow the [version-tag and release protection policy](docs/repository-protections.md#version-tags).
+Review all final assets in a draft before publication.
+Future published assets are immutable. This policy does not publish releases.
 
 ## Code signing policy
 
