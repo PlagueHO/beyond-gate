@@ -3,6 +3,8 @@
 [@PlagueHO](https://github.com/PlagueHO) is the sole maintainer and code owner.
 Use repository issues for bugs, development questions, and maintenance proposals.
 No response time or support period is promised.
+Use the [private reporting route](SECURITY.md) for suspected vulnerabilities,
+not public issues. The security policy covers the latest published release only.
 
 ## Review responsibilities
 
@@ -28,7 +30,14 @@ Do not automatically approve or merge updates.
 
 Review tools outside Dependabot's scope manually. Check the Rust toolchain,
 container image and features, native packages, PowerShell, editor extensions, and
-the pinned Markdown checker. Keep checker versions consistent across setup and CI.
+the pinned Markdown and dependency checkers. Keep checker versions consistent
+across local setup and CI.
+
+Review [Rust advisory and license results](CONTRIBUTING.md#rust-dependency-advisory-and-license-checks)
+before dependency approval. Resolve failures or approve a narrow, justified,
+time-bounded exception with a tracking issue. Do not approve blanket ignores.
+Confirm that [dependency license duties](CONTRIBUTING.md#dependency-license-review)
+are met before binary distribution. A passing checker does not prove compliance.
 
 ## Changelog and release review
 

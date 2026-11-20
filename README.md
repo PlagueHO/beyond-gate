@@ -313,7 +313,18 @@ Use the [shared API call catalog](docs/api-catalog.md) to plan resource work.
 It separates implemented authentication, observed reads, unverified candidates, and
 excluded integration calls. The [API survey](docs/api-survey.md) retains supporting evidence.
 
+## Security
+
+Report suspected vulnerabilities through the
+[private reporting route in SECURITY.md](SECURITY.md).
+Do not post vulnerability details in public issues.
+See the [dependency-check policy](CONTRIBUTING.md#rust-dependency-advisory-and-license-checks)
+for local and CI advisory/license checks and their limits.
+
 ## License
 
 [MIT](LICENSE) covers this project's code and documentation.
 It does not grant rights to D&D Beyond content, trademarks, or services.
+Dependencies retain their own licenses. See the
+[dependency license review](CONTRIBUTING.md#dependency-license-review)
+before distributing binaries.

@@ -52,6 +52,23 @@ pwsh -NoProfile -File .\scripts\check-docs.ps1
 The shared rumdl configuration includes root guidance, `docs`, and Markdown
 templates under `.github`. Do not replace local checks with network link checks.
 
+For Rust dependency changes, use the pinned advisory and license policy:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-dependency-tools.ps1
+pwsh -NoProfile -File .\scripts\check-dependencies.ps1
+pwsh -NoProfile -File .\scripts\check-dependencies.ps1 -Offline
+pwsh -NoProfile -File .\scripts\test-dependency-checks.ps1
+```
+
+Normal checks refresh RustSec. Offline checks require cached dependencies and
+advisory data no more than seven days old. Both use `deny.toml` for all targets,
+features, build dependencies, and test dependencies.
+See [dependency checks](CONTRIBUTING.md#rust-dependency-advisory-and-license-checks)
+for the current blocking advisories and exception rules.
+Do not suppress failures without explicit approval.
+Use [SECURITY.md](SECURITY.md) for private vulnerability reporting.
+
 For the documentation website, use Node.js 24 or 26 and the pnpm version pinned
 in `docs/package.json`. These are development tools, not product runtimes.
 Install with `pnpm --dir docs install --frozen-lockfile`.
@@ -111,6 +128,9 @@ MCP `tests/cli.rs` for protocol checks. Parser-only tests do not replace them.
   The Pages job uses narrow permissions, the existing environment, serialized
   deployment, and a fresh default-branch SHA check. Automatic and manual live acceptance passed.
 - Copilot setup applies to GitHub Actions sessions, not desktop or cloud sandboxes.
+- Rust dependency CI uses the same pinned checker, full-graph policy, and
+  controlled failure tests as local checks. Existing CodeQL and secret scanning
+  remain separate and unchanged.
 
 ## Conventions
 

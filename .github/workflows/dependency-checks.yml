@@ -1,0 +1,36 @@
+name: Rust dependency policy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 18 * * 1'
+
+permissions:
+  contents: read
+
+jobs:
+  dependencies:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Select repository toolchain
+        run: rustup show
+      - name: Install pinned dependency checker
+        run: ./scripts/install-dependency-tools.ps1
+      - name: Fetch locked crate sources
+        run: ./scripts/cargo.ps1 fetch --locked
+      - name: Test dependency policy failure cases offline
+        run: ./scripts/test-dependency-checks.ps1
+      - name: Check advisories and licenses with fresh data
+        run: ./scripts/check-dependencies.ps1
+      - name: Check explicit offline mode
+        run: ./scripts/check-dependencies.ps1 -Offline

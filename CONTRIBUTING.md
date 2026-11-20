@@ -5,6 +5,9 @@ D&D Beyond client.
 
 ## Issues
 
+For a suspected vulnerability, follow the [security policy](SECURITY.md).
+Do not post vulnerability details in a public issue or pull request.
+
 Select the form that matches the work:
 
 | Form | Use |
@@ -249,8 +252,115 @@ process, documentation, and packaging checks. No automatic approval or merging
 is configured. No dependency labels are added.
 
 Dependabot does not cover the Rust toolchain, container image and features,
-native packages, PowerShell, editor extensions, or the pinned rumdl installer.
+native packages, PowerShell, editor extensions, or the pinned checker installers.
 Review these tools manually. See [maintainer responsibilities](MAINTAINERS.md).
+
+### Rust dependency advisory and license checks
+
+The development-only checker is pinned to cargo-deny 0.22.0. Its installer uses
+the tool's published lockfile and writes to `target/dev-tools`.
+It does not add a product runtime. Install it explicitly, then run the checks:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-dependency-tools.ps1
+pwsh -NoProfile -File .\scripts\check-dependencies.ps1
+pwsh -NoProfile -File .\scripts\check-dependencies.ps1 -Offline
+pwsh -NoProfile -File .\scripts\test-dependency-checks.ps1
+```
+
+The [CI workflow](.github/workflows/dependency-checks.yml) uses these same scripts
+on pull requests, default-branch pushes, manual runs, and a weekly schedule.
+The [shared policy](deny.toml) checks every workspace member and all features.
+It includes build and test dependencies and does not filter by host or target.
+Unpublished workspace packages are not exempt. These are graph checks, not
+proof that each target builds or that every feature combination works.
+
+The checker uses `--locked` and does not change `Cargo.lock`.
+It rejects vulnerability, unsoundness, and unmaintained advisories throughout
+the graph unless an explicitly approved, unexpired exception applies.
+Yanked versions produce warnings. Licenses must satisfy the explicit
+allow list; unknown, missing, and unacceptable licenses fail.
+Missing or wrong checker versions fail without an implicit installation.
+All check failures return nonzero exit codes.
+
+Normal mode fetches the latest
+[RustSec database](https://github.com/RustSec/advisory-db) through Git.
+Cargo can also fetch public crate sources and registry data. This requires
+network access to GitHub and the configured Cargo registries.
+The commands do not upload source code or read product account credentials.
+They use ordinary developer Cargo and Git configuration for dependency access.
+Do not supply D&D Beyond credentials to these tools.
+Network or database errors fail the check. They do not trigger an offline fallback.
+
+Offline mode prevents dependency and advisory downloads. First run normal mode
+successfully to populate the caches. Offline mode requires all selected crate
+sources and registry data and an advisory database fetched within seven days.
+The database normally lives under Cargo's `advisory-dbs` cache.
+The checker uses the fetch timestamp, with a Git HEAD timestamp fallback.
+Missing or stale database data fails. An offline pass cannot detect advisories
+published after the cached fetch. Normal mode always refreshes the database.
+See the [advisory reference](https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html).
+
+The controlled tests use an invented advisory for a cached dependency in an
+isolated path with spaces. Fetch workspace dependencies first with
+`pwsh -NoProfile -File .\scripts\cargo.ps1 fetch --locked`.
+The tests make no network requests. They check advisory and license rejection,
+test-only and optional foreign-target dependencies, expired exceptions, both
+sides of the seven-day limit, missing database data, wrong or missing tools,
+failure propagation, and lockfile preservation.
+
+CodeQL remains the source-code scanner. Dependabot remains enabled for
+dependency alerts and updates. Cargo-deny adds a local and CI policy for the
+complete Rust graph, with some advisory overlap with Dependabot.
+Secret scanning and push protection remain separate; neither checks licenses.
+The checker does not inspect the documentation site's pnpm dependencies,
+GitHub Actions implementations, native system packages, or its own separately
+installed dependencies as part of this workspace policy.
+
+Four unmaintained-package advisories have approved temporary exceptions through
+2026-12-20. Compatible updates did not remove these dependencies.
+Each exception names its advisory, reason, and tracking issue:
+
+| Dependency | Advisory | Tracking issue |
+| --- | --- | --- |
+| zvariant 5.15.1 | RUSTSEC-2026-0370 | [#109](https://github.com/PlagueHO/beyond-gate/issues/109) |
+| zbus_names 4.3.5 | RUSTSEC-2026-0371 | [#112](https://github.com/PlagueHO/beyond-gate/issues/112) |
+| zvariant_derive 5.15.1 | RUSTSEC-2026-0372 | [#110](https://github.com/PlagueHO/beyond-gate/issues/110) |
+| chrono 0.4.45 | RUSTSEC-2026-0543 | [#111](https://github.com/PlagueHO/beyond-gate/issues/111) |
+
+These are maintenance advisories, not vulnerability exceptions.
+The Linux keyring chain still requires zbus 5. The MCP SDK still requires chrono.
+The check resumes rejection after expiry. Remove exceptions when the affected
+dependencies leave the graph; unused advisory exceptions also fail the check.
+Do not renew them without maintainer approval.
+See [#38](https://github.com/PlagueHO/beyond-gate/issues/38).
+
+Review checker releases manually. Update the version in
+`scripts/install-dependency-tools.ps1`, review configuration changes against
+that version, and run the real-graph and controlled checks.
+Do not weaken the policy to make an update pass.
+Any exception needs maintainer approval, the exact advisory ID or crate/version,
+a reason, a tracking issue, and an enforced expiry.
+Advisory exceptions must use cargo-deny's explicit `expiry` field.
+A proposed license exception must add an enforced expiry check before use;
+the current policy has no license exceptions.
+
+### Dependency license review
+
+The allow list includes MPL-2.0 by maintainer decision. It does not change the
+MIT license of Beyond Gate's own code. Dependencies keep their own licenses.
+A checker pass is not proof of legal compliance or a replacement for legal advice.
+See the [license-check reference](https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html).
+
+Before binary distribution, review the selected dependency license expressions
+and their notice, attribution, and source-availability duties.
+Preserve required license and copyright notices. For MPL-2.0 code, tell
+recipients where they can obtain the covered source, including any changes,
+under MPL-2.0. Its file-level copyleft does not by itself relicense separate
+Beyond Gate source files. See Mozilla's
+[MPL-2.0 FAQ](https://www.mozilla.org/en-US/MPL/2.0/FAQ/), especially questions
+8, 11, and 12. Do not claim that the allow list or a binary checksum completes
+these distribution duties.
 
 ## Code and tests
 
