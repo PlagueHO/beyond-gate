@@ -9,6 +9,8 @@ You do not need Rust, Python, Node.js, or Visual Studio to run Beyond Gate.
 
 **There is no public release yet.** Use a maintainer-reviewed test package.
 Installing the tools does not sign you in to D&D Beyond.
+Read [Support and compatibility](support.md) for tested platform/client limits
+and [Privacy](privacy.md) for storage, network use, and removal boundaries.
 
 ## 1. Download your package
 
@@ -259,10 +261,14 @@ Keep unrelated entries. For browser setup, run the matching `auth uninstall`
 command before deleting the native host and extension files.
 The command preserves other browsers and machine-wide entries.
 Edge can still find a Chrome fallback after explicit Edge removal.
+Remove the unpacked extension through the browser's extension controls.
 Then delete the installation files and remove any PATH entry you added.
 
 Removing the tools does not delete a saved credential or revoke an upstream
 session. See [logout](cli.md#auth-logout) before removal if needed.
+Use `auth logout --stored` to select the saved entry even when environment input
+is present. Client transcripts, environment copies, and browser cookies need
+separate handling; see [Privacy](privacy.md#settings-logs-and-removal).
 
 </details>
 

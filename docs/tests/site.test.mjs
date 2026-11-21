@@ -68,7 +68,7 @@ after(async () => {
 test('overview and long references render below the deployment subpath', async () => {
   for (const width of [1440, 390]) {
     await page.setViewport({ width, height: 1000 })
-    for (const route of ['', 'installation.html', 'authentication.html', 'cli.html', 'mcp.html']) {
+    for (const route of ['', 'installation.html', 'authentication.html', 'cli.html', 'mcp.html', 'support.html', 'privacy.html']) {
       await page.goto(`${base}${route}`, { waitUntil: 'networkidle0' })
       assert.equal(await page.$eval('h1', heading => Boolean(heading.textContent.trim())), true)
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${route} overflows at ${width}px`)
@@ -87,6 +87,18 @@ test('overview and long references render below the deployment subpath', async (
         assert.ok(layout.gateWidth >= 96, 'The mobile gate mark must remain legible')
       }
     }
+  }
+})
+
+test('policy pages are reachable from the overview and user sidebar', async () => {
+  await page.setViewport({ width: 1440, height: 1000 })
+  for (const route of ['support', 'privacy']) {
+    await page.goto(base, { waitUntil: 'networkidle0' })
+    await page.click(`.overview a[href$="/${route}"]`)
+    await page.waitForFunction(target => location.pathname.replace(/\.html$/, '') === `/beyond-gate/${target}`, {}, route)
+    const group = await page.$eval(`.VPSidebar a[href$="/${route}.html"]`, link => link.closest('.group').textContent)
+    assert.match(group, /Use Beyond Gate/)
+    assert.doesNotMatch(group, /Development/)
   }
 })
 

@@ -55,6 +55,8 @@ export default defineConfig({
         items: [
           { text: 'CLI reference', link: '/cli' },
           { text: 'MCP reference', link: '/mcp' },
+          { text: 'Support and compatibility', link: '/support' },
+          { text: 'Privacy', link: '/privacy' },
         ],
       },
       {

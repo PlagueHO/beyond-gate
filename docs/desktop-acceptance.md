@@ -15,7 +15,7 @@ They do not change the overall partial acceptance status.
 |------------------|--------|----------------------------|
 | Record candidate versions, platforms, commands, results, and gaps | completed for the checks run | [Candidate evidence](#candidate-and-evidence) and the [acceptance matrix](#remaining-acceptance-matrix) record results and limits |
 | Validate terminal startup without development runtimes and state tested runtime requirements | partial | Windows startup and Linux shell startup have evidence; new-candidate and terminal-only coverage remain incomplete; older minimums stay separate |
-| Validate process-only environment authentication and hidden CLI input | blocked | #52 implementation is required; these paths do not exist yet |
+| Validate process-only environment authentication and hidden CLI input | partial | #52 implemented these paths with synthetic process checks; identified-package and real-client acceptance remain incomplete |
 | Check explicit protected-save and locked/unavailable store claims separately | incomplete | Linux synthetic lifecycle and failure states passed; Windows locked and unavailable states remain untested |
 | Check real client discovery, shutdown, and supported reads when prerequisites exist | partial | VS Code discovery, shutdown, and one supported read passed; Copilot CLI discovery and shutdown passed offline; other client cases remain unverified or deferred |
 | Update installation and troubleshooting guidance and identify untested claims | completed | [Installation and troubleshooting](installation.md) and the [acceptance matrix](#remaining-acceptance-matrix) state known requirements and gaps |
@@ -23,11 +23,13 @@ They do not change the overall partial acceptance status.
 
 The user deferred Claude Code and macOS checks to [#62](https://github.com/PlagueHO/beyond-gate/issues/62).
 The user revised #34 to separate Windows/Linux terminal-only use from optional
-browser/protected-save paths and later hardening. Implement shared authentication
-and Linux session/read support in [#52](https://github.com/PlagueHO/beyond-gate/issues/52)
-first. Environment mode must not require native storage, a browser, desktop,
-D-Bus, or Secret Service. Then check identified packages through CLI and real
-VS Code/Copilot CLI clients. These new paths remain unimplemented.
+browser/protected-save paths and later hardening. Shared authentication and Linux
+session/read support are now implemented in [#52](https://github.com/PlagueHO/beyond-gate/issues/52).
+Environment mode does not require native storage, a browser, desktop,
+D-Bus, or Secret Service. Synthetic process checks are recorded in
+[Testing](testing.md#shared-process-only-authentication-checks).
+Identified-package and real VS Code/Copilot CLI acceptance still need their own
+evidence. See [Support and compatibility](support.md) for public claim limits.
 
 Windows character and campaign reads are now implemented, but their live
 acceptance remains unverified. No new native or live tests ran for this backlog
@@ -901,7 +903,7 @@ later desktop evidence is separate.
 | `account.client-read` | Windows x64, stable VS Code `book_list` | passed | [One approved Web-library read](#local-vs-code-web-library-read); no model-driven routing |
 | `account.client-reads` | Other supported VS Code and Copilot CLI reads | blocked | Each live case needs a new exact account approval and client prerequisites |
 | `account.client-reads` | Claude Code | deferred | Tracked in #62 |
-| `account.production-login` | Linux and macOS | not_applicable | Not supported by this acceptance scope; Linux implementation is tracked in #52 |
+| `account.production-login` | Linux and macOS | not_applicable | Not tested by this retained acceptance scope; current Linux input is implemented in #52, native account acceptance is unverified, and macOS remains gated |
 
 The separate stable VS Code approval permitted at most three MCP server starts,
 one unknown-field rejection check, and one model request. The observer recorded
@@ -914,7 +916,7 @@ This approval does not authorize the other gates below.
 ## Gate 1: clean desktop
 
 The gates below retain procedures for future separately approved work.
-Implement #52 before its new authentication acceptance. Desktop-specific,
+Check the implemented #52 input paths against an identified candidate. Desktop-specific,
 browser, and protected-store checks are separate from terminal-only environment
 use. macOS desktop and Keychain checks and Claude Code client checks belong to
 issue #62, not #34 completion. This revision grants no test approval.
@@ -972,7 +974,7 @@ delete, or lock the normal product entry.
 |----|--------------|-------------------------|
 | Windows | Windows Credential Manager under the approved test account | The existing [isolated native-storage harness](testing.md#isolated-native-storage) uses feature-built binaries and a random synthetic entry. It does not prove release-binary storage behavior. |
 | macOS | Available login Keychain in a disposable desktop account | Use only an approved test entry. No portable isolated native-store harness is implemented. Mark execution blocked until the test method and identity are approved. |
-| Linux | User session D-Bus and a Secret Service provider with a default collection | Use a disposable desktop account and test collection. The session-only follow-up is not a shipped native-store harness. Production login/session use remains tracked in [#52](https://github.com/PlagueHO/beyond-gate/issues/52). |
+| Linux | User session D-Bus and a Secret Service provider with a default collection | Use a disposable desktop account and test collection. The session-only follow-up is not a shipped native-store harness. Shared input/session use is implemented in [#52](https://github.com/PlagueHO/beyond-gate/issues/52); native account acceptance remains unverified. |
 
 Check absent state, synthetic write/read, stored-unverified status, logout,
 repeated logout, and final absence. A stored entry is not current upstream

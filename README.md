@@ -10,6 +10,9 @@ species, and purchased or shared books.
 
 Read the [documentation overview](docs/index.md), [installation guide](docs/installation.md),
 [CLI reference](docs/cli.md), and [MCP reference](docs/mcp.md).
+Read [Support and compatibility](docs/support.md) for tested combinations,
+interface expectations, and upstream failure recovery.
+Read [Privacy](docs/privacy.md) for session lifetime, network use, and client limits.
 For the local documentation website and five theme samples, see
 [documentation development](docs/development.md#documentation-site).
 Read the published [documentation website](https://danielscottraynsford.com/beyond-gate/).
@@ -205,10 +208,12 @@ See [Markdown checks](CONTRIBUTING.md#markdown-and-local-links),
 
 ## Local session commands
 
-`auth status` inspects protected local credential presence only. It does not
-verify upstream usability or expiry. **`auth logout` deletes the local entry**;
-it does not revoke the upstream session or log the browser out.
-Both commands can trigger an OS access or unlock dialog.
+`auth status` checks the selected environment or saved source locally. It does not
+verify upstream usability or expiry. `auth logout` clears the selected process
+session or deletes the selected saved entry. Use `--stored` to select only the
+saved entry for either command. Stored operations can trigger an OS access or
+unlock dialog. Logout does not erase a parent's environment, revoke the upstream
+session, or log the browser out. See [source and logout limits](docs/privacy.md#status-logout-and-uncertain-saves).
 
 Windows `auth login` requires interactive stdin, stdout, and stderr. It starts
 one-use pairing. The manual browser form and explicit native-host setup commands

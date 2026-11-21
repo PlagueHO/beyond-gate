@@ -7,6 +7,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Support, compatibility, and privacy policies with best-effort pre-1.0
+  expectations, tested platform/client limits, upstream failure recovery,
+  session-source lifetime, network destinations, and manual extension permissions.
+  User guides and website navigation link to the policies. Related status
+  statements now distinguish implemented #52 input paths from native acceptance.
 - A repository protection policy with separate proposed, approved, and applied
   settings for sole-maintainer PR checks, version tags, and immutable releases.
   It documents exact check names, narrow release permissions, emergency recovery,
