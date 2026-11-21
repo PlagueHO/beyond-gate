@@ -57,6 +57,8 @@ import logo from '../../../assets/beyond-gate-logo.png'
         <a :href="withBase('/development')">Developer guide <span aria-hidden="true">&rarr;</span></a>
         <a :href="withBase('/architecture')">Architecture <span aria-hidden="true">&rarr;</span></a>
         <a :href="withBase('/testing')">Testing and evidence <span aria-hidden="true">&rarr;</span></a>
+        <a :href="withBase('/support')">Support and compatibility <span aria-hidden="true">&rarr;</span></a>
+        <a :href="withBase('/privacy')">Privacy <span aria-hidden="true">&rarr;</span></a>
       </div>
     </section>
   </div>

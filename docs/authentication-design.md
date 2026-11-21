@@ -37,11 +37,14 @@ They do not describe the current Windows implementation or authorize new tests.
 
 ## Agreed authentication follow-up
 
-[#52](https://github.com/PlagueHO/beyond-gate/issues/52) adds shared CLI/MCP input
-and Linux terminal use. This scope replaces the earlier blanket prohibition on
+[#52](https://github.com/PlagueHO/beyond-gate/issues/52) implemented shared CLI/MCP
+input and Linux terminal use. Synthetic tests cover these paths; native Linux
+account acceptance remains unverified. This scope replaces the earlier blanket prohibition on
 environment credential input. It does not remove account-test approval boundaries.
+See [Privacy](privacy.md) for the public data-handling policy and
+[Support and compatibility](support.md) for tested limits.
 
-| Input path | Intended use | Storage |
+| Input path | Current use | Storage |
 |------------|--------------|---------|
 | `BEYOND_GATE_COBALT_SESSION` | Recommended for CLI/MCP terminal-only use and client-supplied startup secrets | Process memory only; no browser or native store required |
 | `--auth-prompt` | Explicit hidden input before one CLI read or `auth validate` | Process memory only |

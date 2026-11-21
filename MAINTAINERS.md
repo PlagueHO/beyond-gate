@@ -3,6 +3,9 @@
 [@PlagueHO](https://github.com/PlagueHO) is the sole maintainer and code owner.
 Use repository issues for bugs, development questions, and maintenance proposals.
 No response time or support period is promised.
+Use [Support and compatibility](docs/support.md) for pre-1.0 interface review and
+upstream failure handling. Check [Privacy](docs/privacy.md) when reviewing changes
+to session input, storage, network destinations, or browser/client behavior.
 Use the [private reporting route](SECURITY.md) for suspected vulnerabilities,
 not public issues. The security policy covers the latest published release only.
 

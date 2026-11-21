@@ -1,12 +1,15 @@
 # Contributing
 
-Start with the [roadmap](docs/roadmap.md). The project is a foundation, not a working
-D&D Beyond client.
+Start with the [roadmap](docs/roadmap.md) and
+[Support and compatibility](docs/support.md). The project is pre-1.0.
+Implemented reads and retained native acceptance have different limits.
+Use [Privacy](docs/privacy.md) when reviewing authentication, storage, and clients.
 
 ## Issues
 
 For a suspected vulnerability, follow the [security policy](SECURITY.md).
 Do not post vulnerability details in a public issue or pull request.
+For ordinary failures, follow the [safe reporting checklist](docs/support.md#report-a-problem).
 
 Select the form that matches the work:
 

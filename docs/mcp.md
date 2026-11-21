@@ -91,6 +91,12 @@ editor-only `${input:...}` prompts or a VS Code SecretStorage bridge. Do not ass
 all clients inherit arbitrary environment variables. The installer remains
 credential-free; review and add a reference manually if needed.
 
+Read [Privacy](privacy.md#environment-input-and-mcp-clients) before supplying input
+or enabling tools. A client can retain results or send account data to a model
+provider; local stdio does not prevent that. Read
+[Support and compatibility](support.md) for tested client combinations,
+pre-1.0 schema expectations, and upstream failure recovery.
+
 The MCP client owns the process and connects its stdin and stdout. It initializes
 the session with `initialize`, sends `notifications/initialized`, discovers tools
 with `tools/list`, and invokes a tool with `tools/call`. Messages use JSON-RPC

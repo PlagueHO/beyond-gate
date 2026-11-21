@@ -25,6 +25,9 @@ After [installing Beyond Gate](installation.md), choose the method that suits yo
 macOS authentication for production reads is not available yet.
 Keep session values private, just as you would a password.
 Do not put them in commands, chat messages, logs, or client configuration files.
+Read [Privacy](privacy.md) for environment inheritance, protected storage,
+extension permissions, and client retention.
+Read [Support and compatibility](support.md) for tested browser and OS limits.
 
 ## Use the browser extension
 
@@ -130,7 +133,16 @@ references an environment variable.
 
 ## Check your session
 
-After saving a session with either method, run:
+Use `auth status` to check the selected source locally. Use `--stored` to select
+only the saved entry. See [source selection and status meanings](privacy.md#session-input-and-lifetime)
+for precedence and failure behavior.
+
+```sh
+beyond-gate auth status
+beyond-gate auth status --stored
+```
+
+To check the selected environment or saved session with D&D Beyond, run:
 
 ```sh
 beyond-gate auth validate
@@ -140,9 +152,9 @@ Look for `"validation":"service_validated"` in the result.
 This means Beyond Gate checked the session with D&D Beyond and it was accepted.
 It does not prove access to every book or other resource.
 
-If `BEYOND_GATE_COBALT_SESSION` is set, it takes priority over a saved session.
-Remove it from your shell or client environment to use the saved session instead.
-Restart the MCP server after changing its session input.
+The MCP server snapshots its selected environment at startup. Restart it after
+changing its input. Process-only input is not saved and must be supplied again
+after restart. See [environment and client limits](privacy.md#environment-input-and-mcp-clients).
 
 ## Sign out
 
@@ -154,8 +166,8 @@ beyond-gate auth logout --stored
 
 This does not sign you out of the D&D Beyond website.
 It does not revoke a session supplied through an environment variable.
-Remove that variable from the shell or client and restart the MCP server when
-you no longer want to use it.
+See [logout and removal limits](privacy.md#status-logout-and-uncertain-saves)
+to remove process-only input or explicitly select the saved entry.
 
 For command options and error details, see the
 [CLI authentication reference](cli.md#authentication-commands).
