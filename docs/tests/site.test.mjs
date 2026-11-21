@@ -92,10 +92,13 @@ test('overview and long references render below the deployment subpath', async (
 
 test('policy pages are reachable from the overview and user sidebar', async () => {
   await page.setViewport({ width: 1440, height: 1000 })
-  for (const route of ['support', 'privacy']) {
+  for (const [route, heading] of [['support', 'support-and-compatibility'], ['privacy', 'privacy-and-local-data']]) {
     await page.goto(base, { waitUntil: 'networkidle0' })
     await page.click(`.overview a[href$="/${route}"]`)
-    await page.waitForFunction(target => location.pathname.replace(/\.html$/, '') === `/beyond-gate/${target}`, {}, route)
+    await page.waitForFunction((target, title) =>
+      location.pathname.replace(/\.html$/, '') === `/beyond-gate/${target}` &&
+      document.querySelector('.vp-doc h1')?.id === title, {}, route, heading)
+    await page.waitForSelector(`.VPSidebar a[href$="/${route}.html"]`)
     const group = await page.$eval(`.VPSidebar a[href$="/${route}.html"]`, link => link.closest('.group').textContent)
     assert.match(group, /Use Beyond Gate/)
     assert.doesNotMatch(group, /Development/)
