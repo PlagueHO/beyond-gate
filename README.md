@@ -75,7 +75,9 @@ native compatibility and owned/shared acceptance remain unverified.
 Windows and Linux share process-only `BEYOND_GATE_COBALT_SESSION` input for CLI
 and MCP reads. No browser, desktop, D-Bus, or Secret Service is needed for this
 path. For a hidden CLI prompt, use `beyond-gate --auth-prompt character list`.
-Use `auth import --prompt` or `auth import --env` only to request protected save.
+Use `auth login --prompt` or `auth login --from-env` to validate and save explicitly.
+`--from-env` reads `BEYOND_GATE_COBALT_SESSION`; it takes no value.
+Existing `auth import --prompt` and `auth import --env` commands remain compatible.
 Invalid explicit input never falls back to saved credentials.
 See [source selection and logout](docs/authentication-design.md#agreed-authentication-follow-up).
 Native Linux account acceptance remains unverified. macOS production reads remain
@@ -215,12 +217,18 @@ saved entry for either command. Stored operations can trigger an OS access or
 unlock dialog. Logout does not erase a parent's environment, revoke the upstream
 session, or log the browser out. See [source and logout limits](docs/privacy.md#status-logout-and-uncertain-saves).
 
-Windows `auth login` requires interactive stdin, stdout, and stderr. It starts
+Without a method selector, Windows `auth login` requires interactive stdin,
+stdout, and stderr. It starts
 one-use pairing. The manual browser form and explicit native-host setup commands
 are implemented. Both browsers passed synthetic native/core completion checks.
 Approved real Chrome and Edge Dev login, protected save, restart/status, and
 logout checks passed. See the [tested scope and limits](docs/testing.md#approved-windows-product-login-verification).
-Other platforms report unsupported login.
+Other platforms report unsupported browser login.
+On Windows and Linux, `auth login --prompt` uses hidden terminal input, and
+`auth login --from-env` reads `BEYOND_GATE_COBALT_SESSION` without a terminal.
+Both methods validate and save through protected OS storage. They do not fall
+back to browser login or another input source if the selected input fails.
+Use `--prompt` for saving login, not the process-only global `--auth-prompt`.
 To use a supplied `CobaltSession` value, see [Authentication](docs/authentication.md).
 See the
 [CLI authentication reference](docs/cli.md#authentication-commands) for syntax,

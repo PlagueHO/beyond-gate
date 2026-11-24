@@ -95,10 +95,13 @@ and line breaks.
 
 ### Save the session
 
+Use `auth login` for each sign-in method. Without a method option, it uses
+Windows browser pairing. To save a supplied value on Windows or Linux:
+
 1. Open a terminal and run:
 
    ```sh
-   beyond-gate auth import --prompt
+   beyond-gate auth login --prompt
    ```
 
 2. Paste the supplied value into the hidden prompt.
@@ -108,11 +111,34 @@ and line breaks.
 4. Wait for validation and the protected save to finish.
    Unlock the OS credential store through its normal prompt if needed.
 
+Use Ctrl+Shift+V or your terminal's Paste command.
+Ctrl+V can send only a shortcut instead of the clipboard text.
+Beyond Gate ignores that shortcut, but this does not paste the value.
+The terminal must send the text; Beyond Gate does not read the clipboard directly.
+
 Saving replaces any earlier Beyond Gate session.
 After a successful save, you can use terminal commands or MCP without pasting
 the value again.
 On Linux, protected saving needs an available, unlocked Secret Service provider.
 If you do not have one, use the method below.
+
+If your caller has already supplied `BEYOND_GATE_COBALT_SESSION` in the
+environment, you can validate and save that value without a terminal prompt:
+
+```sh
+beyond-gate auth login --from-env
+```
+
+`--from-env` reads that fixed variable. Do not put a value after the flag.
+Select either `--prompt` or `--from-env`, not both.
+Missing or invalid selected input fails without trying another source or browser
+pairing. Environment presence alone does not change `auth login` without options.
+Existing `auth import --prompt` and `auth import --env` commands keep the same
+behavior for compatibility.
+
+Do not pass a session value through `--auth-key` or any other command argument.
+Arguments can appear in process listings and shell history, even when a shell
+variable supplies the value. Use hidden input or the environment instead.
 
 ### Use the value without saving
 
@@ -123,8 +149,10 @@ beyond-gate --auth-prompt book list
 ```
 
 Paste it into the hidden prompt and press **Ctrl+D**.
+Use your terminal's paste command, as described above.
 The value is used for this command only. You will need to enter it again for
-the next command.
+the next command. The global `--auth-prompt` is only for resource reads and
+`auth validate`. For saving login, use `auth login --prompt`.
 
 For process-only MCP use, supply `BEYOND_GATE_COBALT_SESSION` in the server's
 environment. Keep the value out of configuration files.

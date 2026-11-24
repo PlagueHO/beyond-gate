@@ -59,12 +59,18 @@ const MAX_CATALOG_TABLE_BYTES: usize = 8 * 1024 * 1024;
 /// Defers a validated resource operation until its session source is selected.
 type PreparedRead<'a> = Box<dyn FnOnce(&Session) -> Result<Vec<u8>, Failure> + 'a>;
 
-/// Supplies the shared resource and import operations required by the command runner.
+/// Selects supplied input for an explicit protected save, never a browser fallback.
+enum SaveInput {
+    Prompt,
+    Environment,
+}
+
+/// Supplies shared resource reads and explicit login/import saves for the command runner.
 ///
 /// Production uses [`LiveReads`]. Tests supply synthetic core results without
 /// adding account credentials, fixture flags, or environment modes to the CLI.
 pub trait ReadOperations {
-    /// Validates explicit import and performs its single protected save.
+    /// Validates supplied login/import input and performs its single protected save.
     ///
     /// Tests can inject a loopback service and synthetic store without product
     /// fixture arguments or native credential access.
@@ -535,10 +541,15 @@ where
 {
     let arguments: Vec<OsString> = arguments.into_iter().map(Into::into).collect();
     let no_arguments = arguments.len() <= 1;
-    let matches = match command().try_get_matches_from(arguments) {
+    let matches = match command().try_get_matches_from(&arguments) {
         Ok(matches) => matches,
         Err(error) => {
             let code = if error.exit_code() == 0 { 0 } else { 2 };
+            if code != 0
+                && let Some(message) = safe_auth_usage(&arguments)
+            {
+                return report(&Failure::Usage(message), stderr);
+            }
             let bytes = error.to_string();
             let result = if error.use_stderr() {
                 if no_arguments {
@@ -575,18 +586,16 @@ where
                 )
             );
         if !allowed {
-            return report(
-                &Failure::Usage(
-                    "--auth-prompt is only valid for a resource read or auth validate.",
-                ),
-                stderr,
-            );
+            let message = if matches!(auth_action(&matches), Some(AuthAction::Login)) {
+                "Use auth login --prompt to validate and save hidden input. --auth-prompt is process-only and is not valid for login."
+            } else {
+                "--auth-prompt is only valid for a resource read or auth validate."
+            };
+            return report(&Failure::Usage(message), stderr);
         }
     }
-    if let Some(arguments) = matches.subcommand_matches("auth")
-        && let Some(import) = arguments.subcommand_matches("import")
-    {
-        return match import_session(import, reads, stderr)
+    if let Some(input) = supplied_save_input(&matches) {
+        return match save_supplied_session(input, reads, stderr)
             .and_then(|bytes| write_output(stdout, &bytes))
         {
             Ok(()) => 0,
@@ -624,16 +633,54 @@ where
     }
 }
 
-/// Validates explicit import and preserves uncertain-write evidence on Ctrl+C.
-fn import_session(
-    arguments: &ArgMatches,
+/// Omits rejected credential arguments from authentication usage diagnostics.
+fn safe_auth_usage(arguments: &[OsString]) -> Option<&'static str> {
+    if arguments.iter().skip(1).any(|argument| {
+        argument == "--auth-key" || argument.to_string_lossy().starts_with("--auth-key=")
+    }) {
+        return Some(
+            "Credential-value arguments such as --auth-key are not supported. Use auth login --prompt or auth login --from-env.",
+        );
+    }
+    let mut path = arguments
+        .iter()
+        .skip(1)
+        .filter(|argument| *argument != "--auth-prompt");
+    if path.next().is_some_and(|argument| argument == "auth")
+        && path
+            .next()
+            .is_some_and(|argument| argument == "login" || argument == "import")
+    {
+        Some(
+            "Invalid login/import arguments. Select one input method and pass no credential values. Use auth login --help or auth import --help.",
+        )
+    } else {
+        None
+    }
+}
+
+/// Resolves only explicit supplied-input saves; absent login selectors keep browser pairing.
+fn supplied_save_input(matches: &ArgMatches) -> Option<SaveInput> {
+    let (name, arguments) = matches.subcommand_matches("auth")?.subcommand()?;
+    match name {
+        "login" | "import" if arguments.get_flag("prompt") => Some(SaveInput::Prompt),
+        "login" if arguments.get_flag("from-env") => Some(SaveInput::Environment),
+        "import" => Some(SaveInput::Environment),
+        _ => None,
+    }
+}
+
+/// Validates supplied login/import input and preserves uncertain-write evidence on Ctrl+C.
+fn save_supplied_session(
+    selection: SaveInput,
     operations: &impl ReadOperations,
     stderr: &mut impl Write,
 ) -> Result<Vec<u8>, Failure> {
-    let input = if arguments.get_flag("prompt") {
-        SessionEstablishmentInput::from_prompt(hidden_input::read(stderr)?)
-    } else {
-        SessionEstablishmentInput::from_environment_value(std::env::var_os(SESSION_ENV_VAR))
+    let input = match selection {
+        SaveInput::Prompt => SessionEstablishmentInput::from_prompt(hidden_input::read(stderr)?),
+        SaveInput::Environment => {
+            SessionEstablishmentInput::from_environment_value(std::env::var_os(SESSION_ENV_VAR))
+        }
     }
     .map_err(Failure::Establishment)?;
     let saved = execute_session(async {

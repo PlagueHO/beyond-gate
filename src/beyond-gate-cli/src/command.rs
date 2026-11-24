@@ -15,7 +15,7 @@ pub fn command() -> Command {
                 .long("auth-prompt")
                 .global(true)
                 .action(ArgAction::SetTrue)
-                .help("Read a hidden process-only cookie for a resource read or auth validate"),
+                .help("Process-only hidden input: resource reads or auth validate only; not login/import"),
         )
         .bin_name("beyond-gate")
         .version(env!("CARGO_PKG_VERSION"))
@@ -43,8 +43,12 @@ First-time setup on Windows:
   5. Run `beyond-gate auth validate`, then try:
        beyond-gate character list
 
-Only auth login or auth import --prompt/--env explicitly saves a sign-in to your
-operating system's protected storage. Process-only use needs no browser or store.
+Each login method validates and saves to your operating system's protected storage:
+  beyond-gate auth login             Windows browser pairing
+  beyond-gate auth login --prompt    Hidden CobaltSession input
+  beyond-gate auth login --from-env  Read BEYOND_GATE_COBALT_SESSION (no flag value)
+Existing auth import --prompt/--env commands remain available for compatibility.
+Process-only use needs no browser or store.
 `auth status` reports local input, not upstream usability.
 `auth validate` sends one fresh request to D&D Beyond.
 `auth logout` clears the selected source. Environment logout does not delete saved
@@ -57,30 +61,57 @@ Do not enter your password, cookies, or tokens in command arguments or chat."#,
         .subcommand(
             resource(
                 "auth",
-                "Sign in through your browser and manage the saved sign-in",
+                "Choose a sign-in method and manage session input",
             )
                 .after_help(
                     "Sign-in works on Windows through optional browser assistance.\n\
                      Windows and Linux also accept BEYOND_GATE_COBALT_SESSION without a store or browser.\n\
                      Use --auth-prompt for one read or auth validate; stdin and stderr must be terminals.\n\
-                     Use auth import --prompt or --env only when you want a protected save.\n\
+                     Each login method validates and saves to protected OS storage:\n\
+                       auth login             Windows browser pairing\n\
+                       auth login --prompt    Hidden CobaltSession input\n\
+                       auth login --from-env  Read BEYOND_GATE_COBALT_SESSION; no flag value\n\
+                     Existing auth import --prompt/--env commands remain compatible.\n\
+                     --auth-prompt is not valid for login, import, status, logout, or setup.\n\
                      No command requests your D&D Beyond password.",
                 )
                 .subcommand(
                     Command::new("login")
-                        .about("Sign in through your browser and save a Beyond Gate session")
+                        .about("Validate and save a session through browser, hidden input, or environment")
+                        .arg(
+                            Arg::new("prompt").long("prompt")
+                                .action(ArgAction::SetTrue)
+                                .conflicts_with("from-env")
+                                .help("Read hidden CobaltSession input, validate it, and save it"),
+                        )
+                        .arg(
+                            Arg::new("from-env").long("from-env")
+                                .action(ArgAction::SetTrue)
+                                .help("Validate and save BEYOND_GATE_COBALT_SESSION; accepts no value"),
+                        )
                         .after_help(
-                            "Sign-in works on Windows. Install the browser extension and register the local browser helper first.\n\
-                             Run this command in a normal terminal, then follow the steps in the terminal and browser.\n\
-                             Beyond Gate saves the sign-in in your operating system's protected storage.\n\n\
-                             This command does not ask for your password, cookies, or tokens.",
+                            "Choose one method. Each method validates and saves to protected OS storage:\n\
+                               beyond-gate auth login             Windows browser pairing\n\
+                               beyond-gate auth login --prompt    Hidden CobaltSession input\n\
+                               beyond-gate auth login --from-env  Read BEYOND_GATE_COBALT_SESSION\n\n\
+                             Without a selector, Windows browser pairing requires the extension, registered browser helper, and three terminal streams.\n\
+                             On Windows/Linux, --prompt needs terminal stdin and stderr; --from-env needs no terminal or browser.\n\
+                             --prompt and --from-env take no value and cannot be combined. Invalid selected input never falls back.\n\
+                             Only --from-env selects environment input for login. No selector always means browser pairing.\n\
+                             Use --prompt here, not the process-only global --auth-prompt option.\n\
+                             Existing auth import --prompt/--env commands remain compatible.\n\
+                             Do not pass cookie values as arguments. This command never requests your D&D Beyond password.",
                         ),
                 )
                 .subcommand(browser_setup("install", "Set up the browser connection for Chrome or Edge"))
                 .subcommand(browser_setup("uninstall", "Remove this browser's Beyond Gate connection"))
                 .subcommand(
                     Command::new("import")
-                        .about("Validate explicit cookie input and save it to protected OS storage")
+                        .about("Compatibility form of auth login --prompt or --from-env")
+                        .after_help(
+                            "Prefer auth login --prompt or auth login --from-env. Existing import commands keep their validation and protected-save behavior.\n\
+                             The process-only global --auth-prompt option is not valid here.",
+                        )
                         .arg(
                             Arg::new("prompt").long("prompt")
                                 .action(ArgAction::SetTrue)

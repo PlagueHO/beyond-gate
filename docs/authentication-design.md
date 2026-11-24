@@ -48,7 +48,7 @@ See [Privacy](privacy.md) for the public data-handling policy and
 |------------|--------------|---------|
 | `BEYOND_GATE_COBALT_SESSION` | Recommended for CLI/MCP terminal-only use and client-supplied startup secrets | Process memory only; no browser or native store required |
 | `--auth-prompt` | Explicit hidden input before one CLI read or `auth validate` | Process memory only |
-| `auth import --prompt` or `--env` | Explicit validation and protected import | Cookie envelope in OS protected storage |
+| `auth login --prompt` or `--from-env` | Explicit validation and protected save; legacy `auth import --prompt/--env` remains compatible | Cookie envelope in OS protected storage |
 | Supported Chrome/Edge extension | Preferred interactive browser-assisted login when available | Protected save through explicit login |
 
 The environment value is the `CobaltSession` cookie value only, at most 2,552
@@ -58,6 +58,9 @@ MCP never prompts on protocol streams or implicitly opens a browser.
 Client environment references can supply its process environment; examples and
 client settings must not contain literal secrets.
 Do not add raw-cookie command-line arguments or credential-bearing MCP tools.
+Issue #118 retains this boundary. A direct `--auth-key` value can appear in shell
+history, process listings, and captured diagnostics. Shell variable expansion does
+not remove argument exposure. Login selectors take no credential value.
 
 Source order is an explicit hidden prompt, environment presence, then saved
 credentials. An empty environment value is present, not absent. Invalid or rejected
@@ -91,22 +94,41 @@ beyond-gate --auth-prompt auth validate
 ```
 
 Stdin and stderr must be terminals. Stdout can be redirected. Input is not echoed.
+Forwarded Ctrl+V or Ctrl+Shift+V shortcut events do not become cookie text or
+invalidate the input. The terminal must supply the pasted text; the reader does
+not access the clipboard. A shortcut alone supplies no cookie and does not
+clear an earlier input error. Use Ctrl+Shift+V or the terminal's Paste command;
+ignoring a forwarded Ctrl+V event does not make the terminal paste clipboard text.
 Ctrl+D submits; Backspace edits; Escape or Ctrl+C cancels. Enter and pasted line
 breaks invalidate the input without submitting or restoring echo. Invalid input
 stays hidden until Ctrl+D or cancellation. Input waits at most five minutes.
 Terminal mode is restored before exchange and on normal error exits.
 Forced process termination or terminal recording remains outside this guarantee.
-The global flag is refused for MCP, setup, status/logout, and completions.
+The global flag is refused for login, import, MCP, setup, status/logout, and
+completions. Login reports a usage error that points to its saving `--prompt`
+selector.
 
 To save explicitly, use one of these commands:
 
 ```shell
-beyond-gate auth import --prompt
-beyond-gate auth import --env
+beyond-gate auth login --prompt
+beyond-gate auth login --from-env
 ```
 
-Each import validates before opening storage. A failed or cancelled validation
-does not save. An unconfirmed started write reports `save_indeterminate`; it is
+These selectors share the existing import implementation and
+`ReadOperations::establish_session` boundary. `--from-env` selects only the fixed
+`BEYOND_GATE_COBALT_SESSION` variable; it takes no value. `--prompt` selects hidden
+terminal input even if environment input is present. The selectors conflict.
+Invalid selected input never falls back to another source or browser pairing.
+Without a selector, login keeps Windows browser pairing regardless of environment
+presence. Existing `auth import --prompt` and `auth import --env` remain compatible.
+This follows the single-login-command pattern used by
+[Azure CLI](https://learn.microsoft.com/en-us/cli/azure/authenticate-azure-cli-interactively),
+not its credential-value arguments or authentication protocols.
+
+Each supplied-input login or import validates before opening storage.
+A failed or cancelled validation does not save.
+An unconfirmed started write reports `save_indeterminate`; it is
 not retried or deleted automatically. Browser login keeps the same save rules.
 
 Linux browser registration and protected handoff remain optional. Process-only
@@ -169,11 +191,12 @@ Windows browser login now has approved product verification.
 
 | Command | Current result |
 |---------|----------------|
-| `beyond-gate auth login` | Windows: requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Real Chrome and Edge Dev login/save checks passed. Other platforms retain the unsupported error. |
+| `beyond-gate auth login` | With no selector, Windows requires three interactive streams, starts one-use pairing, and calls shared completion only after a bound submit. Real Chrome and Edge Dev login/save checks passed. Other platforms retain the unsupported browser-login error. |
+| `beyond-gate auth login --prompt` or `--from-env` | Windows/Linux: explicitly validates and saves supplied input through the existing establishment lifecycle. Prompt input requires terminal stdin/stderr; environment input needs no terminal. macOS production reads remain gated. |
 | `beyond-gate auth status` | Reports source and local syntax/presence. `--stored` checks only the protected entry. No upstream validation. |
 | `beyond-gate auth validate` | Windows/Linux: uses selected input for one fresh exchange and returns safe JSON. macOS retains the production read gate. |
 | `beyond-gate auth logout` | Clears process-only input or deletes the selected saved entry. `--stored` explicitly selects saved deletion. No upstream revocation. |
-| `beyond-gate auth import --prompt` or `--env` | Explicitly validates and saves the cookie envelope through the shared establishment lifecycle. |
+| `beyond-gate auth import --prompt` or `--env` | Compatibility forms of supplied-input login; the validation, save, and output contracts are unchanged. |
 
 Storage errors exit with code 1 and use stderr. Invalid command usage exits with
 code 2. A locked store or a failed service is not an absent session. Status does

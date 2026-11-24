@@ -1367,7 +1367,11 @@ fn main() {
             .get(2)
             .and_then(|mode| mode.to_str())
             .expect("import mode");
-        std::process::exit(import_process::child(mode));
+        let form = arguments
+            .get(3)
+            .and_then(|form| form.to_str())
+            .expect("save form");
+        std::process::exit(import_process::child(mode, form));
     }
     if arguments
         .get(1)

@@ -48,14 +48,19 @@ fn child() -> i32 {
     finish_child(code)
 }
 
-/// Checks that prompt submission saves only valid input to the mock entry.
-fn import_child() -> i32 {
+/// Checks that supplied-input login and import save only valid input to the mock entry.
+fn save_child(login: bool) -> i32 {
     let session = fixture::session(Scenario::Locked)
         .expect("mock session")
         .with_environment_value(Some("".into()));
     let operations = ImportOperations(ImportFixture::new(ImportScenario::Success));
+    let arguments = if login {
+        ["beyond-gate", "auth", "login", "--prompt"]
+    } else {
+        ["beyond-gate", "auth", "import", "--prompt"]
+    };
     let code = beyond_gate_cli::run_with_session_input(
-        ["beyond-gate", "auth", "import", "--prompt"],
+        arguments,
         &operations,
         &session,
         &mut io::empty(),
@@ -172,6 +177,7 @@ fn check_chunks(case: &str, mode: &str, chunks: &[&[u8]], expected: i32) {
         .expect("synthetic terminal");
     let mut command = CommandBuilder::new(std::env::current_exe().expect("test path"));
     command.arg(mode);
+    command.env("BEYOND_GATE_COBALT_SESSION", "");
     let mut child = pair.slave.spawn_command(command).expect("terminal child");
     drop(pair.slave);
     let mut reader = pair.master.try_clone_reader().expect("terminal reader");
@@ -257,6 +263,28 @@ fn check_chunks(case: &str, mode: &str, chunks: &[&[u8]], expected: i32) {
 
 /// Rejects delayed multiline input without echo or a first-line exchange.
 fn check_pastes() {
+    check(
+        "Ctrl+V followed by terminal paste",
+        "--child",
+        b"\x16invented-terminal-cookie\x04",
+        0,
+    );
+    check("Ctrl+V without text", "--child", b"\x16\x04", 1);
+    check(
+        "Ctrl+V preserves cancellation",
+        "--child",
+        b"\x16invented-terminal-cookie\x03",
+        1,
+    );
+    check_chunks(
+        "Ctrl+V cannot clear an invalid paste",
+        "--child",
+        &[
+            b"invented-terminal-first\r",
+            b"\x16invented-terminal-tail\x04",
+        ],
+        2,
+    );
     check_chunks(
         "split single-line paste",
         "--child",
@@ -301,25 +329,45 @@ fn check_pastes() {
         &[&paste, b"invented-terminal-tail", b"\x04"],
         2,
     );
-    check_chunks(
-        "prompt import",
-        "--import-child",
-        &[COOKIE.as_bytes(), b"\x04"],
-        0,
-    );
-    check_chunks(
-        "split multiline prompt import",
-        "--import-child",
-        &[COOKIE.as_bytes(), b"\r", b"invented-terminal-tail", b"\x04"],
-        2,
-    );
+    for child in ["--login-child", "--import-child"] {
+        let mut paste = b"\x16".to_vec();
+        paste.extend_from_slice(COOKIE.as_bytes());
+        paste.push(4);
+        check("Ctrl+V followed by prompt save paste", child, &paste, 0);
+        check_chunks("prompt save", child, &[COOKIE.as_bytes(), b"\x04"], 0);
+        check_chunks(
+            "split multiline prompt save",
+            child,
+            &[COOKIE.as_bytes(), b"\r", b"invented-terminal-tail", b"\x04"],
+            2,
+        );
+        check(
+            "cancel prompt save",
+            child,
+            b"invented-terminal-cancel\x03",
+            1,
+        );
+        check(
+            "escape prompt save",
+            child,
+            b"invented-terminal-cancel\x1b",
+            1,
+        );
+        check(
+            "rejected prompt save",
+            child,
+            b"invented-terminal-rejected\x04",
+            1,
+        );
+    }
 }
 
 /// Selects synthetic children before running the bounded terminal matrix.
 fn main() {
     match std::env::args().nth(1).as_deref() {
         Some("--child") => std::process::exit(child()),
-        Some("--import-child") => std::process::exit(import_child()),
+        Some("--import-child") => std::process::exit(save_child(false)),
+        Some("--login-child") => std::process::exit(save_child(true)),
         Some("--redirected-child") => std::process::exit(redirected_child()),
         Some("--paste-check") => check_pastes(),
         _ => {

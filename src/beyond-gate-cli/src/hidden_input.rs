@@ -74,6 +74,14 @@ fn read_events() -> Result<Zeroizing<Vec<u8>>, Failure> {
                         None => Ok(bytes),
                     };
                 }
+                KeyCode::Char('v' | 'V')
+                    if key.modifiers.contains(KeyModifiers::CONTROL)
+                        && !key
+                            .modifiers
+                            .intersects(KeyModifiers::ALT | KeyModifiers::SUPER) =>
+                {
+                    // A terminal can send the paste shortcut before the pasted text.
+                }
                 KeyCode::Enter => {
                     invalid = Some("Hidden cookie input must not contain line breaks.");
                 }
