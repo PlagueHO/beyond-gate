@@ -167,6 +167,56 @@ Describe 'Pester result mapping' -Tag 'Harness' {
     }
 }
 
+Describe 'Synthetic native authentication cases' -Tag 'Harness' {
+    BeforeAll {
+        $tokens = $null
+        $errors = $null
+        $source = Join-Path $PSScriptRoot 'Prerequisites.Tests.ps1'
+        $ast = [Management.Automation.Language.Parser]::ParseFile($source, [ref]$tokens, [ref]$errors)
+        if ($errors.Count -ne 0) { throw 'harness_error' }
+        $it = $ast.Find({
+            param($node)
+            $node -is [Management.Automation.Language.CommandAst] -and
+                $node.GetCommandName() -eq 'It' -and $node.Extent.Text.Contains('-ForEach $nativeCases')
+        }, $true)
+        $body = @($it.CommandElements | Where-Object { $_ -is [Management.Automation.Language.ScriptBlockExpressionAst] })[-1]
+        $nativeCaseBody = $body.ScriptBlock.GetScriptBlock()
+
+        function Invoke-E2eContextProcess {
+            param($Context, $Binary, $Arguments)
+            $Context.Calls.Add("$Binary $($Arguments -join ' ')")
+            if ($Binary -eq 'helper' -and $Arguments[0] -eq 'seed') { $Context.Stored = $true }
+            if ($Binary -eq 'helper' -and $Arguments[0] -eq 'cleanup') { $Context.Stored = $false }
+            if ($Binary -eq 'cli' -and $Arguments[1] -eq 'logout') {
+                if (!$Context.BrokenLogout) { $Context.Stored = $false }
+                return @{ Code = 0; Err = ''; Out = 'removed or already absent' }
+            }
+            $output = if ($Context.Stored) { 'stored-unverified:' } else { 'absent:' }
+            return @{ Code = 0; Err = ''; Out = $output }
+        }
+    }
+    It 'checks status before cleanup for <Id>' -ForEach @(
+        @{ Id = 'native.auth.absent'; Calls = 'cli auth status,cli auth status' }
+        @{ Id = 'native.auth.stored-unverified'; Calls = 'helper seed,cli auth status,cli auth status' }
+        @{ Id = 'native.auth.logout'; Calls = 'helper seed,cli auth logout,cli auth status' }
+        @{ Id = 'native.auth.repeated-logout'; Calls = 'helper seed,cli auth logout,cli auth logout,cli auth status' }
+    ) {
+        $Case = @{ id = $Id }
+        $context = @{ Stored = $false; BrokenLogout = $false; Calls = [Collections.Generic.List[string]]::new() }
+        & $nativeCaseBody
+        ($context.Calls -join ',') | Should -BeExactly $Calls
+    }
+    It 'rejects a successful logout that leaves the seeded entry for <Id>' -ForEach @(
+        @{ Id = 'native.auth.logout' }
+        @{ Id = 'native.auth.repeated-logout' }
+    ) {
+        $Case = @{ id = $Id }
+        $context = @{ Stored = $false; BrokenLogout = $true; Calls = [Collections.Generic.List[string]]::new() }
+        { & $nativeCaseBody } | Should -Throw
+        ($context.Calls -join ',') | Should -Not -Match 'helper cleanup'
+    }
+}
+
 Describe 'Safe Pester failure execution' -Tag 'Harness' {
     It 'suppresses canary diagnostics for <Phase> failures' -ForEach @(
         @{ Phase = 'discovery'; Body = "BeforeDiscovery { throw 'cookie-canary' }" }

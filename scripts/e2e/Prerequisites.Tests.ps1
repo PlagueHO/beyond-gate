@@ -49,12 +49,10 @@ Describe 'Isolated native prerequisites' -Tag 'Native' {
         $result.Code | Should -Be 0
         $result.Err | Should -BeExactly ''
         $result.Out.Contains($expected) | Should -BeTrue
-        $cleanup = Invoke-E2eContextProcess $context 'helper' @('cleanup')
-        $cleanup.Code | Should -Be 0
-        $cleanup.Err | Should -BeExactly ''
         $status = Invoke-E2eContextProcess $context 'cli' @('auth', 'status')
         $status.Code | Should -Be 0
         $status.Err | Should -BeExactly ''
-        $status.Out.StartsWith('absent:') | Should -BeTrue
+        $statusExpected = if ($Case.id -eq 'native.auth.stored-unverified') { 'stored-unverified:' } else { 'absent:' }
+        $status.Out.StartsWith($statusExpected) | Should -BeTrue
     }
 }
