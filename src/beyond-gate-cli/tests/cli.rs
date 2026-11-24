@@ -62,6 +62,10 @@ fn invalid_environment_fails_only_when_selected_input_is_needed() {
     let environment = [("BEYOND_GATE_COBALT_SESSION", "invented private sentinel")];
     for args in [
         vec!["--help"],
+        vec!["auth", "--help"],
+        vec!["auth", "login", "--help"],
+        vec!["auth", "login", "--prompt", "--help"],
+        vec!["auth", "login", "--from-env", "--help"],
         vec!["auth", "import", "--help"],
         vec!["--auth-prompt", "auth", "validate", "--help"],
         vec!["completions", "bash"],
@@ -72,6 +76,7 @@ fn invalid_environment_fails_only_when_selected_input_is_needed() {
         vec!["auth", "status"],
         vec!["auth", "validate"],
         vec!["auth", "import", "--env"],
+        vec!["auth", "login", "--from-env"],
     ] {
         let output = run_with_environment(&args, &environment);
         assert_eq!(output.status.code(), Some(1));
@@ -98,6 +103,8 @@ fn prompt_and_import_usage_is_explicit_and_redirected_input_is_refused() {
     for args in [
         vec!["auth", "import"],
         vec!["auth", "import", "--env", "--prompt"],
+        vec!["auth", "login", "--from-env", "--prompt"],
+        vec!["auth", "login", "--env"],
         vec!["--auth-prompt", "auth", "status"],
         vec!["--auth-prompt", "auth", "logout"],
         vec!["--auth-prompt", "mcp", "start"],
@@ -108,6 +115,7 @@ fn prompt_and_import_usage_is_explicit_and_redirected_input_is_refused() {
     for args in [
         vec!["--auth-prompt", "auth", "validate"],
         vec!["auth", "import", "--prompt"],
+        vec!["auth", "login", "--prompt"],
     ] {
         let output = run(&args);
         assert!(!output.status.success());
@@ -117,6 +125,100 @@ fn prompt_and_import_usage_is_explicit_and_redirected_input_is_refused() {
     let absent = run(&["auth", "import", "--env"]);
     assert_eq!(absent.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&absent.stderr).contains("cookie_unavailable"));
+    let absent = run(&["auth", "login", "--from-env"]);
+    assert_eq!(absent.status.code(), Some(1));
+    assert!(absent.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&absent.stderr).contains("cookie_unavailable"));
+}
+
+/// Explains saving login methods separately from the inherited process-only flag.
+#[test]
+fn authentication_help_and_completions_identify_input_methods() {
+    for arguments in [
+        vec!["--help"],
+        vec!["auth", "--help"],
+        vec!["auth", "login", "--help"],
+        vec!["help", "auth", "login"],
+    ] {
+        let output = run(&arguments);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let help = String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for expected in [
+            "auth login --prompt",
+            "auth login --from-env",
+            "BEYOND_GATE_COBALT_SESSION",
+            "validates and saves",
+            "auth import --prompt/--env",
+        ] {
+            assert!(help.contains(expected), "{arguments:?}: {help}");
+        }
+        assert!(help.contains("resource reads or auth validate only"));
+        assert!(help.contains("not login/import"));
+    }
+    for shell in ["bash", "elvish", "fish", "powershell", "zsh"] {
+        let output = run(&["completions", shell]);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let completion = String::from_utf8_lossy(&output.stdout);
+        assert!(completion.contains("from-env"), "{shell}");
+        assert!(completion.contains("prompt"), "{shell}");
+    }
+}
+
+/// Keeps invalid save selections and rejected credential arguments out of diagnostics.
+#[test]
+fn login_usage_is_redacted_and_process_prompt_has_a_specific_correction() {
+    for arguments in [
+        vec!["auth", "login", "--auth-key", "invented-private-sentinel"],
+        vec!["auth", "login", "--auth-key=invented-private-sentinel"],
+        vec!["auth", "login", "--prompt", "invented-private-sentinel"],
+        vec!["auth", "login", "--prompt=invented-private-sentinel"],
+        vec!["auth", "login", "--from-env", "invented-private-sentinel"],
+        vec!["auth", "login", "--from-env=invented-private-sentinel"],
+        vec!["auth", "import", "--env", "invented-private-sentinel"],
+        vec!["auth", "import", "--prompt=invented-private-sentinel"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(!diagnostic.contains("sentinel"));
+        assert!(!diagnostic.contains("terminal"));
+        assert!(!diagnostic.contains("saved:"));
+        assert!(diagnostic.contains("auth login --"));
+    }
+    for arguments in [
+        vec!["auth", "login", "--auth-prompt"],
+        vec!["--auth-prompt", "auth", "login"],
+        vec!["auth", "login", "--prompt", "--auth-prompt"],
+        vec!["auth", "login", "--from-env", "--auth-prompt"],
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(2), "{arguments:?}");
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(diagnostic.contains("auth login --prompt"));
+        assert!(diagnostic.contains("process-only"));
+    }
+    for value in [
+        "",
+        "invented invalid sentinel",
+        "CobaltSession=invented-sentinel",
+    ] {
+        let output = run_with_environment(
+            &["auth", "login", "--from-env"],
+            &[("BEYOND_GATE_COBALT_SESSION", value)],
+        );
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(diagnostic.contains("invalid_material"));
+        assert!(!diagnostic.contains("sentinel"));
+    }
 }
 
 /// Rejects invalid prepared requests before a hidden prompt can read terminal input.
@@ -1071,7 +1173,7 @@ fn auth_help_describes_local_commands() {
         assert!(help.contains(name));
     }
     let summary = help
-        .find("Sign in through your browser and manage the saved sign-in")
+        .find("Choose a sign-in method and manage session input")
         .expect("auth summary");
     let usage = help.find("Usage: beyond-gate auth").expect("auth usage");
     let options = help.find("Options:").expect("auth options");
@@ -1083,16 +1185,23 @@ fn auth_help_describes_local_commands() {
 /// Checks redirected login fails before terminal input, storage, or network activity.
 #[test]
 fn auth_login_reports_the_blocker_without_stdout() {
-    let output = run(&["auth", "login"]);
-    assert_eq!(output.status.code(), Some(1));
-    assert!(output.stdout.is_empty());
-    let diagnostic = String::from_utf8_lossy(&output.stderr);
-    #[cfg(windows)]
-    assert!(diagnostic.contains("pairing requires interactive stdin, stdout, and stderr"));
-    #[cfg(not(windows))]
-    {
-        assert!(diagnostic.contains("no working session handoff"));
-        assert!(diagnostic.contains("do not supply a password or cookie"));
+    for environment in [
+        vec![],
+        vec![("BEYOND_GATE_COBALT_SESSION", "invented invalid sentinel")],
+    ] {
+        let output = run_with_environment(&["auth", "login"], &environment);
+        assert_eq!(output.status.code(), Some(1));
+        assert!(output.stdout.is_empty());
+        let diagnostic = String::from_utf8_lossy(&output.stderr);
+        assert!(!diagnostic.contains("invalid_material"));
+        assert!(!diagnostic.contains("sentinel"));
+        #[cfg(windows)]
+        assert!(diagnostic.contains("pairing requires interactive stdin, stdout, and stderr"));
+        #[cfg(not(windows))]
+        {
+            assert!(diagnostic.contains("no working session handoff"));
+            assert!(diagnostic.contains("do not supply a password or cookie"));
+        }
     }
 }
 

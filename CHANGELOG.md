@@ -7,6 +7,13 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Unified supplied-input sign-in under `auth login --prompt` and
+  `auth login --from-env`. Both reuse explicit validation and protected save.
+  Login without a selector keeps Windows browser pairing. Existing
+  `auth import --prompt/--env` commands remain compatible.
+  Help distinguishes saving login from process-only `--auth-prompt`.
+  Invalid login/import arguments use fixed diagnostics without supplied values.
+  Direct credential-value arguments remain excluded.
 - Support, compatibility, and privacy policies with best-effort pre-1.0
   expectations, tested platform/client limits, upstream failure recovery,
   session-source lifetime, network destinations, and manual extension permissions.
@@ -602,6 +609,12 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Hidden cookie prompts no longer reject ASCII input when a terminal forwards
+  Ctrl+V or Ctrl+Shift+V before the pasted text. This applies to process-only
+  validation/reads, supplied-input login, and legacy prompt import.
+  The terminal supplies the text; no clipboard access is added. Paste guidance
+  recommends Ctrl+Shift+V or the terminal's Paste command because Ctrl+V can send
+  only a shortcut, not clipboard text.
 - Clean-Windows acceptance reports resolve relative destinations from the
   PowerShell location and reject non-FileSystem destinations. Report or cleanup
   failures no longer replace the original acceptance failure.

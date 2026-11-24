@@ -78,12 +78,12 @@ operation. The CLI does not infer a source URL from an identifier.
 
 | Command | Purpose | Current behavior |
 |---------|---------|------------------|
-| [`auth login`](#auth-login) | Complete human-controlled login | Windows; approved Chrome and Edge Dev checks passed |
+| [`auth login`](#auth-login) | Validate and save through a selected sign-in method | Windows browser pairing; Windows/Linux `--prompt` or `--from-env` |
 | [`auth install`](#auth-install-and-auth-uninstall) | Register a native browser host | Windows; explicit directory, preview, and confirmation |
 | [`auth uninstall`](#auth-install-and-auth-uninstall) | Remove matching native setup | Windows; preserves other installations |
 | [`auth status`](#auth-status) | Inspect local credential presence | Implemented; no upstream validation |
 | [`auth validate`](#auth-validate) | Make one fresh session check | Windows/Linux; safe JSON, selected input |
-| [`auth import`](#auth-import) | Validate and save explicitly | `--prompt` or `--env`; protected storage required |
+| [`auth import`](#auth-import) | Retain supplied-input login compatibility | `--prompt` or `--env`; protected storage required |
 | [`auth logout`](#auth-logout) | Clear selected input | Implemented; `--stored` selects saved deletion; no upstream revocation |
 | [`character list`](#character-list) | List character summaries | Windows/Linux; bounded complete response |
 | [`character show`](#character-show) | Select one character | Windows/Linux; fixed source route |
@@ -621,14 +621,23 @@ candidate detail route still lacks live response and access evidence. See the
 ## Authentication commands
 
 Authentication commands never accept credential values as arguments.
-Windows/Linux source order is explicit `--auth-prompt`, environment
-`BEYOND_GATE_COBALT_SESSION`, then saved input. Invalid selected input never falls
+Do not use `--auth-key <CobaltSession>`. Argument values can appear in process
+listings, shell history, and captured diagnostics. Shell variable expansion does
+not remove process-argument exposure. Use hidden input or environment input.
+
+For Windows/Linux reads and validation, source order is explicit `--auth-prompt`,
+environment `BEYOND_GATE_COBALT_SESSION`, then saved input. Invalid selected input never falls
 back. Process-only use does not open a native store.
 
 Use `beyond-gate --auth-prompt character list` or
 `beyond-gate --auth-prompt auth validate` for one hidden-input operation.
 Stdin and stderr must be terminals; stdout can be redirected. Escape or Ctrl+C
-cancels. MCP, setup, status/logout, and completions refuse this global flag.
+cancels. Login, import, MCP, setup, status/logout, and completions refuse this
+global flag. Use `auth login --prompt` to validate and save hidden input.
+Use Ctrl+Shift+V or the terminal's Paste command.
+Ctrl+V can send only a shortcut instead of the clipboard text.
+Ignoring that shortcut does not paste the value. The terminal must send the text;
+Beyond Gate does not read the clipboard directly.
 Ctrl+D submits on every platform. Enter and pasted line breaks invalidate the
 input without submitting. Invalid input stays hidden until Ctrl+D or cancellation.
 Input has a 2,552-byte limit and a five-minute deadline.
@@ -642,6 +651,8 @@ beyond-gate auth import --prompt
 beyond-gate auth import --env
 ```
 
+These compatibility forms retain their behavior. Prefer `auth login --prompt`
+and `auth login --from-env` for supplied-input login.
 Select exactly one input. Each command explicitly requests fresh validation and
 protected save. `--env` requires the environment variable to be present.
 The stored cookie uses the existing versioned envelope; derived bearers remain in
@@ -652,10 +663,33 @@ an unconfirmed started write returns `save_indeterminate` without automatic retr
 
 ```shell
 beyond-gate auth login
+beyond-gate auth login --prompt
+beyond-gate auth login --from-env
 ```
 
-On Windows, all three standard streams must be interactive terminals. Redirected
-streams fail before runtime, key generation, endpoint creation, network, or storage.
+Every login form validates and requests a protected save. Select at most one
+method option. Both options are flags; neither accepts a credential value.
+
+| Method | Input and requirements |
+|--------|------------------------|
+| No option | Existing Windows browser pairing. Environment presence does not change this selection. |
+| `--prompt` | Hidden `CobaltSession` input on Windows/Linux. Stdin and stderr must be terminals; stdout can be redirected. Ctrl+D submits; Escape/Ctrl+C cancels. |
+| `--from-env` | Reads the fixed `BEYOND_GATE_COBALT_SESSION` variable on Windows/Linux. Requires no terminal or browser. Do not pass a value or variable name after the flag. |
+
+`--prompt` and `--from-env` cannot be combined. Selected input never falls back
+to another source or browser pairing. Missing, empty, malformed, or rejected
+environment input fails explicitly. Prompt selection ignores environment input.
+Supplied-input login uses the same validation, protected-save, cancellation, and
+uncertain-write behavior as `auth import`. Validation finishes before storage
+opens. A locked or unavailable store remains an error; no plaintext fallback exists.
+macOS production reads remain gated.
+
+The global `--auth-prompt` is process-only and is not accepted for login.
+`auth login --auth-prompt` exits with code 2 and directs you to `--prompt`.
+
+For browser login on Windows, all three standard streams must be interactive
+terminals. Redirected streams fail before runtime, key generation, endpoint
+creation, network, or storage.
 The command reserves one logon-local pending slot and displays a one-use key on
 an owned alternate screen. The pending lifetime is at most five minutes.
 Ctrl+C cancels the operation. A second pending login fails with `busy`.
@@ -681,7 +715,7 @@ logout checks passed. Browser versions and remaining limits are in the
 See the [Windows runtime contract](browser-handoff.md#windows-runtime-integration).
 
 macOS and Linux retain the unsupported browser-login error. Use process-only
-input or explicit import on Linux instead. No password collection or
+input or supplied-input login on Linux instead. No password collection or
 credential-bearing MCP input is added.
 The developer authentication probe is not product login.
 

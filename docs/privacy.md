@@ -12,8 +12,9 @@ See [Authentication](authentication.md) for safe input instructions.
 
 ## Session input and lifetime
 
-The CLI selects an explicit hidden prompt first, then the presence of
-`BEYOND_GATE_COBALT_SESSION`, then the saved entry. The MCP server does not prompt;
+For resource reads and validation, the CLI selects an explicit hidden prompt first,
+then the presence of `BEYOND_GATE_COBALT_SESSION`, then the saved entry.
+The MCP server does not prompt;
 it selects environment input or the saved entry at startup. An empty environment
 value is present, not absent. Empty, malformed, oversized, non-Unicode, or
 rejected explicit input fails without falling back to saved credentials.
@@ -34,9 +35,17 @@ backup, terminal recording, or browser copy. Do not capture session or pairing
 screens. Use the normal OS protections for your account.
 
 Only `auth login` and explicit `auth import --prompt` / `--env` request protected
-save. Ordinary environment or `--auth-prompt` use never saves implicitly and never
+save. Login without options keeps Windows browser pairing. `auth login --prompt`
+uses hidden input; `auth login --from-env` reads the fixed
+`BEYOND_GATE_COBALT_SESSION` variable. These flags take no value and cannot be
+combined. Failed selected input never falls back to another source or browser
+pairing. Existing import commands remain compatible.
+Ordinary environment or global `--auth-prompt` use never saves implicitly and never
 opens the native store. It needs no browser, desktop, D-Bus, or Secret Service.
 MCP never asks for a password or cookie through a tool or protocol-stream prompt.
+Global `--auth-prompt` is not accepted for login or import.
+Direct-value arguments such as `--auth-key` remain excluded: a value can appear
+in process listings and shell history even when expanded from a shell variable.
 
 Protected storage uses the fixed application identity `beyond-gate` /
 `local-session`. Windows uses Credential Manager with local-machine persistence,

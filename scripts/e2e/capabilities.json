@@ -5,7 +5,7 @@
   "cli": [
     { "path": "", "arguments": ["auth-prompt"] },
     { "path": "auth", "arguments": [] },
-    { "path": "auth login", "arguments": [] },
+    { "path": "auth login", "arguments": ["from-env", "prompt"] },
     { "path": "auth import", "arguments": ["env", "prompt"] },
     { "path": "auth install", "arguments": ["browser", "directory", "dry-run"] },
     { "path": "auth uninstall", "arguments": ["browser", "directory", "dry-run"] },

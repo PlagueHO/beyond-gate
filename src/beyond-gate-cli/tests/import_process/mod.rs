@@ -33,9 +33,9 @@ impl ReadOperations for ImportOperations {
 }
 
 /// Runs a child-only fixture, with no fixture controls in product arguments.
-pub fn child(mode: &str) -> i32 {
+pub fn child(mode: &str, form: &str) -> i32 {
     let scenario = match mode {
-        "success" => Scenario::Success,
+        "success" | "rejected" => Scenario::Success,
         "before" => Scenario::BeforeWrite,
         "during" => Scenario::DuringWrite,
         _ => panic!("unknown import fixture"),
@@ -53,8 +53,13 @@ pub fn child(mode: &str) -> i32 {
     let session = fixture::session(fixture::Scenario::Absent).expect("mock session");
     let mut stdout = Vec::new();
     let mut stderr = Vec::new();
+    let arguments = match form {
+        "login" => ["beyond-gate", "auth", "login", "--from-env"],
+        "import" => ["beyond-gate", "auth", "import", "--env"],
+        _ => panic!("unknown save form"),
+    };
     let code = beyond_gate_cli::run_with_session_input(
-        ["beyond-gate", "auth", "import", "--env"],
+        arguments,
         &ImportOperations(fixture.clone()),
         &session,
         &mut io::empty(),
@@ -85,18 +90,29 @@ pub fn child(mode: &str) -> i32 {
             assert!(fixture.prior_is_unchanged());
         }
         eprintln!("import-store-checked");
+    } else if mode == "rejected" {
+        assert_eq!(code, 1);
+        assert!(stdout.is_empty());
+        assert_eq!(stderr, b"error: invalid_material\n");
+        assert!(fixture.prior_is_unchanged());
     } else {
         assert!(fixture.imported_cookie_is_saved());
     }
+    assert_eq!(fixture::request_count(&session), 0);
+    assert!(
+        !stderr
+            .windows(COOKIE.len())
+            .any(|bytes| bytes == COOKIE.as_bytes())
+    );
     io::stdout().write_all(&stdout).expect("result output");
     io::stderr().write_all(&stderr).expect("diagnostic output");
     code
 }
 
 /// Checks exact success output, empty diagnostics, and zero process exit.
-fn success() {
+fn success(form: &str) {
     let output = Command::new(std::env::current_exe().expect("test path"))
-        .args(["--import-child", "success"])
+        .args(["--import-child", "success", form])
         .env(SESSION_ENV_VAR, COOKIE)
         .output()
         .expect("import process");
@@ -106,10 +122,18 @@ fn success() {
         b"saved: Beyond Gate session; validation=service_validated; expiry=unknown.\n"
     );
     assert!(output.stderr.is_empty(), "{output:?}");
+    let rejected = Command::new(std::env::current_exe().expect("test path"))
+        .args(["--import-child", "rejected", form])
+        .env(SESSION_ENV_VAR, "invented-rejected-cookie")
+        .output()
+        .expect("rejected save process");
+    assert_eq!(rejected.status.code(), Some(1), "{rejected:?}");
+    assert!(rejected.stdout.is_empty());
+    assert_eq!(rejected.stderr, b"error: invalid_material\n");
 }
 
 /// Sends a real terminal Ctrl+C only after the selected write phase is reached.
-fn cancellation(mode: &str, expected: &[u8]) {
+fn cancellation(mode: &str, expected: &[u8], form: &str) {
     let pair = native_pty_system()
         .openpty(PtySize {
             rows: 24,
@@ -119,7 +143,7 @@ fn cancellation(mode: &str, expected: &[u8]) {
         })
         .expect("import terminal");
     let mut command = CommandBuilder::new(std::env::current_exe().expect("test path"));
-    command.args(["--import-child", mode]);
+    command.args(["--import-child", mode, form]);
     command.env(SESSION_ENV_VAR, COOKIE);
     let mut child = pair.slave.spawn_command(command).expect("import child");
     drop(pair.slave);
@@ -209,7 +233,9 @@ fn cancellation(mode: &str, expected: &[u8]) {
 
 /// Covers success and both sides of actual write admission through CLI processes.
 pub fn check() {
-    success();
-    cancellation("before", b"error: cancelled");
-    cancellation("during", b"error: save_indeterminate");
+    for form in ["login", "import"] {
+        success(form);
+        cancellation("before", b"error: cancelled", form);
+        cancellation("during", b"error: save_indeterminate", form);
+    }
 }
