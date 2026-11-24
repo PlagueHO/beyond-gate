@@ -609,6 +609,9 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Update locked `url` from 2.5.8 to 2.5.9 and its required `form_urlencoded`
+  dependency to 1.2.3. This fixes RUSTSEC-2026-0592, a stack overflow when
+  resolving the origin of nested `blob:` URLs. Dependency policy is unchanged.
 - Hidden cookie prompts no longer reject ASCII input when a terminal forwards
   Ctrl+V or Ctrl+Shift+V before the pasted text. This applies to process-only
   validation/reads, supplied-input login, and legacy prompt import.
