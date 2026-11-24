@@ -67,6 +67,8 @@ jobs:
           exit 0
       - name: Select repository toolchain
         run: rustup show
+      - name: Install pinned Pester development dependency
+        run: ./scripts/install-test-tools.ps1
       - name: Check harness offline
         run: ./scripts/test-e2e-harness.ps1
       - name: Build and run shared suite without live credentials

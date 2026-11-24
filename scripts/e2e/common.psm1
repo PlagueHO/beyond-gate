@@ -179,7 +179,9 @@ function Start-E2eChild {
     # A launcher-only secret must never leak to a normal product child.
     foreach ($name in @(
         'BEYOND_GATE_E2E_COOKIE', 'BEYOND_GATE_E2E_CONTEXT',
-        'BEYOND_GATE_E2E_NATIVE_APPROVED', 'RUST_LOG'
+        'BEYOND_GATE_E2E_NATIVE_APPROVED', 'BEYOND_GATE_COBALT_SESSION',
+        'BEYOND_GATE_LIVE_API_APPROVED', 'BEYOND_GATE_LIVE_ENTITY_SELECTIONS',
+        'BEYOND_GATE_LIVE_ENTITY', 'RUST_LOG'
     )) {
         $start.Environment.Remove($name) | Out-Null
     }
@@ -305,77 +307,6 @@ function Invoke-E2eRequest {
         Assert-E2e (!$Child.Process.HasExited) 'protocol_missing'
         Start-Sleep -Milliseconds 5
     }
-}
-
-function Invoke-E2eProtocol {
-    param([string]$Executable, [string[]]$Arguments, [hashtable]$Inventory, [hashtable]$Environment, [string]$Directory, [datetime]$Deadline)
-    $child = Start-E2eChild $Executable $Arguments $Environment $Directory 30 1048576 $Deadline
-    $verified = [Collections.Generic.List[string]]::new()
-    try {
-        $response = Invoke-E2eRequest $child @{
-            jsonrpc = '2.0'; id = 1; method = 'initialize'; params = @{
-                protocolVersion = '2026-07-28'; capabilities = @{}
-                clientInfo = @{ name = 'beyond-gate-e2e'; version = '0.1.0' }
-            }
-        }
-        Assert-E2e ($response.result.capabilities.ContainsKey('tools')) 'contract_mismatch'
-        Send-E2eInput $child ('{"jsonrpc":"2.0","method":"notifications/initialized","params":{}}' + "`n")
-        $response = Invoke-E2eRequest $child @{ jsonrpc = '2.0'; id = 2; method = 'tools/list'; params = @{} }
-        $names = @($response.result.tools.name | Sort-Object)
-        $expectedTools = @($Inventory.reads.tool) + $Inventory.session_validation.tool
-        Assert-E2e (($names -join ',') -ceq (($expectedTools | Sort-Object) -join ',')) 'inventory_invalid'
-        foreach ($tool in $response.result.tools) {
-            Assert-E2e ($tool.annotations.readOnlyHint -eq $true -and $tool.annotations.destructiveHint -eq $false)
-            Assert-E2e ($tool.inputSchema.additionalProperties -eq $false)
-            $read = (@($Inventory.reads) + $Inventory.session_validation) | Where-Object { $_.tool -ceq $tool.name }
-            $properties = if ($read.ContainsKey('input_fields')) { @($read.input_fields) } else { @($read.arguments.Keys) }
-            if ($tool.name -ceq 'book_read') { $properties += 'continuation' }
-            $actualProperties = if ($tool.inputSchema.ContainsKey('properties')) { @($tool.inputSchema.properties.Keys | Sort-Object) } else { @() }
-            Assert-E2e (($actualProperties -join ',') -ceq (@($properties | Sort-Object) -join ',')) 'inventory_invalid'
-        }
-        $book = $response.result.tools | Where-Object { $_.name -ceq 'book_read' }
-        Assert-E2e ($book.inputSchema.properties.continuation.maxLength -eq 16384)
-        $verified.Add('discovery')
-        $id = 3
-        foreach ($read in $Inventory.reads) {
-            $requiresSession = $read.ContainsKey('requires_session') -and $read.requires_session
-            $response = Invoke-E2eRequest $child @{
-                jsonrpc = '2.0'; id = $id; method = 'tools/call'
-                params = @{
-                    name = $read.tool
-                    arguments = $(if ($requiresSession) { @{ unexpected = $true } } else { $read.arguments })
-                }
-            }
-            Assert-E2e ($response.result.isError -eq $true)
-            Assert-E2e ($response.result.content[0].text -cmatch $(if ($requiresSession) { 'unknown field' } else { 'unsupported' }))
-            $verified.Add($read.tool)
-            $id++
-        }
-        foreach ($check in @(
-            @{ name = 'invalid-input'; tool = 'character_show'; arguments = @{ id = 'synthetic'; extra = $true } }
-            @{ name = 'invalid-validation-input'; tool = $Inventory.session_validation.tool; arguments = @{ extra = $true } }
-            @{ name = 'invalid-token'; tool = 'book_read'; arguments = @{ book_id = 'synthetic'; section_id = 'opening'; continuation = 'invalid' } }
-            @{ name = 'unknown-tool'; tool = 'not_a_tool'; arguments = @{} }
-        )) {
-            $response = Invoke-E2eRequest $child @{
-                jsonrpc = '2.0'; id = $id; method = 'tools/call'
-                params = @{ name = $check.tool; arguments = $check.arguments }
-            }
-            Assert-E2e ($response.ContainsKey('error') -or ($response.ContainsKey('result') -and $response.result.isError -eq $true))
-            $verified.Add($check.name)
-            $id++
-        }
-        Send-E2eInput $child ('{"jsonrpc":"2.0","method":"notifications/cancelled","params":{"requestId":999,"reason":"synthetic"}}' + "`n")
-        $response = Invoke-E2eRequest $child @{ jsonrpc = '2.0'; id = $id; method = 'ping'; params = @{} }
-        Assert-E2e ($response.ContainsKey('result'))
-        $verified.Add('cancellation')
-        $result = Complete-E2eChild $child
-        Assert-E2e ($result.Code -eq 0 -and $result.Err -eq '')
-        Assert-E2e (@(Get-E2eMessages $child).Count -eq $id)
-        Assert-E2e ($result.Out.EndsWith("`n"))
-        $verified.Add('lifecycle')
-        return ,$verified
-    } finally { Stop-E2eChild $child }
 }
 
 Export-ModuleMember -Function *-E2e*

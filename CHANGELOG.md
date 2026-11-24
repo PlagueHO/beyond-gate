@@ -14,6 +14,27 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Help distinguishes saving login from process-only `--auth-prompt`.
   Invalid login/import arguments use fixed diagnostics without supplied values.
   Direct credential-value arguments remain excluded.
+- An opt-in live entity suite with 24 cases across 12 implemented families:
+  one list and one explicitly selected detail per family. Strict local selectors
+  validate before hidden process-only input. One shared Rust process uses unchanged
+  production readers, a reviewed 74-attempt maximum, and first-failure stopping.
+  Focused runs cannot claim full coverage. Reports exclude selected IDs and raw
+  data. Offline tests cover selection, stops, timeout, one-process execution,
+  protocol safety, and cleanup. Broader live entity acceptance remains unverified.
+- A separate opt-in Pester live API suite for public configuration, session
+  exchange, Web-catalog metadata, and ownership through the production Rust reader.
+  Hidden or explicitly selected environment input remains process-only.
+  The fixed scope permits at most five HTTP attempts and emits only safe results.
+  Synthetic guards cover input, approval, process limits, cleanup, and redaction.
+  Ordinary CI remains offline. A later user-run invocation reported successful
+  live acceptance for this library scope only.
+- Pester 6.2.0 development setup and independently runnable end-to-end test files.
+  Existing PowerShell commands now use Pester fixtures and assertions.
+  CLI, installation, direct MCP, and CLI-started MCP checks preserve the shared
+  inventory, sanitized JSON reports, blocked prerequisites, and coverage exit rules.
+  Offline CI runs the same harness and contracts on Windows, Linux, and macOS.
+  These inventory checks make no live requests. Native storage still requires
+  separate approval.
 - Support, compatibility, and privacy policies with best-effort pre-1.0
   expectations, tested platform/client limits, upstream failure recovery,
   session-source lifetime, network destinations, and manual extension permissions.

@@ -1340,6 +1340,8 @@ tests. Diagnostic removal was confirmed during the approved product check below.
 Use PowerShell 7.4 or later. Start at the repository root.
 
 ```powershell
+pwsh -NoProfile -File .\scripts\install-test-tools.ps1
+pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1
 pwsh -NoProfile -File .\scripts\start-live-e2e.ps1 -Selection contracts
 pwsh -NoProfile -File .\scripts\start-live-e2e.ps1 -Selection full
 ```
@@ -1366,6 +1368,348 @@ Raw stdout and stderr stay in bounded memory. Reports contain fixed case names,
 classifications, and a zero live request budget. They do not contain child
 arguments, exception details, credentials, account names, resource identifiers,
 private URLs, response bodies, or book text. No raw transcript is uploaded.
+
+## Live public and authenticated API integration
+
+This separate opt-in Pester suite sends real D&D Beyond requests through the
+production Rust `discover_library` operation. It is not a synthetic integration
+test. One test checks the complete public/private sequence and metadata joins.
+It does not test CLI or MCP adapter output, book text, characters, or campaigns.
+The existing capability inventory and ordinary CI still have a zero live budget.
+Despite its name, `start-live-e2e.ps1` does not run this live API suite.
+
+### Fixed scope and limits
+
+Review this scope before you authorize a run:
+
+| Operation | Exact target | Maximum attempts |
+|---|---|---|
+| Public configuration GET | `https://www.dndbeyond.com/api/config/json` | 1 |
+| Session exchange POST | `https://auth-service.dndbeyond.com/v1/cobalt-token` | 2 |
+| Authenticated Web-catalog GET | `https://api.dndbeyond.com/library/sources?platform=Web` | 1 |
+| Authenticated ownership GET | `https://api.dndbeyond.com/library/sources/me` | 1 |
+
+The total limit is five HTTP attempts. A normal run uses four attempts because
+both protected GETs share one bearer. Production session handling can exchange
+again if the bearer expires before the second GET. Each protected GET permits
+at most one exchange. A failed exchange or resource read stops the sequence.
+There are no retries, redirects, proxies, automatic pagination, or browser
+operations. Do not repeat a failed run to bypass denial or bot protection.
+
+The production reader has a 30-second operation deadline. Each request uses a
+five-second connection limit and a 15-second request limit. GET responses are
+limited to 1 MiB each. The exchange response is limited to 64 KiB.
+Public configuration and catalog collections are limited to 1,000 records.
+Ownership is limited to 100 records and 1,000 observations. All raw ownership
+must name validated public sources. Only visible Web-catalog sources produce
+books. Empty output, invalid data, conflicts, or incomplete collections fail.
+These are local safety and contract limits, not upstream API guarantees.
+
+### Run with a supplied session
+
+Use PowerShell 7.4 or later on Windows or Linux. Run from the repository root.
+Install Pester once, then run the live command in an interactive terminal:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-test-tools.ps1
+pwsh -NoProfile -File .\scripts\test-live-api.ps1 -ApproveLive `
+    -ReportPath .\target\live-api-summary.json
+```
+
+`-ApproveLive` authorizes only the targets and limits above for that invocation.
+The command builds the ignored Rust integration test before it requests a
+`CobaltSession` through hidden input. Cargo uses `scripts\cargo.ps1`, including
+Visual Studio 2022 Build Tools on Windows. Build tools never receive the supplied
+credential. Missing approval fails before any build, input, or HTTP activity.
+The ignored test also requires its own exact non-secret scope acknowledgment.
+Ordinary `cargo test` does not execute it.
+
+If you already supplied the token through the product's process environment,
+select that input explicitly:
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-live-api.ps1 -ApproveLive -UseEnvironment
+```
+
+This reads `BEYOND_GATE_COBALT_SESSION`. It does not fall back to saved input or
+prompt input. Do not put a real token in a shell command, chat, configuration,
+fixture, or report. Remove your environment variable after the run.
+
+The launcher passes the selected value only to the one test process. It removes
+credential references after success or failure and stops its child after a
+timeout. Process input never opens, writes, or deletes native credential storage.
+The launcher does not change a user-owned environment variable. Temporary
+managed strings remain subject to runtime memory cleanup; this is not a claim
+that every memory copy can be erased.
+
+Exit 0 means the complete production API contract passed. Any missing input,
+rejected session, denial, timeout, malformed response, contract failure, build
+failure, or test failure returns a nonzero exit code. Output contains only fixed
+status and failure labels. Optional JSON reports contain the fixed scope and
+maximum budget, not an observed attempt count or raw Pester records. Credentials,
+bearers, account identifiers, ownership details, book metadata, response bodies,
+and raw child diagnostics are not printed or saved.
+
+### Offline validation and live acceptance
+
+Run `scripts\test-e2e-harness.ps1` for synthetic launcher and report guards.
+Run the ignored test file's ordinary tests without enabling the live case:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core `
+    --test live_api --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core `
+    --lib library::discovery::tests --locked
+```
+
+The library tests use local HTTP servers to check request counts, cookie-free
+public requests, authenticated reads, malformed responses, byte limits, denied
+access, cancellation, and stops without retries or redirects.
+No live run or real credential access was performed when this suite was added.
+A later user-run invocation reported successful library integration. This
+acceptance covers only the library scope, not other entities or adapter output.
+
+## Live selected entity integration
+
+`scripts\test-live-entities.ps1` checks all 12 implemented entity families through
+their production Rust readers. A full run contains 24 cases: one list and one
+explicitly selected detail per family. It does not discover all upstream entity
+types, scan every page, or test CLI/MCP output. Some production readers use
+checked website HTML rather than a JSON API. Both kinds send real requests.
+Ordinary CI and the capability inventory remain offline.
+
+### Select records locally
+
+Copy the example to the ignored `target` directory. Replace its placeholders
+with locally selected identifiers. Do not commit account selections or tokens.
+
+```powershell
+New-Item -ItemType Directory -Path .\target -Force | Out-Null
+Copy-Item .\scripts\e2e\live-entities.example.json .\target\live-entities.json
+```
+
+The full scope requires every family. A focused `-Entity` run requires only
+that family's entry; you can remove the other entries from its selection file.
+Unknown fields, duplicate selectors, invalid IDs, invalid query fields, explicit
+null context, and files larger than 16 KiB fail before hidden input or requests.
+Unselected entries do not add operations. Selection data cannot supply URLs.
+
+Use the book ID and class/subclass IDs from their existing metadata. Character,
+campaign, monster, background, feat, and species IDs are canonical positive
+numbers. A spell ID is its full numeric website slug, such as the synthetic
+`1-example-spell`. Subclasses require the explicit `parent_id`; the runner does
+not scan other parents. Equipment and magic items require their full
+`definitionKey` in `entityTypeId:id` form and an explicit one-based `page`.
+That page selects one mixed API source page of at most 100 rows.
+
+Monster, background, feat, and spell `query` objects use their existing production
+query schemas. Monster and spell lists use one explicit page; their default is 1.
+The selected detail need not appear in that list. Item detail remains scoped
+to its selected source page. No continuation is followed automatically.
+
+### Approved requests and limits
+
+Review the [production contracts](api-catalog.md) before running the suite.
+The fixed destinations are:
+
+| Families | Production routes |
+|---|---|
+| Session exchange | `auth-service.dndbeyond.com/v1/cobalt-token` |
+| Public configuration | `www.dndbeyond.com/api/config/json` |
+| Book | `api.dndbeyond.com/library/sources?platform=Web`, `/library/sources/me`, and the checked canonical book page |
+| Character | `character-service.dndbeyond.com/character/v5/characters/list?userId={accountId}` and `/character/v5/character/{id}?includeCustomItems=true` |
+| Campaign | `www.dndbeyond.com/api/campaign/stt/user-campaigns` and `/api/campaign/stt/active-short-characters/{id}` |
+| Class/subclass | `character-service.dndbeyond.com/character/v5/game-data/classes?sharingSetting=2` and `/character/v5/game-data/subclasses?sharingSetting=2&baseClassId={parent}` |
+| Monster | `www.dndbeyond.com/monsters` with the selected website query, `monster-service.dndbeyond.com/v1/Monster` with selected IDs, and `/v1/Monster/{id}` |
+| Background/feat | `www.dndbeyond.com/backgrounds`, `/feats`, and the corresponding `character-service.dndbeyond.com/character/v5/game-data/backgrounds` or `/feats` collection with `sharingSetting=2` |
+| Species | `www.dndbeyond.com/species` and `character-service.dndbeyond.com/character/v5/game-data/races` |
+| Spell | `www.dndbeyond.com/spells` with the selected website query and `/spells/{slug}` |
+| Equipment/magic item | `character-service.dndbeyond.com/character/v5.1/game-data/items?sharingSetting=2&page={zeroBased}&pageSize=100` |
+
+The reviewed worst-case attempt budgets include public reads and possible
+session exchanges. Shared session reuse can reduce actual attempts.
+
+| Family | List | Detail | Combined |
+|---|---:|---:|---:|
+| Book | 5 | 6 | 11 |
+| Character | 3 | 2 | 5 |
+| Campaign | 2 | 4 | 6 |
+| Class | 3 | 3 | 6 |
+| Subclass, selected parent | 5 | 5 | 10 |
+| Monster | 4 | 2 | 6 |
+| Background | 2 | 3 | 5 |
+| Feat | 2 | 3 | 5 |
+| Species | 2 | 2 | 4 |
+| Spell | 2 | 2 | 4 |
+| Equipment | 3 | 3 | 6 |
+| Magic item | 3 | 3 | 6 |
+| **Total** | | | **74** |
+
+Book detail means outline only, not section text. Class/subclass detail remains
+metadata-only. Campaign detail includes its selected active roster.
+Collection-backed detail readers can download one bounded collection before
+selecting the record. Existing byte, row, access, and URL limits remain unchanged.
+For example, the observed background collection can exceed the production
+1 MiB response cap. That failure is not permission to raise the cap.
+
+The sequence stops at the first error, denial, rate limit, timeout, or unsupported
+contract. Later cases are blocked, never passed. There are no automatic retries,
+redirects, proxies, browser operations, or pagination. The sequence deadline is
+600 seconds; the child timeout is 610 seconds with a 620-second outer deadline.
+Captured child output is limited to 16 KiB. Production request limits remain
+five seconds for connection and 15 seconds per request; exchanges are capped at
+64 KiB and ordinary responses at 1 MiB.
+
+### Run the selected scope
+
+Use PowerShell 7.4 or later on Windows or Linux:
+
+```powershell
+pwsh -NoProfile -File .\scripts\install-test-tools.ps1
+pwsh -NoProfile -File .\scripts\test-live-entities.ps1 `
+    -SelectionFile .\target\live-entities.json -ApproveLive `
+    -ReportPath .\target\live-entities-summary.json
+```
+
+For one family, use `-Entity`, for example:
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-live-entities.ps1 `
+    -SelectionFile .\target\live-entities.json -Entity spell -ApproveLive
+```
+
+`-ApproveLive` authorizes only that invocation's selected scope and limits.
+It does not authorize other runs, native storage, content extraction, or access
+control bypass. Missing approval fails before selection access or builds.
+The launcher builds the ignored test, then validates selections through a
+separate non-network preflight before it requests hidden `CobaltSession` input.
+All selected Pester cases share one live Rust process, not one process per case.
+
+Use `-UseEnvironment` only to select `BEYOND_GATE_COBALT_SESSION` explicitly.
+Input has no saved-credential fallback. The process-only input, cleanup, and
+managed-memory limits are the same as the library suite above. Remove your own
+environment variable after the run. Never put a token in the selection file.
+
+Exit 0 requires every selected case to pass. A focused success does not claim
+full entity coverage. Reports contain only fixed case IDs, status, safe reasons,
+scope, and the maximum attempt budget, not measured counts or raw results.
+They do not contain selected IDs, account data, metadata, credentials, or text.
+
+### Entity offline checks and acceptance
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core `
+    --test live_entities --locked
+```
+
+Ordinary Rust tests leave the live and selection-preflight cases ignored.
+Synthetic tests check strict selection input, exact limits, failure stops,
+timeouts, protocol validation, one-process execution, input order, and cleanup.
+Broader live entity acceptance remains unverified. The earlier user-reported
+library success does not authorize or validate these additional requests.
+
+## Offline Pester contracts
+
+### Pester discovery and fixtures
+
+The suite pins [Pester 6.2.0](https://github.com/pester/Pester/releases/tag/6.2.0).
+The setup script installs only that version in the current user's module scope.
+It does not change a machine-wide module or repository policy.
+Use `scripts\install-test-tools.ps1 -Check` to verify setup without installation.
+The runners reject a missing version instead of installing during a test.
+
+`test-e2e.ps1` and `test-e2e-harness.ps1` remain the public commands.
+Their configuration lives in `scripts\e2e\pester.psm1`, not in test files.
+It uses `New-PesterConfiguration` and parameterized containers.
+Raw Pester output, CI error annotations, debug output, code coverage, and XML
+test-result exports are disabled. Assertion errors can contain actual values.
+Do not enable raw exports for capability tests or upload Pester result objects.
+The capability runner publishes only the existing allowlisted JSON schema.
+The harness runner prints fixed synthetic test names and classifications.
+
+Each test file constructs its own data in `BeforeDiscovery` and imports its
+fixtures in `BeforeAll`. No file depends on another file's discovery state.
+`BeforeEach` and `AfterEach` own per-test processes and synthetic directories.
+MCP cases start a fresh initialized server for each check, for both direct and
+CLI-started transport. Each case checks response framing and clean shutdown.
+Failed setup and cleanup prevent a successful capability report.
+Native cases use independent isolated identities and verify all three
+feature-built executables before storage access.
+
+The `Harness` tag covers inventory, redaction, process limits, cleanup,
+synthetic dispatch failures, workflow restrictions, and report mapping.
+The `Contracts`, `Cli`, and `Mcp` tags cover real built executables.
+The `Live` and `Native` tags identify prerequisite-gated cases.
+The complete runner retains every inventory case, including skipped cases.
+Filtering is for focused checks only; it cannot establish complete coverage.
+
+Run one file independently with the same safe configuration:
+
+```powershell
+Import-Module Pester -RequiredVersion 6.2.0
+Import-Module .\scripts\e2e\pester.psm1 -DisableNameChecking
+$configuration = New-E2ePesterConfiguration `
+    @((Join-Path $PWD 'scripts\e2e\Mcp.Tests.ps1')) @{
+        BinaryDirectory = (Join-Path $PWD 'target\manual-e2e\debug')
+        Deadline = [datetime]::UtcNow.AddSeconds(180)
+    }
+$result = Invoke-Pester -Configuration $configuration
+$result | Select-Object TotalCount, PassedCount, FailedCount, SkippedCount
+```
+
+Use the same pattern for `Cli.Tests.ps1`, `Harness.Tests.ps1`,
+`Dispatch.Tests.ps1`, and `Reporting.Tests.ps1`.
+For `Prerequisites.Tests.ps1`, pass `Selection = 'contracts'` in container data
+to avoid native selection. Do not supply `ApproveNativeStorage` without
+separate explicit approval.
+
+### Pester status and report mapping
+
+| Pester result | Capability status and reason |
+| --- | --- |
+| Passed required test | `passed`, `verified` |
+| Failed assertion | `failed`, `contract_mismatch` |
+| Failed bounded fixture | `failed`, fixed fixture reason |
+| Other failure | `failed`, `harness_error` |
+| Skipped live prerequisite | `blocked`, `live_prerequisites` |
+| Skipped native case in contracts selection | `not_applicable`, `not_selected` |
+| Skipped unapproved native case in full selection | `blocked`, `native_approval_required` |
+| Skipped approved native case on another platform | `blocked`, `native_platform` |
+| Unexpected skip, inconclusive, or unrun case | `failed`, `untested` |
+
+Known prerequisites use discovery-time skips. Runtime skips are not used
+to hide failures. Missing, unknown, and duplicate cases cannot pass coverage.
+Discovery and block failures produce a fixed infrastructure failure.
+Native and file cleanup failures retain their fixed infrastructure case names.
+No raw exception message enters the report.
+
+The current contracts selection reports 224 passed, 130 blocked live cases,
+and four not-applicable native cases. It returns exit 0 and
+`full_coverage: false`. Full selection returns nonzero while any required
+prerequisite is blocked. The live request budget stays zero on all platforms.
+Child processes discard inherited product session input and launcher secrets.
+Ordinary CI runs the harness and contracts selection on all three platforms.
+The manual workflow remains Windows-only. Hosted execution is not proof of
+native-store or live-account acceptance.
+
+### Pester migration validation
+
+Local Windows checks used Pester 6.2.0 and PowerShell 7.4 or later.
+The original harness passed 184 custom assertions before conversion.
+The converted harness passed 50 Pester tests, including mocked cleanup failures.
+
+| Command | Local result |
+| --- | --- |
+| `pwsh -NoProfile -File .\scripts\install-test-tools.ps1 -Check` | Passed; exact Pester version available. |
+| `pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1` | Passed; 50 synthetic tests. |
+| `pwsh -NoProfile -File .\scripts\start-live-e2e.ps1 -Selection contracts` | Passed; exit 0. All 358 case IDs, statuses, and reasons match the original sanitized contracts report. |
+| `pwsh -NoProfile -File .\scripts\test-e2e.ps1 -BinaryDirectory .\target\manual-e2e\debug -Selection full` | Expected exit 1; 224 passed and 134 blocked. No native approval was supplied. |
+| `pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test inventory --locked` | Passed; inventory matches the CLI parser. |
+
+Each test file also passed independently. Live requests remained at zero.
+Native storage was not accessed. Linux and macOS CI uses the same configured
+suite, but hosted results were not observed during local migration checks.
 
 ## Approved Windows product login verification
 

@@ -1,0 +1,14 @@
+{
+  "book": { "id": "REPLACE_BOOK_ID" },
+  "character": { "id": "REPLACE_CHARACTER_ID" },
+  "campaign": { "id": "REPLACE_CAMPAIGN_ID" },
+  "class": { "id": "REPLACE_CLASS_ID" },
+  "subclass": { "id": "REPLACE_SUBCLASS_ID", "parent_id": "REPLACE_PARENT_CLASS_ID" },
+  "monster": { "id": "REPLACE_MONSTER_ID", "query": { "page": 1 } },
+  "background": { "id": "REPLACE_BACKGROUND_ID", "query": {} },
+  "feat": { "id": "REPLACE_FEAT_ID", "query": {} },
+  "species": { "id": "REPLACE_SPECIES_ID" },
+  "spell": { "id": "REPLACE_NUMERIC_ID_AND_SLUG", "query": { "page": 1 } },
+  "equipment": { "id": "REPLACE_DEFINITION_KEY", "page": 1 },
+  "magic_item": { "id": "REPLACE_DEFINITION_KEY", "page": 1 }
+}
