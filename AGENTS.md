@@ -33,6 +33,18 @@ The wrapper sets `RUSTDOCFLAGS` to `-D warnings`; set it yourself for direct doc
 VS Code and Copilot App tasks use these same commands. See
 [developer setup](CONTRIBUTING.md#local-development) for native and container setup.
 PowerShell 7 is needed for the development scripts on all platforms.
+The end-to-end Pester suite requires PowerShell 7.4 or later and Pester 6.2.0.
+Run `pwsh -NoProfile -File .\scripts\install-test-tools.ps1` for pinned setup.
+Run `pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1` for synthetic checks.
+The separate `scripts\test-live-api.ps1` suite uses real public and protected API
+requests through the production library reader. Review its scope in `docs\testing.md`.
+It requires `-ApproveLive` and process-only input. Do not run it during offline checks.
+The separate `scripts\test-live-entities.ps1` checks a list and one selected detail
+for each of 12 implemented families. It requires local selection JSON and separate
+`-ApproveLive` approval. Its full scope has a 74-attempt maximum and stops on failure.
+See `docs\testing.md`; do not run either live suite during offline validation.
+Run `pwsh -NoProfile -File .\scripts\start-live-e2e.ps1 -Selection contracts`
+for built CLI/MCP checks without live or native credentials.
 For focused process checks, use:
 
 ```powershell

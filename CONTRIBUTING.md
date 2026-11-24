@@ -399,12 +399,34 @@ to check no echo and terminal restoration. It does not use real credentials.
 
 ### Manual capability suite
 
+Install the pinned development-only Pester 6.2.0 module with
+`pwsh -NoProfile -File .\scripts\install-test-tools.ps1`.
+Use `-Check` to verify the version without installation.
+PowerShell 7.4 or later is required. The existing entry points run independent
+Pester `*.Tests.ps1` files through shared configuration. Run
+`pwsh -NoProfile -File .\scripts\test-e2e-harness.ps1` for synthetic harness checks.
+
 The [manual testing guide](docs/testing.md) describes the shared CLI/MCP process
 suite, isolated native-store tests, and `workflow_dispatch` workflow on
 `windows-latest`. Use `scripts\start-live-e2e.ps1 -Selection contracts` for the
 credential-free subset. Full coverage currently fails with blocked live reads.
 The helper does not request or upload a cookie while production prerequisites
 are absent. Native credential access still needs separate explicit approval.
+Ordinary CI runs the Pester harness and credential-free contracts on Windows,
+Linux, and macOS. It does not run the full or approved native selection.
+
+The separate [live API suite](docs/testing.md#live-public-and-authenticated-api-integration)
+checks public configuration, session exchange, Web-catalog metadata, and ownership
+through the production Rust reader. Use `scripts\test-live-api.ps1 -ApproveLive`
+only after you review its fixed targets and five-attempt budget.
+It requests hidden process-only input or explicitly selected environment input.
+It never selects saved credentials. Ordinary CI does not run it.
+The [selected entity suite](docs/testing.md#live-selected-entity-integration)
+adds one list and one selected detail for each of 12 implemented families.
+Use `scripts\test-live-entities.ps1` with local selection JSON and separate
+`-ApproveLive` approval. Review its routes, 74-attempt maximum, unchanged read
+limits, and first-failure stop before running it. `-Entity` limits a run to one
+family. The offline harness covers both launchers without real credentials.
 
 The test-only feature is an exception for isolated test identities, not a product
 credential-import interface. Normal login stays human-controlled and persistent

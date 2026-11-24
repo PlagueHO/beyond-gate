@@ -1982,6 +1982,22 @@ async fn sharing_loss_is_fresh_with_a_reused_session() {
     assert_eq!(fixture::request_count(&session), 1);
 }
 
+/// Checks the live suite's normal four-attempt sequence with synthetic HTTP only.
+#[tokio::test]
+async fn live_suite_sequence_uses_one_public_two_private_and_one_exchange() {
+    let mock = Mock::start(vec![
+        (200, collection(vec![source(1)]).to_string()),
+        (200, collection(vec![owned(1, &["owned"])]).to_string()),
+    ])
+    .await;
+    let session = fixture::session(Scenario::Valid).expect("invented session");
+    let snapshot = mock.discover(&session).await.expect("complete library");
+    assert_eq!(snapshot.books().len(), 1);
+    assert_eq!(mock.public_requests.load(Ordering::SeqCst), 1);
+    assert_eq!(mock.requests.load(Ordering::SeqCst), 2);
+    assert_eq!(fixture::request_count(&session), 1);
+}
+
 /// Stops resource requests on transport, malformed wire, incomplete, and size failures.
 #[tokio::test]
 async fn failures_never_follow_or_retry_or_return_partial_results() {

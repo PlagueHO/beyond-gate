@@ -69,8 +69,15 @@ jobs:
         run: ./scripts/cargo.ps1 build -p beyond-gate-cli --example pairing-terminal-fixture --features pairing-fixture --locked
       - name: Check redirected pairing output refusal
         run: ./scripts/cargo.ps1 test -p beyond-gate-cli --test pairing_terminal --features pairing-fixture --locked
-      - name: Check manual-suite infrastructure offline
+      - name: Install pinned Pester development dependency
+        run: ./scripts/install-test-tools.ps1
+      - name: Check Pester harness offline
         run: ./scripts/test-e2e-harness.ps1
+      - name: Check CLI and MCP contracts without credentials
+        run: |
+          ./scripts/start-live-e2e.ps1 -Selection contracts `
+            -ReportPath (Join-Path $env:RUNNER_TEMP 'capability-summary.json')
+          exit $LASTEXITCODE
 
   browser:
     name: Synthetic native messaging (${{ matrix.browser }}, Windows)${{ matrix.startup_sample > 1 && format(' - startup {0}', matrix.startup_sample) || '' }}
