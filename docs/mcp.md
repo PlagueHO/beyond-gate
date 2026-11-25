@@ -105,6 +105,19 @@ The server waits for transport closure or failure; it is not a terminal prompt.
 The process test covers cancellation notification handling and exit after stdin
 closes. There is no product shutdown tool.
 
+For a source checkout, use the [native developer run commands](development.md#native-build-and-run).
+`scripts/run.ps1 mcp` builds both binaries, sends build diagnostics to stderr,
+and starts the server with the caller's streams.
+Prefer the built server path in an MCP client configuration to avoid a build
+at every connection. Disconnect before rebuilding on Windows.
+The client must reconnect to start a new process after transport closure.
+Copilot App and VS Code **MCP: Serve stdio** tasks are manual process terminals,
+not client connections.
+The [Docker runtime guide](development.md#local-runtime-container) gives attached
+`docker run --rm -i` client arguments without a TTY, published port, host
+credential mount, or required application data folder.
+Container live authentication remains unverified.
+
 During serving, stdout contains MCP protocol messages only. Startup and transport
 diagnostics use stderr. Direct `--help`/`-h` and `--version`/`-V` instead produce
 ordinary CLI output and exit with code 0. Unknown command-line arguments exit

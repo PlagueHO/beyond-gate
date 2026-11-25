@@ -8,7 +8,7 @@
   },
   "tasks": [
     {
-      "label": "Debug Build",
+      "label": "Rust: Build debug",
       "type": "process",
       "command": "cargo",
       "args": ["build", "--workspace", "--locked"],
@@ -20,7 +20,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Release Build",
+      "label": "Rust: Build release",
       "type": "process",
       "command": "cargo",
       "args": ["build", "--release", "--workspace", "--locked"],
@@ -31,7 +31,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Check formatting",
+      "label": "Rust: Check formatting",
       "type": "process",
       "command": "cargo",
       "args": ["fmt", "--all", "--", "--check"],
@@ -42,7 +42,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Apply formatting",
+      "label": "Rust: Apply formatting",
       "type": "process",
       "command": "cargo",
       "args": ["fmt", "--all"],
@@ -53,7 +53,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Clippy",
+      "label": "Rust: Check Clippy",
       "type": "process",
       "command": "cargo",
       "args": ["clippy", "--workspace", "--all-targets", "--locked", "--", "-D", "warnings"],
@@ -64,7 +64,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Test",
+      "label": "Rust: Test workspace",
       "type": "process",
       "command": "cargo",
       "args": ["test", "--workspace", "--locked"],
@@ -76,7 +76,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "CLI process tests",
+      "label": "CLI: Test process",
       "type": "process",
       "command": "cargo",
       "args": ["test", "-p", "beyond-gate-cli", "--test", "cli", "--locked"],
@@ -87,7 +87,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Adapter process tests",
+      "label": "CLI: Test adapters",
       "type": "process",
       "command": "cargo",
       "args": ["test", "-p", "beyond-gate-cli", "--test", "adapter_process", "--locked"],
@@ -98,18 +98,14 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "MCP process tests",
+      "label": "MCP: Test process",
       "type": "process",
-      "command": "cargo",
-      "args": ["test", "-p", "beyond-gate-mcp", "--test", "cli", "--locked"],
-      "windows": {
-        "command": "pwsh",
-        "args": ["-NoProfile", "-File", "${workspaceFolder}\\scripts\\cargo.ps1", "test", "-p", "beyond-gate-mcp", "--test", "cli", "--locked"]
-      },
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/test-mcp.ps1"],
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Test API examples",
+      "label": "Rust: Test examples",
       "type": "process",
       "command": "cargo",
       "args": ["test", "--workspace", "--doc", "--locked"],
@@ -120,7 +116,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Build API docs",
+      "label": "Rust: Build API docs",
       "type": "process",
       "command": "cargo",
       "args": ["doc", "--workspace", "--no-deps", "--document-private-items", "--locked"],
@@ -131,7 +127,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Run CLI help",
+      "label": "CLI: Help",
       "type": "process",
       "command": "cargo",
       "args": ["run", "--locked", "-p", "beyond-gate-cli", "--", "--help"],
@@ -142,7 +138,7 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Run MCP help",
+      "label": "MCP: Help",
       "type": "process",
       "command": "cargo",
       "args": ["run", "--locked", "-p", "beyond-gate-mcp", "--", "--help"],
@@ -153,94 +149,179 @@
       "problemMatcher": "$rustc"
     },
     {
-      "label": "Check Markdown",
+      "label": "Docs: Check Markdown",
       "type": "process",
       "command": "pwsh",
       "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/check-docs.ps1", "-Mode", "Style"],
       "problemMatcher": []
     },
     {
-      "label": "Check local links",
+      "label": "Docs: Check links",
       "type": "process",
       "command": "pwsh",
       "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/check-docs.ps1", "-Mode", "Links"],
       "problemMatcher": []
     },
     {
-      "label": "Test documentation checks",
+      "label": "Docs: Test checker",
       "type": "process",
       "command": "pwsh",
       "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/test-doc-checks.ps1"],
       "problemMatcher": []
     },
     {
-      "label": "Documentation dev",
+      "label": "Docs: Run site",
       "type": "process",
       "command": "pnpm",
       "args": ["--dir", "docs", "dev"],
       "problemMatcher": []
     },
     {
-      "label": "Build documentation site",
+      "label": "Docs: Build site",
       "type": "process",
       "command": "pnpm",
       "args": ["--dir", "docs", "build"],
       "problemMatcher": []
     },
     {
-      "label": "Test documentation site",
+      "label": "Docs: Test site",
       "type": "process",
       "command": "pnpm",
       "args": ["--dir", "docs", "test"],
       "problemMatcher": []
     },
     {
-      "label": "Preview documentation site",
+      "label": "Docs: Preview site",
       "type": "process",
       "command": "pnpm",
       "args": ["--dir", "docs", "preview"],
       "problemMatcher": []
     },
     {
-      "label": "Build documentation themes",
+      "label": "Docs: Build themes",
       "type": "process",
       "command": "pnpm",
       "args": ["--dir", "docs", "build:themes"],
       "problemMatcher": []
     },
     {
-      "label": "Preview documentation themes",
+      "label": "Docs: Preview themes",
       "type": "process",
       "command": "pnpm",
       "args": ["--dir", "docs", "preview:themes"],
       "problemMatcher": []
     },
     {
-      "label": "Validate documentation site",
+      "label": "Docs: Validate site",
       "dependsOrder": "sequence",
-      "dependsOn": ["Build documentation site", "Test documentation site"],
+      "dependsOn": ["Docs: Build site", "Docs: Test site"],
       "problemMatcher": []
     },
     {
-      "label": "Validate workspace",
-      "dependsOrder": "sequence",
-      "dependsOn": [
-        "Check formatting",
-        "Clippy",
-        "Test",
-        "CLI process tests",
-        "Adapter process tests",
-        "MCP process tests",
-        "Test API examples",
-        "Build API docs",
-        "Debug Build",
-        "Release Build",
-        "Run CLI help",
-        "Run MCP help",
-        "Check Markdown",
-        "Check local links",
-        "Test documentation checks"
-      ],
+      "label": "Workspace: Validate",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/validate-workspace.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "CLI: Run",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/run.ps1", "cli"],
+      "presentation": { "reveal": "always", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "MCP: Serve stdio",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/run.ps1", "mcp"],
+      "presentation": { "reveal": "always", "focus": true },
+      "problemMatcher": []
+    },
+    {
+      "label": "Workspace: Fetch dependencies",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/cargo.ps1", "fetch", "--locked"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Workspace: Test developer workflow",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/test-developer-workflow.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docs: Install checker",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/install-doc-tools.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docs: Install site dependencies",
+      "type": "process",
+      "command": "pnpm",
+      "args": ["--dir", "docs", "install", "--frozen-lockfile"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Dependencies: Install checker",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/install-dependency-tools.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Dependencies: Check",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/check-dependencies.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Dependencies: Check offline",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/check-dependencies.ps1", "-Offline"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Dependencies: Test checker",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/test-dependency-checks.ps1"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Build image",
+      "type": "process",
+      "command": "docker",
+      "args": ["build", "--tag", "beyond-gate:local", "."],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: CLI help",
+      "type": "process",
+      "command": "docker",
+      "args": ["run", "--rm", "--network", "none", "beyond-gate:local", "--help"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: MCP help",
+      "type": "process",
+      "command": "docker",
+      "args": ["run", "--rm", "--network", "none", "--entrypoint", "beyond-gate-mcp", "beyond-gate:local", "--help"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Docker: Test runtime",
+      "type": "process",
+      "command": "pwsh",
+      "args": ["-NoProfile", "-File", "${workspaceFolder}/scripts/test-runtime-container.ps1"],
       "problemMatcher": []
     }
   ]

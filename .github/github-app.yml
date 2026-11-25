@@ -6,47 +6,79 @@ instructions: |
   Separate shell calls do not retain the developer environment.
 
 scripts:
-  - name: Documentation dev
+  - name: 'Rust: Build debug'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 build --workspace --locked
+  - name: 'Rust: Build release'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 build --release --workspace --locked
+  - name: 'Rust: Test workspace'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 test --workspace --locked
+  - name: 'Rust: Check Clippy'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 clippy --workspace --all-targets --locked -- -D warnings
+  - name: 'Rust: Check formatting'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 fmt --all -- --check
+  - name: 'Rust: Apply formatting'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 fmt --all
+  - name: 'Rust: Test examples'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 test --workspace --doc --locked
+  - name: 'Rust: Build API docs'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
+  - name: 'CLI: Run'
+    command: pwsh -NoProfile -File ./scripts/run.ps1 cli
+  - name: 'CLI: Help'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-cli -- --help
+  - name: 'CLI: Test process'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-cli --test cli --locked
+  - name: 'CLI: Test adapters'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-cli --test adapter_process --locked
+  - name: 'MCP: Serve stdio'
+    command: pwsh -NoProfile -File ./scripts/run.ps1 mcp
+  - name: 'MCP: Help'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 run --locked -p beyond-gate-mcp -- --help
+  - name: 'MCP: Test process'
+    command: pwsh -NoProfile -File ./scripts/test-mcp.ps1
+  - name: 'Workspace: Fetch dependencies'
+    command: pwsh -NoProfile -File ./scripts/cargo.ps1 fetch --locked
+  - name: 'Workspace: Test developer workflow'
+    command: pwsh -NoProfile -File ./scripts/test-developer-workflow.ps1
+  - name: 'Workspace: Validate'
+    command: pwsh -NoProfile -File ./scripts/validate-workspace.ps1
+  - name: 'Docs: Install checker'
+    command: pwsh -NoProfile -File ./scripts/install-doc-tools.ps1
+  - name: 'Docs: Check Markdown'
+    command: pwsh -NoProfile -File ./scripts/check-docs.ps1 -Mode Style
+  - name: 'Docs: Check links'
+    command: pwsh -NoProfile -File ./scripts/check-docs.ps1 -Mode Links
+  - name: 'Docs: Test checker'
+    command: pwsh -NoProfile -File ./scripts/test-doc-checks.ps1
+  - name: 'Docs: Install site dependencies'
+    command: pnpm --dir docs install --frozen-lockfile
+  - name: 'Docs: Run site'
     command: pnpm --dir docs dev
-  - name: Build documentation site
+  - name: 'Docs: Build site'
     command: pnpm --dir docs build
-  - name: Test documentation site
+  - name: 'Docs: Test site'
     command: pnpm --dir docs test
-  - name: Preview documentation site
+  - name: 'Docs: Preview site'
     command: pnpm --dir docs preview
-  - name: Build documentation themes
+  - name: 'Docs: Build themes'
     command: pnpm --dir docs build:themes
-  - name: Preview documentation themes
+  - name: 'Docs: Preview themes'
     command: pnpm --dir docs preview:themes
-  - name: Run CLI help
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) run --locked -p beyond-gate-cli '--' --help"
-  - name: Run MCP help
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) run --locked -p beyond-gate-mcp '--' --help"
-  - name: Debug Build
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) build --workspace --locked"
-  - name: Release Build
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) build --release --workspace --locked"
-  - name: Test
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test --workspace --locked"
-  - name: CLI process tests
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test -p beyond-gate-cli --test cli --locked"
-  - name: Adapter process tests
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test -p beyond-gate-cli --test adapter_process --locked"
-  - name: MCP process tests
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test -p beyond-gate-mcp --test cli --locked"
-  - name: Lint
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) clippy --workspace --all-targets --locked '--' -D warnings"
-  - name: Check formatting
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) fmt --all '--' --check"
-  - name: Apply formatting
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) fmt --all"
-  - name: Test API examples
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) test --workspace --doc --locked"
-  - name: Build API docs
-    command: pwsh -NoProfile -Command "& (Join-Path scripts cargo.ps1) doc --workspace --no-deps --document-private-items --locked"
-  - name: Check Markdown
-    command: pwsh -NoProfile -Command "& (Join-Path scripts check-docs.ps1) -Mode Style"
-  - name: Check local links
-    command: pwsh -NoProfile -Command "& (Join-Path scripts check-docs.ps1) -Mode Links"
-  - name: Test documentation checks
-    command: pwsh -NoProfile -Command "& (Join-Path scripts test-doc-checks.ps1)"
+  - name: 'Docs: Validate site'
+    command: pwsh -NoProfile -File ./scripts/validate-doc-site.ps1
+  - name: 'Dependencies: Install checker'
+    command: pwsh -NoProfile -File ./scripts/install-dependency-tools.ps1
+  - name: 'Dependencies: Check'
+    command: pwsh -NoProfile -File ./scripts/check-dependencies.ps1
+  - name: 'Dependencies: Check offline'
+    command: pwsh -NoProfile -File ./scripts/check-dependencies.ps1 -Offline
+  - name: 'Dependencies: Test checker'
+    command: pwsh -NoProfile -File ./scripts/test-dependency-checks.ps1
+  - name: 'Docker: Build image'
+    command: docker build --tag beyond-gate:local .
+  - name: 'Docker: CLI help'
+    command: docker run --rm --network none beyond-gate:local --help
+  - name: 'Docker: MCP help'
+    command: docker run --rm --network none --entrypoint beyond-gate-mcp beyond-gate:local --help
+  - name: 'Docker: Test runtime'
+    command: pwsh -NoProfile -File ./scripts/test-runtime-container.ps1

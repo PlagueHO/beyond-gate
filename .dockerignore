@@ -1,0 +1,13 @@
+**
+!Dockerfile
+!Cargo.toml
+!Cargo.lock
+!rust-toolchain.toml
+!.cargo/
+!.cargo/config.toml
+!src/
+!src/**/
+!src/**/Cargo.toml
+!src/**/*.rs
+!assets/
+!assets/beyond-gate-logo-braille.txt
