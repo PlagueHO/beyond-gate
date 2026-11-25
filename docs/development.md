@@ -89,6 +89,7 @@ For example, replace this placeholder with your checkout path:
       "args": []
     }
   }
+}
 ```
 
 Keep client-specific fields from the [MCP reference](mcp.md#client-registration).
@@ -159,6 +160,7 @@ For an MCP client, set `command` to `docker` and use these arguments:
       ]
     }
   }
+}
 ```
 
 This example permits offline initialization and discovery only.
