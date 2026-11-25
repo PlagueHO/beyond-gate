@@ -55,6 +55,8 @@ jobs:
       - run: ./scripts/cargo.ps1 test --workspace --doc --locked
       - run: ./scripts/cargo.ps1 doc --workspace --no-deps --document-private-items --locked
       - run: ./scripts/cargo.ps1 build --workspace --locked
+      - name: Check local developer workflow offline
+        run: ./scripts/test-developer-workflow.ps1
       - name: Build synthetic paired-process fixture
         run: ./scripts/cargo.ps1 build -p beyond-gate-core --example paired-handoff-fixture --features browser-fixture --locked
       - name: Build synthetic Windows reservation fixture
@@ -71,6 +73,24 @@ jobs:
         run: ./scripts/cargo.ps1 test -p beyond-gate-cli --test pairing_terminal --features pairing-fixture --locked
       - name: Check manual-suite infrastructure offline
         run: ./scripts/test-e2e-harness.ps1
+
+  container:
+    name: Local runtime container
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Build local runtime image
+        run: |
+          docker build --tag beyond-gate:local .
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - name: Check container lifecycle offline
+        run: ./scripts/test-runtime-container.ps1
 
   browser:
     name: Synthetic native messaging (${{ matrix.browser }}, Windows)${{ matrix.startup_sample > 1 && format(' - startup {0}', matrix.startup_sample) || '' }}

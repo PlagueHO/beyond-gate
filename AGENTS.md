@@ -33,6 +33,18 @@ The wrapper sets `RUSTDOCFLAGS` to `-D warnings`; set it yourself for direct doc
 VS Code and Copilot App tasks use these same commands. See
 [developer setup](CONTRIBUTING.md#local-development) for native and container setup.
 PowerShell 7 is needed for the development scripts on all platforms.
+Task names use matching subject-first labels in both editors.
+See the [task index](docs/development.md#developer-task-index).
+Use `scripts/run.ps1 cli` or `scripts/run.ps1 mcp` for build-before-run execution.
+The helper keeps build diagnostics off product stdout and preserves product streams.
+Use `scripts/test-developer-workflow.ps1` for offline native launch and task checks.
+`scripts/validate-workspace.ps1` stops on the first failed ordinary workspace check.
+The root Dockerfile is a separate local runtime image, not the development container.
+Build it with `docker build --tag beyond-gate:local .`, then run
+`scripts/test-runtime-container.ps1` with a running Linux Docker engine.
+Docker checks disable network access and do not access account credentials.
+Do not add a TTY or background detachment to a client-owned MCP stdio command.
+Do not add application data-folder configuration or credential-store mounts.
 For focused process checks, use:
 
 ```powershell

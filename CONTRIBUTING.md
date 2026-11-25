@@ -59,7 +59,7 @@ sources, fetches locked dependencies, and installs the pinned Markdown checker.
 It does not run live tests or start the MCP server. No HTTP ports are forwarded.
 Do not add host credential-store mounts or forward account credentials.
 
-Run **Validate workspace** after setup. Linux container checks do not prove
+Run **Workspace: Validate** after setup. Linux container checks do not prove
 Windows Credential Manager, macOS Keychain, or host Secret Service integration.
 The container does not provide product login or a substitute credential store.
 
@@ -106,13 +106,21 @@ pwsh -NoProfile -File ./scripts/cargo.ps1 test -p beyond-gate-core --test auth_p
 
 ### GitHub Copilot App tasks
 
-[`.github/github-app.yml`](.github/github-app.yml) defines manual build,
-release build, formatting check/apply, Clippy (`Lint`), workspace and focused
-process tests, doctests, API documentation, help, and documentation-check tasks.
+[`.github/github-app.yml`](.github/github-app.yml) defines the manual tasks in
+the [developer task index](docs/development.md#developer-task-index).
+The names match the VS Code task names and start with the affected subject.
 Each Cargo task uses the wrapper so Windows setup and Cargo run in the same
 process. Select the named task from the app's task menu.
-The run tasks show help only. They do not access credentials or start live
-operations. No task runs automatically.
+**CLI: Run** builds both binaries and starts the CLI.
+With no subcommand, the CLI shows its overview on stderr and exits with code 2.
+Use **CLI: Help** for help with code 0, or the native commands below for subcommands.
+**MCP: Serve stdio** builds both binaries and starts the protocol process.
+Build messages use stderr. Product streams and failure status remain separate.
+No task runs automatically. No task performs login or a live account test.
+Do not type MCP messages into a task terminal. Use an MCP client for tool calls.
+If the app task terminal cannot supply the required interactive streams, use a
+normal terminal with the [native run commands](docs/development.md#native-build-and-run).
+Do not redirect hidden input as a workaround.
 
 Review and accept this repository configuration in the app before using the
 tasks. See GitHub's [repository configuration reference](https://docs.github.com/copilot/reference/github-copilot-app-reference/repository-configuration).
@@ -122,13 +130,13 @@ These tasks do not change GitHub Actions runner configuration.
 
 Accept the [recommended extensions](.vscode/extensions.json).
 Select **Terminal: Run Task** from the Command Palette, then choose a task.
-**Build** and **Test** are the default build and test tasks.
-**Validate workspace** runs all checks in sequence, including the release build,
-focused process tests, both help commands, Markdown, and offline links.
+**Rust: Build debug** and **Rust: Test workspace** are the default build and test tasks.
+**Workspace: Validate** runs all ordinary offline checks in sequence, including
+the release build, process tests, native launch checks, Markdown, and offline links.
 It also tests the documentation checker's failure cases.
-**Validate documentation site** builds the website and runs its browser checks.
+**Docs: Validate site** builds the website and runs its browser checks.
 Install the documentation development dependencies before selecting that task.
-The existing **Validate workspace** task does not require Node.js.
+**Workspace: Validate** does not require Node.js or Docker.
 It stops when a prerequisite fails. **Apply formatting** changes Rust files;
 it is not part of validation.
 
@@ -142,11 +150,11 @@ build-script checks and Clippy diagnostics. PowerShell 7 must be on `PATH`.
 These commands retain JSON compiler diagnostics. Cargo metadata discovery does
 not compile code. No machine-specific compiler path is configured.
 
-Run tasks are manual help commands, not server tasks.
-To start stdio MCP manually after a build, use:
+Run tasks use the shared build-before-run helper.
+To start stdio MCP manually, use:
 
 ```powershell
-pwsh -NoProfile -File .\scripts\cargo.ps1 run --locked -p beyond-gate-mcp
+pwsh -NoProfile -File .\scripts\run.ps1 mcp
 ```
 
 The process waits for MCP protocol input. It has no HTTP address or health port.
@@ -154,6 +162,11 @@ Do not type ordinary text into the protocol stream. Press **Ctrl+C** to stop
 manual execution, or stop the process from its terminal. Normal MCP clients
 start and stop their own child process. Do not configure this as an unattended
 background task.
+
+Use the [local workflow guide](docs/development.md#native-build-and-run) for CLI
+arguments, client configuration, restart, and
+[Docker runtime commands](docs/development.md#local-runtime-container).
+The runtime image is separate from the development container.
 
 ### Copilot setup on GitHub Actions
 

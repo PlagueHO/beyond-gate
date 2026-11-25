@@ -7,6 +7,233 @@ Start with [Contributing](../CONTRIBUTING.md) for native setup, editor tasks, an
 the Windows Visual Studio 2022 Build Tools environment.
 Use the [repository commands](../AGENTS.md) for Rust checks.
 
+## Developer task index
+
+Copilot App and VS Code use the same subject-first names.
+Select a task manually. No task runs on session creation or archive.
+Review and accept `.github/github-app.yml` in Copilot App after it changes.
+See the [official repository configuration reference](https://docs.github.com/copilot/reference/github-copilot-app-reference/repository-configuration).
+
+| Subject | Tasks | Prerequisites |
+|---------|-------|---------------|
+| Rust | Build debug; Build release; Check formatting; Apply formatting; Check Clippy; Test workspace; Test examples; Build API docs | Repository Rust toolchain; native build tools; PowerShell 7 |
+| CLI | Run; Help; Test process; Test adapters | Native Rust setup |
+| MCP | Serve stdio; Help; Test process | Native Rust setup; an MCP client for tool calls |
+| Workspace | Fetch dependencies; Test developer workflow; Validate | Native Rust setup; pinned Markdown checker for Validate |
+| Docs | Install checker; Check Markdown; Check links; Test checker | Native Rust setup to install the pinned checker |
+| Docs | Install site dependencies; Run site; Build site; Test site; Preview site; Build themes; Preview themes; Validate site | Node.js, pinned pnpm; Chrome or Edge for site tests |
+| Dependencies | Install checker; Check; Check offline; Test checker | Native Rust setup; pinned cargo-deny; fresh advisory data or a valid offline cache |
+| Docker | Build image; CLI help; MCP help; Test runtime | Docker with a running Linux engine; built image for run/check tasks |
+
+Task labels include the subject and colon, such as **Rust: Build debug**.
+**Workspace: Validate** stops on the first failed check.
+It does not install tools, run Docker, test the site, or contact a live account.
+Use separate Docker, site, and dependency tasks for those checks.
+**Rust: Apply formatting** changes source files.
+**CLI: Run** and **MCP: Serve stdio** do not perform login or tool calls.
+**CLI: Run** shows the no-command overview and exits with the existing usage code 2.
+The CLI has no interactive command loop. Use **CLI: Help** for a successful help
+command, or pass subcommands through the native run helper in a terminal.
+**MCP: Test process** builds both sibling binaries before its focused checks.
+No task authorizes credential access or authenticated operations.
+Live tests, credential changes, release publication, and site deployment remain
+separate manual workflows.
+
+## Native build and run
+
+Follow [native setup](../CONTRIBUTING.md#local-development) from a clean checkout.
+Run these commands from the checkout root in PowerShell 7:
+
+```powershell
+pwsh -NoProfile -File .\scripts\cargo.ps1 build --workspace --locked
+pwsh -NoProfile -File .\scripts\run.ps1 cli
+pwsh -NoProfile -File .\scripts\run.ps1 cli --help
+pwsh -NoProfile -File .\scripts\run.ps1 cli character list --help
+pwsh -NoProfile -File .\scripts\run.ps1 mcp --help
+```
+
+On Linux and macOS, use `/` path separators.
+The run helper builds both binaries before each run with locked dependencies.
+Cargo reuses unchanged build output. Its artifact messages select the executable,
+including a configured Cargo target directory.
+Build failures stop the helper before the product starts.
+Build diagnostics use stderr. Product stdin, stdout, stderr, and exit status are
+preserved. CLI options after `cli` go to the product, not to Cargo.
+No application data folder or persistent content cache is created.
+
+For repeated runs without a build, use the built binaries directly:
+
+```powershell
+.\target\debug\beyond-gate.exe --help
+.\target\debug\beyond-gate-mcp.exe --help
+```
+
+These paths assume the default target directory and debug profile.
+Linux and macOS binaries have no `.exe` suffix.
+Use the release build task for optimized binaries under `target\release`.
+Do not put credentials in arguments, tasks, transcripts, or command output.
+Authenticated manual exploration requires separate approval and the existing
+[authentication workflow](authentication.md).
+
+### MCP client connection and restart
+
+An MCP client owns stdin and stdout and starts the server when it connects.
+Use the absolute built server path in the client's stdio configuration.
+For example, replace this placeholder with your checkout path:
+
+```json
+{
+  "mcpServers": {
+    "beyond-gate": {
+      "command": "C:\\path\\to\\checkout\\target\\debug\\beyond-gate-mcp.exe",
+      "args": []
+    }
+  }
+```
+
+Keep client-specific fields from the [MCP reference](mcp.md#client-registration).
+No URL or port is needed. Do not register an app terminal as an MCP connection.
+Build first, then connect through the client.
+The server responds to initialization and tool discovery without a live read.
+It does not prompt for credentials.
+
+To observe manual startup without making tool calls:
+
+```powershell
+pwsh -NoProfile -File .\scripts\run.ps1 mcp
+```
+
+The server waits for protocol input. It is not an interactive command prompt.
+Do not enter ordinary text. Press **Ctrl+C** to stop terminal execution.
+A normal client stops its child process by closing stdin.
+To restart, disconnect the client, rebuild if needed, and reconnect.
+Stop running binaries before replacing them on Windows.
+The CLI exits when its command finishes. Run the command again to restart it.
+
+Saved credentials remain in Windows Credential Manager, macOS Keychain, or
+Linux Secret Service. They do not reside in the checkout or build output.
+Process-only input and derived session evidence do not persist after exit.
+A restarted process must receive its input again or select the existing OS entry.
+No logout, OS-store read, or live validation is part of the checks below.
+
+## Local runtime container
+
+The root `Dockerfile` builds a separate Linux runtime image with both release
+binaries, CA certificates, and a non-root user.
+It uses the checkout's Rust toolchain and `Cargo.lock`.
+The final image has no compiler, source fixtures, host credential mounts,
+published ports, or product cache.
+`.dockerignore` includes only the build source, manifests, and required logo.
+The [development container](../CONTRIBUTING.md#development-container) instead
+provides an editor and build tools.
+
+Install Docker with a running Linux engine.
+Build and check the image from the checkout root:
+
+```powershell
+docker build --tag beyond-gate:local .
+docker run --rm --network none beyond-gate:local --help
+docker run --rm --network none --entrypoint beyond-gate-mcp beyond-gate:local --help
+pwsh -NoProfile -File .\scripts\test-runtime-container.ps1
+```
+
+Build requires network access for base images, Rust, and locked dependencies.
+The runtime checks disable network access and use no account data.
+They check both binaries, CLI errors, direct and sibling MCP startup, discovery,
+invalid input, stdin closure, and removal of each owned container.
+Missing Docker, a stopped engine, or a missing image fails explicitly.
+The checker accepts `-Image` when you use a different local image tag.
+
+### Container stdio and lifecycle
+
+For an MCP client, set `command` to `docker` and use these arguments:
+
+```json
+{
+  "mcpServers": {
+    "beyond-gate": {
+      "command": "docker",
+      "args": [
+        "run", "--rm", "-i", "--network", "none",
+        "--entrypoint", "beyond-gate-mcp", "beyond-gate:local"
+      ]
+    }
+  }
+```
+
+This example permits offline initialization and discovery only.
+`-i` keeps stdin open. Do not add `-t`: a TTY changes protocol streams.
+Do not add `-d`: the client must own the attached stdio connection.
+No HTTP listener or host port is used.
+See the [Docker run reference](https://docs.docker.com/reference/cli/docker/container/run/).
+
+`--rm` removes the container after it stops. Reconnect to start a fresh process.
+For a manual named CLI run, use:
+
+```powershell
+docker run --rm -i --name beyond-gate-manual --network none beyond-gate:local --help
+```
+
+If a named manual container remains running, stop only that container:
+
+```powershell
+docker stop beyond-gate-manual
+docker ps -a --filter name=beyond-gate-manual
+```
+
+The image remains after containers exit.
+After disconnecting clients and stopping containers, remove only this local image:
+
+```powershell
+docker image rm beyond-gate:local
+```
+
+Do not use broad Docker prune commands for cleanup.
+No new application files or session cache persist across these runs.
+No host directory or volume is required.
+
+### Container authentication limits
+
+Windows browser login cannot run inside this Linux image.
+The image has no desktop, user-session D-Bus, or Secret Service provider.
+Saved-session login, status, and logout are not supported runtime workflows here.
+Do not mount host credential stores or add a plaintext substitute.
+
+Linux process-only input is implemented by the shared core without an OS store.
+Live container account/client acceptance is not verified.
+Any authenticated container operation requires separate approval and a defined
+request budget. It also requires network access; the examples above deny it.
+Never place a credential value in an image, Dockerfile, argument, `.env` file,
+client configuration, log, or repository.
+Docker can retain explicitly supplied environment values in container metadata
+while a container exists. `--rm` is cleanup, not a protected credential store.
+Do not treat native account acceptance as container acceptance.
+
+## Workflow checks and environment evidence
+
+Run the native workflow checks without accessing a live account:
+
+```powershell
+pwsh -NoProfile -File .\scripts\test-developer-workflow.ps1
+pwsh -NoProfile -File .\scripts\validate-workspace.ps1
+```
+
+Synthetic checks cover paths with spaces, input and argument forwarding,
+separate output streams, build/product failures, missing artifacts, task-name
+parity, and first-failure behavior.
+Native checks exercise the actual run helper and MCP discovery, invalid tool
+input, and shutdown after stdin closes.
+CI runs native workflow checks on Windows, Linux, and macOS.
+A separate Linux CI job builds and checks the runtime image.
+CI configuration is not evidence that a run passed.
+
+Windows native helper checks were run during this change.
+Docker CLI is installed on the development host, but its Linux engine was not
+available. Container build/runtime acceptance remains unverified.
+Copilot App interactive terminal behavior and Linux/macOS native execution also
+remain unverified locally. Use a normal terminal if an app task cannot supply
+the required streams. No live account or native credential-store check was run.
+
 ## Documentation site
 
 Use Node.js 24 or 26 and pnpm 12.15.0. Run these commands from the repository root.

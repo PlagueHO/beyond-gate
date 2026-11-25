@@ -7,6 +7,17 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Matching subject-first developer tasks in Copilot App and VS Code for native
+  build/run, offline checks, documentation, dependencies, and Docker.
+  A shared native run helper builds both binaries, selects Cargo's reported
+  artifact path, preserves arguments and product streams, and keeps build
+  diagnostics on stderr. Workspace validation stops on the first failed check.
+  A separate non-root Linux runtime image and network-disabled container checks
+  cover CLI errors, MCP initialization/discovery, stdin closure, and cleanup.
+  Contributor and user guides explain commands, client connections, restart,
+  and existing authentication limits. No application data folder was added.
+  Windows helper checks passed. Container and app-terminal acceptance remain
+  unverified; live account tests and credential access remain separate.
 - Unified supplied-input sign-in under `auth login --prompt` and
   `auth login --from-env`. Both reuse explicit validation and protected save.
   Login without a selector keeps Windows browser pairing. Existing
