@@ -16,8 +16,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cover CLI errors, MCP initialization/discovery, stdin closure, and cleanup.
   Contributor and user guides explain commands, client connections, restart,
   and existing authentication limits. No application data folder was added.
-  Windows helper checks passed. Container and app-terminal acceptance remain
-  unverified; live account tests and credential access remain separate.
+  Windows helper checks passed locally. Native checks passed on all three CI
+  platforms, and the Linux runtime image passed offline container checks.
+  The developer confirmed app-terminal checks and MCP stop/restart.
+  Live account tests and credential access remain separate.
 - Unified supplied-input sign-in under `auth login --prompt` and
   `auth login --from-env`. Both reuse explicit validation and protected save.
   Login without a selector keeps Windows browser pairing. Existing
