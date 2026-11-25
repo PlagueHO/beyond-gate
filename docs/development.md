@@ -227,12 +227,21 @@ CI runs native workflow checks on Windows, Linux, and macOS.
 A separate Linux CI job builds and checks the runtime image.
 CI configuration is not evidence that a run passed.
 
-Windows native helper checks were run during this change.
-Docker CLI is installed on the development host, but its Linux engine was not
-available. Container build/runtime acceptance remains unverified.
-Copilot App interactive terminal behavior and Linux/macOS native execution also
-remain unverified locally. Use a normal terminal if an app task cannot supply
-the required streams. No live account or native credential-store check was run.
+Windows native helper checks passed locally.
+The [CI run for commit d10c552](https://github.com/PlagueHO/beyond-gate/actions/runs/45559225466)
+passed native workflow checks on Windows, Linux, and macOS.
+Its Linux runtime job built the documented Docker image and passed the
+network-disabled container help, error, MCP discovery, stdin closure, and cleanup
+checks. The local Windows Docker engine was unavailable; container acceptance
+uses the Linux CI evidence, not a local Docker run.
+
+On 2026-11-25, the developer confirmed that **Workspace: Test developer workflow**
+reported 38 matching tasks in Copilot App.
+The developer also confirmed **MCP: Serve stdio** stopped with **Ctrl+C** and
+could start and stop again. This is developer-reported manual acceptance,
+not an automated UI check. Copilot App blocks automated UI control.
+Use a normal terminal if an app task cannot supply the required streams.
+No live account or native credential-store check was run.
 
 ## Documentation site
 
