@@ -23,8 +23,8 @@ Approved real Chrome and Edge Dev login and protected-save checks passed.
 The MCP adapter serves local stdio with four character/campaign tools, three
 book tools, and a credential-free Windows `auth_validate` tool.
 Two class tools provide class/subclass metadata, not raw definitions.
-Two monster tools provide explicit pages and selected raw detail, limited to
-observed access code 1. Denied and unverified access cases return no content.
+Two monster tools provide metadata pages, including locked entries, and selected
+raw detail. Only observed access code 1 permits raw detail.
 Two species tools parse metadata from the fixed public website page and select
 unchanged raw detail from a fresh candidate collection. They do not infer
 ownership; live detail access remains unverified.
@@ -254,42 +254,66 @@ identity. Production supports Windows and Linux; compiled synthetic services nev
 a product URL override.
 
 List uses a shared strict query model and JSON Schema for both adapters.
-It maps literal CR bounds, repeated website option IDs, numeric AC/HP ranges,
-optional state booleans, and partnered-content choices to the observed form.
-It reads one filtered website page with the current cookie, then makes one
-bearer-only selected-ID collection GET for nonempty pages. Empty results require
-the known marker and no collection request. The source-book cookie guard is
-unchanged; monster HTML has a separate fixed-path and known-query guard.
-Detail makes one GET selected only by a canonical positive
-decimal ID. Returned website links are checked against the fixed HTTPS origin
+It maps literal CR bounds, repeated service selector IDs, size and AC/HP bounds,
+and optional legendary/lair booleans to the official client's query keys.
+It makes one bearer JSON collection GET with explicit `skip`/`take` and fixed
+`showHomebrew=f`. There is no monster HTML reader, form validation, fallback,
+selected-ID discovery, or local filtering. The source-book cookie guard is
+unchanged. Mythic and Partnered Content inputs are rejected; the old partnered
+exclusion is not preserved. Tags and Source Category remain supported.
+Detail makes one service GET selected only by a canonical positive
+decimal ID. After a valid detail grant and identity check, the default mode makes one
+credential-free public `/api/config/json` GET at the fixed website origin.
+Returned website links are checked against the fixed HTTPS origin
 and matching ID, but never fetched. There are no redirects, retries, implicit
 pages, proxy calls, content caches, or per-row detail requests.
 
-The parser checks the known listing, requested form options, canonical candidate
-IDs, active page, and same-filter next link. It ignores unrelated page-query links.
-The selected collection must have exactly the candidate IDs and one-to-one
-ID-keyed access evidence. Output restores website order, independent of collection
-order. Duplicate names survive; duplicate IDs fail.
-Only observed code 1 permits output. Code 4 denies it. Other numeric codes,
-including 2 and 3, are unsupported; absent or malformed grants fail. Any bad
-row fails the whole page. Direct detail requires fresh scalar access and an
-exact selected ID. It preserves the raw object without a guessed full schema,
+The parser checks response offsets, requested size, source total, complete raw
+row count, and one-to-one ID-keyed access evidence. Even empty results require
+valid pagination and an empty access map. Output preserves API order.
+Duplicate names survive; duplicate IDs and extra/missing access keys fail.
+Lists expose only IDs, names, checked links, readable access labels, and reported
+nonnegative integer access codes, including code 4 and unverified codes.
+Labels describe website availability: `available` for 1/2/3, `stat_block_locked`
+for 4, and `unknown` otherwise. Code 2 does not distinguish ownership from other
+access. Legacy status is a separate upstream `isLegacy` field, not an access code.
+No raw fields or ownership claims are returned.
+Absent or malformed codes fail the whole page.
+Direct detail requires fresh scalar code 1 and an exact selected ID.
+Code 4 denies detail; other numeric codes, including 2 and 3, remain unsupported
+for detail. List metadata never grants content access.
+Detail preserves the raw object without a guessed full schema,
 rules year, source ownership grant, or metadata-only fallback.
+The separate `resolved` block joins supported reference IDs to public lookup
+names. It preserves scalar IDs and nested reference fields. Unknown IDs remain
+with a null name and explicit unresolved status. Source and account identifiers
+are not mapped. Each used table validates all its rows, including unselected IDs.
+Missing or malformed tables, duplicate IDs, and invalid names fail the detail read.
+Neither automatic raw-only fallback nor hard-coded fallback labels hide a lookup failure.
+Lookup metadata is not content-access evidence or a rules calculation.
+Explicit CLI `--raw` or MCP `raw: true` skips configuration and omits `resolved`.
+It retains the existing envelope and unchanged raw data. Both modes use the same
+access, identity, body, result, and deadline checks. HTML/Markdown dispatch carries
+the same monster-only option without changing selected HTML source checks.
 
 Local policy bounds pages to 100 records, searches to 256 UTF-8
 bytes, source bodies and compact results to 1 MiB each, and whole operations to
-30 seconds. The CLI preflights padded tables against 8 MiB using the existing
+30 seconds. Each lookup table and raw reference array is limited to 1,000 entries.
+Both detail requests and resolution share the same whole-operation deadline
+and result bound. The CLI preflights padded tables against 8 MiB using the existing
 shared formatter. Each ID filter permits at most 50 unique positive values,
-with at most 256 IDs overall and 16 KiB query text. Page defaults to 1; the
-website controls page size. JSON metadata has `page` and explicit `next_page`,
-not inferred totals. Table/TSV repeat page metadata per row.
+with at most 256 IDs overall and 16 KiB query text. Offset defaults to 0 and
+batch size to 10, with a local range of 1-100. JSON metadata has `skip`, `take`,
+source `total`, and checked nullable `next_skip`. All pagination values must
+fit `u32`; overflow never becomes a false end marker. TSV repeats this metadata.
+Monster tables contain only per-monster fields, without pagination columns.
 Cancellation drops the in-flight core future. Typed HTTP and
 session causes remain distinct, with fixed redacted diagnostics.
 
-Approved browser probes checked filtered pages, the empty marker, a two-ID
-collection, code-1 selected detail, and code-4 listing denial.
-Synthetic tests check the source path and CLI/MCP parity. Neither establishes
-native cookie compatibility, native account acceptance, larger batches,
+Official Encounter Builder source establishes the query serialization path.
+Approved browser probes checked selected JSON queries, code-1 detail, and denial.
+Synthetic tests check the JSON-only path and CLI/MCP parity. Neither establishes
+complete live filter enforcement, native account acceptance, larger batches,
 owned/shared behavior, or complete source-book text.
 See the [source contract](api-catalog.md#monsters-and-configuration).
 

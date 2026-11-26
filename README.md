@@ -276,13 +276,23 @@ features, or raw definitions. `--name` / `-n` matches locally and keeps duplicat
 names. Subclasses support a parent selector or bounded global discovery.
 Browser catalog contracts were inspected; native compatibility, sharing, and
 live global traversal remain unverified.
-Monster commands support website filters and explicit `--page` continuation,
-or one selected raw detail. Repeated ID filters, literal CR bounds, AC/HP ranges,
-state booleans, and partnered content have matching MCP inputs.
-Nonempty lists use one website read and one exact selected-ID access check.
-Only observed access code 1 permits output; code 4 is denied, and
-unverified codes, including 2 and 3, are unsupported. Browser probes checked
-selected routes. Native cookie compatibility, native monster account acceptance,
+Monster lists use one JSON request with `--skip` / `--take` and explicit
+`next_skip`, or one selected raw detail. Repeated ID filters, literal CR bounds,
+size/AC/HP ranges, and legendary/lair booleans have matching MCP inputs.
+No monster HTML retrieval or fallback remains. Mythic and Partnered Content
+inputs are rejected; partnered content is not excluded by default.
+Lists return only IDs, names, checked links, access labels, and reported numeric
+access codes, including locked entries. Labels describe website access:
+`available` for codes 1/2/3, `stat_block_locked` for 4, and `unknown` otherwise.
+List metadata does not grant detail access.
+Detail preserves `raw` and adds separate `resolved` lookup names, IDs, and
+nested values through one credential-free public configuration request.
+Unknown IDs remain explicit; source and account IDs stay unmapped.
+Use `monster show <id> --raw` or MCP `raw: true` to skip lookup mapping and its
+configuration request. The result keeps `raw` but omits `resolved`.
+Only observed code 1 permits raw detail; code 4 is denied, and unverified
+codes, including 2 and 3, are unsupported for detail. Browser probes checked
+selected routes. Full live filter enforcement, native monster account acceptance,
 larger batches, and owned/shared behavior remain unverified.
 Background commands use observed website filters for metadata and select one
 unchanged raw definition from a fresh complete authenticated collection.

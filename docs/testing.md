@@ -352,39 +352,63 @@ No live credentials or proprietary text are part of offline checks.
 ### Monster page and detail checks
 
 The [core tests](../src/beyond-gate-core/src/monster/tests.rs) use invented
-records and loopback services. They check every website filter encoding,
-repeated keys, the CR mapping gap, partnered-content states, explicit pages,
-the known empty marker, malformed HTML, source options, duplicate names, raw
-detail extensions, exact selected-ID sets, fixed website links, and count/byte
+records and bearer-only loopback services. They check JSON query keys,
+repeated IDs, the CR mapping gap, true/false and omitted booleans, size bounds,
+offsets, checked continuation, valid JSON empty results, duplicate names, raw
+detail extensions, exact access keys, fixed display links, and count/byte
 limits. Locally invalid selectors must produce no exchange or source request.
-IDs absent from the source form fail after the website read, with no collection
-request. Denied
-code 4, unverified codes 2/3, missing access, HTTP denial, rejected/expired
-sessions, malformed pages, and partial pages must not return content.
-Nonempty pages make one cookie-only website request and one bearer-only
-collection request. Empty pages make no collection request. Session tests
-check unchanged book URL guards and a cookie change between the two reads.
+Detail fixtures also provide credential-free public lookup tables. Checks cover
+all supported reference paths, scores and nested extensions, unchanged `raw`,
+configured CR fractions, unresolved IDs, nullable/absent fields, malformed
+references, complete-table validation, duplicate lookup IDs, and exact 1,000-entry
+ceilings. Denied or mismatched detail must not fetch configuration.
+Public configuration denial or malformed data must fail without partial detail.
+Explicit raw mode must instead skip configuration entirely and return the same
+authorized envelope without `resolved`. Checks cover failing configuration,
+unchanged raw fields, access/identity/input rejection, and the Markdown path.
+Removed inputs fail before auth. Lists preserve reported numeric codes, including
+code 4 and unverified codes 2/3, while returning only IDs, names, links, access labels, and codes.
+Labels must be `available` for 1/2/3, `stat_block_locked` for 4, and `unknown` otherwise.
+Checks preserve numeric codes and keep website labels separate from detail authorization.
+Synthetic checks cover mixed and all-locked pages without dropped rows or raw fields.
+Selected detail still rejects code 4 and unverified numeric codes after a successful list.
+Missing or malformed access codes, extra keys, HTTP denial, rejected/expired sessions,
+malformed pagination, and incomplete batches fail without partial output. One explicit JSON batch,
+including an empty batch, makes one collection request. Failures must not
+trigger HTML fallback. Session tests check unchanged book URL guards and
+reject a saved identity change before a second JSON read.
 
 The [paired process suite](../src/beyond-gate-mcp/tests/session_process.rs)
 compares actual CLI JSON with MCP tool text JSON. It also checks strict schemas,
-all filter fields, removed offset/size inputs, wrong/null fields, missing records,
+all filter fields, removed page/size-set/Mythic/Partnered inputs, wrong/null fields, missing records,
 shared failures, table/TSV headers, aliases,
 padded-table limits, and MCP cancellation. Shipped CLI tests check help,
 completions, invalid paging, and exit/stream behavior. Capability and package
-inventories include both monster tools.
+inventories include both monster tools. Source-path observations in the paired
+CLI and MCP children check at most one monster JSON request and, only for selected
+detail, one subsequent public configuration request. Fixture routing rejects
+cookies everywhere and bearer headers on public configuration. There is no HTML,
+selected-ID discovery, detail fan-out, or automatic continuation.
+Monster table headers contain only per-monster fields; JSON and TSV retain pagination.
+Paired checks cover CLI `--raw`, the strict optional MCP `raw` boolean, raw-mode
+formatting without resolved columns, and unchanged default mapping.
 
 ```powershell
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-core --locked monster
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-cli --test cli --locked
 pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked
+pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session_process --locked -- --monster-contracts
 ```
 
 Approved [browser probes](api-survey.md#monster-list-and-detail-research)
 observed code-1 pages and selected detail, then code-4 listing denial. Both
 scopes are consumed. Later approved filter/paging scopes checked server HTML,
 the empty marker, and a two-ID collection; those scopes are also closed.
-These are not native CLI/MCP account acceptance. Native cookie compatibility,
-larger batches, owned/shared cases, and complete source-book coverage remain unverified.
+Later [JSON query research](api-survey.md#json-only-monster-query-contract)
+traced official client serialization and bounded manual probes. These scopes
+are closed. None is native CLI/MCP account acceptance. Full live filter
+enforcement, larger batches, owned/shared cases, and complete source-book
+coverage remain unverified.
 No live credentials or proprietary text are used by offline checks.
 
 ### Class and subclass metadata checks

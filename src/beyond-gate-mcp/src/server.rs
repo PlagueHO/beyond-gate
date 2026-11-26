@@ -50,6 +50,9 @@ struct MonsterShowArguments {
     /// Positive decimal ID, never a name, URL, or grant from an earlier page.
     #[schemars(regex(pattern = "^[1-9][0-9]{0,19}$"))]
     id: String,
+    /// Skips lookup mapping and configuration; keeps the authorized raw detail envelope.
+    #[serde(default)]
+    raw: bool,
 }
 
 /// Selects one background definition without accepting names, URLs, or grants.
@@ -377,7 +380,7 @@ define_read_tools! {
 
     /// Returns one checked page, preserving numeric continuation but never following it.
     monster_list(
-        "Read one website-filtered monster page with explicit page (default 1) and pagination.next_page. Supports name, literal CR bounds, repeated website option IDs, AC/average-HP bounds, legendary/mythic/lair booleans, and partnered_content yes/no/any (default no). Arrays have at most 50 unique positive IDs each and 256 total; IDs are checked against the public form, not treated as grants. Uses one website read and one exact selected-ID collection for nonempty pages. Only fresh access code 1 permits output; code 4 denies the whole page and other codes are unsupported. Requires selected environment or saved input on Windows/Linux. Never follows pages automatically.",
+        "Read one JSON monster metadata batch with skip (default 0) and take (default 10, local range 1-100). Returns entries containing only id, name, source_url, readable access, and the reported numeric access_code, including locked entries, plus pagination.skip/take/total/next_skip; total is the source matching count. access describes website availability: available for codes 1/2/3, stat_block_locked for 4, unknown otherwise. Labels do not identify ownership, sharing, or legacy status. No raw content or native detail-access grant is returned. Supports name, literal CR bounds, size_min_id/size_max_id (2 Tiny through 7 Gargantuan), repeated filter IDs including Tags/Source Category, AC/average-HP bounds, and legendary/lair booleans. Arrays allow 50 unique positive IDs each and 256 total; IDs are not access grants. No page, size_ids, mythic, or partnered_content inputs; partnered content is not excluded by default. Requests showHomebrew=f. Uses one bearer JSON collection read, with no HTML fallback, local filtering, or automatic continuation. Missing or malformed access codes fail the whole batch. monster_show retains its separate fresh code-1 check. Requires selected environment or saved input on Windows/Linux. Native account compatibility and full live filter enforcement remain unverified.",
         true, self, arguments: MonsterListArguments, context
     ) {
         arguments.validate().map_err(display_error)?;
@@ -390,13 +393,13 @@ define_read_tools! {
 
     /// Returns unchanged selected raw detail only after its own verified grant.
     monster_show(
-        "Read one monster by positive canonical decimal id, preserving unknown raw detail fields and source_url. Makes one selected request and checks fresh access code 1; code 4 is denied, and unverified codes, including 2 and 3, are unsupported. Does not substitute list metadata for detail or claim complete source-book text. Requires selected environment or saved input on Windows/Linux.",
+        "Read one monster by positive canonical decimal id, preserving unchanged raw detail fields and source_url. By default, after one selected request with fresh access code 1, makes one credential-free public /api/config/json read for a separate resolved block. Adds lookup names for alignment, CR, size, type, subtypes, environments, conditions, damage adjustments, languages, movements, senses, skills, saves, and abilities. Preserves IDs and nested values; unknown IDs have name:null and lookup_status:unresolved. Source and account IDs stay unmapped. Set raw:true to skip lookup mapping and the configuration request; returns the same authorized detail envelope with raw but without resolved. raw defaults to false and rejects null. Lookup failures in the default mode return an error, not partial detail; there is no automatic raw-only fallback. Each referenced table and reference array is capped at 1000 entries; the existing 1 MiB body/result and 30-second operation bounds remain in both modes. Code 4 is denied before configuration; unverified codes, including 2 and 3, are unsupported. Lookup metadata is not an access grant, rules calculation, or complete source-book text. Requires selected environment or saved input on Windows/Linux. Native lookup acceptance remains unverified.",
         true, self, arguments: MonsterShowArguments, context
     ) {
         monster::validate_id(&arguments.id).map_err(display_error)?;
         let value = run_operation(
             context.ct.cancelled(),
-            monster::show(&self.session, &arguments.id),
+            monster::show(&self.session, &arguments.id, arguments.raw),
         ).await?;
         json_text(value)
     }

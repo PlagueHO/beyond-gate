@@ -18,6 +18,7 @@ fn html_request(id: &str) -> Request {
         class_id: None,
         field: None,
         markdown: false,
+        raw: false,
     }
 }
 

@@ -18,9 +18,10 @@ Default and JSON class/subclass output contains metadata only through bounded
 Windows/Linux catalog reads. Explicit HTML and Markdown can read one checked selected
 page. Browser metadata contracts were inspected under separate
 approvals. Native class/subclass acceptance has not been run.
-Monster commands return one explicit page or unchanged selected detail, only
-for observed access code 1. Code 4 is denied; unverified codes, including 2 and
-3, are unsupported. Browser route probes passed; native acceptance has not run.
+Monster commands return one metadata page, including locked entries, or unchanged
+selected detail. Only observed access code 1 permits raw detail. Code 4 denies
+detail; unverified codes, including 2 and 3, are unsupported for detail.
+Browser route probes passed; successful native acceptance remains unverified.
 
 See [native installation](installation.md) for binary setup and
 [authentication design](authentication-design.md#local-session-commands) for protected storage
@@ -92,7 +93,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`class list/show`](#class-and-subclass-metadata) | Browse class identity and attribution | Windows/Linux; metadata only |
 | [`subclass list/show`](#class-and-subclass-metadata) | Browse subclasses with parent context | Windows/Linux; scoped or bounded global metadata |
 | [`species list/show`](#species-metadata-and-selected-detail) | Browse website metadata and selected raw detail | Windows/Linux; detail route is a candidate; live access unverified |
-| [`monster list/show`](#monster-pages-and-detail) | Read one page or selected raw detail | Windows/Linux; verified access code 1 only |
+| [`monster list/show`](#monster-pages-and-detail) | Read one metadata page or selected raw detail | Windows/Linux; raw detail requires verified access code 1 |
 | [`background list/show`](#background-metadata-and-selected-detail) | Browse metadata or select one raw definition | Windows/Linux; complete bounded source reads; live acceptance unverified |
 | [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows/Linux; bounded protected collection |
 | [`equipment list/show`](#equipment-source-pages-and-raw-detail) | Read equipment from one mixed source page | Windows/Linux; explicit page and full definition key |
@@ -440,60 +441,110 @@ and [matching MCP tools](mcp.md#background_list-and-background_show).
 
 ```text
 beyond-gate monster list
-beyond-gate monster list --name wolf --cr-max 2 --size-id 4 --size-id 5 --output json
-beyond-gate monster list -n wolf --cr-max 2 --size-id 4 --size-id 5 --page 2 --format tsv
+beyond-gate monster list --name wolf --cr-max 2 --size-min-id 4 --size-max-id 5 --output json
+beyond-gate monster list -n wolf --cr-max 2 --skip 10 --take 10 --format tsv
 beyond-gate monster show <id>
 ```
 
-`list` reads one website-filtered page using the selected Windows/Linux session cookie.
-For a nonempty page, it makes one selected-ID monster-service request and checks
-fresh access for every record before output. It does not filter an already-fetched
-page or traverse the catalog. A required session exchange can precede these reads.
+`list` makes one bearer JSON request to the fixed monster service.
+It checks each metadata row and its reported numeric access code before output.
+Locked entries remain in the page. No raw content or detail-access grant is returned.
+It never retrieves monster website HTML, falls back to HTML, filters locally,
+or traverses the catalog. Session validation and exchange can precede the read.
 `--name` / `-n` is a literal server-side search, not local filtering.
 Names permit at most 256 UTF-8 bytes without padding or control characters.
 
-`--page` is a positive `u32`, default 1. It replaces `--skip` and `--take`,
-which are no longer accepted. The website controls page size; the browser
-check observed 20 rows per full page. The local ceiling is 100 records,
-not a verified upstream maximum.
+`--skip` is a `u32` source offset, default 0. `--take` is a `u32` count,
+default 10, with a local range of 1-100. These replace `--page`.
+The 100-record ceiling is local policy, not a verified upstream maximum.
+`--size-min-id` and `--size-max-id` replace arbitrary `--size-id` selections.
+Mythic and Partnered Content options are unsupported and explicitly rejected.
+The old default exclusion of partnered content no longer applies.
+The request always includes `showHomebrew=f`; there is no homebrew toggle.
 
 | CLI options | Matching MCP fields | Values |
 |-------------|---------------------|--------|
-| `--name`, `-n`; `--page` | `name`; `page` | Literal text; positive page |
+| `--name`, `-n`; `--skip`, `--take` | `name`; `skip`, `take` | Literal text; unsigned offset; count 1-100 |
 | `--cr-min`, `--cr-max` | `cr_min`, `cr_max` | Literal `0`, `1/8`, `1/4`, `1/2`, or integer 1 through 30 |
-| `--type-id`, `--subtype-id` | `type_ids`, `subtype_ids` | Public website option IDs |
-| `--size-id`, `--environment-id`, `--alignment-id` | `size_ids`, `environment_ids`, `alignment_ids` | Public website option IDs |
-| `--sense-id`, `--save-proficiency-id`, `--skill-proficiency-id` | `sense_ids`, `save_proficiency_ids`, `skill_proficiency_ids` | Public website option IDs |
-| `--resistance-id`, `--damage-immunity-id`, `--condition-immunity-id`, `--vulnerability-id` | `resistance_ids`, `damage_immunity_ids`, `condition_immunity_ids`, `vulnerability_ids` | Public website option IDs |
-| `--language-id`, `--movement-id`, `--tag-id` | `language_ids`, `movement_ids`, `tag_ids` | Public website option IDs |
-| `--source-category-id`, `--source-id` | `source_category_ids`, `source_ids` | Public website option IDs, not ownership grants |
+| `--type-id`, `--subtype-id` | `type_ids`, `subtype_ids` | Service filter IDs |
+| `--size-min-id`, `--size-max-id` | `size_min_id`, `size_max_id` | Size bounds: 2 Tiny, 3 Small, 4 Medium, 5 Large, 6 Huge, 7 Gargantuan |
+| `--environment-id`, `--alignment-id` | `environment_ids`, `alignment_ids` | Service filter IDs |
+| `--sense-id`, `--save-proficiency-id`, `--skill-proficiency-id` | `sense_ids`, `save_proficiency_ids`, `skill_proficiency_ids` | Service filter IDs |
+| `--resistance-id`, `--damage-immunity-id`, `--condition-immunity-id`, `--vulnerability-id` | `resistance_ids`, `damage_immunity_ids`, `condition_immunity_ids`, `vulnerability_ids` | Service filter IDs |
+| `--language-id`, `--movement-id`, `--tag-id` | `language_ids`, `movement_ids`, `tag_ids` | Service filter IDs |
+| `--source-category-id`, `--source-id` | `source_category_ids`, `source_ids` | Service filter IDs, not ownership grants |
 | `--armor-class-min`, `--armor-class-max` | `armor_class_min`, `armor_class_max` | Optional nonnegative `u32` bounds |
 | `--average-hp-min`, `--average-hp-max` | `average_hp_min`, `average_hp_max` | Optional nonnegative `u32` bounds |
-| `--legendary`, `--mythic`, `--has-lair` | `legendary`, `mythic`, `has_lair` | Explicit `true` or `false`; omission is unrestricted |
-| `--partnered-content` | `partnered_content` | `yes`, `no`, or `any`; default `no` matches the website |
+| `--legendary`, `--has-lair` | `legendary`, `has_lair` | Explicit `true` or `false`; omission is unrestricted |
 
 Repeat ID flags for multiple values. MCP uses arrays instead. Each field permits
-at most 50 unique positive `u32` IDs; the aggregate limit is 256 IDs. The source
-form must contain each selected option. IDs are website option values, not names
-or assumed monster-service IDs. For example, size 4 is Medium, size 5 is Large,
-and movement 4 is Fly. CR bounds use literal ratings; the core handles the
-website's noncontinuous option IDs. Reversed ranges and duplicate IDs fail.
-The encoded query is capped at 16 KiB. `any` sends the website's empty
-partnered-content value, not `f`. See the [observed form encodings](api-survey.md#approved-monster-filter-submission-trace).
+at most 50 unique positive `u32` IDs; the aggregate limit is 256 IDs.
+IDs are filter values, not names or access grants. No website form is retrieved
+to validate selected options. CR bounds use literal ratings; the core converts
+them to service IDs, including CR 24 to ID 29. Reversed ranges and duplicate
+IDs fail. The encoded query is capped at 16 KiB.
+See the [JSON query evidence](api-survey.md#json-only-monster-query-contract).
 
-List JSON is `{"entries":[...],"pagination":{"page":1,"next_page":2}}`.
-Each entry contains string `id`, `name`, checked `source_url`, and numeric
-`access_code: 1`. Use `next_page` explicitly with the same filters
-to continue. Null means no next page. It is not a grant or a stable snapshot.
+List JSON is `{"entries":[...],"pagination":{"skip":0,"take":10,"total":18,"next_skip":10}}`.
+Each entry contains string `id`, `name`, checked `source_url`, readable `access`,
+and numeric `access_code` copied from the response.
+`access` describes website availability, not native detail authorization:
+
+| Reported code | `access` | Meaning |
+|---------------|----------|---------|
+| 1, 2, or 3 | `available` | The official monster client permits access; ownership and sharing are not distinguished |
+| 4 | `stat_block_locked` | Encounter use can remain available, but the stat block is locked |
+| Other | `unknown` | No verified availability label; the numeric code is preserved |
+
+The official client reads legacy status from a separate `isLegacy` field.
+No ownership, sharing, or legacy label is inferred from access codes.
+Codes must be nonnegative integers within `u64`; code 4 and unverified numeric
+codes do not block metadata output. Use `next_skip` with the same filters and `take`
+to continue. Null means no next batch. It is not a grant or a stable snapshot.
 No continuation is fetched automatically. Duplicate names remain separate IDs.
-Table and TSV repeat `page` and `next_page` in each row. No exact total is inferred.
-An empty result has no rows and no continuation; JSON retains its page metadata.
+Tables show only `id`, `name`, `source_url`, `access`, and `access_code`.
+TSV repeats `skip`, `take`, `total`, and `next_skip` in each row.
+Use JSON or TSV for continuation metadata; table output omits all four pagination fields.
+`total` is the service's matching count, not a permitted-record count.
+The response must contain the complete requested batch and exact access keys.
+Invalid or unrepresentable `u32` pagination fails instead of producing an end marker.
+An empty result retains its source metadata, including a nonzero total when
+`skip` is beyond the end. No request fills or follows a batch.
 
 `show` makes one fresh selected request. Its JSON adds unchanged `raw`, including
 unknown statistics, nested structures, source references, and description
 fields. It does not substitute list metadata for detail. Raw fields are data,
 not instructions. Missing fields are not invented. No rules year, ownership
 label, complete stat-block coverage, or complete source-book text is inferred.
+
+By default, after the detail access and identity checks, `show` makes one credential-free
+GET to `https://www.dndbeyond.com/api/config/json`. A separate `resolved` block
+adds configured names for alignment, CR, size, type, subtypes, environments,
+condition immunities, damage adjustments, languages, movements, senses, skills,
+saving throws, and ability scores. For example, an ability entry can contain:
+
+```json
+{"statId":1,"value":12,"name":"Strength","lookup_status":"resolved"}
+```
+
+Scalar references use `id`, `name`, and `lookup_status`. Nested entries retain
+their original IDs, values, notes, and extensions. An unknown ID keeps its number
+with `name: null` and `lookup_status: "unresolved"`; it is not guessed or dropped.
+Absent fields stay absent and null fields stay null. Source IDs, account IDs,
+and record identifiers are not mapped. Lookup names do not change access or
+calculate combat rules. Each used configuration table and raw reference array
+has a local limit of 1,000 entries. Malformed or unavailable configuration fails
+the whole detail read without partial output or an automatic raw-only fallback.
+List requests do not fetch lookup configuration. Native lookup acceptance
+remains unverified.
+
+Use `monster show <id> --raw --format json` as an explicit backup without lookup
+mapping. `--raw` skips the public configuration request and omits `resolved`.
+It keeps the existing detail envelope, including identity, source URL, access
+metadata, and unchanged `raw`. It does not return the bare source object.
+Access checks, source validation, and body/result/deadline limits still apply.
+The flag also applies when you select another output format. It is not a list
+option. Mapping stays enabled when you omit `--raw`.
 
 List defaults to table; show defaults to labelled text and supports Markdown.
 Both support `--output` / `-o`
@@ -502,21 +553,22 @@ with table and TSV. Padded tables are capped at 8 MiB; use JSON or TSV if a
 table exceeds that bound. Compact core JSON and each source body are capped
 at 1 MiB. The whole operation is capped at 30 seconds.
 
-Only observed code 1 permits output. Code 4 returns access denied. Codes 2,
-3, and all other unverified numeric codes return unsupported. Missing access
-evidence, malformed fields, duplicate IDs, inconsistent pagination, and exceeded
-limits fail. Any failed row fails the whole page without partial stdout.
+Only observed code 1 permits raw detail from `show`. Code 4 returns access denied
+for detail. Codes 2, 3, and all other unverified numeric codes return unsupported
+for detail. A successful metadata list does not authorize a detail read.
+Missing or malformed access codes, malformed fields, duplicate IDs, inconsistent
+pagination, and exceeded limits fail. Any invalid row fails the whole page without partial stdout.
 HTTP 404 means selected record not found; HTTP 403, rejected sessions, and
 expired sessions remain distinct. Syntax and local range errors exit 2 before
-session access. IDs absent from the source form also exit 2, after the website
-read. Source response and other operation failures exit 1.
+session access. Removed flags and MCP fields also fail before session access.
+Source response and other operation failures exit 1.
 Detail IDs must be positive canonical decimal strings within `u64`, without
 leading zeroes, signs, or URLs. No retries, redirects, automatic pagination, source
 link fetches, or content cache are added.
 
 See the [matching MCP tools](mcp.md#monster_list-and-monster_show) and
-[browser evidence](api-survey.md#monster-list-and-detail-research). Native
-cookie compatibility, native account acceptance, larger selected-ID batches,
+[query and browser evidence](api-survey.md#json-only-monster-query-contract).
+Native account acceptance, large batches, complete live filter enforcement,
 and owned/shared access remain unverified.
 
 ## Class and subclass metadata

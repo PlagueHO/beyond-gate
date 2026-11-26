@@ -450,18 +450,19 @@ Do not add a generic POST escape hatch.
 
 ## Monsters and configuration
 
-Evidence: Approved browser monster probes; native metadata comparison for configuration.
-Sources: T1/T2; the public proxy also constructs MON-01, and config forwarding
-appears in T6.
+Evidence: Approved browser probes and the saved official Encounter Builder client;
+native metadata comparison for configuration. See the
+[JSON query contract](api-survey.md#json-only-monster-query-contract).
+Sources: T1/T2; the public proxy also constructs MON-01, and config forwarding appears in T6.
 Approved bearer-only browser probes checked MON-01 and MON-02. Native monster
-CLI/MCP account acceptance has not run. A separately approved credential-free
+CLI/MCP successful account acceptance remains unverified. A separately approved credential-free
 `CFG-01` read succeeded.
 
 | ID | Service | Method and path | Candidate inputs and result | Remaining contract |
 |----|---------|-----------------|-----------------------------|--------------------|
-| MON-01 | MONSTER | GET `/v1/Monster` | Implemented repeated `ids` for website candidates; array `data`, ID-keyed `accessType`, null pagination | Browser checked one/two selected IDs; native acceptance and larger batches unverified; codes 2/3 unsupported |
-| MON-02 | MONSTER | GET `/v1/Monster/{id}` | Implemented selected object `data`, scalar `accessType`; preserves raw detail | Browser checked one code-1 detail; code 4 denied, codes 2/3 unsupported; native acceptance unverified |
-| CFG-01 | WEB | GET `/api/config/json` | Credential-free JSON accepted within 1 MiB; 268 sources and 50 categories; all 177 `LIB-01` IDs matched; named `Hidden Sources` category selects eight library records for exclusion | Source/category identity only; configured ownership-only IDs are valid outside Web results, not replacement books or ownership grants; native adapter parity passed |
+| MON-01 | MONSTER | GET `/v1/Monster` | Implemented `search`, `skip`, `take`, fixed `showHomebrew=f`, and client-derived filter keys; metadata only, reported numeric `accessType`, numeric pagination | Selected type/CR queries checked manually; full live filter enforcement, successful native acceptance, and large batches unverified; metadata is not a detail grant |
+| MON-02 | MONSTER | GET `/v1/Monster/{id}` | Implemented selected object `data`, scalar `accessType`; preserves raw detail and adds `resolved` through a subsequent CFG-01 read | Browser checked one code-1 detail; code 4 denied, codes 2/3 unsupported; native detail/lookup acceptance unverified |
+| CFG-01 | WEB | GET `/api/config/json` | Credential-free JSON accepted within 1 MiB; 268 sources and 50 categories; all 177 `LIB-01` IDs matched; named `Hidden Sources` category selects eight library records for exclusion; also supplies monster lookup labels | Library source/category identity only; configured ownership-only IDs are valid outside Web results, not replacement books or grants; native library parity passed; monster lookup parity is synthetic |
 
 The [monster follow-up research](api-survey.md#monster-list-and-detail-research)
 traces selected IDs to the same MON-01 collection in the public proxy. Its
@@ -469,61 +470,67 @@ release/homebrew filter is not an access-map check. Importer detail fields are
 proxy evidence, not a direct-detail contract. The first-party builder
 uses RULE-12; that does not establish standalone service coverage or permission.
 Later explicitly approved account probes checked both routes and numeric paging.
-The user selected support for observed code 1, rejection of code 4, and explicit
-unsupported errors for all other numeric codes. Missing or malformed access
-evidence fails. A page with any denied, unsupported, duplicate, or malformed row
-fails as a whole.
+The user approved metadata-only lists that preserve all reported nonnegative
+integer access codes, including locked entries. No raw fields or ownership labels
+are returned. Missing or malformed codes, duplicate identities, and malformed
+metadata still fail the whole page. Selected detail requires observed code 1;
+code 4 is denied and all other numeric codes remain unsupported for detail.
+List metadata never grants detail access.
 
-Production list makes one cookie-only website GET with validated filters
-and an explicit page. A nonempty page adds one bearer-only MON-01 request
-for exactly the candidate IDs. Empty pages require the explicit marker
-and no collection request. One session scope pins the protected identity
-across both transports. Detail makes one direct selected GET. Neither
+Production list makes one bearer JSON MON-01 request with `skip` default 0
+and `take` default 10, locally bounded to 1-100. No HTML retrieval, form parsing,
+selected-ID discovery, fallback, or local filtering occurs.
+Even empty results require valid JSON pagination and an empty access map.
+One session scope pins the protected identity. Detail makes one direct selected GET,
+then one credential-free CFG-01 GET only after valid detail access and identity,
+unless explicit CLI `--raw` or MCP `raw: true` disables lookup mapping.
+Neither
 operation retries, follows redirects, fetches display links, follows another
 page, uses a proxy, or caches content. A session exchange can precede reads.
-Website candidate IDs, collection IDs, and one-to-one access keys must agree.
-Output preserves website order. Display links require the fixed HTTPS website origin and
+Every distinct collection ID must have exactly one access key, with no extras.
+Output preserves API order. Display links require the fixed HTTPS website origin and
 matching selected ID without credentials, queries, or fragments.
 
 Local policy, not verified upstream maxima: maximum 100 raw records, name
 limit 256 UTF-8 bytes, 1 MiB per body and compact result, a 30-second
 whole-operation deadline, and an 8 MiB padded-table limit. IDs are canonical
 positive decimal strings within `u64`. Result entries contain `id`, `name`,
-`source_url`, and `access_code: 1`; list adds `page` (default 1) and explicit
-`next_page`, while detail adds unchanged `raw`. The website controls page size;
-no total is inferred. ID arrays permit 50 unique positive values each and 256
+`source_url`, readable `access`, and the reported numeric `access_code`.
+Labels describe website access: `available` for 1/2/3, `stat_block_locked` for 4,
+and `unknown` otherwise. The official client checks `isLegacy` separately.
+Labels do not change native detail authorization.
+List adds `pagination.skip`,
+`take`, source `total`, and nullable checked `next_skip`. Detail returns
+`access_code: 1` and unchanged `raw` only after its own fresh access check.
+It also returns separate `resolved` lookup names with original IDs and nested
+values. Unknown IDs keep `name: null` and `lookup_status: "unresolved"`.
+Source and account IDs remain unmapped. Each referenced table and raw reference
+array is capped at 1,000 entries. Malformed or unavailable configuration fails
+the read; no partial detail, hard-coded lookup fallback, or rules calculation is added.
+Raw mode returns the same envelope with unchanged `raw` and no `resolved`.
+It makes no CFG-01 request and does not change detail authorization or limits.
+Response offsets/sizes must match, and row counts must describe the complete
+requested batch. Metadata must fit `u32`; overflow never produces a false end marker.
+Totals are not permitted-record counts. ID arrays permit 50 unique positive values each and 256
 overall. Encoded queries are capped at 16 KiB. No rules year, source ownership,
 complete stat-block coverage, or owned/shared case is inferred.
 
-The later [approved monster filter trace](api-survey.md#approved-monster-filter-submission-trace)
-confirmed real `GET /monsters?filter-*` submissions. A bounded read of one
-selected response contained six filtered rows in the initial HTML. Repeated
-keys encode multiple selections. CR selectors use option IDs, not literal CR
-values. Boolean controls have empty, `t`, and `f` values; partnered content
-defaults to `f` on the site.
+Issue #122 supersedes the earlier website-page direction. Official client
+source establishes the JSON query serialization, including repeated
+`monsterTypes`, `monsterTags`, `sourceCategories`, and `sources`.
+CR literals map to service IDs, including CR 24 to 29; booleans use `t`/`f`.
+Size selections are now bounds, `size_min_id`/`size_max_id`, with IDs 2-7.
+Reject old `page`, `size_ids`, `mythic`, and `partnered_content` inputs.
+Partnered content is no longer excluded by default. Detail access is unchanged.
 
-This website route is not MON-01. No monster-service browser request or
-equivalent JSON filter mapping was observed. The user chose website-filtered lists with explicit
-page-based pagination, replacing the earlier `skip`/`take` list interface.
-Detail reads and access checks stay unchanged.
-
-A separately approved [paging and selected-ID check](api-survey.md#approved-website-paging-and-selected-id-check)
-confirmed two twenty-row website pages, matching next-page links, the
-`li.alert.no-results` empty marker, and one two-ID MON-01 collection read.
-That collection returned exactly the selected records with code 1, an
-ID-keyed access map, and null pagination. Nonempty filtered pages can therefore
-use a website candidate read followed by one exact selected-ID collection
-read. Restore website order and check every returned identity and grant
-before summary output. Neither a listing link nor prior access is a grant.
-
-The shared query and parser are implemented with synthetic CLI/MCP process
-coverage. Unsupported option IDs, malformed HTML, missing empty markers, and
-inconsistent pages fail explicitly. The source-book cookie guard stays unchanged.
-Native cookie compatibility, native
-CLI/MCP account acceptance, larger batches, and owned/shared cases remain
-unverified. Do not infer an upstream batch maximum from the two-ID check.
-Do not fetch per-row details, scan pages to emulate filters, or widen the
-existing book-page URL guard. Both filter research scopes are closed.
+The [historical filter trace](api-survey.md#approved-monster-filter-submission-trace)
+and [selected-ID check](api-survey.md#approved-website-paging-and-selected-id-check)
+remain evidence for the old implementation, not instructions to retrieve HTML.
+The [current shared input table](cli.md#monster-pages-and-detail) describes the
+implemented inputs. Synthetic CLI/MCP process coverage checks JSON-only reads,
+pagination, strict inputs, and failures. The source-book guard stays unchanged.
+Native account acceptance, full live filter enforcement, large batches, and
+owned/shared cases remain unverified. All research scopes are closed.
 
 The [configuration comparison](api-survey.md#alternative-configuration-catalog-comparison)
 stopped at failed diagnostics. Its initial URL mapping rejected a relative form
@@ -717,7 +724,7 @@ checked filter submissions and server HTML, but not pagination.
 | PAGE-04-D | `/feats/{numeric-id}-{slug}` | Checked slug-specific description/footer subtree; no adjacent account or comment UI |
 | PAGE-05 | `/spells` | Explicit cookie-only filtered pages; [spell contract](#spell-read-contract) |
 | PAGE-05-D | `/spells/{numeric-id}-{slug}` | Selected cookie-only HTML detail; no raw JSON route |
-| PAGE-06 | `/monsters` | Implemented filtered candidate pages and explicit next-page checks; browser HTML evidence does not establish native account acceptance |
+| PAGE-06 | `/monsters` | Historical HTML candidate-page evidence; #122 removes this production read in favor of MON-01 JSON search |
 | PAGE-07 | `/magic-items` | Public item filters and `page` links |
 | PAGE-08 | `/equipment` | Public equipment filters and `page` links |
 | PAGE-09 | `/sources/dnd/br-2024` | Basic Rules navigation only; no content fetched |

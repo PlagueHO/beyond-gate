@@ -11,7 +11,25 @@ fn request(resource: Resource, id: &str, field: Option<&str>) -> Request {
         page: None,
         class_id: None,
         markdown: false,
+        raw: false,
     }
+}
+
+/// Carries the explicit monster backup through Markdown without fetching lookup data.
+#[tokio::test]
+async fn raw_monster_markdown_skips_lookup_configuration() {
+    use crate::monster::fixture::{self, Scenario};
+    let session = fixture::session(Scenario::ConfigurationDenied).expect("fixture");
+    let mut selected = request(Resource::Monster, "17", None);
+    selected.markdown = true;
+    selected.raw = true;
+    let result = read(&session, &selected).await.expect("raw Markdown");
+    assert_eq!(result.record["raw"]["stats"][0]["statId"], 1);
+    assert!(result.record.get("resolved").is_none());
+    assert_eq!(fixture::routes(&session), ["/v1/Monster/17"]);
+    let mut invalid = request(Resource::Feat, "17", None);
+    invalid.raw = true;
+    assert!(matches!(invalid.validate(), Err(HtmlError::InvalidInput)));
 }
 
 /// Exercises only fixed source paths and canonical bounded array positions.

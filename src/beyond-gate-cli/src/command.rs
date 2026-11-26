@@ -219,9 +219,15 @@ Do not enter your password, cookies, or tokens in command arguments or chat."#,
                                     .value_name("ID")
                                     .value_parser(ValueParser::new(valid_monster_id))
                                     .help("ID shown by `monster list`"),
+                            )
+                            .arg(
+                                Arg::new("raw")
+                                    .long("raw")
+                                    .action(ArgAction::SetTrue)
+                                    .help("Skip lookup mapping and its configuration request; omit resolved"),
                             ),
                     ),
-                    "Copy an ID from `monster list`. The command checks again that your account can open the selected monster before showing it.",
+                    "Copy an ID from `monster list`. The command checks again that your account can open the selected monster before showing it. The raw JSON stays unchanged. A separate resolved block adds readable lookup names from one credential-free public configuration read. Unknown IDs keep their number and an unresolved status. Use --raw to skip lookup mapping and the configuration request. Raw mode keeps the detail envelope and access checks but omits resolved.",
                 )),
         )
         .subcommand(
@@ -638,14 +644,15 @@ fn valid_monster_name(value: &str) -> Result<String, &'static str> {
     .map_err(|_| "name must be nonempty, unpadded, control-free text within 256 UTF-8 bytes")
 }
 
-/// Builds website filter flags from shared field mappings for parsing and completions.
+/// Builds JSON search flags from shared field mappings for parsing and completions.
 fn monster_list() -> Command {
     use beyond_gate_core::monster::query::{
         BOOL_FILTERS, CHALLENGE_RATINGS, ID_FILTERS, NUMBER_FILTERS,
     };
     let mut command = protected_action_with_details(
         list_options(Command::new("list").about("Search one page of monsters")),
-        "Use the `next_page` value in the output with `--page` to get another page. The CLI does not get more pages automatically.\n\
+        "Returns IDs, names, links, readable access labels, and reported access codes, including locked entries. Codes 1, 2, and 3 are available; code 4 has its stat block locked. Other codes are unknown. Labels do not identify legacy status or grant native detail access. List output contains no raw monster content.\n\
+         Use JSON or TSV output for pagination. Pass `next_skip` to `--skip` to request another batch. Tables contain only monster fields. The CLI never continues automatically. `--take` defaults to 10 and has a local maximum of 100.\n\
          A filter option ID is the number D&D Beyond assigns to a choice in its filter menu. These numbers are not monster IDs and do not unlock content. Each filter accepts up to 50 values; the combined limit is 256.\n\
          If you set both challenge-rating bounds, the minimum must not exceed the maximum.",
     )
@@ -658,21 +665,36 @@ fn monster_list() -> Command {
             .help("Search by monster name; at most 256 bytes"),
     )
     .arg(
-        Arg::new("page")
-            .long("page")
-            .default_value("1")
-            .value_parser(value_parser!(u32).range(1..))
-            .value_name("PAGE")
-            .help("Page number, starting at 1. Use `next_page` from the output to continue"),
+        Arg::new("skip")
+            .long("skip")
+            .default_value("0")
+            .value_parser(value_parser!(u32))
+            .value_name("OFFSET")
+            .help("Source offset; use `next_skip` from the output to continue"),
     )
     .arg(
-        Arg::new("partnered-content")
-            .long("partnered-content")
-            .default_value("no")
-            .value_name("VALUE")
-            .value_parser(["yes", "no", "any"])
-            .help("Use yes to include partner content, no to exclude it (default), or any"),
+        Arg::new("take")
+            .long("take")
+            .default_value("10")
+            .value_parser(value_parser!(u32).range(1..=100))
+            .value_name("COUNT")
+            .help("Requested records, from 1 through 100 (local limit)"),
     );
+    for (flag, help) in [
+        (
+            "size-min-id",
+            "Minimum size ID, from 2 Tiny through 7 Gargantuan",
+        ),
+        ("size-max-id", "Maximum size ID, not below the minimum"),
+    ] {
+        command = command.arg(
+            Arg::new(flag)
+                .long(flag)
+                .value_name("ID")
+                .value_parser(value_parser!(u32).range(2..=7))
+                .help(help),
+        );
+    }
     for (flag, help) in [
         ("cr-min", "Lowest challenge rating to include"),
         ("cr-max", "Highest challenge rating to include"),
@@ -687,7 +709,7 @@ fn monster_list() -> Command {
                 .help(help),
         );
     }
-    for (_, flag, _) in ID_FILTERS {
+    for (_, flag, _, _) in ID_FILTERS {
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
@@ -699,7 +721,7 @@ fn monster_list() -> Command {
                 ),
         );
     }
-    for (_, flag, _) in NUMBER_FILTERS {
+    for (_, flag, _, _) in NUMBER_FILTERS {
         let label = match flag {
             "armor-class-min" | "armor-class-max" => "armor class",
             "average-hp-min" | "average-hp-max" => "average hit points",
@@ -718,10 +740,9 @@ fn monster_list() -> Command {
                 .help(format!("{bound} {label} to include; enter a whole number")),
         );
     }
-    for (_, flag, _) in BOOL_FILTERS {
+    for (_, flag, _, _) in BOOL_FILTERS {
         let label = match flag {
             "legendary" => "whether the monster is legendary",
-            "mythic" => "whether the monster is mythic",
             "has-lair" => "whether the monster has a lair",
             _ => "this filter",
         };
