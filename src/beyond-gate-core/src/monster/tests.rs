@@ -7,6 +7,11 @@ fn query(value: Value) -> MonsterQuery {
     serde_json::from_value(value).expect("invented query")
 }
 
+/// Resolves synthetic lookup data with the full result allowance.
+fn resolve_detail(raw: &Value, configuration: &Value) -> Result<Value, MonsterError> {
+    resolve::detail(raw, configuration, MAX_RESULT_BYTES)
+}
+
 /// Preserves API order and follows offsets only when the caller explicitly requests them.
 #[tokio::test]
 async fn batches_and_detail_preserve_shared_contracts() {
@@ -640,7 +645,7 @@ fn unknown_lookup_ids_are_not_guessed_or_dropped() {
     });
     let before = raw.clone();
     assert_eq!(
-        resolve::detail(&raw, &fixture::configuration()).expect("resolve"),
+        resolve_detail(&raw, &fixture::configuration()).expect("resolve"),
         json!({
             "alignment":{"id":999,"name":null,"lookup_status":"unresolved"},
             "stats":[{"statId":999,"value":8,"name":null,"lookup_status":"unresolved"}],
@@ -649,7 +654,7 @@ fn unknown_lookup_ids_are_not_guessed_or_dropped() {
     );
     assert_eq!(raw, before);
     assert_eq!(
-        resolve::detail(&json!({}), &json!({})).expect("absent"),
+        resolve_detail(&json!({}), &json!({})).expect("absent"),
         json!({})
     );
 }
@@ -664,7 +669,7 @@ fn challenge_rating_labels_use_configured_values() {
         (888, 0.5, "1/2"),
         (999, 0.0, "0"),
     ] {
-        let resolved = resolve::detail(
+        let resolved = resolve_detail(
             &json!({"challengeRatingId":id}),
             &json!({"challengeRatings":[{"id":id,"value":value}]}),
         )
@@ -688,7 +693,7 @@ fn malformed_lookup_data_fails_instead_of_becoming_unknown() {
     ] {
         assert!(
             matches!(
-                resolve::detail(&raw, &fixture::configuration()),
+                resolve_detail(&raw, &fixture::configuration()),
                 Err(MonsterError::InvalidResponse)
             ),
             "{raw}"
@@ -706,21 +711,21 @@ fn malformed_lookup_data_fails_instead_of_becoming_unknown() {
     ] {
         assert!(
             matches!(
-                resolve::detail(&json!({"stats":[{"statId":1}]}), &configuration),
+                resolve_detail(&json!({"stats":[{"statId":1}]}), &configuration),
                 Err(MonsterError::InvalidConfiguration)
             ),
             "{configuration}"
         );
     }
     assert!(matches!(
-        resolve::detail(
+        resolve_detail(
             &json!({"conditionImmunities":[4]}),
             &json!({"conditions":[{"id":4,"name":"Wrong shape"}]})
         ),
         Err(MonsterError::InvalidConfiguration)
     ));
     assert!(matches!(
-        resolve::detail(
+        resolve_detail(
             &json!({"challengeRatingId":3}),
             &json!({"challengeRatings":[{"id":3,"value":-1}]})
         ),
@@ -733,7 +738,7 @@ fn malformed_lookup_data_fails_instead_of_becoming_unknown() {
 fn lookup_counts_are_bounded() {
     let mut raw = json!({"stats":vec![json!({"statId":1,"value":12});1_000]});
     assert_eq!(
-        resolve::detail(&raw, &fixture::configuration()).expect("ceiling")["stats"]
+        resolve_detail(&raw, &fixture::configuration()).expect("ceiling")["stats"]
             .as_array()
             .expect("references")
             .len(),
@@ -744,7 +749,7 @@ fn lookup_counts_are_bounded() {
         .expect("references")
         .push(json!({"statId":1}));
     assert!(matches!(
-        resolve::detail(&raw, &fixture::configuration()),
+        resolve_detail(&raw, &fixture::configuration()),
         Err(MonsterError::LimitExceeded)
     ));
     let entries: Vec<_> = (1..=1_000)
@@ -752,13 +757,86 @@ fn lookup_counts_are_bounded() {
         .collect();
     let mut config = json!({"stats":entries});
     let raw = json!({"stats":[{"statId":1}]});
-    resolve::detail(&raw, &config).expect("lookup ceiling");
+    resolve_detail(&raw, &config).expect("lookup ceiling");
     config["stats"]
         .as_array_mut()
         .expect("table")
         .push(json!({"id":1_001,"name":"Invented"}));
     assert!(matches!(
-        resolve::detail(&raw, &config),
+        resolve_detail(&raw, &config),
+        Err(MonsterError::LimitExceeded)
+    ));
+}
+
+/// Rejects repeated large configured labels before they expand across references.
+#[test]
+fn repeated_large_lookup_labels_cannot_exceed_encoded_budget() {
+    let label = "L".repeat(900_000);
+    let configuration = json!({"stats":[{"id":1,"name":label}]});
+    let raw = json!({"stats":vec![json!({"statId":1});1_000]});
+
+    assert!(matches!(
+        resolve::detail(&raw, &configuration, MAX_RESULT_BYTES),
+        Err(MonsterError::LimitExceeded)
+    ));
+}
+
+/// Counts escaped labels and enforces the exact cumulative serialized-size threshold.
+#[test]
+fn lookup_encoded_budget_counts_escaping_and_exact_thresholds() {
+    let raw = json!({"alignmentId":1,"stats":[{"statId":1}]});
+    let configuration = json!({
+        "alignments":[{"id":1,"name":"quote\" slash\\"}],
+        "stats":[{"id":1,"name":"quote\" slash\\"}]
+    });
+    let resolved = resolve_detail(&raw, &configuration).expect("resolved");
+    let exact_size = encoded_len(&resolved).expect("encoded size");
+    assert!(exact_size > 2 * "quote\" slash\\".len());
+    assert_eq!(
+        resolve::detail(&raw, &configuration, exact_size).expect("exact limit"),
+        resolved
+    );
+    assert!(matches!(
+        resolve::detail(&raw, &configuration, exact_size - 1),
+        Err(MonsterError::LimitExceeded)
+    ));
+}
+
+/// Reserves the raw envelope bytes before lookup metadata consumes the result budget.
+#[test]
+fn lookup_budget_includes_envelope_and_raw_json_bytes() {
+    let raw = json!({
+        "alignmentId":1,
+        "padding":"R".repeat(MAX_RESULT_BYTES - 300_000)
+    });
+    let mut envelope = json!({
+        "id":"17",
+        "name":"Synthetic",
+        "source_url":"https://www.dndbeyond.com/monsters/17",
+        "access":"available",
+        "access_code":1,
+        "raw":raw,
+        "resolved":{}
+    });
+    let base_size = encoded_len(&envelope).expect("placeholder size");
+    let resolved_limit = resolution_limit(&envelope).expect("remaining budget");
+    assert_eq!(base_size - 2 + resolved_limit, MAX_RESULT_BYTES);
+
+    let short_configuration = json!({"alignments":[{"id":1,"name":"X"}]});
+    let short_result = resolve::detail(&raw, &short_configuration, usize::MAX).expect("short");
+    let short_size = encoded_len(&short_result).expect("short size");
+    let label_size = resolved_limit - (short_size - 1);
+    let configuration = json!({
+        "alignments":[{"id":1,"name":"N".repeat(label_size)}]
+    });
+    let resolved = resolve::detail(&raw, &configuration, resolved_limit).expect("exact limit");
+    envelope["resolved"] = resolved.clone();
+    assert_eq!(
+        encoded_len(&envelope).expect("result size"),
+        MAX_RESULT_BYTES
+    );
+    assert!(matches!(
+        resolve::detail(&raw, &configuration, resolved_limit - 1),
         Err(MonsterError::LimitExceeded)
     ));
 }

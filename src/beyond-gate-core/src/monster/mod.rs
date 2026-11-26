@@ -18,7 +18,13 @@ use crate::{
     public_config::valid_text,
 };
 use serde_json::{Value, json};
-use std::{collections::HashSet, error::Error, fmt, time::Duration};
+use std::{
+    collections::HashSet,
+    error::Error,
+    fmt,
+    io::{self, Write},
+    time::Duration,
+};
 use tokio::time::{Instant, timeout};
 
 /// Local maximum number of raw records in one requested page.
@@ -179,12 +185,14 @@ pub async fn show(session: &Session, id: &str, raw: bool) -> Result<Value, Monst
             })?;
         let mut result = parse_detail(response, id)?;
         if !raw {
+            result["resolved"] = json!({});
+            let resolved_limit = resolution_limit(&result)?;
             let (public, website) = source_client(&session, WEBSITE)?;
             let configuration: Value = public
                 .get_json(&format!("{website}/api/config/json"), None)
                 .await
                 .map_err(MonsterError::SourceRead)?;
-            result["resolved"] = resolve::detail(&result["raw"], &configuration)?;
+            result["resolved"] = resolve::detail(&result["raw"], &configuration, resolved_limit)?;
         }
         finish(result, started)
     })
@@ -363,15 +371,50 @@ fn source_url(id: &str, link: &str) -> Result<String, MonsterError> {
 
 /// Bounds the complete canonical result and checks synchronous work against the deadline.
 fn finish(value: Value, started: Instant) -> Result<Value, MonsterError> {
-    if serde_json::to_vec(&value)
-        .map_err(|_| MonsterError::InvalidResponse)?
-        .len()
-        > MAX_RESULT_BYTES
-    {
+    if encoded_len(&value)? > MAX_RESULT_BYTES {
         return Err(MonsterError::LimitExceeded);
     }
     if started.elapsed() >= DEADLINE {
         return Err(MonsterError::TimedOut);
     }
     Ok(value)
+}
+
+/// Computes the remaining encoded-byte budget for the resolved object.
+///
+/// The value must contain an empty `resolved` object. Its compact JSON size
+/// includes the complete envelope and raw detail, so only bytes available
+/// beyond that placeholder can be used by lookup metadata.
+fn resolution_limit(value: &Value) -> Result<usize, MonsterError> {
+    let placeholder_size = encoded_len(value)?;
+    MAX_RESULT_BYTES
+        .checked_sub(placeholder_size)
+        .and_then(|remaining| remaining.checked_add(2))
+        .ok_or(MonsterError::LimitExceeded)
+}
+
+/// Counts compact JSON bytes without allocating a serialized copy.
+pub(super) fn encoded_len<T: serde::Serialize + ?Sized>(value: &T) -> Result<usize, MonsterError> {
+    let mut counter = ByteCounter(0);
+    serde_json::to_writer(&mut counter, value).map_err(|_| MonsterError::InvalidResponse)?;
+    Ok(counter.0)
+}
+
+/// Counts bytes written by the JSON serializer.
+struct ByteCounter(usize);
+
+impl Write for ByteCounter {
+    /// Adds the bytes from one serializer write.
+    fn write(&mut self, bytes: &[u8]) -> io::Result<usize> {
+        self.0 = self
+            .0
+            .checked_add(bytes.len())
+            .ok_or_else(|| io::Error::other("JSON byte count overflow"))?;
+        Ok(bytes.len())
+    }
+
+    /// Accepts serializer flushes without changing the count.
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
 }
