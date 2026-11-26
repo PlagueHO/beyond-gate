@@ -64,6 +64,11 @@ impl ListOptions {
     pub(crate) fn uses_html_source(&self) -> bool {
         matches!(self.format.as_str(), "html" | "markdown")
     }
+
+    /// Selects human-readable table columns without changing JSON or TSV output.
+    pub(crate) fn is_table(&self) -> bool {
+        self.format == "table"
+    }
 }
 
 /// Preserves optional metadata and the entire structured character value.

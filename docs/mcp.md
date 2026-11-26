@@ -17,9 +17,10 @@ through the shared core without credential input.
 `class_list` and `class_show` provide bounded class/subclass metadata only.
 Browser catalog contracts were inspected; native compatibility, real sharing,
 and live global traversal remain unverified.
-`monster_list` and `monster_show` return one explicit page or unchanged selected
-detail for observed access code 1. Code 4 is denied; unverified numeric codes,
-including 2 and 3, are unsupported. Native monster acceptance has not run.
+`monster_list` returns one metadata page, including locked entries.
+`monster_show` returns unchanged selected detail only for observed access code 1.
+Code 4 denies detail; unverified numeric codes, including 2 and 3, are unsupported
+for detail. Successful native monster acceptance remains unverified.
 `background_list` returns website-filtered metadata. `background_show` selects
 one raw definition from a fresh complete collection. The observed live collection
 exceeds the unchanged 1 MiB cap and fails explicitly; native acceptance has not run.
@@ -351,46 +352,77 @@ identity coverage, and real sharing remain unverified. See the
 
 ```json
 {"name":"monster_list","arguments":{}}
-{"name":"monster_list","arguments":{"name":"wolf","cr_max":"2","size_ids":[4,5],"legendary":false}}
-{"name":"monster_list","arguments":{"name":"wolf","cr_max":"2","size_ids":[4,5],"legendary":false,"page":2}}
+{"name":"monster_list","arguments":{"name":"wolf","cr_max":"2","size_min_id":4,"size_max_id":5,"legendary":false}}
+{"name":"monster_list","arguments":{"name":"wolf","skip":10,"take":10}}
 {"name":"monster_show","arguments":{"id":"17"}}
 ```
 
 The selected ID example is synthetic; use an ID returned by a successful page.
-List accepts optional string `name`, positive `u32` `page` (default 1), and the
+List accepts optional string `name`, `u32` `skip` (default 0), `u32` `take`
+(default 10, local range 1-100), and the
 filter fields in the [shared input table](cli.md#monster-pages-and-detail).
-`skip` and `take` are no longer accepted. CR bounds are literal strings,
-not website option IDs. ID arrays permit at most 50 unique positive `u32`
-values per field and 256 total; the returned public form must contain the
-selected options. Numeric AC/average-HP bounds must be nonnegative and ordered.
-Legendary, mythic, and lair selectors are optional booleans. Partnered content
-is `yes`, `no`, or `any`, default `no`; `any` sends an empty website value.
+`page`, `size_ids`, `mythic`, and `partnered_content` are rejected.
+Size bounds use `size_min_id` and `size_max_id`, from 2 Tiny through 7 Gargantuan.
+The old default exclusion of partnered content no longer applies.
+CR bounds are literal strings, not service IDs. ID arrays permit at most 50
+unique positive `u32` values per field and 256 total. Numeric AC/average-HP and
+size bounds must be ordered. Legendary and lair selectors are optional booleans.
 Names permit at most 256 UTF-8
 bytes without padding or controls. Null selectors, wrong types, overflow, and
 unknown fields fail before session access. Show accepts only required string
 `id`, a canonical positive decimal integer within `u64`. Numeric IDs must still
 be strings.
 
-List returns `entries` and `pagination` with `page` and `next_page`.
-Each entry has string `id`, `name`, fixed-website `source_url`, and
-numeric `access_code: 1`. Null `next_page` is terminal. Continuation requires a
-new explicit call with the same filters; it does not pin a snapshot or grant
+List returns `entries` and `pagination` with `skip`, `take`, `total`, and `next_skip`.
+Each entry has string `id`, `name`, fixed-website `source_url`, readable `access`,
+and numeric `access_code` copied from the response.
+`access` is `available` for codes 1/2/3, `stat_block_locked` for 4, and `unknown`
+otherwise. These labels describe website access, not native detail authorization.
+Code 2 does not distinguish ownership from other access. Code 4 can still permit
+encounter use while the stat block remains locked. Unknown numeric codes are
+preserved without an ownership or sharing label. The official client reads legacy
+status from a separate `isLegacy` field, not an access code.
+Codes must be nonnegative integers within `u64`. Locked and unverified numeric
+cases remain in the metadata page; no raw content or detail grant is returned.
+`total` is the source matching count, not the number
+of permitted records. Null `next_skip` is terminal. Continuation requires a
+new explicit call with the same filters and `take`; it does not pin a snapshot or grant
 access. Duplicate names remain separate IDs. Empty pages retain metadata.
 Show adds unchanged `raw` from the selected response, preserving unknown fields,
 statistics, source references, and description fields. Neither missing fields
 nor rules versions are inferred.
 
-List makes one cookie-only website GET, then one bearer-only selected-ID
-collection GET for a nonempty page. It uses the official website listing,
-not the homebrew route. Empty pages require the explicit source marker and no
-collection read. The website controls page size; observed full pages had 20
-rows, with a local ceiling of 100. No requested page size or total is invented.
-Collection IDs and grants must match the candidate set exactly; output keeps
-website order. Show makes one selected service GET. A required session exchange
+By default, show also adds `resolved` lookup metadata through the same core as CLI
+[monster detail](cli.md#monster-pages-and-detail). After a valid code-1 detail
+and selected identity check, one credential-free public `/api/config/json` GET
+supplies names for alignment, CR, size, type, subtypes, environments, conditions,
+damage adjustments, languages, movements, senses, skills, saves, and abilities.
+Original IDs and nested values remain. Unknown IDs have `name: null` and
+`lookup_status: "unresolved"`. Known names have `lookup_status: "resolved"`.
+Source and account IDs are not mapped. `raw` stays unchanged.
+Each used lookup table and reference array is capped at 1,000 entries.
+Malformed or unavailable lookup data fails the read without partial detail.
+Lookup labels do not grant access or calculate rules. Native lookup acceptance
+remains unverified.
+
+Set `raw: true` on `monster_show` to skip lookup mapping and its public
+configuration request. The result keeps the same authorized detail envelope
+and unchanged `raw`, but omits `resolved`. This is an explicit backup, not an
+automatic fallback after a lookup failure. `raw` defaults to false and rejects
+null, strings, and numbers. Access checks and existing limits apply in both modes.
+
+List makes one bearer JSON collection GET with `showHomebrew=f`.
+It does not retrieve HTML, use an HTML fallback, filter locally, or fill pages.
+Even an empty result requires valid JSON pagination and an empty access map.
+Response offsets and sizes must match the request. Row counts must match the
+remaining total and requested size. Unrepresentable pagination fails.
+Every distinct raw ID must have exactly one numeric access key; extra keys fail.
+Output keeps API order. Show makes one selected service GET and, only after valid
+detail access and unless `raw` is true, one public configuration GET. A required session exchange
 can precede reads. All reads use one process-local session identity.
 Detail checks its own scalar
-access evidence. Only code 1 permits output. Code 4 denies output; unverified
-numeric codes, including 2 and 3, are explicitly unsupported. Missing or invalid
+access evidence. Only code 1 permits raw detail. Code 4 denies detail; unverified
+numeric codes, including 2 and 3, are explicitly unsupported for detail. Missing or invalid
 access, malformed records, duplicate IDs, inconsistent pages, and limits return
 tool errors. Any failed row fails the whole page. HTTP 404, HTTP denial,
 rejected sessions, and expiry remain distinct. No metadata-only detail fallback,
@@ -400,11 +432,12 @@ added.
 Bodies and compact core results are capped at 1 MiB. The whole operation is
 capped at 30 seconds, including session work; queries are capped at 16 KiB.
 MCP cancellation drops the read.
-These are local limits. Browser checks observed filtered pages, an explicit
-empty marker, a two-ID collection, one selected detail, and a denied listing.
-They do not prove native cookie compatibility, larger batches, native
+These are local limits. Official client source establishes filter request
+construction, including Tags and Source Category. Approved user-run probes
+checked selected type/CR queries and a JSON empty result.
+They do not prove full live filter enforcement, large batches, native
 account acceptance, owned/shared access, complete stat-block coverage, or full
-source-book text. See [evidence](api-survey.md#monster-list-and-detail-research)
+source-book text. See [evidence](api-survey.md#json-only-monster-query-contract)
 and the [shared CLI contract](cli.md#monster-pages-and-detail).
 
 ### class_list and class_show

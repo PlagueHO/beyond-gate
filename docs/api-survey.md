@@ -780,7 +780,8 @@ are recorded [below](#monster-list-and-detail-research).
 The candidate monster search shape has array `data`, an `accessType` map, and pagination
 fields `take`, `skip`, `currentPage`, `pages`, and `total`.
 The candidate detail shape has object `data` and scalar `accessType`.
-Only access cases 1 and 4 were observed in the later monster probes.
+Earlier probes observed access cases 1 and 4. A later manual diagnostic also
+observed code 2; it remains unsupported.
 A visible name, partial record, or successful
 HTTP response must not be treated as permission to return a full stat block.
 
@@ -905,12 +906,12 @@ The inspected `mythicActionsDescription` and `bonusActionsDescription` fields
 were null in that denied listing. This does not establish their non-null
 detail contracts.
 
-The user then chose implementation of the verified cases now. Shared core reads,
-CLI `monster list/show`, and MCP `monster_list`/`monster_show` accept code 1,
-reject code 4, and return explicit unsupported errors for all other numeric
-codes, including 2 and 3. Missing or malformed access evidence fails. One denied
-or unsupported row fails the whole page; no rows are silently removed.
-This policy does not label code 1 as a universal ownership or content grant.
+The user then chose implementation of the verified cases. The initial list and
+detail policy accepted code 1, rejected code 4, and returned unsupported errors
+for other numeric codes, including 2 and 3. One denied or unsupported row failed
+the whole page. The later user-approved metadata-only list policy below supersedes
+that list restriction. Detail still requires its own fresh code-1 check.
+Neither policy labels code 1 as a universal ownership or content grant.
 
 List and detail both contain description fields. Their presence does not prove
 complete content. Detail preserves the selected authorized raw object, including
@@ -1088,8 +1089,9 @@ The selected-ID collection returned `accessType`, `pagination`, `stats`,
 `metaData`, and `data`. Pagination was null. This extends the earlier
 single-ID observation to one two-ID request. It does not verify an upstream
 maximum batch size or owned/shared cases. A future filtered-list implementation
-must check the exact requested ID set, reject duplicate or extra records,
-and apply the existing fresh code-1 policy before returning any row.
+would have needed the exact requested ID set, no duplicate or extra records,
+and the then-current fresh code-1 policy. The JSON-only contract below supersedes
+this historical website-first design.
 Website order must not depend on collection response order.
 
 Only public filter metadata, page structure, counts, selected IDs, and
@@ -1099,15 +1101,17 @@ was performed.
 
 ### Shared filtered-list implementation
 
-The user approved implementation of the website-page direction. Shared core
-queries now expose all observed filter controls through both adapters.
+This section records the earlier website-page implementation. Issue #122
+supersedes it with the [JSON-only contract](#json-only-monster-query-contract).
+The user initially approved the website-page direction. Shared core
+queries then exposed the observed filter controls through both adapters.
 CLI repeated ID flags and MCP arrays use the same validated website encodings.
 Literal CR bounds use the complete observed map, including the missing ID 28.
 Unknown MCP fields, explicit null selectors, invalid ranges, duplicate/zero IDs,
 and local limit violations fail. Requested option IDs must exist in the
 same response's public filter form.
 
-List now reads one cookie-only website page, then one bearer-only selected-ID
+List then read one cookie-only website page, then one bearer-only selected-ID
 collection for nonempty pages. Empty results require the observed marker and
 no collection read. One session identity spans both reads. Every selected
 identity and fresh code-1 grant must match before output; the core restores
@@ -1121,6 +1125,147 @@ identity changes, size bounds, cancellation, and actual CLI/MCP process parity.
 These checks do not replace native cookie compatibility, native account
 acceptance, larger-batch evidence, or owned/shared evidence. No new account
 calls followed the closed research scopes.
+
+### JSON-only monster query contract
+
+For [#122](https://github.com/PlagueHO/beyond-gate/issues/122), the user chose one
+bounded JSON search request with no HTML fallback. The public importer/proxy
+evidence above establishes `search`, offsets, selected IDs, and source keys,
+but does not by itself establish the full advanced-filter contract.
+
+Approved user-run DevTools probes provided additional metadata:
+
+| Probe | Observed result |
+|-------|-----------------|
+| Baseline `skip=0&take=1` | One code-1 record; total 18 |
+| Singular `typeId`, `sizeId`, `challengeRatingId`, and textual `isLegendary=true/false` candidates | The sampled record and total were unchanged; these encodings did not establish the requested filters |
+| `monsterTypes=3` and `monsterTypes=4` | Zero rows, total 0 |
+| `challengeRatingMin=6` | Stopped on unsupported access; no grant inferred |
+| Separately approved `monsterTypes=2` | One code-1 record with `typeId=2`; total 10 |
+| Separately approved `challengeRatingMax=1` | Zero rows, total 0 |
+| Repeated baseline | One code-1 record; total 18 |
+| Separate five-row access diagnostic | Four code-1 rows and one code-2 row; code 2 remains unsupported for raw detail |
+
+These are sampled checks, not proof for every row, ID, combination, or sharing
+case. A request that stopped did not complete its remaining probes.
+No retry after denial or unsupported access was authorized by unused budget.
+
+The user then supplied the official Encounter Builder's selected-filter query
+and source files. The query included type, subtype, size/CR/AC/HP bounds,
+alignment, environment, languages, movement, senses, proficiency, resistance,
+immunity, vulnerability, source, legendary, and lair parameters.
+To avoid further manual source copies, the user saved the already loaded
+`main.f6b529e4.js` bundle. It was inspected locally as text, never executed:
+
+- Size: 7,508,897 bytes.
+- SHA-256: `202a38e46318486d36dc161f7bb6fb1870e311f20b168c5bec83539d20a9b55c`.
+- Module 96332 combines changed filters with `skip`/`take` and converts CR values.
+- Module 37358 serializes arrays as repeated keys and builds authenticated JSON GETs.
+- Module 92490 uses that query for the configured monster-service collection GET.
+- Module 9478 obtains service configuration from the page root's dataset.
+  No runtime account configuration or credentials were read.
+- Module 92451 defines true `t`, false `f`, and an unset empty value.
+- Module 15326 defines size IDs 2 Tiny through 7 Gargantuan.
+
+All 34 CR pairs matched the existing Rust table in an offline comparison.
+The UI CR enum is not the service ID: CR 24 maps to 29 and CR 30 maps to 35.
+Module 25037's AC 0-40 and HP 0-1000 bounds are UI defaults, not proven service
+limits. Only changed filters are emitted by the client.
+
+| Core inputs | Service keys |
+|-------------|--------------|
+| `name` | `search` |
+| `type_ids`, `subtype_ids` | `monsterTypes`, `monsterSubtypes` |
+| `size_min_id`, `size_max_id` | `monsterSizeMin`, `monsterSizeMax` |
+| `cr_min`, `cr_max` | `challengeRatingMin`, `challengeRatingMax`, after service-ID conversion |
+| `armor_class_min`, `armor_class_max` | `armorClassMin`, `armorClassMax` |
+| `average_hp_min`, `average_hp_max` | `averageHpMin`, `averageHpMax` |
+| `alignment_ids`, `environment_ids` | `alignments`, `environments` |
+| `sense_ids`, `movement_ids`, `language_ids` | `senses`, `movementTypes`, `languages` |
+| `save_proficiency_ids`, `skill_proficiency_ids` | `saveProficiencies`, `skillProficiencies` |
+| `resistance_ids`, `vulnerability_ids` | `resistances`, `vulnerabilities` |
+| `damage_immunity_ids`, `condition_immunity_ids` | `damageImmunities`, `conditionImmunities` |
+| `tag_ids`, `source_category_ids`, `source_ids` | `monsterTags`, `sourceCategories`, `sources` |
+| `legendary`, `has_lair` | `isLegendary`, `hasLair`, using `t`/`f` |
+| `skip`, `take` | `skip`, `take` |
+
+Tags and Source Category controls have feature/configuration conditions.
+Their absence from the user's visible-filter capture did not mean missing
+request support. The selector and serializer confirm their keys; no option-ID
+transformation was found. This is request-construction evidence, not proof of
+live enforcement, available IDs, or repeated-value AND/OR behavior.
+
+The implemented #122 contract uses proper URL encoding, repeated ID keys,
+optional scalars, and fixed `showHomebrew=f`. It rejects unmapped Mythic and
+Partnered Content inputs. It replaces arbitrary size sets with size bounds.
+The old default exclusion of partnered content no longer applies.
+No Legacy, homebrew toggle, or sort control is added.
+
+User-approved local pagination defaults are `skip=0`, `take=10`, with take 1-100.
+Output contains `skip`, `take`, source `total`, and nullable `next_skip`.
+The parser requires matching integer offsets/sizes, complete raw row counts,
+distinct IDs, and exactly matching numeric access keys, even for empty results.
+Metadata must fit `u32`; arithmetic cannot wrap or invent a terminal marker.
+After a user-reported native `monster list` denial, the user approved metadata-only
+listing. Lists now preserve IDs, names, checked links, and reported nonnegative
+integer access codes, including locked entries and unverified numeric codes.
+No raw fields or ownership labels are returned. This keeps complete source pages
+and pagination without local access filtering. Malformed rows or codes still fail
+the batch. Detail requires its own fresh code 1; code 4 denies raw detail and all
+other numeric codes remain unsupported for detail. No continuation is fetched.
+
+The user later reported code 2 as accessible and code 4 as permitting encounter
+use while locking the stat block. A proposed current/legacy interpretation was
+checked against the saved official bundle, read as text only.
+Module 26913 defines access values 1, 2, 3, and 4. Its exported `canAccess` selector
+accepts 1, 2, or 3. Its exported `getIsLegacy` selector reads the independent
+`isLegacy` field. The monster selector copies access values from the ID-keyed
+response map into that model. This establishes accessible versus locked behavior,
+not ownership, sharing, or current/legacy meanings for individual access codes.
+No code from the bundle was executed and no account requests were sent.
+
+Shared output adds an `access` label: `available` for 1/2/3, `stat_block_locked`
+for 4, and `unknown` otherwise. The original numeric `access_code` is preserved.
+These website labels do not change the native code-1-only detail check.
+No new live requests accompanied this label change.
+
+Later text-only inspection of the same official bundle established detail lookup
+construction. Module 83471 indexes `alignments`, `challengeRatings`, `creatureSizes`,
+`monsterTypes`, `monsterSubTypes`, `environments`, `damageAdjustments`, `languages`,
+`movements`, `stats`, `senses`, and `abilitySkills` by `id`. Conditions instead use
+`definition.id`. The monster selector joins ability and save `statId`, language
+`languageId`, and movement `movementId` to these configuration entries.
+Static label modules also identify alignment, ability, size, type, subtype,
+and environment names. The static environment table does not establish a label
+for every ID reported by the service.
+
+The user approved a separate `resolved` block while retaining unchanged `raw`.
+Authorized detail now performs one further credential-free public CFG-01 read
+after its access and selected-ID checks. Runtime configuration supplies names
+instead of a copied static table. CR labels use configured numeric values,
+not assumed ID ordinals. Known reference paths retain IDs; unknown lookup IDs
+keep a null name and an explicit unresolved status. Source/account identities
+stay unmapped. Lookup failures do not produce partial detail or an automatic raw-only
+fallback. Each used table and reference array is capped locally at 1,000 entries.
+The existing per-body/result and whole-operation bounds remain unchanged.
+No bundle code was executed, no account request was sent, and no new live
+configuration probe accompanied this change. Synthetic fixtures establish
+lookup behavior and adapter parity, not native lookup acceptance.
+
+The user later requested an explicit backup without lookup mapping.
+CLI `monster show --raw` and MCP `monster_show` with `raw: true` now skip
+the CFG-01 request and omit `resolved`. The authorized envelope and unchanged
+`raw` remain. Default mapping and detail access rules do not change.
+Synthetic checks cover unavailable/malformed configuration, CLI/MCP parity,
+Markdown dispatch, and denied or changed selected records without new live reads.
+
+No native credential access, new agent-issued account probe, account write,
+bulk traversal, or account snapshot retention accompanied bundle inspection.
+The three direct source-file requests returned HTTP 403 and were not retried
+or bypassed. All manual probe scopes are closed.
+Synthetic checks establish local JSON-only behavior and CLI/MCP parity, not
+native account acceptance, all live filters, large batches, owned/shared access,
+or complete content coverage. Further account tests require separate approval.
 
 ## Books, sources, and access checks
 

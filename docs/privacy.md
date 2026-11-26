@@ -117,13 +117,19 @@ The network still depends on normal OS DNS and TLS trust.
 | `www.dndbeyond.com` | Public configuration and checked website pages for catalog, record, and bounded book reads. Website session requests use the selected cookie. |
 | `api.dndbeyond.com` | Web-library catalog and current-account ownership evidence. |
 | `character-service.dndbeyond.com` | Bounded character/campaign and selected catalog/definition reads. |
-| `monster-service.dndbeyond.com` | Selected monster access/detail checks. |
+| `monster-service.dndbeyond.com` | Bounded JSON monster search and selected access/detail checks. |
 
 The shared core chooses cookie or bearer authentication for the fixed operation.
 It does not expose those credentials in CLI/MCP results. Metadata and source URLs
 are not access grants. See the [API call catalog](api-catalog.md) and
 [HTTP boundary](architecture.md#http-boundary) for route-specific limits.
 Public catalog requests can still disclose your network address to the service.
+By default, after a valid monster detail grant, one additional public `/api/config/json`
+request supplies readable lookup labels. This request carries no cookie or
+bearer header. Lookup names are returned separately from unchanged raw detail.
+No account or source ownership is inferred, and no lookup cache is written.
+Explicit `monster show --raw` or MCP `raw: true` skips this lookup request.
+It does not bypass the authenticated detail request or its access checks.
 Authentication and reads expose necessary session/request data to D&D Beyond.
 Its handling is governed by upstream policies, not this project's local cleanup.
 

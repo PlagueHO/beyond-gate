@@ -1,4 +1,4 @@
-//! Offline filter serialization, website structure, fresh access, and exact bounds.
+//! Offline metadata search, exact pagination, fresh detail access, and output bounds.
 
 use super::{fixture::Scenario, *};
 
@@ -7,60 +7,182 @@ fn query(value: Value) -> MonsterQuery {
     serde_json::from_value(value).expect("invented query")
 }
 
-/// Preserves website order despite reversed API records and reads only explicit pages.
+/// Preserves API order and follows offsets only when the caller explicitly requests them.
 #[tokio::test]
-async fn pages_and_detail_preserve_shared_contracts() {
+async fn batches_and_detail_preserve_shared_contracts() {
     let session = fixture::session(Scenario::Normal).expect("fixture");
-    let first = list(&session, &query(json!({"name":"beast & take=100"})))
-        .await
-        .expect("first");
+    let first = list(
+        &session,
+        &query(json!({"name":"beast & take=100","take":2})),
+    )
+    .await
+    .expect("first");
     assert_eq!(first["entries"][0]["id"], "17");
     assert_eq!(first["entries"][1]["id"], "18");
-    assert_eq!(first["pagination"], json!({"page":1,"next_page":2}));
+    assert_eq!(
+        first["pagination"],
+        json!({"skip":0,"take":2,"total":3,"next_skip":2})
+    );
     assert!(first["entries"][0].get("raw").is_none());
-    let routes = fixture::routes(&session);
-    assert_eq!(routes.len(), 2);
-    assert!(routes[0].contains("filter-search=beast+%26+take%3D100"));
-    assert_eq!(routes[1], "/v1/Monster?ids=17&ids=18");
-    let second = list(&session, &query(json!({"page":2})))
+    assert_eq!(
+        fixture::routes(&session),
+        ["/v1/Monster?skip=0&take=2&showHomebrew=f&search=beast+%26+take%3D100"]
+    );
+    let second = list(&session, &query(json!({"skip":2,"take":2})))
         .await
         .expect("second");
     assert_eq!(second["entries"][0]["id"], "19");
-    assert_eq!(second["pagination"], json!({"page":2,"next_page":null}));
-    let detail = show(&session, "17").await.expect("detail");
+    assert_eq!(
+        second["pagination"],
+        json!({"skip":2,"take":2,"total":3,"next_skip":null})
+    );
+    let detail = show(&session, "17", false).await.expect("detail");
+    assert_eq!(detail["access"], "available");
+    assert_eq!(detail["access_code"], 1);
     assert_eq!(detail["raw"], fixture::record(17));
-    assert_eq!(fixture::routes(&session).len(), 5);
+    assert_eq!(fixture::routes(&session).len(), 4);
+    assert_eq!(
+        &fixture::routes(&session)[2..],
+        ["/v1/Monster/17", "/api/config/json"]
+    );
+    assert_eq!(
+        detail["resolved"]["stats"][0],
+        json!({
+            "statId":1,"value":12,"future_stat":null,
+            "name":"Invented ability","lookup_status":"resolved"
+        })
+    );
+    assert_eq!(
+        detail["resolved"]["alignment"],
+        json!({
+            "id":8,"name":"Invented alignment","lookup_status":"resolved"
+        })
+    );
+    assert_eq!(detail["resolved"]["challenge_rating"]["name"], "1/4");
+    for (field, name) in [("size", "Invented size"), ("type", "Invented type")] {
+        assert_eq!(detail["resolved"][field]["name"], name);
+    }
+    for (field, name) in [
+        ("condition_immunities", "Invented condition"),
+        ("damage_adjustments", "Invented adjustment"),
+        ("environments", "Invented environment"),
+        ("languages", "Invented language"),
+        ("movements", "Invented movement"),
+        ("saving_throws", "Invented save"),
+        ("senses", "Invented sense"),
+        ("skills", "Invented skill"),
+        ("subtypes", "Invented subtype"),
+    ] {
+        assert_eq!(detail["resolved"][field][0]["name"], name, "{field}");
+    }
+    assert_eq!(
+        detail["resolved"]["environments"][1],
+        json!({
+            "id":999,"name":null,"lookup_status":"unresolved"
+        })
+    );
+    assert_eq!(detail["resolved"]["movements"][0]["speed"], 20);
+    assert_eq!(detail["resolved"]["skills"][0]["value"], 4);
+    assert!(detail["resolved"].get("sources").is_none());
+    assert!(!detail["resolved"].to_string().contains("Not a label"));
+    let default = list(&session, &MonsterQuery::default())
+        .await
+        .expect("default");
+    assert_eq!(default["entries"].as_array().expect("entries").len(), 3);
+    assert_eq!(
+        default["pagination"],
+        json!({"skip":0,"take":10,"total":3,"next_skip":null})
+    );
 }
 
-/// Empty pages use an explicit marker and never call the selected-ID collection.
+/// Lists metadata without promoting reported access codes to selected-detail grants.
+#[tokio::test]
+async fn metadata_lists_preserve_access_codes_without_granting_detail() {
+    for (scenario, codes, labels) in [
+        (Scenario::DeniedCode, [4, 4, 4], ["stat_block_locked"; 3]),
+        (Scenario::UnsupportedCode, [2, 2, 2], ["available"; 3]),
+        (Scenario::SharedCode, [3, 3, 3], ["available"; 3]),
+        (
+            Scenario::MixedAccess,
+            [1, 4, 1],
+            ["available", "stat_block_locked", "available"],
+        ),
+    ] {
+        let session = fixture::session(scenario).expect("fixture");
+        let result = list(&session, &MonsterQuery::default())
+            .await
+            .expect("metadata page");
+        let entries: Vec<_> = (17..=19)
+            .zip(codes)
+            .zip(labels)
+            .map(|((id, code), label)| {
+                json!({
+                    "id":id.to_string(), "name":"Invented Beast",
+                    "source_url":format!("https://www.dndbeyond.com/monsters/{id}-invented"),
+                    "access_code":code, "access":label
+                })
+            })
+            .collect();
+        assert_eq!(
+            result,
+            json!({
+                "entries":entries,
+                "pagination":{"skip":0,"take":10,"total":3,"next_skip":null}
+            })
+        );
+        let error = show(&session, "17", false)
+            .await
+            .expect_err("detail stays protected");
+        match scenario {
+            Scenario::DeniedCode | Scenario::MixedAccess => {
+                assert!(matches!(error, MonsterError::AccessDenied));
+            }
+            _ => assert!(matches!(error, MonsterError::UnsupportedAccess)),
+        }
+        assert_eq!(
+            fixture::routes(&session),
+            [
+                "/v1/Monster?skip=0&take=10&showHomebrew=f",
+                "/v1/Monster/17"
+            ]
+        );
+    }
+}
+
+/// Accepts consistent JSON emptiness while preserving totals beyond the final offset.
 #[tokio::test]
 async fn empty_missing_and_mismatched_results_are_distinct() {
-    let session = fixture::session(Scenario::Empty).expect("fixture");
-    let value = list(&session, &query(json!({"page":2})))
-        .await
-        .expect("empty");
-    assert_eq!(
-        value,
-        json!({"entries":[],"pagination":{"page":2,"next_page":null}})
-    );
-    assert_eq!(fixture::routes(&session).len(), 1);
-    assert!(matches!(
-        show(&session, "99").await,
-        Err(MonsterError::MissingRecord)
-    ));
+    for (scenario, total) in [(Scenario::Empty, 0), (Scenario::Normal, 3)] {
+        let session = fixture::session(scenario).expect("fixture");
+        let value = list(&session, &query(json!({"skip":20})))
+            .await
+            .expect("empty");
+        assert_eq!(
+            value,
+            json!({
+                "entries":[], "pagination":{"skip":20,"take":10,"total":total,"next_skip":null}
+            })
+        );
+        assert_eq!(fixture::routes(&session).len(), 1);
+        assert!(matches!(
+            show(&session, "99", false).await,
+            Err(MonsterError::MissingRecord)
+        ));
+    }
     let changed = fixture::session(Scenario::ChangedIdentity).expect("fixture");
     assert!(matches!(
-        show(&changed, "17").await,
+        show(&changed, "17", false).await,
         Err(MonsterError::InvalidResponse)
     ));
 }
 
-/// Rejects invalid ranges, array values, text, and pages before touching a session.
+/// Rejects invalid ranges, array values, text, removed selectors, and limits before auth.
 #[tokio::test]
 async fn invalid_input_never_touches_the_session() {
     let session = fixture::session(Scenario::Normal).expect("fixture");
     for value in [
-        json!({"page":0}),
+        json!({"take":0}),
+        json!({"take":101}),
         json!({"name":""}),
         json!({"name":" padded"}),
         json!({"name":"line\nbreak"}),
@@ -69,9 +191,12 @@ async fn invalid_input_never_touches_the_session() {
         json!({"cr_min":"2","cr_max":"1/2"}),
         json!({"armor_class_min":10,"armor_class_max":9}),
         json!({"average_hp_min":2,"average_hp_max":1}),
+        json!({"size_min_id":1}),
+        json!({"size_max_id":8}),
+        json!({"size_min_id":5,"size_max_id":4}),
         json!({"type_ids":[0]}),
         json!({"source_ids":[1,1]}),
-        json!({"size_ids":(1..=51).collect::<Vec<_>>()}),
+        json!({"type_ids":(1..=51).collect::<Vec<_>>()}),
     ] {
         assert!(matches!(
             list(&session, &query(value)).await,
@@ -89,23 +214,30 @@ async fn invalid_input_never_touches_the_session() {
         "18446744073709551616",
     ] {
         assert!(matches!(
-            show(&session, id).await,
+            show(&session, id, false).await,
             Err(MonsterError::InvalidInput)
         ));
     }
     for value in [
-        json!({"skip":1}),
-        json!({"take":1}),
+        json!({"page":1}),
+        json!({"size_ids":[4]}),
+        json!({"mythic":false}),
+        json!({"partnered_content":"no"}),
         json!({"unknown":true}),
         json!({"name":null}),
-        json!({"page":null}),
-        json!({"size_ids":null}),
-        json!({"size_ids":[-1]}),
+        json!({"skip":null}),
+        json!({"skip":-1}),
+        json!({"skip":u64::MAX}),
+        json!({"take":1.5}),
+        json!({"take":null}),
+        json!({"size_min_id":null}),
+        json!({"size_max_id":null}),
+        json!({"source_ids":null}),
+        json!({"source_ids":[-1]}),
         json!({"legendary":null}),
         json!({"legendary":"false"}),
         json!({"armor_class_min":null}),
         json!({"cr_min":null}),
-        json!({"partnered_content":null}),
     ] {
         assert!(serde_json::from_value::<MonsterQuery>(value).is_err());
     }
@@ -123,83 +255,95 @@ async fn invalid_input_never_touches_the_session() {
     assert_eq!(crate::auth::session::fixture::request_count(&session), 0);
 }
 
-/// Serializes every observed selector, preserving repeated keys and literal search.
+/// Sends all selectors in one JSON request with independent expected service keys.
 #[tokio::test]
-async fn all_filter_fields_reach_the_website_not_the_collection() {
+async fn all_filter_fields_reach_the_json_service() {
     let mut value = json!({
-        "name":"beast & page=99", "page":1, "cr_min":"1/8", "cr_max":"24",
+        "name":"beast & skip=99","skip":0,"take":2,"cr_min":"1/8","cr_max":"24",
+        "size_min_id":2,"size_max_id":7,
         "armor_class_min":0,"armor_class_max":99,"average_hp_min":1,"average_hp_max":1000,
-        "legendary":false,"mythic":true,"has_lair":false,"partnered_content":"any"
+        "legendary":false,"has_lair":true
     });
-    for (field, _, _) in query::ID_FILTERS {
-        value[field] = json!([1, 2]);
+    let selectors = [
+        ("type_ids", "monsterTypes"),
+        ("subtype_ids", "monsterSubtypes"),
+        ("environment_ids", "environments"),
+        ("alignment_ids", "alignments"),
+        ("sense_ids", "senses"),
+        ("save_proficiency_ids", "saveProficiencies"),
+        ("skill_proficiency_ids", "skillProficiencies"),
+        ("resistance_ids", "resistances"),
+        ("damage_immunity_ids", "damageImmunities"),
+        ("condition_immunity_ids", "conditionImmunities"),
+        ("vulnerability_ids", "vulnerabilities"),
+        ("language_ids", "languages"),
+        ("movement_ids", "movementTypes"),
+        ("tag_ids", "monsterTags"),
+        ("source_category_ids", "sourceCategories"),
+        ("source_ids", "sources"),
+    ];
+    for (index, (field, _)) in selectors.iter().enumerate() {
+        value[*field] = json!([index + 1, index + 101]);
     }
-    let selected_query = query(value);
     let session = fixture::session(Scenario::Normal).expect("fixture");
-    list(&session, &selected_query).await.expect("all filters");
+    list(&session, &query(value)).await.expect("all filters");
     let routes = fixture::routes(&session);
+    assert_eq!(routes.len(), 1);
     let url = reqwest::Url::parse(&format!("http://127.0.0.1{}", routes[0])).expect("query");
+    assert_eq!(url.path(), "/v1/Monster");
     let pairs: Vec<_> = url.query_pairs().collect();
-    for (_, _, field) in query::ID_FILTERS {
+    for (index, (_, field)) in selectors.iter().enumerate() {
         assert_eq!(
             pairs
                 .iter()
-                .filter(|(k, _)| k == field)
+                .filter(|(k, _)| k == *field)
                 .map(|(_, v)| v.as_ref())
                 .collect::<Vec<_>>(),
-            ["1", "2"]
+            [(index + 1).to_string(), (index + 101).to_string()],
+            "{field}"
         );
     }
     for (field, expected) in [
-        ("filter-search", "beast & page=99"),
-        ("filter-cr-min", "2"),
-        ("filter-cr-max", "29"),
-        ("filter-armor-class-min", "0"),
-        ("filter-armor-class-max", "99"),
-        ("filter-average-hp-min", "1"),
-        ("filter-average-hp-max", "1000"),
-        ("filter-is-legendary", "f"),
-        ("filter-is-mythic", "t"),
-        ("filter-has-lair", "f"),
-        ("filter-partnered-content", ""),
+        ("skip", "0"),
+        ("take", "2"),
+        ("showHomebrew", "f"),
+        ("search", "beast & skip=99"),
+        ("challengeRatingMin", "2"),
+        ("challengeRatingMax", "29"),
+        ("monsterSizeMin", "2"),
+        ("monsterSizeMax", "7"),
+        ("armorClassMin", "0"),
+        ("armorClassMax", "99"),
+        ("averageHpMin", "1"),
+        ("averageHpMax", "1000"),
+        ("isLegendary", "f"),
+        ("hasLair", "t"),
     ] {
         assert!(
             pairs.iter().any(|(k, v)| k == field && v == expected),
             "{field}"
         );
     }
-    assert_eq!(routes[1], "/v1/Monster?ids=17&ids=18");
-    for (choice, expected) in [("yes", "t"), ("no", "f"), ("any", "")] {
-        let url = query(json!({"partnered_content":choice}))
-            .website_url(WEBSITE)
-            .expect("URL");
-        assert!(
-            url.query_pairs()
-                .any(|(k, v)| k == "filter-partnered-content" && v == expected)
-        );
-    }
+    assert_eq!(pairs.len(), 46);
+    let defaults = MonsterQuery::default().service_url(SERVICE).expect("URL");
+    assert_eq!(
+        defaults.as_str(),
+        "https://monster-service.dndbeyond.com/v1/Monster?skip=0&take=10&showHomebrew=f"
+    );
 }
 
-/// Checks aggregate and byte limits and the full observed CR mapping gap.
+/// Checks aggregate and byte limits and the full source-verified CR mapping gap.
 #[test]
 fn selector_bounds_and_cr_mapping_are_exact() {
     let serialized = serde_json::to_value(MonsterQuery::default()).expect("query");
-    assert!(
-        serde_json::from_value::<MonsterQuery>(serialized)
-            .expect("round trip")
-            .validate()
-            .is_ok()
-    );
-    let mut value = json!({});
-    for (field, _, _) in query::ID_FILTERS.iter().take(6) {
-        value[*field] = json!((1..=50).collect::<Vec<_>>());
-    }
-    assert!(query(value).validate().is_err());
+    serde_json::from_value::<MonsterQuery>(serialized)
+        .expect("round trip")
+        .validate()
+        .expect("valid");
     let mut boundary = json!({});
-    for (field, _, _) in query::ID_FILTERS {
-        boundary[field] = json!((1..=15).collect::<Vec<_>>());
+    for (field, _, _, _) in query::ID_FILTERS {
+        boundary[field] = json!((1..=16).collect::<Vec<_>>());
     }
-    boundary["type_ids"] = json!((1..=16).collect::<Vec<_>>());
     assert!(query(boundary.clone()).validate().is_ok());
     boundary["type_ids"] = json!((1..=17).collect::<Vec<_>>());
     assert!(query(boundary).validate().is_err());
@@ -211,125 +355,26 @@ fn selector_bounds_and_cr_mapping_are_exact() {
     for (literal, id) in query::CHALLENGE_RATINGS {
         let q = query(json!({"cr_min":literal,"cr_max":literal}));
         q.validate().expect("rating");
+        let url = q.service_url(SERVICE).expect("URL");
         assert!(
-            q.website_url(WEBSITE)
-                .expect("URL")
-                .query_pairs()
-                .any(|(key, value)| key == "filter-cr-min" && value == id.to_string())
+            url.query_pairs()
+                .any(|(k, v)| k == "challengeRatingMin" && v == id.to_string())
         );
     }
-    for url in [
-        "https://www.dndbeyond.com/sources/example?filter-type=0",
-        "https://www.dndbeyond.com/monsters?unknown=1",
-        "https://www.dndbeyond.com/monsters?page=0",
-        "https://www.dndbeyond.com/monsters?page=01",
-        "https://www.dndbeyond.com/monsters?page=1#fragment",
-    ] {
-        assert!(!query::allowed_list_url(
-            &reqwest::Url::parse(url).expect("URL")
-        ));
-    }
-    let url = format!(
-        "https://www.dndbeyond.com/monsters?filter-search={}",
-        "x".repeat(query::MAX_QUERY_BYTES)
+    assert!(
+        query(json!({"size_min_id":2,"size_max_id":7,"skip":u32::MAX,"take":100}))
+            .validate()
+            .is_ok()
     );
-    assert!(!query::allowed_list_url(
-        &reqwest::Url::parse(&url).expect("URL")
-    ));
 }
 
-/// Requires the known form, explicit empty marker, exact identities, and matching paging.
-#[test]
-fn malformed_website_pages_fail_closed() {
-    let q = MonsterQuery::default();
-    let (_, body) = fixture::website(
-        Scenario::Normal,
-        "/monsters?page=1&filter-type=0&filter-partnered-content=f",
-    );
-    assert!(website::parse(body.as_bytes(), &q).is_ok());
-    for mutated in [
-        body.replace("listing-body", "unknown-body"),
-        body.replace("listing-footer", "missing-footer"),
-        body.replace("method=\"get\"", "method=\"post\""),
-        body.replace(
-            "<select name=\"filter-partnered-content\">",
-            "<input name=\"filter-partnered-content\"><select name=\"unrelated\">",
-        ),
-        body.replace(
-            "<select name=\"filter-partnered-content\">",
-            "<div name=\"filter-partnered-content\" type=\"checkbox\" value=\"f\"></div><select name=\"unrelated\">",
-        ),
-        body.replace("/monsters/18-invented", "/monsters/17-invented"),
-        body.replace(
-            "/monsters/17-invented",
-            "https://evil.example/monsters/17-invented",
-        ),
-        body.replace("page=2", "page=3"),
-        body.replace("rel=\"next\"", "rel=\"unknown\""),
-        body.replace("page=2", "page=2&amp;filter-search=changed"),
-        body.replace("active\">1", "active\">2"),
-        body.replace("</ul></div>", "<li></li></ul></div>"),
-    ] {
-        assert!(website::parse(mutated.as_bytes(), &q).is_err());
-    }
-    let (_, empty) = fixture::website(Scenario::Empty, "/monsters?page=1");
-    let with_metadata = body.replace(
-        "</a></div>",
-        "</a><a href=\"/sources/invented\">Source metadata</a></div>",
-    );
-    assert!(website::parse(with_metadata.as_bytes(), &q).is_ok());
-    for mutated in [
-        empty.replace("alert no-results", "unknown"),
-        empty.replace("You failed your Investigation check.", "Unexpected error"),
-    ] {
-        assert!(website::parse(mutated.as_bytes(), &q).is_err());
-    }
-    let unsupported = query(json!({"size_ids":[99]}));
-    assert!(matches!(
-        website::parse(body.as_bytes(), &unsupported),
-        Err(MonsterError::InvalidInput)
-    ));
-    let (_, unsupported_page) = fixture::website(
-        Scenario::Normal,
-        "/monsters?page=1&filter-type=0&filter-partnered-content=f&filter-size=99",
-    );
-    let missing_options = unsupported_page.replace(
-        "<select multiple name=\"filter-size\">",
-        "<input name=\"filter-size\"><select multiple name=\"unrelated\">",
-    );
-    assert!(matches!(
-        website::parse(missing_options.as_bytes(), &unsupported),
-        Err(MonsterError::InvalidResponse)
-    ));
-    let (_, maximum) = fixture::website(
-        Scenario::WideTable,
-        "/monsters?page=1&filter-type=0&filter-partnered-content=f",
-    );
-    assert_eq!(
-        website::parse(maximum.as_bytes(), &q)
-            .expect("exact record ceiling")
-            .ids
-            .len(),
-        MAX_PAGE_RECORDS
-    );
-    let oversized = maximum.replace("</ul></div>", "<li></li></ul></div>");
-    assert!(matches!(
-        website::parse(oversized.as_bytes(), &q),
-        Err(MonsterError::LimitExceeded)
-    ));
-}
-
-/// Keeps HTTP denial, rejected/expired sessions, grants, malformed HTML, and bounds distinct.
+/// Keeps HTTP denial, rejected/expired sessions, grants, malformed JSON, and bounds distinct.
 #[tokio::test]
-async fn source_failures_never_return_partial_success() {
+async fn source_failures_never_return_partial_success_or_fallback() {
     for scenario in [
         Scenario::Denied,
         Scenario::Rejected,
         Scenario::Expired,
-        Scenario::DeniedCode,
-        Scenario::UnsupportedCode,
-        Scenario::SharedCode,
-        Scenario::MixedAccess,
         Scenario::MissingAccess,
         Scenario::Malformed,
         Scenario::Incomplete,
@@ -349,77 +394,150 @@ async fn source_failures_never_return_partial_success() {
             Scenario::Expired => assert!(
                 matches!(error, MonsterError::SessionRead(ref e) if e.kind() == SessionErrorKind::Expired)
             ),
-            Scenario::DeniedCode | Scenario::MixedAccess => {
-                assert!(matches!(error, MonsterError::AccessDenied))
-            }
-            Scenario::UnsupportedCode | Scenario::SharedCode => {
-                assert!(matches!(error, MonsterError::UnsupportedAccess))
-            }
             Scenario::Incomplete => assert!(matches!(error, MonsterError::IncompletePage)),
             Scenario::Oversized => assert!(matches!(error, MonsterError::SessionRead(_))),
             _ => assert!(matches!(error, MonsterError::InvalidResponse)),
         }
-        assert!(fixture::routes(&session).len() <= 2);
+        let routes = fixture::routes(&session);
+        assert!(routes.len() <= 1);
+        assert!(
+            routes
+                .iter()
+                .all(|route| route == "/v1/Monster?skip=0&take=10&showHomebrew=f")
+        );
         assert!(!format!("{error:?}").contains("Synthetic action"));
     }
-    let session = fixture::session(Scenario::Normal).expect("fixture");
-    assert!(matches!(
-        list(&session, &query(json!({"size_ids":[99]}))).await,
-        Err(MonsterError::InvalidInput)
-    ));
-    let routes = fixture::routes(&session);
-    assert_eq!(routes.len(), 1);
-    assert!(routes[0].starts_with("/monsters?"));
 }
 
-/// Rejects incomplete, extra, duplicate, or mismatched collection records and access maps.
+/// Rejects malformed source fields, mismatched counts, and invented continuation.
 #[test]
-fn selected_collection_requires_an_exact_set_and_fresh_grants() {
-    let ids = vec!["17".to_owned(), "18".to_owned()];
+fn pagination_requires_exact_complete_batches_and_checked_offsets() {
+    let valid = fixture::collection(vec![fixture::record(17), fixture::record(18)]);
+    let q = MonsterQuery::default();
+    for pagination in [
+        Value::Null,
+        json!({}),
+        json!([]),
+        json!({"skip":1,"take":10,"total":2}),
+        json!({"skip":0,"take":9,"total":2}),
+        json!({"skip":0,"take":10,"total":1}),
+        json!({"skip":0,"take":10,"total":3}),
+        json!({"skip":0,"take":10,"total":-1}),
+        json!({"skip":0,"take":10,"total":2.5}),
+        json!({"skip":0,"take":10,"total":"2"}),
+        json!({"skip":0,"take":10,"total":u64::from(u32::MAX)+1}),
+        json!({"skip":u64::MAX,"take":10,"total":2}),
+        json!({"skip":0,"take":u64::MAX,"total":2}),
+    ] {
+        let mut value = valid.clone();
+        value["pagination"] = pagination;
+        assert!(parse_collection(value, &q).is_err());
+    }
+    for (skip, take, total, count, next) in [
+        (0, 2, 5, 2, Some(2)),
+        (2, 2, 5, 2, Some(4)),
+        (4, 2, 5, 1, None),
+        (5, 2, 5, 0, None),
+        (6, 2, 5, 0, None),
+        (0, 10, 0, 0, None),
+        (u32::MAX - 2, 1, u32::MAX, 1, Some(u32::MAX - 1)),
+        (u32::MAX - 1, 100, u32::MAX, 1, None),
+        (u32::MAX, 100, u32::MAX, 0, None),
+    ] {
+        let mut value = fixture::collection((17..17 + count).map(fixture::record).collect());
+        value["pagination"] = json!({"skip":skip,"take":take,"total":total});
+        let output =
+            parse_collection(value, &query(json!({"skip":skip,"take":take}))).expect("page");
+        assert_eq!(
+            output["pagination"],
+            json!({"skip":skip,"take":take,"total":total,"next_skip":next})
+        );
+    }
+}
+
+/// Requires exact numeric access keys without filtering rows or granting detail access.
+#[test]
+fn collection_requires_exact_identities_and_reported_access_codes() {
     let valid = fixture::collection(vec![fixture::record(18), fixture::record(17)]);
+    let q = MonsterQuery::default();
     assert_eq!(
-        parse_collection(valid.clone(), &ids, 1, None).expect("ordered")["entries"][0]["id"],
-        "17"
+        parse_collection(valid.clone(), &q).expect("source order")["entries"][0]["id"],
+        "18"
     );
-    let mut missing = valid.clone();
-    missing["data"].as_array_mut().expect("data").pop();
-    let mut extra = valid.clone();
-    extra["data"]
-        .as_array_mut()
-        .expect("data")
-        .push(fixture::record(19));
+    for grants in [
+        json!({"17":1}),
+        json!({"17":1,"99":1}),
+        json!({"17":1,"18":1,"19":1}),
+        Value::Null,
+    ] {
+        let mut value = valid.clone();
+        value["accessType"] = grants;
+        assert!(parse_collection(value, &q).is_err());
+    }
     let mut duplicate = valid.clone();
     duplicate["data"][1] = fixture::record(18);
-    let mut mismatch = valid.clone();
-    mismatch["data"][1] = fixture::record(19);
-    mismatch["accessType"] = json!({"18":1,"19":1});
-    let mut access = valid.clone();
-    access["accessType"] = json!({"17":1,"99":1});
-    for invalid in [missing, extra, duplicate, mismatch, access] {
-        assert!(parse_collection(invalid, &ids, 1, None).is_err());
-    }
-    let entries = (1..=MAX_PAGE_RECORDS + 1)
-        .map(|id| fixture::record(id as u64))
-        .collect();
     assert!(matches!(
-        parse_collection(fixture::collection(entries), &ids, 1, None),
-        Err(MonsterError::LimitExceeded)
+        parse_collection(duplicate, &q),
+        Err(MonsterError::ConflictingIdentity)
     ));
-    for code in [0, 2, 3, 5, u64::MAX] {
-        assert!(matches!(
-            super::access(Some(&json!(code))),
-            Err(MonsterError::UnsupportedAccess)
-        ));
+    for (code, label) in [
+        (0, "unknown"),
+        (1, "available"),
+        (2, "available"),
+        (3, "available"),
+        (4, "stat_block_locked"),
+        (5, "unknown"),
+        (u64::MAX, "unknown"),
+    ] {
+        let mut mixed = valid.clone();
+        mixed["accessType"]["17"] = json!(code);
+        let result = parse_collection(mixed, &q).expect("reported numeric code");
+        assert_eq!(result["entries"][1]["access_code"], code);
+        assert_eq!(result["entries"][1]["access"], label);
+        assert!(result["entries"][1].get("raw").is_none());
+        if code != 1 {
+            assert!(
+                parse_detail(json!({"data":fixture::record(17), "accessType":code}), "17").is_err()
+            );
+        }
     }
-    for code in [Value::Null, json!("1"), json!(-1), json!(1.5)] {
+    for code in [Value::Null, json!("1"), json!(-1), json!(1.5), json!(true)] {
+        let mut mixed = valid.clone();
+        mixed["accessType"]["17"] = code.clone();
         assert!(matches!(
-            super::access(Some(&code)),
+            parse_collection(mixed, &q),
+            Err(MonsterError::InvalidResponse)
+        ));
+        assert!(matches!(
+            detail_access(Some(&code)),
             Err(MonsterError::InvalidResponse)
         ));
     }
+    let mut empty = fixture::collection(vec![]);
+    empty["accessType"] = json!({"17":1});
+    assert!(parse_collection(empty, &q).is_err());
+    let maximum = fixture::collection((1..=100).map(fixture::record).collect());
+    assert!(parse_collection(maximum, &query(json!({"take":100}))).is_err());
+    let mut maximum = fixture::collection((1..=100).map(fixture::record).collect());
+    maximum["pagination"]["take"] = json!(100);
+    assert_eq!(
+        parse_collection(maximum.clone(), &query(json!({"take":100}))).expect("ceiling")["entries"]
+            .as_array()
+            .expect("entries")
+            .len(),
+        100
+    );
+    maximum["data"]
+        .as_array_mut()
+        .expect("data")
+        .push(fixture::record(101));
+    assert!(matches!(
+        parse_collection(maximum, &query(json!({"take":100}))),
+        Err(MonsterError::LimitExceeded)
+    ));
 }
 
-/// Detail rechecks its own grant even after a successful filtered list.
+/// Detail rechecks its own grant even after a successful metadata list.
 #[tokio::test]
 async fn detail_access_is_checked_independently() {
     let session = fixture::session(Scenario::AccessLost).expect("fixture");
@@ -427,10 +545,222 @@ async fn detail_access_is_checked_independently() {
         .await
         .expect("earlier grant");
     assert!(matches!(
-        show(&session, "17").await,
+        show(&session, "17", false).await,
         Err(MonsterError::AccessDenied)
     ));
-    assert_eq!(fixture::routes(&session).len(), 3);
+    assert_eq!(fixture::routes(&session).len(), 2);
+}
+
+/// Fails explicitly on public lookup errors without returning partial raw detail.
+#[tokio::test]
+async fn lookup_failures_keep_detail_atomic_and_do_not_affect_lists() {
+    for scenario in [
+        Scenario::ConfigurationDenied,
+        Scenario::InvalidConfiguration,
+    ] {
+        let session = fixture::session(scenario).expect("fixture");
+        list(&session, &MonsterQuery::default())
+            .await
+            .expect("metadata");
+        let error = show(&session, "17", false)
+            .await
+            .expect_err("lookup failure");
+        assert!(match scenario {
+            Scenario::ConfigurationDenied => matches!(error, MonsterError::SourceRead(_)),
+            _ => matches!(error, MonsterError::InvalidConfiguration),
+        });
+        assert_eq!(
+            fixture::routes(&session),
+            [
+                "/v1/Monster?skip=0&take=10&showHomebrew=f",
+                "/v1/Monster/17",
+                "/api/config/json"
+            ]
+        );
+    }
+}
+
+/// Raw mode returns the authorized envelope without consulting lookup configuration.
+#[tokio::test]
+async fn raw_detail_skips_lookup_reads_and_preserves_source_fields() {
+    for scenario in [
+        Scenario::Normal,
+        Scenario::ConfigurationDenied,
+        Scenario::InvalidConfiguration,
+    ] {
+        let session = fixture::session(scenario).expect("fixture");
+        let result = show(&session, "17", true).await.expect("raw detail");
+        assert_eq!(
+            result,
+            json!({
+                "id":"17","name":"Invented Beast",
+                "source_url":"https://www.dndbeyond.com/monsters/17-invented",
+                "access":"available","access_code":1,"raw":fixture::record(17)
+            })
+        );
+        assert_eq!(fixture::routes(&session), ["/v1/Monster/17"]);
+    }
+}
+
+/// Disabling lookup mapping never bypasses selected access or identity checks.
+#[tokio::test]
+async fn raw_detail_keeps_access_identity_and_input_checks() {
+    for scenario in [
+        Scenario::DeniedCode,
+        Scenario::UnsupportedCode,
+        Scenario::SharedCode,
+        Scenario::ChangedIdentity,
+    ] {
+        let session = fixture::session(scenario).expect("fixture");
+        let error = show(&session, "17", true)
+            .await
+            .expect_err("protected detail");
+        assert!(match scenario {
+            Scenario::DeniedCode => matches!(error, MonsterError::AccessDenied),
+            Scenario::ChangedIdentity => matches!(error, MonsterError::InvalidResponse),
+            _ => matches!(error, MonsterError::UnsupportedAccess),
+        });
+        assert_eq!(fixture::routes(&session), ["/v1/Monster/17"]);
+    }
+    let session = fixture::session(Scenario::Normal).expect("fixture");
+    assert!(matches!(
+        show(&session, "01", true).await,
+        Err(MonsterError::InvalidInput)
+    ));
+    assert!(fixture::routes(&session).is_empty());
+}
+
+/// Keeps unknown, empty, absent, and nullable references distinct without source-ID mapping.
+#[test]
+fn unknown_lookup_ids_are_not_guessed_or_dropped() {
+    let raw = json!({
+        "alignmentId":999,"stats":[{"statId":999,"value":8}],
+        "languages":[],"environments":null,"sourceId":7,"entityTypeId":123,
+        "futureId":77
+    });
+    let before = raw.clone();
+    assert_eq!(
+        resolve::detail(&raw, &fixture::configuration()).expect("resolve"),
+        json!({
+            "alignment":{"id":999,"name":null,"lookup_status":"unresolved"},
+            "stats":[{"statId":999,"value":8,"name":null,"lookup_status":"unresolved"}],
+            "languages":[],"environments":null
+        })
+    );
+    assert_eq!(raw, before);
+    assert_eq!(
+        resolve::detail(&json!({}), &json!({})).expect("absent"),
+        json!({})
+    );
+}
+
+/// Reads configured CR values rather than treating service IDs as CR ordinals.
+#[test]
+fn challenge_rating_labels_use_configured_values() {
+    for (id, value, expected) in [
+        (3, 0.25, "1/4"),
+        (29, 24.0, "24"),
+        (777, 0.125, "1/8"),
+        (888, 0.5, "1/2"),
+        (999, 0.0, "0"),
+    ] {
+        let resolved = resolve::detail(
+            &json!({"challengeRatingId":id}),
+            &json!({"challengeRatings":[{"id":id,"value":value}]}),
+        )
+        .expect("configured CR");
+        assert_eq!(resolved["challenge_rating"]["name"], expected);
+    }
+}
+
+/// Rejects malformed references and all malformed rows in a selected lookup table.
+#[test]
+fn malformed_lookup_data_fails_instead_of_becoming_unknown() {
+    for raw in [
+        json!({"alignmentId":"8"}),
+        json!({"sizeId":-1}),
+        json!({"typeId":1.5}),
+        json!({"stats":[{}]}),
+        json!({"stats":[{"statId":null}]}),
+        json!({"languages":[17]}),
+        json!({"environments":false}),
+        json!({"conditionImmunities":[-1]}),
+    ] {
+        assert!(
+            matches!(
+                resolve::detail(&raw, &fixture::configuration()),
+                Err(MonsterError::InvalidResponse)
+            ),
+            "{raw}"
+        );
+    }
+    for configuration in [
+        json!(null),
+        json!({}),
+        json!({"stats":{}}),
+        json!({"stats":[{"id":1}]}),
+        json!({"stats":[{"id":"1","name":"Invalid"}]}),
+        json!({"stats":[{"id":1,"name":" padded"}]}),
+        json!({"stats":[{"id":1,"name":"Valid"},{"id":1,"name":"Duplicate"}]}),
+        json!({"stats":[{"id":1,"name":"Valid"},{"id":999,"name":null}]}),
+    ] {
+        assert!(
+            matches!(
+                resolve::detail(&json!({"stats":[{"statId":1}]}), &configuration),
+                Err(MonsterError::InvalidConfiguration)
+            ),
+            "{configuration}"
+        );
+    }
+    assert!(matches!(
+        resolve::detail(
+            &json!({"conditionImmunities":[4]}),
+            &json!({"conditions":[{"id":4,"name":"Wrong shape"}]})
+        ),
+        Err(MonsterError::InvalidConfiguration)
+    ));
+    assert!(matches!(
+        resolve::detail(
+            &json!({"challengeRatingId":3}),
+            &json!({"challengeRatings":[{"id":3,"value":-1}]})
+        ),
+        Err(MonsterError::InvalidConfiguration)
+    ));
+}
+
+/// Measures reference and lookup-table ceilings independently of transport size.
+#[test]
+fn lookup_counts_are_bounded() {
+    let mut raw = json!({"stats":vec![json!({"statId":1,"value":12});1_000]});
+    assert_eq!(
+        resolve::detail(&raw, &fixture::configuration()).expect("ceiling")["stats"]
+            .as_array()
+            .expect("references")
+            .len(),
+        1_000
+    );
+    raw["stats"]
+        .as_array_mut()
+        .expect("references")
+        .push(json!({"statId":1}));
+    assert!(matches!(
+        resolve::detail(&raw, &fixture::configuration()),
+        Err(MonsterError::LimitExceeded)
+    ));
+    let entries: Vec<_> = (1..=1_000)
+        .map(|id| json!({"id":id,"name":"Invented"}))
+        .collect();
+    let mut config = json!({"stats":entries});
+    let raw = json!({"stats":[{"statId":1}]});
+    resolve::detail(&raw, &config).expect("lookup ceiling");
+    config["stats"]
+        .as_array_mut()
+        .expect("table")
+        .push(json!({"id":1_001,"name":"Invented"}));
+    assert!(matches!(
+        resolve::detail(&raw, &config),
+        Err(MonsterError::LimitExceeded)
+    ));
 }
 
 /// Admits exact transport bounds without increasing the shared cap.
@@ -439,8 +769,8 @@ async fn exact_transport_body_bound_is_accepted() {
     let session = fixture::session(Scenario::ExactBody).expect("fixture");
     list(&session, &MonsterQuery::default())
         .await
-        .expect("exact page");
-    show(&session, "17").await.expect("exact detail");
+        .expect("exact batch");
+    show(&session, "17", false).await.expect("exact detail");
     assert_eq!(fixture::routes(&session).len(), 3);
 }
 

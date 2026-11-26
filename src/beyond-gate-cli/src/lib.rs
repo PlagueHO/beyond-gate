@@ -275,8 +275,9 @@ pub trait ReadOperations {
         &self,
         session: &Session,
         id: &str,
+        raw: bool,
     ) -> impl std::future::Future<Output = Result<Value, MonsterError>> {
-        monster::show(session, id)
+        monster::show(session, id, raw)
     }
     /// Lists metadata only, preserving the shared catalog failures.
     ///
@@ -926,6 +927,7 @@ fn prepare_html<'a>(
         markdown: arguments
             .get_one::<String>("output")
             .is_some_and(|value| value == "markdown"),
+        raw: resource == Resource::Monster && arguments.get_flag("raw"),
     };
     request.validate().map_err(Failure::Html)?;
     Ok(Box::new(move |session| {
@@ -1332,6 +1334,7 @@ fn prepare_monster<'a>(
     let id = (action == "show")
         .then(|| selection(arguments, "id"))
         .transpose()?;
+    let raw = action == "show" && arguments.get_flag("raw");
     let query = if action == "list" {
         monster_query(arguments)?
     } else if let Some(id) = id {
@@ -1344,7 +1347,7 @@ fn prepare_monster<'a>(
         let value = execute_read(
             || async {
                 if let Some(id) = id {
-                    reads.show_monster(session, id).await
+                    reads.show_monster(session, id, raw).await
                 } else {
                     reads.list_monsters(session, &query).await
                 }
@@ -1352,24 +1355,22 @@ fn prepare_monster<'a>(
             Failure::Monster,
         )?;
         if id.is_some() {
-            return output::record(
-                &options,
-                &["id", "name", "source_url", "access_code", "raw"],
-                &value,
-            );
+            let mut fields = vec!["id", "name", "source_url", "access", "access_code", "raw"];
+            if !raw {
+                fields.push("resolved");
+            }
+            return output::record(&options, &fields, &value);
+        }
+        const PAGINATION_FIELDS: [&str; 4] = ["skip", "take", "total", "next_skip"];
+        let mut fields = vec!["id", "name", "source_url", "access", "access_code"];
+        if !options.is_table() {
+            fields.extend(PAGINATION_FIELDS);
         }
         output::paginated_list(
             &options,
-            &[
-                "id",
-                "name",
-                "source_url",
-                "access_code",
-                "page",
-                "next_page",
-            ],
+            &fields,
             &value,
-            &["page", "next_page"],
+            &PAGINATION_FIELDS,
             Failure::Monster(MonsterError::InvalidResponse),
         )
     }))
@@ -1378,8 +1379,20 @@ fn prepare_monster<'a>(
 /// Converts parsed flags to the same strict query model used by MCP.
 fn monster_query(arguments: &ArgMatches) -> Result<monster::MonsterQuery, Failure> {
     use monster::query::{BOOL_FILTERS, ID_FILTERS, NUMBER_FILTERS};
-    let mut value = website_query_fields(arguments, &ID_FILTERS);
-    value.insert("page".to_owned(), json!(arguments.get_one::<u32>("page")));
+    let mut value = query_values::<String>(arguments, [("name", "name")]);
+    value.extend(repeated_query_values::<u32>(
+        arguments,
+        ID_FILTERS.iter().map(|(field, flag, _, _)| (*field, *flag)),
+    ));
+    value.extend(query_values::<u32>(
+        arguments,
+        [
+            ("skip", "skip"),
+            ("take", "take"),
+            ("size_min_id", "size-min-id"),
+            ("size_max_id", "size-max-id"),
+        ],
+    ));
     value.extend(query_values::<String>(
         arguments,
         [("cr_min", "cr-min"), ("cr_max", "cr-max")],
@@ -1388,17 +1401,19 @@ fn monster_query(arguments: &ArgMatches) -> Result<monster::MonsterQuery, Failur
         arguments,
         NUMBER_FILTERS
             .iter()
-            .map(|(field, flag, _)| (*field, *flag)),
+            .map(|(field, flag, _, _)| (*field, *flag)),
     ));
     value.extend(query_values::<bool>(
         arguments,
-        BOOL_FILTERS.iter().map(|(field, flag, _)| (*field, *flag)),
+        BOOL_FILTERS
+            .iter()
+            .map(|(field, flag, _, _)| (*field, *flag)),
     ));
     let query: monster::MonsterQuery = serde_json::from_value(Value::Object(value))
         .map_err(|_| Failure::Usage("Invalid monster filters."))?;
     query
         .validate()
-        .map_err(|_| Failure::Usage("Invalid monster filters or page."))?;
+        .map_err(|_| Failure::Usage("Invalid monster filters or pagination."))?;
     Ok(query)
 }
 

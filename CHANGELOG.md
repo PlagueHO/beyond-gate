@@ -183,18 +183,15 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   1 MiB transport cap; show rejects that response explicitly. Native
   compatibility, account acceptance, and real sharing remain unverified.
 - Bounded Windows monster reads through shared core operations, CLI
-  `monster list/show`, and MCP `monster_list`/`monster_show`. List returns one
-  website-filtered page with explicit `page`/`next_page` continuation instead
-  of offset/size input. Both adapters share literal CR bounds, repeated website
-  option IDs, AC/HP ranges, state booleans, and partnered-content selection.
-  Nonempty pages use one cookie HTML read and one exact selected-ID collection
-  with fresh access evidence. Empty pages require the observed marker.
-  Show preserves unchanged raw detail.
-  Only observed access code 1 permits output. Code 4 is denied; all other
-  numeric cases, including 2 and 3, are explicitly unsupported. Limits and
-  invalid, denied, or incomplete pages fail without partial results. Approved
+  `monster list/show`, and MCP `monster_list`/`monster_show`.
+  The original website-first list path is superseded by the JSON-only #122
+  contract under Changed. Show preserves unchanged raw detail.
+  Lists expose metadata and reported numeric access codes, including locked entries.
+  Only observed code 1 permits raw detail. Code 4 is denied for detail; all other
+  numeric cases, including 2 and 3, are explicitly unsupported for detail.
+  HTTP denial, limits, and invalid or incomplete pages fail without partial results. Approved
   browser probes checked selected routes; synthetic checks cover adapter parity.
-  Native cookie compatibility, account acceptance, larger batches, and
+  Native account acceptance, full live filter enforcement, larger batches, and
   owned/shared cases remain unverified.
 - Metadata-only Windows class and subclass browsing through shared core reads,
   CLI `class/subclass list/show`, and MCP `class_list`/`class_show`.
@@ -545,6 +542,37 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Add `monster show --raw` and matching MCP `raw: true` as an explicit backup
+  without lookup mapping or its configuration request. Keep the existing detail
+  envelope and unchanged `raw`; omit `resolved`. Default mapping, access checks,
+  limits, and selected HTML source checks stay unchanged.
+- Add separate `resolved` monster detail metadata to CLI and MCP while keeping
+  `raw` unchanged. One credential-free public configuration read follows the
+  selected detail access and identity checks. Names cover abilities, saves,
+  alignment, CR, size, type, subtypes, environments, conditions, damage
+  adjustments, languages, movements, senses, and skills. IDs and nested values
+  remain; unknown IDs have a null name and explicit unresolved status.
+  Source/account IDs stay unmapped. Complete used tables validate within local
+  count, body, result, and deadline limits. Lookup failures return no partial
+  detail or automatic raw-only fallback. List requests and detail authorization do not
+  change. Native lookup acceptance remains unverified.
+- Add readable `access` labels to monster CLI and MCP metadata while preserving
+  numeric `access_code`. Codes 1/2/3 map to `available`, code 4 to `stat_block_locked`,
+  and other codes to `unknown`. Labels describe website access only.
+  The official monster client checks access separately from `isLegacy`.
+  Raw-detail authorization and unknown-code handling for detail remain unchanged.
+- Replace monster HTML-first listing with one bounded bearer JSON search.
+  CLI and MCP share `skip` default 0, `take` default 10 with local range 1-100,
+  and source `total` with checked nullable `next_skip`. No HTML fallback,
+  selected-ID discovery, local filtering, or automatic continuation remains.
+  Use client-derived query keys, repeated IDs, CR service IDs, `t`/`f` booleans,
+  and fixed `showHomebrew=f`. Tags and Source Category remain supported.
+  Replace `page` and arbitrary `size_ids` with offsets and size bounds 2-7.
+  Reject Mythic and Partnered Content options; the old partnered exclusion is
+  no longer implied. Complete pagination, all rows, and exact access keys
+  validate before output. List metadata includes locked entries without raw fields
+  or content-access grants. Selected raw detail and its access rules stay unchanged.
+  Documentation records source/probe evidence and native/live acceptance limits.
 - Updated rmcp from 3.8.0 to 3.9.0 for RUSTSEC-2026-0462 and the locked
   async-executor from 1.14.0 to 1.14.1 to remove a yanked version.
 - Share MCP tool declarations and cancellation handling. All 24 tool names,
@@ -622,6 +650,11 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- Remove `skip`, `take`, `total`, and `next_skip` columns from monster tables.
+  Keep pagination unchanged in JSON and TSV output.
+- Keep locked monsters in metadata-only CLI and MCP lists instead of rejecting
+  the whole page. Preserve reported numeric access codes and pagination without
+  returning raw fields or granting detail access. Selected detail checks remain unchanged.
 - Update locked `url` from 2.5.8 to 2.5.9 and its required `form_urlencoded`
   dependency to 1.2.3. This fixes RUSTSEC-2026-0592, a stack overflow when
   resolving the origin of nested `blob:` URLs. Dependency policy is unchanged.

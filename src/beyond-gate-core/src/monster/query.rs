@@ -1,6 +1,6 @@
-//! Shared strict filter inputs and fixed website query construction.
+//! Shared strict filter inputs and fixed monster JSON query construction.
 
-use super::{MAX_NAME_BYTES, MonsterError, WEBSITE};
+use super::{MAX_NAME_BYTES, MonsterError, SERVICE};
 use crate::public_config::valid_text;
 use schemars::JsonSchema;
 use serde::{Deserialize, Deserializer, Serialize};
@@ -10,74 +10,111 @@ use std::collections::HashSet;
 pub const MAX_FILTER_IDS: usize = 50;
 /// Maximum selected IDs across all filter fields.
 pub const MAX_TOTAL_IDS: usize = 256;
-/// Maximum encoded website query bytes.
+/// Maximum encoded service query bytes.
 pub const MAX_QUERY_BYTES: usize = 16 * 1024;
-/// Maps model fields, CLI flags, and website controls without adapter-specific policy.
-pub const ID_FILTERS: [(&str, &str, &str); 17] = [
-    ("type_ids", "type-id", "filter-type"),
-    ("subtype_ids", "subtype-id", "filter-sub-types"),
-    ("size_ids", "size-id", "filter-size"),
-    ("environment_ids", "environment-id", "filter-environment"),
-    ("alignment_ids", "alignment-id", "filter-alignment"),
-    ("sense_ids", "sense-id", "filter-senses"),
+/// Maps an ID field, CLI flag, service key, and its query value.
+pub type IdFilter = (
+    &'static str,
+    &'static str,
+    &'static str,
+    for<'a> fn(&'a MonsterQuery) -> &'a [u32],
+);
+/// Maps model fields, CLI flags, and service keys without adapter-specific policy.
+pub const ID_FILTERS: [IdFilter; 16] = [
+    ("type_ids", "type-id", "monsterTypes", |q| &q.type_ids),
+    ("subtype_ids", "subtype-id", "monsterSubtypes", |q| {
+        &q.subtype_ids
+    }),
+    ("environment_ids", "environment-id", "environments", |q| {
+        &q.environment_ids
+    }),
+    ("alignment_ids", "alignment-id", "alignments", |q| {
+        &q.alignment_ids
+    }),
+    ("sense_ids", "sense-id", "senses", |q| &q.sense_ids),
     (
         "save_proficiency_ids",
         "save-proficiency-id",
-        "filter-save-proficiency",
+        "saveProficiencies",
+        |q| &q.save_proficiency_ids,
     ),
     (
         "skill_proficiency_ids",
         "skill-proficiency-id",
-        "filter-skill-proficiency",
+        "skillProficiencies",
+        |q| &q.skill_proficiency_ids,
     ),
-    ("resistance_ids", "resistance-id", "filter-resistance"),
+    ("resistance_ids", "resistance-id", "resistances", |q| {
+        &q.resistance_ids
+    }),
     (
         "damage_immunity_ids",
         "damage-immunity-id",
-        "filter-damage-immunity",
+        "damageImmunities",
+        |q| &q.damage_immunity_ids,
     ),
     (
         "condition_immunity_ids",
         "condition-immunity-id",
-        "filter-condition-immunity",
+        "conditionImmunities",
+        |q| &q.condition_immunity_ids,
     ),
     (
         "vulnerability_ids",
         "vulnerability-id",
-        "filter-vulnerability",
+        "vulnerabilities",
+        |q| &q.vulnerability_ids,
     ),
-    ("language_ids", "language-id", "filter-language"),
-    ("movement_ids", "movement-id", "filter-movement"),
-    ("tag_ids", "tag-id", "filter-tags"),
+    ("language_ids", "language-id", "languages", |q| {
+        &q.language_ids
+    }),
+    ("movement_ids", "movement-id", "movementTypes", |q| {
+        &q.movement_ids
+    }),
+    ("tag_ids", "tag-id", "monsterTags", |q| &q.tag_ids),
     (
         "source_category_ids",
         "source-category-id",
-        "filter-source-category",
+        "sourceCategories",
+        |q| &q.source_category_ids,
     ),
-    ("source_ids", "source-id", "filter-source"),
+    ("source_ids", "source-id", "sources", |q| &q.source_ids),
 ];
-/// Maps optional nonnegative range fields to CLI flags and website controls.
-pub const NUMBER_FILTERS: [(&str, &str, &str); 4] = [
-    (
-        "armor_class_min",
-        "armor-class-min",
-        "filter-armor-class-min",
-    ),
-    (
-        "armor_class_max",
-        "armor-class-max",
-        "filter-armor-class-max",
-    ),
-    ("average_hp_min", "average-hp-min", "filter-average-hp-min"),
-    ("average_hp_max", "average-hp-max", "filter-average-hp-max"),
+/// Maps a numeric field, CLI flag, service key, and its query value.
+pub type NumberFilter = (
+    &'static str,
+    &'static str,
+    &'static str,
+    fn(&MonsterQuery) -> Option<u32>,
+);
+/// Maps optional nonnegative range fields to CLI flags and service keys.
+pub const NUMBER_FILTERS: [NumberFilter; 4] = [
+    ("armor_class_min", "armor-class-min", "armorClassMin", |q| {
+        q.armor_class_min
+    }),
+    ("armor_class_max", "armor-class-max", "armorClassMax", |q| {
+        q.armor_class_max
+    }),
+    ("average_hp_min", "average-hp-min", "averageHpMin", |q| {
+        q.average_hp_min
+    }),
+    ("average_hp_max", "average-hp-max", "averageHpMax", |q| {
+        q.average_hp_max
+    }),
 ];
-/// Maps optional boolean fields to CLI flags and website controls.
-pub const BOOL_FILTERS: [(&str, &str, &str); 3] = [
-    ("legendary", "legendary", "filter-is-legendary"),
-    ("mythic", "mythic", "filter-is-mythic"),
-    ("has_lair", "has-lair", "filter-has-lair"),
+/// Maps a boolean field, CLI flag, service key, and its query value.
+pub type BoolFilter = (
+    &'static str,
+    &'static str,
+    &'static str,
+    fn(&MonsterQuery) -> Option<bool>,
+);
+/// Maps optional boolean fields to CLI flags and service keys.
+pub const BOOL_FILTERS: [BoolFilter; 2] = [
+    ("legendary", "legendary", "isLegendary", |q| q.legendary),
+    ("has_lair", "has-lair", "hasLair", |q| q.has_lair),
 ];
-/// Observed literal CR values and website IDs, including the missing ID 28.
+/// Client-verified literal CR values and service IDs, including the missing ID 28.
 pub const CHALLENGE_RATINGS: [(&str, u32); 34] = [
     ("0", 1),
     ("1/8", 2),
@@ -115,7 +152,7 @@ pub const CHALLENGE_RATINGS: [(&str, u32); 34] = [
     ("30", 35),
 ];
 
-/// Represents the website's three partnered-content choices, not an access grant.
+/// Website choices used by other resource queries, not supported by monster search.
 #[derive(Clone, Copy, Default, Deserialize, Serialize, JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum PartneredContent {
@@ -128,9 +165,9 @@ pub enum PartneredContent {
     No,
 }
 
-/// One explicit website page with matching CLI and MCP selectors.
+/// One explicit JSON batch with matching CLI and MCP selectors.
 ///
-/// ID selectors are public website option IDs, not ownership or content grants.
+/// ID selectors are service filter values, not ownership or content grants.
 /// Omitted optional fields are unrestricted; explicit null is not valid input.
 #[derive(Clone, Deserialize, Serialize, JsonSchema)]
 #[serde(default, deny_unknown_fields)]
@@ -139,9 +176,11 @@ pub struct MonsterQuery {
     #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
     #[schemars(with = "String", length(min = 1, max = 256))]
     pub name: Option<String>,
-    /// Positive website page; continuation is never followed automatically.
-    #[schemars(range(min = 1))]
-    pub page: u32,
+    /// Source offset; continuation is never followed automatically.
+    pub skip: u32,
+    /// Local batch size from 1 through 100; defaults to 10.
+    #[schemars(range(min = 1, max = 100))]
+    pub take: u32,
     /// Minimum literal CR: 0, 1/8, 1/4, 1/2, or an integer from 1 through 30.
     #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
     #[schemars(with = "String")]
@@ -154,8 +193,14 @@ pub struct MonsterQuery {
     pub type_ids: Vec<u32>,
     /// Monster subtype option IDs; at most 50 unique positive IDs.
     pub subtype_ids: Vec<u32>,
-    /// Size option IDs; for example, 4 Medium and 5 Large.
-    pub size_ids: Vec<u32>,
+    /// Minimum size ID: 2 Tiny, 3 Small, 4 Medium, 5 Large, 6 Huge, 7 Gargantuan.
+    #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "u32", range(min = 2, max = 7))]
+    pub size_min_id: Option<u32>,
+    /// Maximum size ID, not below the minimum.
+    #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
+    #[schemars(with = "u32", range(min = 2, max = 7))]
+    pub size_max_id: Option<u32>,
     /// Environment option IDs; at most 50 unique positive IDs.
     pub environment_ids: Vec<u32>,
     /// Alignment option IDs; at most 50 unique positive IDs.
@@ -204,29 +249,25 @@ pub struct MonsterQuery {
     #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
     #[schemars(with = "bool")]
     pub legendary: Option<bool>,
-    /// Optional mythic-state filter; omission leaves it unrestricted.
-    #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
-    #[schemars(with = "bool")]
-    pub mythic: Option<bool>,
     /// Optional lair-state filter; omission leaves it unrestricted.
     #[serde(deserialize_with = "present", skip_serializing_if = "Option::is_none")]
     #[schemars(with = "bool")]
     pub has_lair: Option<bool>,
-    /// Website yes/no/any choice; defaults to no, matching the site.
-    pub partnered_content: PartneredContent,
 }
 
 impl Default for MonsterQuery {
-    /// Leaves optional filters unset and selects website page 1 with partnered content No.
+    /// Leaves optional filters unset and selects the first ten source records.
     fn default() -> Self {
         Self {
             name: None,
-            page: 1,
+            skip: 0,
+            take: 10,
             cr_min: None,
             cr_max: None,
             type_ids: Vec::new(),
             subtype_ids: Vec::new(),
-            size_ids: Vec::new(),
+            size_min_id: None,
+            size_max_id: None,
             environment_ids: Vec::new(),
             alignment_ids: Vec::new(),
             sense_ids: Vec::new(),
@@ -246,9 +287,7 @@ impl Default for MonsterQuery {
             average_hp_min: None,
             average_hp_max: None,
             legendary: None,
-            mythic: None,
             has_lair: None,
-            partnered_content: PartneredContent::No,
         }
     }
 }
@@ -267,9 +306,14 @@ impl MonsterQuery {
     ///
     /// # Errors
     ///
-    /// Returns invalid input for text, CR, reversed ranges, IDs, page, or query bounds.
+    /// Returns invalid input for text, CR, reversed ranges, IDs, take, or query bounds.
     pub fn validate(&self) -> Result<(), MonsterError> {
-        if self.page == 0
+        if !(1..=100).contains(&self.take)
+            || [self.size_min_id, self.size_max_id]
+                .into_iter()
+                .flatten()
+                .any(|id| !(2..=7).contains(&id))
+            || matches!((self.size_min_id, self.size_max_id), (Some(a), Some(b)) if a > b)
             || self
                 .name
                 .as_deref()
@@ -284,9 +328,9 @@ impl MonsterQuery {
         if matches!((min, max), (Some(a), Some(b)) if a > b) {
             return Err(MonsterError::InvalidInput);
         }
-        let fields = self.id_values();
         let mut count = 0;
-        for ids in fields {
+        for (_, _, _, values) in ID_FILTERS {
+            let ids = values(self);
             count += ids.len();
             if ids.len() > MAX_FILTER_IDS
                 || ids.contains(&0)
@@ -296,89 +340,56 @@ impl MonsterQuery {
             }
         }
         if count > MAX_TOTAL_IDS
-            || self.website_url(WEBSITE)?.query().map_or(0, str::len) > MAX_QUERY_BYTES
+            || self.service_url(SERVICE)?.query().map_or(0, str::len) > MAX_QUERY_BYTES
         {
             return Err(MonsterError::InvalidInput);
         }
         Ok(())
     }
 
-    /// Supplies ID arrays in the exact order of ID_FILTERS.
-    pub(crate) fn id_values(&self) -> [&[u32]; 17] {
-        [
-            &self.type_ids,
-            &self.subtype_ids,
-            &self.size_ids,
-            &self.environment_ids,
-            &self.alignment_ids,
-            &self.sense_ids,
-            &self.save_proficiency_ids,
-            &self.skill_proficiency_ids,
-            &self.resistance_ids,
-            &self.damage_immunity_ids,
-            &self.condition_immunity_ids,
-            &self.vulnerability_ids,
-            &self.language_ids,
-            &self.movement_ids,
-            &self.tag_ids,
-            &self.source_category_ids,
-            &self.source_ids,
-        ]
-    }
-
-    /// Constructs only the fixed listing path with observed website filter encodings.
-    pub(crate) fn website_url(&self, origin: &str) -> Result<reqwest::Url, MonsterError> {
-        let mut url = reqwest::Url::parse(&format!("{origin}/monsters"))
+    /// Constructs the fixed JSON search path with client-verified query encodings.
+    pub(crate) fn service_url(&self, origin: &str) -> Result<reqwest::Url, MonsterError> {
+        let mut url = reqwest::Url::parse(&format!("{origin}/v1/Monster"))
             .map_err(|_| MonsterError::InvalidInput)?;
         {
             let mut query = url.query_pairs_mut();
-            query.append_pair("page", &self.page.to_string());
-            if self.type_ids.is_empty() {
-                query.append_pair("filter-type", "0");
-            }
+            query.append_pair("skip", &self.skip.to_string());
+            query.append_pair("take", &self.take.to_string());
+            query.append_pair("showHomebrew", "f");
             if let Some(name) = &self.name {
-                query.append_pair("filter-search", name);
+                query.append_pair("search", name);
             }
             for (field, value) in [
-                ("filter-cr-min", &self.cr_min),
-                ("filter-cr-max", &self.cr_max),
+                ("challengeRatingMin", &self.cr_min),
+                ("challengeRatingMax", &self.cr_max),
             ] {
                 if let Some(value) = value {
                     query.append_pair(field, &challenge_id(value)?.to_string());
                 }
             }
-            for ((_, _, field), ids) in ID_FILTERS.iter().zip(self.id_values()) {
-                for id in ids {
-                    query.append_pair(field, &id.to_string());
-                }
-            }
-            for ((_, _, field), value) in NUMBER_FILTERS.iter().zip([
-                self.armor_class_min,
-                self.armor_class_max,
-                self.average_hp_min,
-                self.average_hp_max,
-            ]) {
+            for (field, value) in [
+                ("monsterSizeMin", self.size_min_id),
+                ("monsterSizeMax", self.size_max_id),
+            ] {
                 if let Some(value) = value {
                     query.append_pair(field, &value.to_string());
                 }
             }
-            for ((_, _, field), value) in
-                BOOL_FILTERS
-                    .iter()
-                    .zip([self.legendary, self.mythic, self.has_lair])
-            {
-                if let Some(value) = value {
+            for (_, _, field, values) in ID_FILTERS {
+                for id in values(self) {
+                    query.append_pair(field, &id.to_string());
+                }
+            }
+            for (_, _, field, value) in NUMBER_FILTERS {
+                if let Some(value) = value(self) {
+                    query.append_pair(field, &value.to_string());
+                }
+            }
+            for (_, _, field, value) in BOOL_FILTERS {
+                if let Some(value) = value(self) {
                     query.append_pair(field, if value { "t" } else { "f" });
                 }
             }
-            query.append_pair(
-                "filter-partnered-content",
-                match self.partnered_content {
-                    PartneredContent::Any => "",
-                    PartneredContent::Yes => "t",
-                    PartneredContent::No => "f",
-                },
-            );
         }
         Ok(url)
     }
@@ -391,34 +402,4 @@ fn challenge_id(value: &str) -> Result<u32, MonsterError> {
         .find(|(label, _)| *label == value)
         .map(|(_, id)| *id)
         .ok_or(MonsterError::InvalidInput)
-}
-
-/// Limits cookie transport to the observed listing path and known query controls.
-pub(crate) fn allowed_list_url(url: &reqwest::Url) -> bool {
-    url.path() == "/monsters"
-        && url.fragment().is_none()
-        && url
-            .query()
-            .is_some_and(|query| query.len() <= MAX_QUERY_BYTES)
-        && url.query_pairs().all(|(key, value)| {
-            if key == "filter-search" {
-                return value.len() <= MAX_NAME_BYTES && valid_text(&value);
-            }
-            if key == "page" {
-                return value
-                    .parse::<u32>()
-                    .is_ok_and(|n| n > 0 && n.to_string() == value);
-            }
-            if key == "filter-partnered-content"
-                || BOOL_FILTERS.iter().any(|(_, _, field)| *field == key)
-            {
-                return matches!(value.as_ref(), "" | "t" | "f");
-            }
-            let numeric = matches!(key.as_ref(), "filter-cr-min" | "filter-cr-max")
-                || ID_FILTERS
-                    .iter()
-                    .chain(NUMBER_FILTERS.iter())
-                    .any(|(_, _, field)| *field == key);
-            numeric && value.parse::<u32>().is_ok_and(|n| n.to_string() == value)
-        })
 }

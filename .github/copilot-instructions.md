@@ -28,14 +28,33 @@ It preserves source-reference metadata but excludes raw definitions and rules
 text. Native class compatibility, real sharing, and live global coverage remain
 unverified. Metadata presence and source IDs are not content-access grants.
 Monster list/show returns one explicit page or unchanged selected raw detail
-through shared Windows reads. Lists use website filters and explicit page/next_page,
-not skip/take. One cookie-only candidate page and one exact selected-ID bearer
-collection share a session identity. Empty pages require the observed marker.
+through shared Windows/Linux reads. Lists make one bearer JSON collection request
+with explicit skip/take and nullable next_skip, default skip 0/take 10, local take
+range 1-100. Use client-verified query keys, repeated IDs, CR service IDs, size
+bounds 2-7, and t/f booleans; always showHomebrew=f. Tags/Source Category remain.
+Reject page, size_ids, mythic, and partnered_content; no partnered exclusion is
+implied. Validate complete JSON pagination, every row, and exact access keys.
+No HTML retrieval/fallback, local filtering, or automatic continuation is added.
 Website links/options are not grants; the book-page URL guard stays unchanged.
-Only observed access code 1 permits output.
-Code 4 is denied; unverified numeric codes, including 2 and 3, are unsupported.
-One failed row fails the page. Browser probes checked selected routes; native
-cookie compatibility, account acceptance, larger batches, and owned/shared behavior
+Lists expose only IDs, names, checked links, access labels, and reported nonnegative
+integer access codes, including locked entries. Labels are available for codes 1/2/3,
+stat_block_locked for 4, and unknown otherwise. Labels describe website access,
+not ownership, sharing, legacy status, or native detail grants. No raw fields or detail grants
+are returned.
+Only observed code 1 permits raw detail. Code 4 is denied; unverified numeric
+codes, including 2 and 3, are unsupported for detail. One malformed row fails the page.
+After valid detail access and identity, one credential-free public configuration
+GET adds resolved lookup names without changing raw. Keep scalar IDs and nested
+values; unknown IDs retain name:null and lookup_status:unresolved. Source and
+account identifiers stay unmapped. Validate complete used tables; missing,
+malformed, or duplicate lookup data fails without automatic raw-only fallback. Bound each
+used table and reference array to 1,000 entries within existing body/result/deadline
+limits. Do not infer rules, access, or ownership from lookup metadata.
+Explicit monster show --raw or MCP raw:true skips configuration and resolved.
+Keep the detail envelope, raw source fields, access checks, and existing limits.
+Mapping remains the default. Carry the option through HTML/Markdown dispatch.
+Browser probes checked selected routes; native
+full filter enforcement, account acceptance, larger batches, and owned/shared behavior
 remain unverified.
 Equipment list/show uses one fresh mixed `v5.1` item page of at most 100 rows.
 Adapter pages are one-based; API `page` is zero-based with fixed `pageSize=100`.

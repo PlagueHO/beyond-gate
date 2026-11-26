@@ -636,31 +636,6 @@ impl Session {
         self.get_cookie_html(client, url).await
     }
 
-    /// Reads only the fixed monster listing and known filters using this scope's cookie.
-    pub(crate) async fn get_monster_html(
-        &self,
-        client: &HttpClient,
-        url: &str,
-    ) -> Result<zeroize::Zeroizing<Vec<u8>>, SessionError> {
-        self.supported()?;
-        let target = client.check_url(url).map_err(SessionError::read)?;
-        let website = target.origin().ascii_serialization() == "https://www.dndbeyond.com";
-        #[cfg(any(test, feature = "session-fixture"))]
-        let website = website
-            || (matches!(&self.backend, Backend::Synthetic(_))
-                && target.scheme() == "http"
-                && matches!(target.host_str(), Some("127.0.0.1" | "[::1]")));
-        if !website
-            || !target.username().is_empty()
-            || target.password().is_some()
-            || !crate::monster::query::allowed_list_url(&target)
-            || self.binding.is_none()
-        {
-            return Err(SessionError::new(SessionErrorKind::UnsupportedContract));
-        }
-        self.get_cookie_html(client, url).await
-    }
-
     /// Reads only the fixed background listing with checked website filter names.
     pub(crate) async fn get_background_html(
         &self,

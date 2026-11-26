@@ -13,12 +13,14 @@ live source compatibility remains unvalidated.
 Issue #65 adds metadata-only Windows class/subclass list/show and two MCP tools.
 Synthetic checks cover bounded discovery and adapter parity. Full-content access,
 native compatibility, real sharing, and live global coverage remain unverified.
-Issue #72 adds website-filtered monster pages and selected raw detail through both
-adapters. Filters share one strict query and explicit page-based continuation.
-Nonempty pages use one website read and one exact selected-ID access check.
-Only observed code 1 is supported. Code 4 is denied; unverified
-numeric cases, including 2 and 3, are unsupported. Browser probes checked the
-selected routes; native cookie compatibility, account acceptance, larger batches,
+Issue #72 adds monster list and selected raw detail through both adapters.
+Issue #122 replaces HTML-first lists with one bearer JSON collection request.
+Filters share one strict query with size bounds and explicit `skip`/`take`;
+output has checked `next_skip`. Mythic/Partnered Content inputs are rejected.
+Lists return metadata and reported numeric access codes, including locked entries.
+Only observed code 1 permits raw detail. Code 4 denies detail; unverified
+numeric cases, including 2 and 3, are unsupported for detail. Browser probes checked the
+selected routes; full live filter enforcement, native account acceptance, larger batches,
 and owned/shared cases remain unverified.
 Issue #66 adds background metadata filters and selected raw definitions through
 both adapters. It requires a complete bounded source response. The observed
@@ -230,7 +232,7 @@ to fourteen.
 Character and campaign tools call the same bounded core operations as the CLI.
 `class_list` and `class_show` expose class/subclass metadata only.
 Issue #72 adds CLI `monster list/show` and MCP `monster_list`/`monster_show`.
-One website-filtered list page returns explicit `next_page`; detail preserves raw fields after
+Issue #122 makes lists JSON-only with explicit `next_skip`; detail preserves raw fields after
 its own access check. Neither operation traverses the catalog or caches content.
 Issue #66 adds CLI `background list/show` and MCP `background_list`/`background_show`
 with shared metadata filters and complete bounded collection selection.

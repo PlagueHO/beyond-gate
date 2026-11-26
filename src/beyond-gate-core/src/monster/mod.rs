@@ -1,14 +1,15 @@
-//! Bounded monster pages and selected detail with explicitly verified access cases.
+//! Bounded monster metadata pages and selected detail with fresh access checks.
 //!
-//! Only observed access code 1 permits output. Code 4 is denied; other numeric
-//! codes remain unsupported. Raw detail is untrusted data, not a rules engine.
+//! Lists preserve numeric access codes and add known labels without exposing raw content.
+//! Detail requires observed access code 1. Code 4 is denied; other numeric codes
+//! remain unsupported for detail. Raw detail is untrusted data, not a rules engine.
 
 #[cfg(any(test, feature = "session-fixture"))]
 pub mod fixture;
 pub mod query;
+mod resolve;
 #[cfg(test)]
 mod tests;
-mod website;
 pub use query::MonsterQuery;
 
 use crate::{
@@ -17,7 +18,7 @@ use crate::{
     public_config::valid_text,
 };
 use serde_json::{Value, json};
-use std::{collections::HashMap, error::Error, fmt, time::Duration};
+use std::{collections::HashSet, error::Error, fmt, time::Duration};
 use tokio::time::{Instant, timeout};
 
 /// Local maximum number of raw records in one requested page.
@@ -39,6 +40,8 @@ pub enum MonsterError {
     InvalidInput,
     /// A source field, selected identity, or access map is malformed.
     InvalidResponse,
+    /// A public lookup table is missing, malformed, or repeats an ID.
+    InvalidConfiguration,
     /// Pagination does not describe the complete requested page.
     IncompletePage,
     /// A raw page repeats a source identity.
@@ -47,7 +50,7 @@ pub enum MonsterError {
     MissingRecord,
     /// The source supplied the observed denied access code.
     AccessDenied,
-    /// A numeric access code has not been verified for monster content.
+    /// A numeric access code has not been verified for selected raw detail.
     UnsupportedAccess,
     /// Raw count or encoded result exceeds local policy.
     LimitExceeded,
@@ -65,6 +68,9 @@ impl fmt::Display for MonsterError {
         match self {
             Self::InvalidInput => formatter.write_str("invalid monster input"),
             Self::InvalidResponse => formatter.write_str("invalid monster response"),
+            Self::InvalidConfiguration => {
+                formatter.write_str("invalid monster lookup configuration")
+            }
             Self::IncompletePage => {
                 formatter.write_str("monster page is incomplete or inconsistent")
             }
@@ -115,8 +121,9 @@ pub fn validate_id(id: &str) -> Result<(), MonsterError> {
 
 /// Reads exactly one bounded page with explicit numeric continuation metadata.
 ///
-/// Names are literal upstream searches. Every raw record and access entry is
-/// checked before output; a denied or unsupported entry fails the whole page.
+/// Names are literal upstream searches. Every metadata row and numeric access
+/// entry is checked before output. Reported codes are not detail-access grants.
+/// Raw content is never included, even when its reported access code is 1.
 ///
 /// # Errors
 ///
@@ -127,37 +134,17 @@ pub async fn list(session: &Session, query: &MonsterQuery) -> Result<Value, Mons
     let session = session.read_scope();
     let started = Instant::now();
     timeout(DEADLINE, async {
-        let (client, origin) = source_client(&session)?;
-        let website_origin = if origin == SERVICE { WEBSITE } else { &origin };
-        let url = query.website_url(website_origin)?;
+        let (client, origin) = source_client(&session, SERVICE)?;
+        let url = query.service_url(&origin)?;
         session
             .account_id()
             .await
             .map_err(MonsterError::SessionRead)?;
-        let body = session
-            .get_monster_html(&client, url.as_str())
-            .await
-            .map_err(MonsterError::SessionRead)?;
-        let page = website::parse(&body, query)?;
-        if page.ids.is_empty() {
-            return finish(
-                json!({"entries": [], "pagination": {"page":query.page,"next_page":null}}),
-                started,
-            );
-        }
-        let mut selected = reqwest::Url::parse(&format!("{origin}/v1/Monster"))
-            .map_err(|_| MonsterError::InvalidResponse)?;
-        for id in &page.ids {
-            selected.query_pairs_mut().append_pair("ids", id);
-        }
         let response = session
-            .get_json(&client, selected.as_str())
+            .get_json(&client, url.as_str())
             .await
             .map_err(MonsterError::SessionRead)?;
-        finish(
-            parse_collection(response, &page.ids, query.page, page.next)?,
-            started,
-        )
+        finish(parse_collection(response, query)?, started)
     })
     .await
     .map_err(|_| MonsterError::TimedOut)?
@@ -167,17 +154,19 @@ pub async fn list(session: &Session, query: &MonsterQuery) -> Result<Value, Mons
 ///
 /// List candidates and previous access observations are not grants for this read.
 /// The selected response must supply access code 1 again.
+/// Unless `raw` is true, one credential-free public configuration read then
+/// supplies separate labels. Raw mode omits `resolved`, not the detail envelope.
 ///
 /// # Errors
 ///
 /// Returns input, missing, denied, unsupported-access, malformed, limit, session,
 /// or transport failures. It does not substitute a list summary for detail.
-pub async fn show(session: &Session, id: &str) -> Result<Value, MonsterError> {
+pub async fn show(session: &Session, id: &str, raw: bool) -> Result<Value, MonsterError> {
     validate_id(id)?;
     let session = session.read_scope();
     let started = Instant::now();
     timeout(DEADLINE, async {
-        let (client, origin) = source_client(&session)?;
+        let (client, origin) = source_client(&session, SERVICE)?;
         let response = session
             .get_json(&client, &format!("{origin}/v1/Monster/{id}"))
             .await
@@ -188,27 +177,36 @@ pub async fn show(session: &Session, id: &str) -> Result<Value, MonsterError> {
                     MonsterError::SessionRead(error)
                 }
             })?;
-        finish(parse_detail(response, id)?, started)
+        let mut result = parse_detail(response, id)?;
+        if !raw {
+            let (public, website) = source_client(&session, WEBSITE)?;
+            let configuration: Value = public
+                .get_json(&format!("{website}/api/config/json"), None)
+                .await
+                .map_err(MonsterError::SourceRead)?;
+            result["resolved"] = resolve::detail(&result["raw"], &configuration)?;
+        }
+        finish(result, started)
     })
     .await
     .map_err(|_| MonsterError::TimedOut)?
 }
 
 /// Selects only the fixed origin or a compiled, owner-scoped synthetic service.
-fn source_client(session: &Session) -> Result<(HttpClient, String), MonsterError> {
+fn source_client(session: &Session, origin: &str) -> Result<(HttpClient, String), MonsterError> {
     session.supported().map_err(MonsterError::SessionRead)?;
     #[cfg(any(test, feature = "session-fixture"))]
     if let Some(source) = &session.monster_fixture {
         return Ok((source.client.clone(), source.origin.clone()));
     }
     Ok((
-        HttpClient::single_attempt(&[SERVICE, WEBSITE]).map_err(MonsterError::SourceRead)?,
-        SERVICE.to_owned(),
+        HttpClient::single_attempt(&[origin]).map_err(MonsterError::SourceRead)?,
+        origin.to_owned(),
     ))
 }
 
-/// Requires the observed numeric access contract; unknown is never a grant.
-fn access(value: Option<&Value>) -> Result<(), MonsterError> {
+/// Requires the observed detail-access contract; metadata is never a grant.
+fn detail_access(value: Option<&Value>) -> Result<(), MonsterError> {
     match value.and_then(Value::as_u64) {
         Some(1) => Ok(()),
         Some(4) => Err(MonsterError::AccessDenied),
@@ -217,51 +215,82 @@ fn access(value: Option<&Value>) -> Result<(), MonsterError> {
     }
 }
 
-/// Checks the exact selected set and fresh grants, then restores website order.
-fn parse_collection(
-    value: Value,
-    ids: &[String],
-    page: u32,
-    next: Option<u32>,
-) -> Result<Value, MonsterError> {
+/// Labels reported website access without changing selected-detail authorization.
+fn access_label(code: u64) -> &'static str {
+    match code {
+        1..=3 => "available",
+        4 => "stat_block_locked",
+        _ => "unknown",
+    }
+}
+
+/// Checks complete pagination, exact numeric access keys, and metadata in source order.
+fn parse_collection(value: Value, query: &MonsterQuery) -> Result<Value, MonsterError> {
     let entries = value["data"]
         .as_array()
         .ok_or(MonsterError::InvalidResponse)?;
     if entries.len() > MAX_PAGE_RECORDS {
         return Err(MonsterError::LimitExceeded);
     }
-    if entries.len() != ids.len() {
-        return Err(MonsterError::IncompletePage);
-    }
-    if !value.get("pagination").is_some_and(Value::is_null) {
-        return Err(MonsterError::InvalidResponse);
-    }
-    let grants = value["accessType"]
+    let pagination = parse_pagination(&value["pagination"], query, entries.len())?;
+    let codes = value["accessType"]
         .as_object()
         .ok_or(MonsterError::InvalidResponse)?;
-    if grants.len() != entries.len() {
+    if codes.len() != entries.len() {
         return Err(MonsterError::InvalidResponse);
     }
-    let mut summaries = HashMap::new();
+    let mut seen = HashSet::new();
+    let mut summaries = Vec::with_capacity(entries.len());
     for entry in entries {
-        let summary = summary(entry)?;
+        let mut summary = summary(entry)?;
         let id = summary["id"]
             .as_str()
             .ok_or(MonsterError::InvalidResponse)?;
-        if summaries.contains_key(id) {
+        if !seen.insert(id.to_owned()) {
             return Err(MonsterError::ConflictingIdentity);
         }
-        access(grants.get(id))?;
-        summaries.insert(id.to_owned(), summary);
+        let code = codes
+            .get(id)
+            .and_then(Value::as_u64)
+            .ok_or(MonsterError::InvalidResponse)?;
+        summary["access_code"] = json!(code);
+        summary["access"] = json!(access_label(code));
+        summaries.push(summary);
     }
-    let entries = ids
-        .iter()
-        .map(|id| summaries.remove(id).ok_or(MonsterError::InvalidResponse))
-        .collect::<Result<Vec<_>, _>>()?;
     Ok(json!({
-        "entries": entries,
-        "pagination": {"page": page, "next_page": next}
+        "entries": summaries,
+        "pagination": pagination
     }))
+}
+
+/// Rejects incomplete or unrepresentable offsets without inventing an end marker.
+fn parse_pagination(
+    value: &Value,
+    query: &MonsterQuery,
+    count: usize,
+) -> Result<Value, MonsterError> {
+    let number = |field: &str| {
+        value[field]
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .ok_or(MonsterError::InvalidResponse)
+    };
+    let (skip, take, total) = (number("skip")?, number("take")?, number("total")?);
+    if skip != query.skip
+        || take != query.take
+        || count as u64 != u64::from(take.min(total.saturating_sub(skip)))
+    {
+        return Err(MonsterError::IncompletePage);
+    }
+    let next = if total.saturating_sub(skip) > take {
+        Some(
+            skip.checked_add(take)
+                .ok_or(MonsterError::InvalidResponse)?,
+        )
+    } else {
+        None
+    };
+    Ok(json!({"skip":skip,"take":take,"total":total,"next_skip":next}))
 }
 
 /// Requires a fresh scalar grant and exact selected identity before exposing raw data.
@@ -269,7 +298,7 @@ fn parse_detail(mut value: Value, id: &str) -> Result<Value, MonsterError> {
     if !value.is_object() {
         return Err(MonsterError::InvalidResponse);
     }
-    access(value.get("accessType"))?;
+    detail_access(value.get("accessType"))?;
     let raw = value
         .get_mut("data")
         .ok_or(MonsterError::InvalidResponse)?
@@ -278,6 +307,8 @@ fn parse_detail(mut value: Value, id: &str) -> Result<Value, MonsterError> {
     if result["id"].as_str() != Some(id) {
         return Err(MonsterError::InvalidResponse);
     }
+    result["access_code"] = json!(1);
+    result["access"] = json!(access_label(1));
     result["raw"] = raw;
     Ok(result)
 }
@@ -300,7 +331,7 @@ fn summary(value: &Value) -> Result<Value, MonsterError> {
         .and_then(Value::as_str)
         .ok_or(MonsterError::InvalidResponse)?;
     let url = source_url(&id.to_string(), link)?;
-    Ok(json!({"id": id.to_string(), "name": name, "source_url": url, "access_code": 1}))
+    Ok(json!({"id": id.to_string(), "name": name, "source_url": url}))
 }
 
 /// Checks canonical display attribution without using it as a fetch destination.

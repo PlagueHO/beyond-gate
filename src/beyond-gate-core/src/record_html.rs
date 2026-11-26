@@ -66,6 +66,8 @@ pub struct Request {
     pub field: Option<String>,
     /// Allows ordinary record Markdown when no supported HTML source exists.
     pub markdown: bool,
+    /// Skips monster lookup mapping; unsupported for other resources.
+    pub raw: bool,
 }
 
 /// Separates original record bounds from the independently bounded selected subtree.
@@ -212,6 +214,7 @@ impl Request {
         if (self.page.is_some()
             && !matches!(self.resource, Resource::Equipment | Resource::MagicItem))
             || (self.class_id.is_some() && self.resource != Resource::Subclass)
+            || (self.raw && self.resource != Resource::Monster)
         {
             return Err(HtmlError::InvalidInput);
         }
@@ -404,7 +407,9 @@ async fn resolve(session: &Session, request: &Request) -> Result<Value, HtmlErro
             .map_err(HtmlError::Background),
         Resource::Feat => feat::show(session, id).await.map_err(HtmlError::Feat),
         Resource::Species => species::show(session, id).await.map_err(HtmlError::Species),
-        Resource::Monster => monster::show(session, id).await.map_err(HtmlError::Monster),
+        Resource::Monster => monster::show(session, id, request.raw)
+            .await
+            .map_err(HtmlError::Monster),
         Resource::Spell => spell::show(session, id).await.map_err(HtmlError::Spell),
         Resource::Class | Resource::Subclass => class_catalog::show(
             session,

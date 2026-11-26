@@ -688,12 +688,15 @@ fn monster_help_and_invalid_usage() {
         let output = run(&["monster", action, "--help"]);
         assert!(output.status.success());
         assert!(output.stderr.is_empty());
-        assert!(String::from_utf8_lossy(&output.stdout).contains("monster"));
+        let help = String::from_utf8_lossy(&output.stdout);
+        assert!(help.contains("monster"));
+        assert_eq!(help.contains("--raw"), action == "show");
     }
     for arguments in [
         vec!["monster"],
         vec!["monster", "show"],
         vec!["monster", "show", "01"],
+        vec!["monster", "show", "01", "--raw"],
         vec!["monster", "show", "0"],
         vec!["monster", "show", "18446744073709551616"],
         vec!["monster", "show", "17", "--name", "beast"],
@@ -701,8 +704,6 @@ fn monster_help_and_invalid_usage() {
         vec!["monster", "list", "--name", ""],
         vec!["monster", "list", "--name", " padded"],
         vec!["monster", "list", "--skip", "-1"],
-        vec!["monster", "list", "--skip", "0"],
-        vec!["monster", "list", "--take", "20"],
         vec![
             "monster",
             "list",
@@ -716,8 +717,21 @@ fn monster_help_and_invalid_usage() {
         vec!["monster", "list", "--take", "1.5"],
         vec!["monster", "list", "--page", "0"],
         vec!["monster", "list", "--page", "-1"],
+        vec!["monster", "list", "--page", "1"],
         vec!["monster", "list", "--size-id", "0"],
         vec!["monster", "list", "--size-id", "4", "--size-id", "4"],
+        vec!["monster", "list", "--size-min-id", "1"],
+        vec!["monster", "list", "--size-max-id", "8"],
+        vec![
+            "monster",
+            "list",
+            "--size-min-id",
+            "5",
+            "--size-max-id",
+            "4",
+        ],
+        vec!["monster", "list", "--mythic", "false"],
+        vec!["monster", "list", "--partnered-content", "no"],
         vec!["monster", "list", "--cr-min", "2", "--cr-max", "1/2"],
         vec![
             "monster",
@@ -732,6 +746,8 @@ fn monster_help_and_invalid_usage() {
         vec!["monster", "list", "--output", "json", "--no-headers"],
         vec!["monster", "list", "--output", "yaml"],
         vec!["monster", "list", "--homebrew"],
+        vec!["monster", "list", "--raw"],
+        vec!["monster", "show", "17", "--raw=false"],
     ] {
         let output = run(&arguments);
         assert_eq!(output.status.code(), Some(2), "{arguments:?}");
@@ -743,7 +759,14 @@ fn monster_help_and_invalid_usage() {
         let output = run(&["completions", shell]);
         assert!(output.status.success());
         let text = String::from_utf8_lossy(&output.stdout);
-        for expected in ["monster", "page", "size-id", "partnered-content"] {
+        for expected in [
+            "monster",
+            "skip",
+            "take",
+            "size-min-id",
+            "size-max-id",
+            "raw",
+        ] {
             assert!(text.contains(expected), "{shell}: {expected}");
         }
     }

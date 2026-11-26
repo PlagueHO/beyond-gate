@@ -212,7 +212,7 @@ fn shared_query_mapping_preserves_typed_filters() {
         .try_get_matches_from(
             concat!(
                 "beyond-gate monster list --name Invented --type-id 2 --type-id 1 ",
-                "--armor-class-min 0 --legendary false --cr-min 1/8 --page 3"
+                "--armor-class-min 0 --legendary false --cr-min 1/8 --skip 3 --take 2 --size-min-id 4"
             )
             .split_whitespace(),
         )
@@ -224,11 +224,13 @@ fn shared_query_mapping_preserves_typed_filters() {
         .expect("list");
     let query = monster_query(arguments).expect("query");
     assert_eq!(query.name.as_deref(), Some("Invented"));
-    assert_eq!(query.page, 3);
+    assert_eq!(query.skip, 3);
+    assert_eq!(query.take, 2);
+    assert_eq!(query.size_min_id, Some(4));
     assert_eq!(query.type_ids, [2, 1]);
     assert_eq!(query.armor_class_min, Some(0));
     assert_eq!(query.legendary, Some(false));
-    assert!(query.mythic.is_none());
+    assert!(query.has_lair.is_none());
     assert_eq!(query.cr_min.as_deref(), Some("1/8"));
     let matches = command()
         .try_get_matches_from(

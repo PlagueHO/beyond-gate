@@ -872,6 +872,8 @@ fn paginated_list_contracts() {
         );
         let pagination_fields: &[&str] = if matches!(resource, "equipment" | "magic-item") {
             &["page", "next_page", "source_count", "source_total"]
+        } else if resource == "monster" {
+            &["skip", "take", "total", "next_skip"]
         } else {
             &["page", "next_page"]
         };
