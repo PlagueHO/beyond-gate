@@ -1,4 +1,4 @@
-//! Bounded, explicit website spell pages and selected untrusted HTML detail.
+//! Bounded website spell pages and structured detail projected from checked untrusted HTML.
 
 #[cfg(any(test, feature = "session-fixture"))]
 pub mod fixture;
@@ -36,6 +36,12 @@ pub enum SpellError {
     MissingRecord,
     /// The response does not establish the supported content contract.
     UnsupportedOperation,
+    /// The website returned browser challenge markup.
+    BrowserChallenge,
+    /// The selected page has no supported spell detail container.
+    UnsupportedDetailPage,
+    /// The selected subtree contains a rejected element identified by a fixed marker name.
+    UnsupportedDetailContent(&'static str),
     /// A row count, response, or result exceeds local policy.
     LimitExceeded,
     /// The complete operation exceeded thirty seconds.
@@ -58,6 +64,16 @@ impl fmt::Display for SpellError {
             Self::UnsupportedOperation => {
                 f.write_str("spell operation or access contract is unsupported")
             }
+            Self::BrowserChallenge => {
+                f.write_str("spell page contains a browser challenge; no content was returned")
+            }
+            Self::UnsupportedDetailPage => f.write_str(
+                "spell page does not contain the supported detail container; no content was returned",
+            ),
+            Self::UnsupportedDetailContent(marker) => write!(
+                f,
+                "spell detail contains active or protected markup ({marker}); no content was returned"
+            ),
             Self::LimitExceeded => f.write_str("spell result limit exceeded"),
             Self::TimedOut => f.write_str("spell operation timed out"),
             Self::SourceRead(error) => write!(f, "spell source read failed: {error}"),
@@ -121,7 +137,12 @@ pub async fn list(session: &Session, query: &SpellQuery) -> Result<Value, SpellE
     .await
 }
 
-/// Reads one canonical detail and preserves its selected subtree as untrusted HTML.
+/// Reads one canonical detail with displayed fields and its complete untrusted HTML subtree.
+///
+/// The `raw` object contains values extracted from HTML, not an upstream JSON
+/// response. Stat values remain strings; no rules or access codes are inferred.
+/// One exact same-spell Cobalt registration script is excluded as page bookkeeping.
+/// Other scripts and protected selected markup remain unsupported.
 ///
 /// # Errors
 ///

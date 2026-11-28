@@ -284,6 +284,24 @@ async fn feat_page_uses_cookie_only_after_checked_record_resolution() {
     assert_eq!(fixture::routes(&session).len(), 3);
 }
 
+/// Keeps structured spell fields and selected HTML inline within one source read.
+#[tokio::test]
+async fn spell_html_preserves_projection_without_another_read() {
+    use crate::spell::fixture::{self, Scenario};
+    let session = fixture::session(Scenario::Normal).expect("fixture");
+    let mut selected = request(Resource::Spell, "900001-invented-spell", Some("source_url"));
+    selected.markdown = true;
+    let result = read(&session, &selected).await.expect("inline spell HTML");
+    let html = result.selected.expect("HTML");
+    assert_eq!(html.raw_html, result.record["raw_html"]);
+    assert_eq!(result.record["raw"]["casting_time"], "1 invented action");
+    assert_eq!(
+        result.record["raw"]["description_html"],
+        "<p>Synthetic <strong>spell</strong> detail.</p>"
+    );
+    assert_eq!(fixture::requested_routes(&session).len(), 1);
+}
+
 /// Keeps class metadata unchanged while excluding subclasses from selected primary HTML.
 #[tokio::test]
 async fn class_and_subclass_read_exact_supported_boundaries() {

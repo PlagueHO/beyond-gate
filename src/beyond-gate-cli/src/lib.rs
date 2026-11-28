@@ -151,7 +151,7 @@ pub trait ReadOperations {
         spell::list(session, query)
     }
 
-    /// Reads one selected spell subtree as untrusted HTML through the shared core.
+    /// Reads structured spell fields and their selected untrusted HTML through the shared core.
     ///
     /// # Errors
     ///
@@ -931,7 +931,14 @@ fn prepare_html<'a>(
     };
     request.validate().map_err(Failure::Html)?;
     Ok(Box::new(move |session| {
-        let result = execute_read(|| reads.show_html(session, &request), Failure::Html)?;
+        let mut result = execute_read(|| reads.show_html(session, &request), Failure::Html)?;
+        if resource == Resource::Spell && !arguments.get_flag("include-raw-html") {
+            result
+                .record
+                .as_object_mut()
+                .ok_or(Failure::Spell(SpellError::InvalidResponse))?
+                .remove("raw_html");
+        }
         output::selected_html(&options, &result)
     }))
 }
@@ -1103,6 +1110,7 @@ fn prepare_spell<'a>(
         None
     };
     let mut query = SpellQuery::default();
+    let include_raw_html = slug.is_some() && arguments.get_flag("include-raw-html");
     if let Some(slug) = slug {
         spell::validate_slug(slug).map_err(Failure::Spell)?;
     } else if action == "list" {
@@ -1121,7 +1129,7 @@ fn prepare_spell<'a>(
         return Err(Failure::Usage("Select spell list or show."));
     }
     Ok(Box::new(move |session| {
-        let value = execute_read(
+        let mut value = execute_read(
             || async {
                 if let Some(slug) = slug {
                     reads.show_spell(session, slug).await
@@ -1132,11 +1140,16 @@ fn prepare_spell<'a>(
             Failure::Spell,
         )?;
         if slug.is_some() {
-            output::record(
-                &options,
-                &["id", "slug", "name", "source_url", "raw_html"],
-                &value,
-            )
+            let fields: &[&str] = if include_raw_html {
+                &["id", "slug", "name", "source_url", "raw", "raw_html"]
+            } else {
+                value
+                    .as_object_mut()
+                    .ok_or(Failure::Spell(SpellError::InvalidResponse))?
+                    .remove("raw_html");
+                &["id", "slug", "name", "source_url", "raw"]
+            };
+            output::record(&options, fields, &value)
         } else {
             output::paginated_list(
                 &options,

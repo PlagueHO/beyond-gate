@@ -109,8 +109,24 @@ Complete means one requested filtered page, not every available spell.
 Show requires the selected ID/slug class, canonical URL, spell stat block,
 description, available-class marker, and source marker.
 Only `section.detail-content` is returned as serialized `raw_html`.
-Unknown selected fields survive. No JSON or JSON-LD contract was observed.
+CLI and MCP omit this field by default. CLI `--include-raw-html` and MCP
+`include_raw_html: true` expose the actual HTML string. Explicit HTML output
+remains a separate selected-source format.
+The same checked content supplies structured `raw` fields: `level`,
+`casting_time`, `range_area`, `components`, `duration`, `school`, `attack_save`,
+and `damage_effect` retain displayed strings. `description_html` retains
+description inner HTML; `available_for` and `source` retain displayed text.
+No numeric rules, lookup IDs, or access codes are inferred. This is an HTML
+projection, not raw service JSON. Unknown selected fields survive in `raw_html`.
+No JSON or JSON-LD contract was observed.
 This user-selected HTML scope replaces the unverified raw JSON candidate.
+One exact `window.cobaltVcmList` registration is recognized as page bookkeeping
+and removed before field extraction and serialization. The observed type
+`1118725998` and requested numeric spell ID must match. Only ASCII whitespace
+may differ. The script must have no `src` and an absent or standard JavaScript
+`type`. At most one registration is accepted. Other code, duplicate scripts,
+and protected markers remain failures. No JavaScript is executed, and the
+registration is not an access grant.
 Unexpected scripts, forms, or account/comment containers inside the subtree
 fail rather than being silently removed. HTML remains untrusted text.
 
@@ -128,6 +144,12 @@ First-party client construction uses `classId`, `classLevel`, and
 for always-prepared reads. One always-known flow adds `backgroundId`.
 These routes do not establish complete standalone website coverage and are
 not fetched or merged by this implementation.
+
+The revised scope for [#126](https://github.com/PlagueHO/beyond-gate/issues/126)
+retains HTML retrieval with consistent CLI/MCP structured output and all
+existing spell filters. Page numbers and complete ID/slug keys remain
+source-specific. No standalone API absence is asserted, and no guessed API,
+third-party proxy, catalog scan, or HTML fallback is added.
 
 Browser evidence is [recorded separately](api-survey.md#spell-browser-evidence).
 Native cookie compatibility, denied HTML, API responses, ownership, sharing,

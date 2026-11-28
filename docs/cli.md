@@ -98,7 +98,7 @@ operation. The CLI does not infer a source URL from an identifier.
 | [`feat list/show`](#feat-metadata-and-detail-status) | Browse feat metadata or select one raw definition | Windows/Linux; bounded protected collection |
 | [`equipment list/show`](#equipment-source-pages-and-raw-detail) | Read equipment from one mixed source page | Windows/Linux; explicit page and full definition key |
 | [`magic-item list/show`](#magic-item-local-filters-and-raw-detail) | Filter magic metadata locally and select unchanged raw detail | Windows/Linux; explicit source page and full definition key |
-| [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or selected HTML detail | Windows/Linux; browser structure checked; native acceptance unverified |
+| [`spell list/show`](#spell-pages-and-selected-html) | Browse one explicit page or structured detail from checked HTML | Windows/Linux; browser structure checked; native acceptance unverified |
 | [`book list`](#book-list) | List Web-catalog book metadata and access evidence | Windows discovery verified |
 | [`book outline`](#book-outline) | Read complete bounded navigation | Windows checked source pages |
 | [`book read`](#book-read) | Read one bounded section chunk | Windows checked source pages |
@@ -1348,15 +1348,25 @@ never supply a password, cookie, or token as a workaround.
 
 ```shell
 beyond-gate spell list --output json
+beyond-gate spell list --class-id 17 --class-id 18 --level 0 --level 9 -o json
 beyond-gate spell list --class-id 17 --class-id 18 --level 0 --level 9 --page 2 -o json
 beyond-gate spell show 900001-invented-spell
+beyond-gate spell show 900001-invented-spell --output json
+beyond-gate spell show 900001-invented-spell --include-raw-html --output json
 beyond-gate spell show 900001-invented-spell --output markdown
 beyond-gate spell show 900001-invented-spell --output html --html-field source_url
 ```
 
-These IDs and names are synthetic. Show requires the complete numeric-ID/slug
-key from a website link. Bare IDs, names, URLs, escapes, and padded text fail
-before session access. The key permits at most 256 ASCII bytes.
+These IDs and names are synthetic. Use page 2 only if `pagination.next_page`
+returns 2. Repeat the same filters when requesting another page.
+Show requires the complete `slug` from a list row: the numeric-ID/slug
+key from a website link, not the numeric `id` alone. Bare IDs, names, URLs,
+escapes, and padded text fail before session access.
+The key permits at most 256 ASCII bytes.
+
+Spell errors distinguish browser challenges, missing supported detail containers,
+and active or protected markup inside selected content. These failures return no
+spell content. The command does not bypass a challenge or relax an access check.
 
 | CLI flag | MCP field | Website control |
 |----------|-----------|-----------------|
@@ -1400,14 +1410,39 @@ conflicting rows and paging fail the whole page. There is no automatic
 continuation, selected-detail fan-out, or class/level API scan.
 
 Show defaults to labelled text, with the selected HTML converted to readable text.
-Explicit JSON returns `id`, `slug`, `name`, `source_url`, and `raw_html`.
+Explicit JSON returns `id`, `slug`, `name`, `source_url`, and `raw`.
+Full source HTML is omitted by default in text, JSON, table, TSV, and Markdown
+record fields. Add `--include-raw-html` to include `raw_html`.
+It contains the actual HTML string, not a second converted description.
+Text output applies terminal-safe escaping; JSON preserves the HTML string.
+`raw` is a structured projection from HTML, not an upstream JSON response.
+Its `level`, `casting_time`, `range_area`, `components`, `duration`, `school`,
+`attack_save`, and `damage_effect` fields retain displayed values as strings.
+It also contains `description_html` (the description's inner HTML),
+`available_for` (displayed class text), and `source` (displayed attribution).
+No rules, units, class IDs, ownership, or access codes are inferred.
+Text output labels these fields and converts the description locally.
+Table and TSV include the complete `raw` object as one cell.
 Explicit Markdown converts that same selected subtree locally. Explicit HTML
 returns only that subtree with a final newline. No additional page read is added.
 Only the checked `detail-content` subtree is serialized. Unknown elements and
 stat fields survive. Serialization can normalize HTML.
-Treat `raw_html` as untrusted text. Do not execute it, render it as trusted HTML,
+One exact `cobaltVcmList` registration script is excluded from all spell output
+as page bookkeeping. Its fixed content type and selected spell ID must match.
+It must have no external source; duplicate or modified scripts still fail.
+The registration never grants access and is never executed.
+Treat `raw_html` and `raw.description_html` as untrusted text.
+Do not execute them, render them as trusted HTML,
 log it, or cache it. Unexpected scripts, forms, and account/comment containers
 inside that subtree fail the operation. Surrounding page chrome is not copied.
+
+Spell and monster commands share list/show organization, output flags and
+defaults, structured JSON, bounded results, and explicit errors. Spell lists
+keep website `page`/`next_page`; monster `--skip`/`--take` are not spell flags.
+Spell show keeps the complete key rather than a numeric-only selector.
+Spells have no monster access codes or lookup configuration request.
+There is no spell `--raw` flag: unlike monster show, nothing needs to be skipped.
+Use `spell list --help` and `spell show --help` for filter meanings and examples.
 
 Both operations validate the session and selected response on every call.
 They permit one cookie-only HTML read and at most one session exchange within
@@ -1417,9 +1452,10 @@ are not truncated. HTTP 403 is denied, HTTP 401 is rejected rather than proven
 expired, and HTTP 404 on detail means missing. Unsupported access structures
 return no content. Monster access codes do not apply.
 
-Browser structure checks are not native acceptance. Native cookie compatibility,
-denied HTML, ownership, sharing, and unchecked filter combinations remain
-unverified. See the [spell source contract](api-catalog.md#spell-read-contract)
+The user confirmed one native selected spell read after the registration correction.
+Browser structure checks are not broader native acceptance. Native cookie
+compatibility, denied HTML, ownership, sharing, and unchecked filter combinations
+remain unverified. See the [spell source contract](api-catalog.md#spell-read-contract)
 and [MCP tools](mcp.md#spell_list-and-spell_show).
 
 ## Contract sources

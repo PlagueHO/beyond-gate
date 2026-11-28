@@ -249,19 +249,22 @@ pub(super) fn detail(slug: &str, scenario: Scenario) -> String {
         "<link rel='canonical' href='{}/spells/{canonical}'><h1 class='page-title'>Invented Spell</h1><nav class='account'>Outside</nav><div class='spell-details {identity}-details'><section class='more-info'></section><section class='detail-content'><div class='ddb-statblock ddb-statblock-spell'>",
         super::WEBSITE
     );
-    for field in [
-        "level",
-        "casting-time",
-        "range-area",
-        "components",
-        "duration",
-        "school",
-        "attack-save",
-        "damage-effect",
+    for (field, value) in [
+        ("level", "Invented level"),
+        ("casting-time", "1 invented action"),
+        ("range-area", "30 invented feet"),
+        ("components", "V, S, M (invented material)"),
+        ("duration", "Concentration, 1 invented minute"),
+        ("school", "Invented school"),
+        ("attack-save", "Invented save"),
+        ("damage-effect", "Invented effect"),
     ] {
-        body.push_str(&format!("<div class='ddb-statblock-item-{field}'><div class='ddb-statblock-item-label'>Invented label</div><div class='ddb-statblock-item-value'>Invented value</div></div>"));
+        body.push_str(&format!("<div class='ddb-statblock-item-{field}'><div class='ddb-statblock-item-label'>Invented label</div><div class='ddb-statblock-item-value'>{value}</div></div>"));
     }
-    body.push_str("</div><div class='more-info-content'>Synthetic spell detail.</div><div class='available-for'>Invented Class</div>");
+    let (id, _) = slug.split_once('-').expect("synthetic spell key");
+    body.push_str(&format!(
+        "</div><div class='more-info-content'><p>Synthetic <strong>spell</strong> detail.</p><script>window.cobaltVcmList = window.cobaltVcmList || []; window.cobaltVcmList.push({{type:1118725998, id:{id}}});</script></div><div class='available-for'>Invented Class</div>"
+    ));
     if !matches!(scenario, Scenario::MissingMarkers) {
         body.push_str("<div class='spell-source'>Invented Source</div>");
     }

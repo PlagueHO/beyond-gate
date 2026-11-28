@@ -153,12 +153,21 @@ classes and levels, cantrips, terminal and empty results, strict inputs,
 form echoes, identity conflicts, pagination, missing detail, denial,
 rejection/expiry, unsupported access structure, response/result limits,
 deadlines, selected unknown HTML, and request budgets.
+Detail checks compare the complete structured `raw` projection, displayed
+string values, nested description HTML, and retained unknown subtree fields.
+They check exclusion of the exact same-spell registration and rejection of
+modified, external, duplicate, and protected scripts.
 They do not read native credentials or a live account.
 
 The [session process tests](../src/beyond-gate-mcp/tests/session_process.rs)
 run the real CLI runner and rmcp stdio server with those synthetic sources.
 They compare list/detail JSON, check safe error parity and empty failure stdout,
 reject invalid/null/unknown input before session access, and check cancellation.
+CLI process checks cover labeled stat fields, readable description HTML,
+table/TSV detail, raw HTML omission by default, explicit CLI/MCP inclusion,
+literal markup rather than duplicate converted text, and selected HTML/Markdown
+output. Shipped help
+checks cover filter meanings and copyable examples.
 Inventories and package invalid-input checks include both spell tools.
 The ordinary product binary has no spell fixture selector or endpoint override.
 
@@ -168,9 +177,10 @@ pwsh -NoProfile -File .\scripts\cargo.ps1 test -p beyond-gate-mcp --test session
 ```
 
 Browser evidence is [separate](api-survey.md#spell-browser-evidence).
-Native spell acceptance, denied HTML, ownership/sharing behavior, and unchecked
-filter combinations remain unverified. No live acceptance is authorized by
-these offline checks.
+The user confirmed one native selected spell read after the registration correction.
+Broader native spell acceptance, denied HTML, ownership/sharing behavior, and
+unchecked filter combinations remain unverified. No live acceptance is authorized
+by these offline checks.
 
 ## HTTP timeout and retry checks
 

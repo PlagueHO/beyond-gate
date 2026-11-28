@@ -809,6 +809,25 @@ fn spell_help_completions_and_invalid_usage() {
         let output = run(&["spell", action, "--help"]);
         assert!(output.status.success());
         assert!(output.stderr.is_empty());
+        let help = String::from_utf8_lossy(&output.stdout)
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        if action == "list" {
+            for expected in [
+                "repeat the same filters",
+                "Casting-time filter option ID",
+                "Required-save filter option ID",
+                "beyond-gate spell list --output json",
+            ] {
+                assert!(help.contains(expected), "{expected}: {help}");
+            }
+        } else {
+            assert!(help.contains("beyond-gate spell show 900001-invented-spell"));
+            assert!(help.contains("displayed values, not an API response"));
+            assert!(help.contains("--include-raw-html"));
+            assert!(help.contains("Full source HTML is omitted by default"));
+        }
     }
     for args in [
         vec!["spell"],

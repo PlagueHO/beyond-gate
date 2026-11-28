@@ -352,7 +352,9 @@ fn render_field(
     if nested {
         append(result, "\n")?;
         render_value(value, depth + 1, markdown, result)
-    } else if (name == "Raw HTML" && depth == 0)
+    } else if (name == "Description HTML"
+        && depth > 0
+        && value.as_str().is_some_and(|content| !content.is_empty()))
         || (name == "Description"
             && depth > 0
             && value.as_str().is_some_and(|content| content.contains('<')))
@@ -684,7 +686,9 @@ mod tests {
     fn readable_records_preserve_nested_values_and_escape_markup() {
         let value = json!({
             "id": "17", "source_url": "https://example.com/test",
-            "raw": {"moreDetailsUrl": "/test", "empty": {}, "items": [null, [], "<script>\u{1b}[m"],
+            "raw_html": "<aside>Invented &amp; source markup</aside>",
+            "raw": {"moreDetailsUrl": "/test", "description_html": "Invented &amp; safe.",
+                "empty": {}, "items": [null, [], "<script>\u{1b}[m"],
                 "bad\u{1b}[31m": "key"}
         });
         let text =
@@ -692,7 +696,9 @@ mod tests {
                 .expect("UTF-8");
         assert!(text.contains("ID: 17\n"));
         assert!(text.contains("Source URL: https://example.com/test\n"));
+        assert!(text.contains("Raw HTML: <aside>Invented &amp; source markup</aside>\n"));
         assert!(text.contains("  More details URL: /test\n"));
+        assert!(text.contains("  Description HTML:\n\n    Invented & safe.\n"));
         assert!(text.contains("  Empty: {}\n"));
         assert!(text.contains("    Item 1: null\n"));
         assert!(text.contains("    Item 2: []\n"));
@@ -710,6 +716,31 @@ mod tests {
             serde_json::from_slice::<Value>(&json).expect("original record"),
             value
         );
+    }
+
+    /// Preserves empty or nonstring extension fields instead of parsing them as HTML.
+    #[test]
+    fn readable_records_preserve_empty_and_non_string_html_fields() {
+        for value in [
+            json!(null),
+            json!(7),
+            json!(false),
+            json!([]),
+            json!({}),
+            json!(""),
+        ] {
+            let record_value = json!({"raw": {"description_html": value}});
+            let text = String::from_utf8(
+                record(&options("text", true, 0), &[], &record_value).expect("text"),
+            )
+            .expect("UTF-8");
+            assert!(text.contains(&format!("Description HTML: {value}\n")));
+            let markdown = String::from_utf8(
+                record(&options("markdown", true, 0), &[], &record_value).expect("Markdown"),
+            )
+            .expect("UTF-8");
+            assert!(markdown.contains("**Description HTML:**"));
+        }
     }
 
     /// Checks exact byte limits and nested depth without permitting partial output.
