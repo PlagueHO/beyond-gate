@@ -1422,6 +1422,9 @@ It also contains `description_html` (the description's inner HTML),
 `available_for` (displayed class text), and `source` (displayed attribution).
 No rules, units, class IDs, ownership, or access codes are inferred.
 Text output labels these fields and converts the description locally.
+Only the known spell `raw.description_html` field uses this conversion.
+Character and campaign extension strings stay inert, including HTML-named fields.
+Text escapes terminal controls; Markdown also escapes markup in those strings.
 Table and TSV include the complete `raw` object as one cell.
 Explicit Markdown converts that same selected subtree locally. Explicit HTML
 returns only that subtree with a final newline. No additional page read is added.
