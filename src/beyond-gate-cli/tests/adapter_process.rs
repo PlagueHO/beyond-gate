@@ -148,7 +148,14 @@ impl ReadOperations for Fixtures {
                     id: "hero".into(),
                     name: Some("Invented \u{754c} hero".into()),
                     source_url: Some("https://example.com/hero".into()),
-                    raw: json!({"unknown": {"nested": [1, null, {"original": "\u{754c}"}]}, "level": 3}),
+                    raw: if self.scenario == "html-extensions" {
+                        json!({"future": {
+                            "description_html": "<form>example</form>",
+                            "description": "<form>example</form>"
+                        }})
+                    } else {
+                        json!({"unknown": {"nested": [1, null, {"original": "\u{754c}"}]}, "level": 3})
+                    },
                 },
                 CharacterRecord {
                     id: "unnamed".into(),
@@ -195,7 +202,14 @@ impl ReadOperations for Fixtures {
                 name: None,
                 source_url: None,
                 character_ids: Some(vec!["hero".into(), "hero\\two".into()]),
-                raw: json!({"unknown_campaign": {"items": [true, 2]}}),
+                raw: if self.scenario == "html-extensions" {
+                    json!({"future": {
+                        "description_html": "<form>example</form>",
+                        "description": "<form>example</form>"
+                    }})
+                } else {
+                    json!({"unknown_campaign": {"items": [true, 2]}})
+                },
             }]
         };
         character_campaign::assemble_campaigns([Ok(CampaignPage {
@@ -768,6 +782,36 @@ fn output_failures() {
         ),
         1
     );
+}
+
+/// Keeps synthetic character and campaign HTML-named extensions inert in CLI output.
+fn html_extension_contracts() {
+    for (resource, id) in [("character", "hero"), ("campaign", "campaign")] {
+        let output = run("html-extensions", &[resource, "show", id]);
+        assert!(output.status.success(), "{resource}: {:?}", output.stderr);
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8_lossy(&output.stdout);
+        assert!(text.contains("Description HTML: <form>example</form>\n"));
+        assert!(text.contains("Description: <form>example</form>\n"));
+        let output = run("html-extensions", &[resource, "show", id, "-o", "markdown"]);
+        assert!(output.status.success(), "{resource}: {:?}", output.stderr);
+        assert!(output.stderr.is_empty());
+        let markdown = String::from_utf8_lossy(&output.stdout);
+        assert!(markdown.contains("**Description HTML:** &lt;form&gt;example&lt;/form&gt;\n"));
+        assert!(markdown.contains("**Description:** &lt;form&gt;example&lt;/form&gt;\n"));
+        let value = read_json(&run(
+            "html-extensions",
+            &[resource, "show", id, "-o", "json"],
+        ));
+        assert_eq!(
+            value["raw"]["future"]["description_html"],
+            "<form>example</form>"
+        );
+        assert_eq!(
+            value["raw"]["future"]["description"],
+            "<form>example</form>"
+        );
+    }
 }
 
 /// Checks structured spell fields, readable descriptions, and HTML compatibility through the CLI.
@@ -1582,6 +1626,7 @@ fn main() {
     import_process::check();
     list_contracts();
     species_contracts();
+    html_extension_contracts();
     spell_contracts();
     feat_contracts();
     equipment_contracts();

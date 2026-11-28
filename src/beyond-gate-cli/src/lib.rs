@@ -939,7 +939,12 @@ fn prepare_html<'a>(
                 .ok_or(Failure::Spell(SpellError::InvalidResponse))?
                 .remove("raw_html");
         }
-        output::selected_html(&options, &result)
+        let kind = match resource {
+            Resource::Character | Resource::Campaign => output::RecordKind::Opaque,
+            Resource::Spell => output::RecordKind::Spell,
+            _ => output::RecordKind::Other,
+        };
+        output::selected_html(&options, &result, kind)
     }))
 }
 
@@ -995,6 +1000,7 @@ fn prepare_item<'a>(
                 &options,
                 &["id", "name", "page", "source_url", "sources", "raw"],
                 &value,
+                output::RecordKind::Other,
             )
         } else {
             let mut columns = vec![
@@ -1149,7 +1155,7 @@ fn prepare_spell<'a>(
                     .remove("raw_html");
                 &["id", "slug", "name", "source_url", "raw"]
             };
-            output::record(&options, fields, &value)
+            output::record(&options, fields, &value, output::RecordKind::Spell)
         } else {
             output::paginated_list(
                 &options,
@@ -1207,7 +1213,7 @@ fn prepare_species<'a>(
                 "base_race_name",
                 "raw",
             ];
-            output::record(&options, &fields, &value)
+            output::record(&options, &fields, &value, output::RecordKind::Other)
         } else {
             let fields = ["id", "name", "source", "source_url", "is_legacy"];
             let rows = value
@@ -1268,6 +1274,7 @@ fn prepare_feat<'a>(
                     "raw",
                 ],
                 &value,
+                output::RecordKind::Other,
             )
         } else {
             let rows = value
@@ -1322,6 +1329,7 @@ fn prepare_background<'a>(
                 &options,
                 &["id", "name", "source_url", "sources", "raw"],
                 &value,
+                output::RecordKind::Other,
             )
         } else {
             let rows = value
@@ -1372,7 +1380,7 @@ fn prepare_monster<'a>(
             if !raw {
                 fields.push("resolved");
             }
-            return output::record(&options, &fields, &value);
+            return output::record(&options, &fields, &value, output::RecordKind::Other);
         }
         const PAGINATION_FIELDS: [&str; 4] = ["skip", "take", "total", "next_skip"];
         let mut fields = vec!["id", "name", "source_url", "access", "access_code"];
@@ -1465,7 +1473,7 @@ fn prepare_class<'a>(
             Failure::Class,
         )?;
         if id.is_some() {
-            output::record(&options, &fields, &value)
+            output::record(&options, &fields, &value, output::RecordKind::Other)
         } else {
             let rows = value
                 .as_array()
@@ -1497,7 +1505,12 @@ fn prepare_character<'a>(
             Ok(Box::new(move |session| {
                 let value = execute_read(|| reads.get_character(session, id), Failure::Character)?;
                 let row = output::character(&value);
-                output::record(&options, &["id", "name", "source_url", "raw"], &row)
+                output::record(
+                    &options,
+                    &["id", "name", "source_url", "raw"],
+                    &row,
+                    output::RecordKind::Opaque,
+                )
             }))
         }
         _ => Err(Failure::Usage("Select a supported character operation.")),
@@ -1537,6 +1550,7 @@ fn prepare_campaign<'a>(
                     &options,
                     &["id", "name", "source_url", "character_ids", "raw"],
                     &row,
+                    output::RecordKind::Opaque,
                 )
             }))
         }

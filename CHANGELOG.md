@@ -19,6 +19,8 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   Spell detail excludes one exact same-spell `cobaltVcmList` registration
   script as page bookkeeping. It does not execute the script or infer access.
   Other scripts, external sources, and protected selected markup still fail.
+  Description HTML conversion is limited to the known spell field. Character
+  and campaign extension strings remain inert in text and Markdown output.
 - Matching subject-first developer tasks in Copilot App and VS Code for native
   build/run, offline checks, documentation, dependencies, and Docker.
   A shared native run helper builds both binaries, selects Cargo's reported

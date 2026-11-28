@@ -15,6 +15,17 @@ mod html;
 /// Maximum bytes in a complete text or Markdown record, including framing.
 const MAX_RECORD_BYTES: usize = 8 * 1024 * 1024;
 
+/// Limits description conversion to the selected resource's presentation contract.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum RecordKind {
+    /// Keeps every character and campaign extension value inert.
+    Opaque,
+    /// Converts only the known `raw.description_html` spell field.
+    Spell,
+    /// Preserves existing nested `description` conversion for other resources.
+    Other,
+}
+
 /// Selects presentation only after clap has validated the format name.
 pub(crate) struct ListOptions {
     format: String,
@@ -244,6 +255,7 @@ pub(crate) fn record(
     options: &ListOptions,
     fields: &[&str],
     value: &Value,
+    kind: RecordKind,
 ) -> Result<Vec<u8>, Failure> {
     if options.format == "html" {
         let content = value["raw_html"].as_str().ok_or(Failure::InvalidHtml)?;
@@ -256,7 +268,7 @@ pub(crate) fn record(
     if matches!(options.format.as_str(), "text" | "markdown") {
         let markdown = options.format == "markdown";
         let mut result = String::new();
-        render_value(value, 0, markdown, &mut result)?;
+        render_value(value, 0, markdown, &mut result, kind)?;
         return Ok(result.into_bytes());
     }
     list(options, fields, std::slice::from_ref(value), Some(value))
@@ -266,9 +278,10 @@ pub(crate) fn record(
 pub(crate) fn selected_html(
     options: &ListOptions,
     value: &beyond_gate_core::record_html::ReadResult,
+    kind: RecordKind,
 ) -> Result<Vec<u8>, Failure> {
     let Some(selected) = &value.selected else {
-        return record(options, &[], &value.record);
+        return record(options, &[], &value.record, kind);
     };
     if options.format == "html" {
         let mut bytes = selected.raw_html.as_bytes().to_vec();
@@ -278,16 +291,24 @@ pub(crate) fn selected_html(
         return Ok(bytes);
     }
     let mut result = String::new();
-    render_value(&value.record, 0, true, &mut result)?;
+    render_value(&value.record, 0, true, &mut result, kind)?;
     render_field(
         "HTML source field",
         &json!(selected.field),
         0,
         true,
         &mut result,
+        RecordKind::Opaque,
     )?;
     if let Some(url) = &selected.source_url {
-        render_field("HTML source URL", &json!(url), 0, true, &mut result)?;
+        render_field(
+            "HTML source URL",
+            &json!(url),
+            0,
+            true,
+            &mut result,
+            RecordKind::Opaque,
+        )?;
     }
     append(&mut result, "\n## Selected content\n\n")?;
     append(&mut result, &html::convert(&selected.raw_html, true)?)?;
@@ -300,6 +321,7 @@ fn render_value(
     depth: usize,
     markdown: bool,
     result: &mut String,
+    kind: RecordKind,
 ) -> Result<(), Failure> {
     if depth > 128 {
         return Err(Failure::RecordPresentationLimit);
@@ -307,7 +329,14 @@ fn render_value(
     match value {
         Value::Object(fields) if !fields.is_empty() => {
             for (key, value) in fields {
-                render_field(&label(key), value, depth, markdown, result)?;
+                let field_kind = if kind == RecordKind::Spell
+                    && ((depth == 0 && key != "raw") || (depth == 1 && key != "description_html"))
+                {
+                    RecordKind::Opaque
+                } else {
+                    kind
+                };
+                render_field(&label(key), value, depth, markdown, result, field_kind)?;
             }
         }
         Value::Array(values) if !values.is_empty() => {
@@ -318,6 +347,7 @@ fn render_value(
                     depth,
                     markdown,
                     result,
+                    kind,
                 )?;
             }
         }
@@ -337,6 +367,7 @@ fn render_field(
     depth: usize,
     markdown: bool,
     result: &mut String,
+    kind: RecordKind,
 ) -> Result<(), Failure> {
     append(result, &"  ".repeat(depth))?;
     if markdown {
@@ -351,11 +382,13 @@ fn render_field(
         || value.as_array().is_some_and(|values| !values.is_empty());
     if nested {
         append(result, "\n")?;
-        render_value(value, depth + 1, markdown, result)
-    } else if (name == "Description HTML"
-        && depth > 0
+        render_value(value, depth + 1, markdown, result, kind)
+    } else if (kind == RecordKind::Spell
+        && name == "Description HTML"
+        && depth == 1
         && value.as_str().is_some_and(|content| !content.is_empty()))
-        || (name == "Description"
+        || (kind == RecordKind::Other
+            && name == "Description"
             && depth > 0
             && value.as_str().is_some_and(|content| content.contains('<')))
     {
@@ -683,35 +716,59 @@ mod tests {
 
     /// Keeps nested and empty values while neutralizing terminal and Markdown injection.
     #[test]
-    fn readable_records_preserve_nested_values_and_escape_markup() {
+    fn spell_records_preserve_nested_values_and_escape_markup() {
         let value = json!({
             "id": "17", "source_url": "https://example.com/test",
             "raw_html": "<aside>Invented &amp; source markup</aside>",
+            "future": {"description_html": "<form>example</form>"},
             "raw": {"moreDetailsUrl": "/test", "description_html": "Invented &amp; safe.",
                 "empty": {}, "items": [null, [], "<script>\u{1b}[m"],
+                "descriptionHTML": "<form>example</form>",
+                "future": {"description_html": "<form>example</form>"},
                 "bad\u{1b}[31m": "key"}
         });
-        let text =
-            String::from_utf8(record(&options("text", true, 0), &["id"], &value).expect("text"))
-                .expect("UTF-8");
+        let text = String::from_utf8(
+            record(
+                &options("text", true, 0),
+                &["id"],
+                &value,
+                RecordKind::Spell,
+            )
+            .expect("text"),
+        )
+        .expect("UTF-8");
         assert!(text.contains("ID: 17\n"));
         assert!(text.contains("Source URL: https://example.com/test\n"));
         assert!(text.contains("Raw HTML: <aside>Invented &amp; source markup</aside>\n"));
         assert!(text.contains("  More details URL: /test\n"));
         assert!(text.contains("  Description HTML:\n\n    Invented & safe.\n"));
+        assert!(text.contains("Description HTML: <form>example</form>\n"));
         assert!(text.contains("  Empty: {}\n"));
         assert!(text.contains("    Item 1: null\n"));
         assert!(text.contains("    Item 2: []\n"));
         assert!(text.contains("\\u{1b}"));
         assert!(!text.contains('\u{1b}'));
         let markdown = String::from_utf8(
-            record(&options("markdown", true, 0), &["id"], &value).expect("Markdown"),
+            record(
+                &options("markdown", true, 0),
+                &["id"],
+                &value,
+                RecordKind::Spell,
+            )
+            .expect("Markdown"),
         )
         .expect("UTF-8");
         assert!(markdown.contains("- **ID:** 17\n"));
         assert!(markdown.contains("&lt;script&gt;"));
         assert!(!markdown.contains("<script>"));
-        let json = record(&options("json", true, 0), &["id"], &value).expect("JSON");
+        assert!(markdown.contains("**Description HTML:** &lt;form&gt;example&lt;/form&gt;"));
+        let json = record(
+            &options("json", true, 0),
+            &["id"],
+            &value,
+            RecordKind::Spell,
+        )
+        .expect("JSON");
         assert_eq!(
             serde_json::from_slice::<Value>(&json).expect("original record"),
             value
@@ -731,16 +788,55 @@ mod tests {
         ] {
             let record_value = json!({"raw": {"description_html": value}});
             let text = String::from_utf8(
-                record(&options("text", true, 0), &[], &record_value).expect("text"),
+                record(
+                    &options("text", true, 0),
+                    &[],
+                    &record_value,
+                    RecordKind::Spell,
+                )
+                .expect("text"),
             )
             .expect("UTF-8");
             assert!(text.contains(&format!("Description HTML: {value}\n")));
             let markdown = String::from_utf8(
-                record(&options("markdown", true, 0), &[], &record_value).expect("Markdown"),
+                record(
+                    &options("markdown", true, 0),
+                    &[],
+                    &record_value,
+                    RecordKind::Spell,
+                )
+                .expect("Markdown"),
             )
             .expect("UTF-8");
             assert!(markdown.contains("**Description HTML:**"));
         }
+    }
+
+    /// Keeps unknown HTML-named extension strings inert in readable records.
+    #[test]
+    fn readable_records_preserve_html_string_extensions() {
+        let value = json!({"raw": {"future": {
+            "description_html": "<form>example</form>",
+            "description": "<form>example</form>"
+        }}});
+        let text = String::from_utf8(
+            record(&options("text", true, 0), &[], &value, RecordKind::Opaque).expect("inert text"),
+        )
+        .expect("UTF-8");
+        assert!(text.contains("Description HTML: <form>example</form>\n"));
+        assert!(text.contains("Description: <form>example</form>\n"));
+        let markdown = String::from_utf8(
+            record(
+                &options("markdown", true, 0),
+                &[],
+                &value,
+                RecordKind::Opaque,
+            )
+            .expect("inert Markdown"),
+        )
+        .expect("UTF-8");
+        assert!(markdown.contains("**Description HTML:** &lt;form&gt;example&lt;/form&gt;\n"));
+        assert!(markdown.contains("**Description:** &lt;form&gt;example&lt;/form&gt;\n"));
     }
 
     /// Checks exact byte limits and nested depth without permitting partial output.
@@ -757,7 +853,12 @@ mod tests {
             nested = json!({"nested": nested});
         }
         assert!(matches!(
-            record(&options("markdown", true, 0), &[], &nested),
+            record(
+                &options("markdown", true, 0),
+                &[],
+                &nested,
+                RecordKind::Opaque
+            ),
             Err(Failure::RecordPresentationLimit)
         ));
     }
