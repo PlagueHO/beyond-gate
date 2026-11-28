@@ -303,7 +303,7 @@ fn spell_filter_checks_include_enabled_hidden_restrictions() {
     }
 }
 
-/// Preserves unknown selected elements while excluding surrounding account chrome.
+/// Projects exact displayed spell values and preserves unknown HTML without another read.
 #[tokio::test]
 async fn spell_detail_selects_only_checked_untrusted_html() {
     let session = fixture::session(Scenario::Normal).expect("fixture");
@@ -315,12 +315,171 @@ async fn spell_detail_selects_only_checked_untrusted_html() {
     assert!(raw.contains("data-future=\"yes\""));
     assert!(!raw.contains("Outside"));
     assert!(!raw.contains("<form"));
+    assert!(!raw.contains("<script"));
+    assert!(!raw.contains("cobaltVcmList"));
     assert_eq!(value["id"], "900001");
+    assert_eq!(
+        value["raw"],
+        json!({
+            "level": "Invented level",
+            "casting_time": "1 invented action",
+            "range_area": "30 invented feet",
+            "components": "V, S, M (invented material)",
+            "duration": "Concentration, 1 invented minute",
+            "school": "Invented school",
+            "attack_save": "Invented save",
+            "damage_effect": "Invented effect",
+            "description_html": "<p>Synthetic <strong>spell</strong> detail.</p>",
+            "available_for": "Invented Class",
+            "source": "Invented Source"
+        })
+    );
+    assert!(value.get("access_code").is_none());
+    assert!(value.get("resolved").is_none());
     assert_eq!(
         fixture::requested_routes(&session),
         vec!["/spells/900001-invented-spell"]
     );
     assert_eq!(auth::request_count(&session), 1);
+}
+
+/// Removes only the observed registration and keeps unknown selected content unchanged.
+#[test]
+fn spell_registration_is_not_returned_as_content_or_an_access_grant() {
+    let slug = "900001-invented-spell";
+    let body = fixture::detail(slug, Scenario::Normal);
+    let expected = website::show(body.as_bytes(), slug).expect("checked detail");
+    for script_type in [
+        "",
+        " type='text/javascript'",
+        " type='application/javascript'",
+    ] {
+        let body = body.replace("<script>", &format!("<script{script_type}>"));
+        assert_eq!(
+            website::show(body.as_bytes(), slug).expect("registration excluded"),
+            expected
+        );
+    }
+    let registration = "<script>window.cobaltVcmList = window.cobaltVcmList || []; window.cobaltVcmList.push({type:1118725998, id:900001});</script>";
+    let without_registration = body.replace(registration, "");
+    assert_ne!(without_registration, body);
+    assert_eq!(
+        website::show(without_registration.as_bytes(), slug).expect("script-free detail"),
+        expected
+    );
+    let spaced = body.replace(
+        "window.cobaltVcmList = window.cobaltVcmList || [];",
+        "window.cobaltVcmList =\n window.cobaltVcmList || [];\n",
+    );
+    assert_eq!(
+        website::show(spaced.as_bytes(), slug).expect("ASCII whitespace"),
+        expected
+    );
+    assert!(expected.get("access_code").is_none());
+}
+
+/// Rejects modified registration code, external scripts, and protected registration wrappers.
+#[test]
+fn spell_registration_exclusion_does_not_relax_other_guards() {
+    let slug = "900001-invented-spell";
+    let body = fixture::detail(slug, Scenario::Normal);
+    for (before, after) in [
+        ("id:900001", "id:900099"),
+        ("type:1118725998", "type:17"),
+        ("</script>", "alert('synthetic');</script>"),
+        ("<script>", "<script src='/synthetic.js'>"),
+        ("<script>", "<script type='application/json'>"),
+        ("<script>", "<script type='module'>"),
+        ("<script>", "<script class='account'>"),
+        ("<script>", "<script class='login'>"),
+        ("</script>", "</script><script></script>"),
+    ] {
+        let changed = body.replace(before, after);
+        assert!(matches!(
+            website::show(changed.as_bytes(), slug),
+            Err(SpellError::UnsupportedDetailContent(_))
+        ));
+    }
+}
+
+/// Distinguishes unsupported spell pages without disclosing returned HTML.
+#[test]
+fn spell_detail_rejection_identifies_the_failed_check() {
+    let slug = "900001-invented-spell";
+    for (body, message) in [
+        (
+            "<form id='challenge-form'>Synthetic challenge</form>".to_owned(),
+            "spell page contains a browser challenge; no content was returned",
+        ),
+        (
+            fixture::detail(slug, Scenario::Unsupported),
+            "spell page does not contain the supported detail container; no content was returned",
+        ),
+        (
+            fixture::detail(slug, Scenario::UnsafeDetail),
+            "spell detail contains active or protected markup (form); no content was returned",
+        ),
+    ] {
+        let error = website::show(body.as_bytes(), slug).expect_err("rejected");
+        assert_eq!(error.to_string(), message);
+        assert!(!format!("{error:?}").contains("Synthetic"));
+    }
+}
+
+/// Checks every rejected marker without disclosing its attributes or text.
+#[test]
+fn spell_detail_rejection_reports_only_fixed_marker_names() {
+    let slug = "900001-invented-spell";
+    for (markup, marker) in [
+        ("<script>Synthetic private text</script>", "script"),
+        ("<form>Synthetic private text</form>", "form"),
+        ("<iframe></iframe>", "iframe"),
+        ("<object></object>", "object"),
+        ("<embed>", "embed"),
+        ("<nav>Synthetic private text</nav>", "nav"),
+        (
+            "<aside id='synthetic-comment-private'></aside>",
+            "comment marker",
+        ),
+        (
+            "<aside class='synthetic-comment-private'></aside>",
+            "comment marker",
+        ),
+        (
+            "<aside id='synthetic-account-private'></aside>",
+            "account marker",
+        ),
+        (
+            "<aside class='synthetic-account-private'></aside>",
+            "account marker",
+        ),
+        (
+            "<aside class='synthetic-purchase-private'></aside>",
+            "purchase marker",
+        ),
+        (
+            "<aside class='synthetic-unlock-private'></aside>",
+            "unlock marker",
+        ),
+        (
+            "<aside class='synthetic-login-private'></aside>",
+            "login marker",
+        ),
+    ] {
+        let body = fixture::detail(slug, Scenario::Normal)
+            .replace("</section></div>", &format!("{markup}</section></div>"));
+        let error = website::show(body.as_bytes(), slug).expect_err("rejected");
+        assert!(matches!(
+            error,
+            SpellError::UnsupportedDetailContent(actual) if actual == marker
+        ));
+        assert_eq!(
+            error.to_string(),
+            format!(
+                "spell detail contains active or protected markup ({marker}); no content was returned"
+            )
+        );
+    }
 }
 
 /// Fails the whole page or selected detail on typed denial and response failures.

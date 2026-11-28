@@ -3024,6 +3024,23 @@ fn spell_contracts() {
             "spell_show",
             json!({"slug":"900001-invented-spell"}),
         ),
+        (
+            "spell-normal",
+            vec![
+                "spell",
+                "show",
+                "900001-invented-spell",
+                "--include-raw-html",
+            ],
+            "spell_show",
+            json!({"slug":"900001-invented-spell","include_raw_html":true}),
+        ),
+        (
+            "spell-normal",
+            vec!["spell", "show", "900001-invented-spell"],
+            "spell_show",
+            json!({"slug":"900001-invented-spell","include_raw_html":false}),
+        ),
     ] {
         let cli = cli(scenario, &command);
         assert!(
@@ -3042,6 +3059,23 @@ fn spell_contracts() {
             serde_json::from_str(result["content"][0]["text"].as_str().expect("text"))
                 .expect("MCP JSON");
         assert_eq!(cli_value, mcp_value);
+        if tool == "spell_show" {
+            assert_eq!(mcp_value["raw"]["casting_time"], "1 invented action");
+            assert_eq!(
+                mcp_value["raw"]["description_html"],
+                "<p>Synthetic <strong>spell</strong> detail.</p>"
+            );
+            if command.contains(&"--include-raw-html") {
+                assert!(
+                    mcp_value["raw_html"]
+                        .as_str()
+                        .expect("HTML")
+                        .contains("data-future")
+                );
+            } else {
+                assert!(mcp_value.get("raw_html").is_none());
+            }
+        }
     }
     for (scenario, action) in [
         ("denied", "list"),
@@ -3117,6 +3151,11 @@ fn spell_contracts() {
             json!({"slug":"https://www.dndbeyond.com/spells/17-a"}),
         ),
         ("spell_show", json!({"slug":"17-a","unknown":1})),
+        ("spell_show", json!({"slug":"17-a","include_raw_html":null})),
+        (
+            "spell_show",
+            json!({"slug":"17-a","include_raw_html":"true"}),
+        ),
     ] {
         let (output, messages) = mcp_tool("absent", tool, arguments, false);
         assert!(output.status.success());

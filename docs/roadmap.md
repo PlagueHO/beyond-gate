@@ -42,10 +42,15 @@ Issue [#69](https://github.com/PlagueHO/beyond-gate/issues/69) adds shared spell
 reads, CLI `spell list/show`, and MCP `spell_list`/`spell_show`.
 List uses explicit standalone website pages and repeated website filters,
 including level 0 cantrips. Show uses a complete numeric-ID/slug key and returns
-selected untrusted HTML, not an unverified JSON route. Character-context
+structured displayed fields and optional selected untrusted HTML, not an unverified
+JSON route. The revised [#126](https://github.com/PlagueHO/beyond-gate/issues/126)
+scope keeps HTML retrieval, extensive website filters, page numbers, and
+complete keys while aligning CLI/MCP output and command discovery. Character-context
 ordinary/always-known/always-prepared APIs are not catalog sources.
-Browser structure checks are complete. Native cookie compatibility, denied HTML,
-ownership, sharing, and unchecked filter combinations remain unverified.
+Earlier browser structure checks are complete. The user confirmed one native
+selected spell read after the registration correction. Broader native cookie
+compatibility, denied HTML, ownership, sharing, and unchecked filter combinations
+remain unverified.
 See the [spell contract](api-catalog.md#spell-read-contract).
 
 ## Current simple-use priorities

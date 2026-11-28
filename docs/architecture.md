@@ -30,8 +30,8 @@ unchanged raw detail from a fresh candidate collection. They do not infer
 ownership; live detail access remains unverified.
 Two background tools provide website-filtered metadata and selected unchanged
 definitions from a fresh complete collection, subject to the existing 1 MiB cap.
-Two spell tools provide explicit website pages and selected untrusted HTML
-detail. They do not scan character-context spell APIs.
+Two spell tools provide explicit website pages and structured detail from
+checked untrusted HTML. They do not scan character-context spell APIs.
 Two feat tools provide bounded website metadata and selected raw definitions
 from the checked protected collection. Synthetic sources check collection
 validation, raw preservation, and repeatable parents. Native CLI/MCP acceptance
@@ -97,11 +97,21 @@ There is no next-page or detail fan-out.
 Show requires the complete numeric-ID/slug key and checks the selected
 canonical page again. Metadata never grants access.
 The selected `detail-content` subtree is serialized to `raw_html` without
-interpreting rules. Unknown selected elements survive. Surrounding page
-chrome is excluded; unexpected scripts, forms, and account/comment containers
+interpreting rules. A separate `raw` object projects the eight displayed stat
+values as strings, description inner HTML, available-class text, and source
+text. It is HTML-derived, not an upstream JSON response. The same source
+request supplies both forms; no translation framework or lookup request is
+added. Unknown selected elements survive in `raw_html`. Surrounding page
+chrome and one exact same-spell `cobaltVcmList` registration script are excluded.
+The registration is validated as bounded page bookkeeping, not executed or
+used as an access grant. Duplicate, external, or modified scripts still fail.
+Unexpected scripts, forms, and account/comment containers
 inside the selected content cause failure.
 HTML is untrusted text, not a trusted rendered page, log, or cache.
-Native access remains unverified. See the
+Adapters omit `raw_html` by default. CLI `--include-raw-html` and MCP
+`include_raw_html: true` expose it without an additional read.
+The user confirmed one native selected spell read. Broader native access,
+sharing, and unchecked live filters remain unverified. See the
 [source contract](api-catalog.md#spell-read-contract).
 
 ## Intended boundaries

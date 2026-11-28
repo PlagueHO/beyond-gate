@@ -770,7 +770,7 @@ fn output_failures() {
     );
 }
 
-/// Checks actual core spell envelopes and selected HTML through the CLI process.
+/// Checks structured spell fields, readable descriptions, and HTML compatibility through the CLI.
 fn spell_contracts() {
     let value = read_json(&run(
         "spell-next",
@@ -794,6 +794,23 @@ fn spell_contracts() {
         "spell-normal",
         &["spell", "show", "900001-invented-spell", "-o", "json"],
     ));
+    assert_eq!(value["raw"]["casting_time"], "1 invented action");
+    assert_eq!(
+        value["raw"]["description_html"],
+        "<p>Synthetic <strong>spell</strong> detail.</p>"
+    );
+    assert!(value.get("raw_html").is_none());
+    let value = read_json(&run(
+        "spell-normal",
+        &[
+            "spell",
+            "show",
+            "900001-invented-spell",
+            "--include-raw-html",
+            "-o",
+            "json",
+        ],
+    ));
     assert!(
         value["raw_html"]
             .as_str()
@@ -806,6 +823,48 @@ fn spell_contracts() {
             .expect("HTML")
             .contains("Outside")
     );
+    let output = run("spell-normal", &["spell", "show", "900001-invented-spell"]);
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(!text.contains("Raw HTML:"));
+    assert!(!text.contains("Unknown invented element"));
+    for expected in [
+        "Casting time: 1 invented action",
+        "Range area: 30 invented feet",
+        "Available for: Invented Class",
+        "Description HTML:",
+        "Synthetic spell detail.",
+    ] {
+        assert!(text.contains(expected), "{text}");
+    }
+    assert!(!text.contains("<strong>"));
+    let output = run(
+        "spell-normal",
+        &[
+            "spell",
+            "show",
+            "900001-invented-spell",
+            "--include-raw-html",
+        ],
+    );
+    assert!(output.status.success());
+    let text = String::from_utf8_lossy(&output.stdout);
+    assert!(text.contains("Raw HTML: <section"));
+    assert!(text.contains("<p>Synthetic <strong>spell</strong> detail.</p>"));
+    for format in ["table", "tsv"] {
+        let output = run(
+            "spell-normal",
+            &["spell", "show", "900001-invented-spell", "-o", format],
+        );
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        let text = String::from_utf8_lossy(&output.stdout);
+        let header = text.lines().next().expect("headers");
+        assert!(header.contains("raw"));
+        assert!(!header.contains("raw_html"));
+        assert!(text.contains("1 invented action"), "{text}");
+    }
     failure(
         run("spell-denied", &["spell", "list", "-o", "json"]),
         1,
@@ -1104,26 +1163,26 @@ fn readable_output_contracts() {
     }
     let json = read_json(&run(
         "spell-normal",
-        &["spell", "show", "900001-invented-spell", "-o", "json"],
-    ));
-    let output = run(
-        "spell-normal",
         &[
             "spell",
             "show",
             "900001-invented-spell",
+            "--include-raw-html",
             "-o",
-            "html",
-            "--html-field",
-            "source_url",
+            "json",
         ],
-    );
-    assert!(output.status.success());
-    assert!(output.stderr.is_empty());
-    assert_eq!(
-        String::from_utf8_lossy(&output.stdout),
-        format!("{}\n", json["raw_html"].as_str().expect("HTML"))
-    );
+    ));
+    for extra in [vec![], vec!["--html-field", "source_url"]] {
+        let mut command = vec!["spell", "show", "900001-invented-spell", "--output", "html"];
+        command.extend(extra);
+        let output = run("spell-normal", &command);
+        assert!(output.status.success());
+        assert!(output.stderr.is_empty());
+        assert_eq!(
+            String::from_utf8_lossy(&output.stdout),
+            format!("{}\n", json["raw_html"].as_str().expect("HTML"))
+        );
+    }
     for format in ["text", "markdown"] {
         let output = run(
             "spell-normal",
@@ -1131,7 +1190,12 @@ fn readable_output_contracts() {
         );
         let text = String::from_utf8_lossy(&output.stdout);
         assert!(output.status.success(), "{text}");
-        assert!(text.contains("Unknown invented element"));
+        assert_eq!(
+            text.contains("Unknown invented element"),
+            format == "markdown"
+        );
+        assert!(!text.contains("Raw HTML:"));
+        assert!(!text.contains("**Raw HTML:**"));
         assert!(!text.contains("<section"));
         assert!(!text.contains("Outside"));
     }

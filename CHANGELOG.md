@@ -7,6 +7,18 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- Structured spell detail under `raw` in CLI and MCP JSON, extracted from the
+  checked HTML page without inferring rules or access codes. Displayed stat
+  values stay strings. Optional `raw_html` preserves the selected subtree and
+  unknown fields; HTML and Markdown need no additional page request.
+  Spell help now includes filter-specific descriptions, copyable examples,
+  and explicit continuation instructions. All existing spell filters, page
+  numbers, complete ID/slug keys, and output-format defaults remain unchanged.
+  Spell errors distinguish browser challenges, missing detail containers,
+  and active or protected selected markup without disclosing page content.
+  Spell detail excludes one exact same-spell `cobaltVcmList` registration
+  script as page bookkeeping. It does not execute the script or infer access.
+  Other scripts, external sources, and protected selected markup still fail.
 - Matching subject-first developer tasks in Copilot App and VS Code for native
   build/run, offline checks, documentation, dependencies, and Docker.
   A shared native run helper builds both binaries, selects Cargo's reported
@@ -542,6 +554,10 @@ and [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- Spell CLI and MCP output omit `raw_html` by default. CLI
+  `--include-raw-html` and MCP `include_raw_html: true` include the actual
+  HTML string. Readable output no longer repeats converted source text under
+  `Raw HTML`. Explicit `--output html` remains available.
 - Add `monster show --raw` and matching MCP `raw: true` as an explicit backup
   without lookup mapping or its configuration request. Keep the existing detail
   envelope and unchanged `raw`; omit `resolved`. Default mapping, access checks,

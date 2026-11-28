@@ -45,7 +45,7 @@ fn document(bytes: &[u8]) -> Result<Html, Failure> {
         .next()
         .is_some()
     {
-        return Err(Failure::UnsupportedOperation);
+        return Err(Failure::BrowserChallenge);
     }
     Ok(document)
 }
@@ -413,12 +413,12 @@ pub(super) fn list(bytes: &[u8], query: &SpellQuery) -> Result<Value, Failure> {
     )
 }
 
-/// Preserves unknown selected detail elements without trusting or executing HTML.
+/// Projects displayed spell fields and preserves unknown selected HTML without interpreting rules.
 pub(super) fn show(bytes: &[u8], slug: &str) -> Result<Value, Failure> {
-    let document = document(bytes)?;
+    let mut document = document(bytes)?;
     let containers = selector(".spell-details")?;
     let Some(container) = document.select(&containers).next() else {
-        return Err(Failure::UnsupportedOperation);
+        return Err(Failure::UnsupportedDetailPage);
     };
     let canonical = one(document.select(&selector("link[rel='canonical']")?))?;
     if canonical.value().attr("href") != Some(format!("{WEBSITE}/spells/{slug}").as_str()) {
@@ -434,16 +434,107 @@ pub(super) fn show(bytes: &[u8], slug: &str) -> Result<Value, Failure> {
     }
     one(container.select(&selector("section.more-info")?))?;
     let content = one(container.select(&selector("section.detail-content")?))?;
-    for marker in [
-        ".ddb-statblock.ddb-statblock-spell",
-        ".more-info-content",
-        ".available-for",
-        ".spell-source",
-    ] {
-        one(content.select(&selector(marker)?))?;
+    one(content.select(&selector(".ddb-statblock.ddb-statblock-spell")?))?;
+    let (id, _) = slug.split_once('-').ok_or(Failure::InvalidInput)?;
+    let registration = registration_script(content, id)?.map(|node| node.id());
+    check_detail_content(content)?;
+    let content_id = content.id();
+    if let Some(registration) = registration {
+        document
+            .tree
+            .get_mut(registration)
+            .ok_or(Failure::InvalidResponse)?
+            .detach();
     }
-    for marker in [".more-info-content", ".available-for", ".spell-source"] {
-        text(one(content.select(&selector(marker)?))?)?;
+    let content = document
+        .tree
+        .get(content_id)
+        .and_then(ElementRef::wrap)
+        .ok_or(Failure::InvalidResponse)?;
+    let name = text(one(document.select(&selector("h1.page-title")?))?)?;
+    Ok(
+        json!({"id":id,"slug":slug,"name":name,"source_url":format!("{WEBSITE}/spells/{slug}"),"raw":detail_fields(content)?,"raw_html":content.html()}),
+    )
+}
+
+/// Recognizes at most one exact same-spell Cobalt registration without executing it.
+///
+/// Rejects external scripts, other code or content types, and repeated registrations.
+/// The registration is page bookkeeping, not a content-access grant.
+fn registration_script<'a>(
+    content: ElementRef<'a>,
+    id: &str,
+) -> Result<Option<ElementRef<'a>>, Failure> {
+    let script_selector = selector("script")?;
+    let mut scripts = content.select(&script_selector);
+    let Some(script) = scripts.next() else {
+        return Ok(None);
+    };
+    if scripts.next().is_some()
+        || script.value().attr("src").is_some()
+        || !matches!(
+            script.value().attr("type"),
+            None | Some("text/javascript" | "application/javascript")
+        )
+    {
+        return Err(Failure::UnsupportedDetailContent("script"));
+    }
+    let code: String = script
+        .text()
+        .flat_map(str::chars)
+        .filter(|character| !character.is_ascii_whitespace())
+        .collect();
+    let expected = format!(
+        "window.cobaltVcmList=window.cobaltVcmList||[];window.cobaltVcmList.push({{type:1118725998,id:{id}}});"
+    );
+    if code != expected {
+        return Err(Failure::UnsupportedDetailContent("script"));
+    }
+    Ok(Some(script))
+}
+
+/// Rejects nonscript active or protected elements with fixed, content-free marker names.
+///
+/// Script validation is handled separately before this check.
+fn check_detail_content(content: ElementRef<'_>) -> Result<(), Failure> {
+    for (pattern, marker) in [
+        ("form", "form"),
+        ("iframe", "iframe"),
+        ("object", "object"),
+        ("embed", "embed"),
+        ("nav", "nav"),
+        ("[id*='comment'], [class*='comment']", "comment marker"),
+        ("[id*='account'], [class*='account']", "account marker"),
+        ("[class*='purchase']", "purchase marker"),
+        ("[class*='unlock']", "unlock marker"),
+        ("[class*='login']", "login marker"),
+    ] {
+        if content.select(&selector(pattern)?).next().is_some() {
+            return Err(Failure::UnsupportedDetailContent(marker));
+        }
+    }
+    Ok(())
+}
+
+/// Extracts required displayed values and description markup from one selected subtree.
+///
+/// Rejects missing, ambiguous, or empty fields; values do not establish rules or access.
+fn detail_fields(content: ElementRef<'_>) -> Result<Value, Failure> {
+    let description = one(content.select(&selector(".more-info-content")?))?;
+    text(description)?;
+    let mut raw = serde_json::Map::new();
+    raw.insert(
+        "description_html".to_owned(),
+        json!(description.inner_html()),
+    );
+    for (field, marker) in [
+        ("available_for", ".available-for"),
+        ("source", ".spell-source"),
+    ] {
+        raw.insert(
+            field.to_owned(),
+            json!(text(one(content.select(&selector(marker)?))?)?),
+        );
     }
     for field in [
         "level",
@@ -457,14 +548,12 @@ pub(super) fn show(bytes: &[u8], slug: &str) -> Result<Value, Failure> {
     ] {
         let item = one(content.select(&selector(&format!(".ddb-statblock-item-{field}"))?))?;
         text(one(item.select(&selector(".ddb-statblock-item-label")?))?)?;
-        text(one(item.select(&selector(".ddb-statblock-item-value")?))?)?;
+        raw.insert(
+            field.replace('-', "_"),
+            json!(text(one(
+                item.select(&selector(".ddb-statblock-item-value")?)
+            )?)?),
+        );
     }
-    if content.select(&selector("script, form, iframe, object, embed, nav, [id*='comment'], [class*='comment'], [id*='account'], [class*='account'], [class*='purchase'], [class*='unlock'], [class*='login']")?).next().is_some() {
-        return Err(Failure::UnsupportedOperation);
-    }
-    let name = text(one(document.select(&selector("h1.page-title")?))?)?;
-    let (id, _) = slug.split_once('-').ok_or(Failure::InvalidInput)?;
-    Ok(
-        json!({"id":id,"slug":slug,"name":name,"source_url":format!("{WEBSITE}/spells/{slug}"),"raw_html":content.html()}),
-    )
+    Ok(Value::Object(raw))
 }

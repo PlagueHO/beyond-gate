@@ -327,6 +327,47 @@ Native cookie behavior, denied HTML, authenticated API responses, ownership,
 sharing, and unchecked filter combinations remain unverified.
 See the [implemented contract](api-catalog.md#spell-read-contract).
 
+### Spell API follow-up and structured HTML
+
+The [#126](https://github.com/PlagueHO/beyond-gate/issues/126) investigation did
+not establish a standalone spell API search, pagination, selected-detail, or
+access contract. This is not proof that no API exists.
+The user reported document navigation, rather than Fetch/XHR, for an inspected
+`/spells` filter submission. Public `waterdeep` and `cobalt` script inspection
+did not establish another spell route. A credential-free `/characters` read
+returned HTTP 302; discovery stopped without following it.
+
+The user supplied the current public character bundle,
+`main.14b51b19.js`. A separately approved credential-free read returned
+5,815,801 bytes with SHA-256
+`85b2d7d466a81abb683ef423fa6cde4e671b6225057cf8ffeafb212771e21dad`.
+It constructs class-context ordinary, always-known, and always-prepared
+spell reads. No constructed API route was requested.
+
+The inspected [importer spell reader][spell-importer-reader] uses a third-party
+class-spell proxy and local filtering, not a verified standalone API.
+The [independent endpoint notes][spell-endpoint-notes] also report HTML spell
+search. Their underlying full atlas was not inspected; observations from a
+signed-in browser without a bearer do not prove credential-free access.
+Their static CMS feed candidate does not establish bounded search or detail.
+No proxy or CMS feed was requested. Alternate SRD sources are not substitutes
+for authorized D&D Beyond content.
+
+The user selected HTML retrieval with structured JSON, keeping all existing
+spell filters, `page`/`next_page`, and complete ID/slug keys.
+`raw` now projects displayed stat strings, description HTML, available-class
+text, and source text. Optional `raw_html` retains the checked subtree and unknown
+fields, excluding one exact same-spell Cobalt registration as page bookkeeping.
+CLI `--include-raw-html` and MCP `include_raw_html: true` expose this HTML string.
+Both forms come from one read. No rules or monster access codes are inferred.
+The user confirmed one native selected spell read after this correction.
+Browser inspection of that failure was refused; no browser page content was read.
+Offline checks use synthetic data; broader native compatibility, sharing,
+and unchecked live filter enforcement remain unverified.
+
+[spell-importer-reader]: https://github.com/MrPrimate/ddb-importer/blob/11a4362937ecd800728ad42956abaf7ea5d33ab7/src/muncher/spells.ts#L62-L105
+[spell-endpoint-notes]: https://github.com/eschatus/beyond-mcp/blob/29d65493831b61bf4ae316f18cac9debd01f64fc/docs/ddb-endpoint-atlas-notes.md
+
 ## Scope and evidence
 
 The signed-in browser was used for safe request metadata and public client inspection.

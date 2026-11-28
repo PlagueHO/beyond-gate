@@ -244,8 +244,22 @@ Do not enter your password, cookies, or tokens in command arguments or chat."#,
                                     .value_parser(ValueParser::new(valid_spell_slug))
                                     .help("Spell key shown by `spell list`; copy it exactly"),
                             ),
+                    )
+                    .arg(
+                        Arg::new("include-raw-html")
+                            .long("include-raw-html")
+                            .action(ArgAction::SetTrue)
+                            .help("Include the actual raw_html string; omitted by default"),
                     ),
-                    "Copy the complete spell key from `spell list`. You do not need to enter a web address.",
+                    "Copy the complete `slug` from `spell list`; it is the spell key, not the numeric `id` alone. You do not need to enter a web address.\n\
+                     The command checks the selected page again and returns `raw` (displayed values, not an API response). Full source HTML is omitted by default. Use --include-raw-html to add the actual `raw_html` string, not another converted description. Use --output html for HTML alone. One exact same-spell Cobalt registration script is excluded as page bookkeeping, never executed or used as an access grant. Other scripts remain unsupported. No rules or access codes are inferred.\n\
+                     Examples (invented spell key):\n\
+                       beyond-gate spell show 900001-invented-spell\n\
+                       beyond-gate spell show 900001-invented-spell --output json\n\
+                       beyond-gate spell show 900001-invented-spell --include-raw-html -o json\n\
+                       beyond-gate spell show 900001-invented-spell --output markdown\n\
+                       beyond-gate spell show 900001-invented-spell --output html --html-field source_url\n\
+                     HTML and Markdown use the same selected content without another page request.",
                 )),
         )
         .subcommand(
@@ -893,13 +907,19 @@ fn browser_setup(name: &'static str, about: &'static str) -> Command {
         )
 }
 
-/// Builds the shared spell filter surface without character-context API selectors.
+/// Builds discoverable spell filters with explicit website continuation and selector meanings.
 fn spell_list() -> Command {
     let mut command = protected_action_with_details(
         list_options(Command::new("list").about("Search one page of spells")),
-        "Use the `next_page` value in the output with `--page` to get another page. The CLI does not get more pages automatically.\n\
-         Filter option IDs are numbers assigned to choices in D&D Beyond's filter menus; they are not spell IDs. Most accept up to 50 values; the combined limit is 256. Level is 0 through 9 and school is 3 through 10.\n\
-         Level 0 means a cantrip.",
+        "List returns one website page, not the complete catalog. Use `pagination.next_page` with `--page` and repeat the same filters to continue. A null next_page means no next page. The CLI does not get more pages automatically or accept monster-style --skip/--take.\n\
+         Copy the complete `slug` from a list row to `spell show`. The numeric `id` alone is not a spell key.\n\
+         Filter option IDs are numbers assigned to choices in D&D Beyond's filter menus; they are not spell IDs or access grants. Repeat a flag for distinct IDs. Most allow 50 values; the combined limit is 256. Current and legacy class IDs stay distinct. Level is 0 through 9 and school is 3 through 10.\n\
+         Boolean flags take true or false; omission leaves the restriction unset. Partnered content defaults to no.\n\
+         Examples (invented filter IDs):\n\
+           beyond-gate spell list --output json\n\
+           beyond-gate spell list --class-id 17 --level 0 --ritual true -o json\n\
+           beyond-gate spell list --class-id 17 --level 0 --ritual true --page 2 -o json\n\
+         Use the returned next_page instead of assuming page 2 exists. Use --help to see every filter.",
     )
     .arg(
         Arg::new("name")
@@ -941,18 +961,44 @@ fn spell_list() -> Command {
                 .action(ArgAction::Append)
                 .help(match field {
                     "levels" => "Spell level; 0 means a cantrip. Repeat to choose more than one.",
-                    "school_ids" => "School option number from 3 to 10",
-                    _ => "Number assigned to a D&D Beyond filter choice; repeat to choose more than one",
+                    "class_ids" => "Class filter option ID; current and legacy IDs stay distinct",
+                    "school_ids" => "School filter option ID from 3 to 10",
+                    "casting_time_ids" => "Casting-time filter option ID; repeat for more choices",
+                    "attack_type_ids" => "Attack-type filter option ID; repeat for more choices",
+                    "save_ids" => "Required-save filter option ID; repeat for more choices",
+                    "damage_type_ids" => "Damage-type filter option ID; repeat for more choices",
+                    "condition_ids" => "Condition filter option ID; repeat for more choices",
+                    "tag_ids" => "Spell-tag filter option ID; repeat for more choices",
+                    "source_ids" => "Source filter option ID, not ownership evidence",
+                    "source_category_ids" => {
+                        "Source-category filter option ID; repeat for more choices"
+                    }
+                    _ => "D&D Beyond filter option ID; repeat for more choices",
                 }),
         );
     }
-    for (_, flag, _) in beyond_gate_core::spell::query::BOOL_FILTERS {
+    for (field, flag, _) in beyond_gate_core::spell::query::BOOL_FILTERS {
         command = command.arg(
             Arg::new(flag)
                 .long(flag)
                 .value_name("BOOL")
                 .value_parser(value_parser!(bool))
-                .help("Set to true or false; omit to include either"),
+                .help(match field {
+                    "verbal" => {
+                        "Require (true) or exclude (false) a verbal component; omit for either"
+                    }
+                    "somatic" => {
+                        "Require (true) or exclude (false) a somatic component; omit for either"
+                    }
+                    "material" => {
+                        "Require (true) or exclude (false) a material component; omit for either"
+                    }
+                    "concentration" => {
+                        "Require (true) or exclude (false) concentration; omit for either"
+                    }
+                    "ritual" => "Require (true) or exclude (false) ritual spells; omit for either",
+                    _ => "Set to true or false; omit to include either",
+                }),
         );
     }
     command
@@ -962,7 +1008,7 @@ fn spell_list() -> Command {
 fn valid_spell_slug(value: &str) -> Result<String, &'static str> {
     beyond_gate_core::spell::validate_slug(value)
         .map(|()| value.to_owned())
-        .map_err(|_| "slug must be a complete canonical numeric-ID/slug key within 256 ASCII bytes")
+        .map_err(|_| "copy the complete spell key (slug) from `spell list`; use a canonical numeric-ID/slug key within 256 ASCII bytes")
 }
 
 /// Checks literal spell searches before protected storage or network access.
